@@ -115,9 +115,17 @@ function flushPromises() {
 
 export function loadHubScripts() {
    runInWindow(readHubFile('shared/storage.js'));
+   runInWindow(readHubFile('shared/hub-utils.js'));
+   runInWindow(readHubFile('shared/hub-progress.js'));
    runInWindow(readHubFile('shared/router.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-links.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-timed.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-render.js'));
    runInWindow(readHubFile('apps/dailies/dailies.js'));
    window.__dailiesScriptLoaded = true;
+   window.__dailiesModulesLoaded = true;
    runInWindow(readHubFile('apps/dailies/load.js'));
 }
 
@@ -155,18 +163,18 @@ export async function setupHub(options = {}) {
             await waitForDailiesReady();
          }
       },
-      getCollapsibles: () => Array.from(document.querySelectorAll('#app-root .collapsible')),
+      getLinkTiles: () => Array.from(document.querySelectorAll('#app-root .daily-tile')),
       getRoutePath: () => window.HubRouter.getRoutePath(),
    };
 }
 
 async function waitForDailiesReady(attempts = 50) {
    for (let i = 0; i < attempts; i++) {
-      const collapsible = document.querySelector('#app-root .collapsible.active');
-      if (collapsible) {
-         return collapsible;
+      const grid = document.querySelector('#app-root .dailies-grid');
+      if (grid && grid.querySelector('.daily-tile')) {
+         return grid;
       }
       await flushPromises();
    }
-   throw new Error('Timed out waiting for dailies init (collapsible.active)');
+   throw new Error('Timed out waiting for dailies init (daily-tile)');
 }

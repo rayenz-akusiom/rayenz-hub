@@ -1,23 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-test('dailies collapsibles work after navigating away and back', async ({ page }) => {
+test('dailies link grid works after navigating away and back', async ({ page }) => {
    await page.goto('/');
 
-   const collapsible = page.locator('#app-root .collapsible').first();
-   await expect(collapsible).toBeVisible();
-   await expect(collapsible).toHaveClass(/active/);
+   const firstTile = page.locator('#app-root .daily-tile').first();
+   await expect(firstTile).toBeVisible();
 
    await page.getByRole('link', { name: 'Deck Review' }).click();
    await expect(page.locator('.deck-review-app')).toBeVisible();
 
    await page.getByRole('link', { name: 'Dailies' }).click();
-   const collapsibleAfterReturn = page.locator('#app-root .collapsible').first();
-   await expect(collapsibleAfterReturn).toBeVisible();
-   await expect(collapsibleAfterReturn).toHaveClass(/active/);
-
-   await collapsibleAfterReturn.click();
-   await expect(collapsibleAfterReturn).not.toHaveClass(/active/);
-
-   await collapsibleAfterReturn.click();
-   await expect(collapsibleAfterReturn).toHaveClass(/active/);
+   const tileAfterReturn = page.locator('#app-root .daily-tile').first();
+   await expect(tileAfterReturn).toBeVisible();
+   await expect(page.locator('#app-root .dailies-grid')).toBeVisible();
 });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Rayenz Dailies Page Augmentation
 // @namespace    neopets.dailies
-// @version      2026-06-21-3
+// @version      2026-07-04-1
 // @description  Augments Rayenz's custom Neopets dailies page with cross-origin Neopets GET/POST support. For local dev, serve rayenz-akusiom over http://localhost (file:// is blocked by the browser).
 // @author       rayenz-akusiom
 // @match        https://rayenz-akusiom.github.io/rayenz-akusiom/*
@@ -14,6 +14,7 @@
 // @connect      neopets.com
 // @connect      www.neopets.com
 // @connect      pets.neopets.com
+// @connect      itemdb.com.br
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -79,6 +80,36 @@
                         return;
                     }
                     resolve(wrapResponse(response, url));
+                },
+                onerror: function () {
+                    reject(new Error('Network error'));
+                },
+            });
+        });
+    };
+
+    page.__bridgeFetch = function (url, options) {
+        options = options || {};
+        const method = options.method || 'GET';
+        const headers = options.headers || {};
+        return new Promise(function (resolve, reject) {
+            GM.xmlHttpRequest({
+                method: method,
+                url: url,
+                headers: headers,
+                data: options.body || undefined,
+                onload: function (response) {
+                    const status = response.status;
+                    resolve({
+                        ok: status >= 200 && status < 300,
+                        status: status,
+                        text: function () {
+                            return Promise.resolve(response.responseText || '');
+                        },
+                        json: function () {
+                            return Promise.resolve(JSON.parse(response.responseText || '{}'));
+                        },
+                    });
                 },
                 onerror: function () {
                     reject(new Error('Network error'));

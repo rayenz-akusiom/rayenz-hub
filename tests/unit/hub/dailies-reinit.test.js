@@ -50,10 +50,11 @@ describe('dailies re-init after navigation', () => {
       expect(mainCol.querySelector('.dailies-dailies-section .daily-tile')).toBeTruthy();
       expect(sidebar.querySelector('.daily-tile')).toBeTruthy();
       expect(mainCol.querySelector('.dailies-wishlists-section')).toBeTruthy();
+      expect(mainCol.querySelectorAll('.wishlist-card').length).toBeGreaterThanOrEqual(1);
 
-      const loadingNote = mainCol.querySelector('.dailies-wishlists-section .text-small');
+      const loadingNote = mainCol.querySelector('.wishlist-card-message');
       if (loadingNote) {
-         expect(loadingNote.textContent).toMatch(/Loading|Set ItemDB key|List link/);
+         expect(loadingNote.textContent).toMatch(/Loading|Install the Rayenz Dailies|session expired|No tradeable/);
       }
    });
 

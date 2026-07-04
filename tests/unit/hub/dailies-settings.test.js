@@ -24,4 +24,32 @@ describe('dailies settings filters', () => {
       expect(ids).not.toContain('swashbuckling');
       expect(ids).toContain('battledome');
    });
+
+   it('parses ItemDB list URLs', () => {
+      const parsed = window.DailiesSettings.parseItemDbListUrl(
+         'https://itemdb.com.br/lists/rayenz/gourmet-food-checklist'
+      );
+      expect(parsed).toEqual({ user: 'rayenz', slug: 'gourmet-food-checklist' });
+   });
+
+   it('returns default wishlists when settings omit wishlists', () => {
+      const wishlists = window.DailiesSettings.getWishlists({ faerieQuest: 'illusen' });
+      expect(wishlists).toHaveLength(4);
+      expect(wishlists[0].slug).toBe('all-collectibles-checklist');
+      expect(wishlists[0].user).toBe('rayenz');
+   });
+
+   it('uses saved wishlists from settings', () => {
+      const wishlists = window.DailiesSettings.getWishlists({
+         wishlists: [{
+            label: 'Custom',
+            listUrl: 'https://itemdb.com.br/lists/testuser/my-list',
+            img: 'https://example/icon.gif'
+         }]
+      });
+      expect(wishlists).toHaveLength(1);
+      expect(wishlists[0].label).toBe('Custom');
+      expect(wishlists[0].user).toBe('testuser');
+      expect(wishlists[0].slug).toBe('my-list');
+   });
 });

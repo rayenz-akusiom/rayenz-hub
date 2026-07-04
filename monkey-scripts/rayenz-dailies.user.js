@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Rayenz Dailies Page Augmentation
 // @namespace    neopets.dailies
-// @version      2026-07-04-1
-// @description  Augments Rayenz's custom Neopets dailies page with cross-origin Neopets GET/POST support. For local dev, serve rayenz-akusiom over http://localhost (file:// is blocked by the browser).
+// @version      2026-07-04-2
+// @description  Augments Rayenz's custom Neopets dailies page with cross-origin Neopets GET/POST and ItemDB wishlist API access via session cookies. For local dev, serve rayenz-akusiom over http://localhost (file:// is blocked by the browser).
 // @author       rayenz-akusiom
 // @match        https://rayenz-akusiom.github.io/rayenz-akusiom/*
 // @match        http://127.0.0.1/*
@@ -100,14 +100,24 @@
                 data: options.body || undefined,
                 onload: function (response) {
                     const status = response.status;
+                    const responseText = response.responseText || '';
                     resolve({
                         ok: status >= 200 && status < 300,
                         status: status,
+                        responseText: responseText,
                         text: function () {
-                            return Promise.resolve(response.responseText || '');
+                            return Promise.resolve(responseText);
                         },
                         json: function () {
-                            return Promise.resolve(JSON.parse(response.responseText || '{}'));
+                            if (!responseText) {
+                                return Promise.reject(new Error('ItemDB empty response (' + status + ')'));
+                            }
+                            try {
+                                return Promise.resolve(JSON.parse(responseText));
+                            } catch (err) {
+                                var snippet = responseText.slice(0, 120);
+                                return Promise.reject(new Error('Invalid JSON (' + status + '): ' + snippet));
+                            }
                         },
                     });
                 },

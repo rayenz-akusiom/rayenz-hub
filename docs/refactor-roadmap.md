@@ -42,7 +42,7 @@ Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cur
 **Remaining (optional polish):**
 
 - [x] **ItemDB read-path cleanup** — render `WishlistItem` directly; colocate `localSkipIds` in v2 cache payload instead of separate `rayenz-itemdb-local-hidden` key
-- [ ] **Deploy** — commit, push, `npm run deploy:hub` when satisfied in production
+- [x] **Deploy** — commit, push, `npm run deploy:hub` when satisfied in production
 
 ### 1.2 Wishing Well automation — normalized state (done)
 

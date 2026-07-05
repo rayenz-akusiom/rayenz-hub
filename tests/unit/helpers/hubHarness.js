@@ -122,6 +122,7 @@ export function loadHubScripts() {
    runInWindow(readHubFile('apps/dailies/dailies-links.js'));
    runInWindow(readHubFile('apps/dailies/dailies-timed.js'));
    runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
+   runInWindow(readHubFile('apps/dailies/dailies-wishing-well.js'));
    runInWindow(readHubFile('apps/dailies/dailies-render.js'));
    runInWindow(readHubFile('apps/dailies/dailies.js'));
    window.__dailiesScriptLoaded = true;

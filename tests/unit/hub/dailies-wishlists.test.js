@@ -21,11 +21,12 @@ describe('dailies wishlist cards', () => {
             img: 'https://images.neopets.com/items/boo_test.gif'
          },
          item: {
+            itemIid: 42,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',
-            price: { value: 1500 },
-            findAt: { shopWizard: 'https://www.neopets.com/shops/wizard.phtml?string=Cheap+Book' }
+            priceNp: 1500,
+            shopWizardUrl: 'https://www.neopets.com/shops/wizard.phtml?string=Cheap+Book'
          },
          error: null
       });
@@ -54,12 +55,12 @@ describe('dailies wishlist cards', () => {
             img: 'https://images.neopets.com/items/boo_test.gif'
          },
          item: {
-            internal_id: 42,
+            itemIid: 42,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',
-            price: { value: 1500 },
-            findAt: { shopWizard: 'https://www.neopets.com/shops/wizard.phtml?string=Cheap+Book' }
+            priceNp: 1500,
+            shopWizardUrl: 'https://www.neopets.com/shops/wizard.phtml?string=Cheap+Book'
          },
          error: null,
          cachedAt: Date.now() - 2 * 60 * 60 * 1000
@@ -123,5 +124,21 @@ describe('dailies wishlist cards', () => {
          }
       ]);
       expect(html).toContain('Loading…');
+   });
+
+   it('shows waiting-for-cache message on wishlist card', () => {
+      const html = window.DailiesRender.renderWishlistCard({
+         list: {
+            id: 'books-checklist',
+            label: 'Books',
+            listUrl: 'https://itemdb.com.br/lists/rayenz/book-award-checklist-2',
+            slug: 'book-award-checklist-2',
+            user: 'rayenz',
+            img: 'https://images.neopets.com/items/boo_test.gif'
+         },
+         item: null,
+         error: 'waiting-for-cache'
+      });
+      expect(html).toContain('not cached yet');
    });
 });

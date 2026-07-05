@@ -52,4 +52,20 @@ describe('dailies settings filters', () => {
       expect(wishlists[0].user).toBe('testuser');
       expect(wishlists[0].slug).toBe('my-list');
    });
+
+   it('normalizes wishlists on save', () => {
+      window.DailiesSettings.saveSettings({
+         faerieQuest: 'illusen',
+         schools: {},
+         wishlists: [{
+            label: 'Custom',
+            listUrl: 'https://itemdb.com.br/lists/testuser/my-list',
+            img: 'https://example/icon.gif'
+         }]
+      });
+      const saved = window.HubStorage.loadDailiesSettings();
+      expect(saved.wishlists[0].user).toBe('testuser');
+      expect(saved.wishlists[0].slug).toBe('my-list');
+      expect(saved.wishlists[0].id).toBe('my-list');
+   });
 });

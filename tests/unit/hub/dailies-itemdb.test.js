@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
 
 const NOW = 1_700_000_000_000;
@@ -9,6 +9,15 @@ function makeList(id, slug) {
 
 function seedCache(list, info, itemdata, fetchedAt) {
    window.DailiesItemdb.saveListCache(list, { info, itemdata, fetches: ['list-info', 'itemdata'] }, fetchedAt);
+}
+
+function normalizeItems(info, itemdata) {
+   return window.DailiesItemdb.normalizeWishlistFromApi({ info, itemdata, fetches: [] }).items;
+}
+
+function pickFromRaw(info, itemdata, options) {
+   const items = normalizeItems(info, itemdata);
+   return window.DailiesItemdb.pickFirstWishlistItem(items, options);
 }
 
 describe('dailies itemdb picker', () => {
@@ -28,8 +37,9 @@ describe('dailies itemdb picker', () => {
          { internal_id: 2, name: 'Cheap Item', specialType: 'trading', isNC: false, price: { value: 1200 }, findAt: { shopWizard: 'https://example/ssw' } },
          { internal_id: 3, name: 'Mid Item', specialType: 'trading', isNC: false, price: { value: 8000 } }
       ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      const picked = pickFromRaw(info, itemdata);
       expect(picked.name).toBe('Cheap Item');
+      expect(picked.shopWizardUrl).toBe('https://example/ssw');
    });
 
    it('skips hidden cheapest item and picks next cheapest visible item', () => {
@@ -41,7 +51,7 @@ describe('dailies itemdb picker', () => {
          { internal_id: 1, name: 'Hidden Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
          { internal_id: 2, name: 'Visible Mid', specialType: 'trading', isNC: false, price: { value: 500 } }
       ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      const picked = pickFromRaw(info, itemdata);
       expect(picked.name).toBe('Visible Mid');
    });
 
@@ -54,7 +64,7 @@ describe('dailies itemdb picker', () => {
          { internal_id: 1, name: 'Hidden Item', specialType: 'trading', isNC: false, price: { value: 100 } },
          { internal_id: 5, name: 'NC Item', specialType: 'trading', isNC: true, price: { value: 50 } }
       ];
-      expect(window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata)).toBeNull();
+      expect(pickFromRaw(info, itemdata)).toBeNull();
    });
 
    it('treats isHidden false and undefined as visible', () => {
@@ -90,7 +100,7 @@ describe('dailies itemdb picker', () => {
       expect(merged[1].isHidden).toBe(false);
    });
 
-   it('debug trace marks hidden cheapest with skipReason hidden', () => {
+   it('normalize excludes hidden items from cached list', () => {
       const info = [
          { item_iid: 1, order: 0, isHidden: true },
          { item_iid: 2, order: 1, isHidden: false }
@@ -99,10 +109,9 @@ describe('dailies itemdb picker', () => {
          { internal_id: 1, name: 'Hidden Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
          { internal_id: 2, name: 'Visible Mid', specialType: 'trading', isNC: false, price: { value: 500 } }
       ];
-      const result = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata, { debug: true });
-      expect(result.item.name).toBe('Visible Mid');
-      expect(result.trace[0].skipReason).toBe('hidden');
-      expect(result.trace.find((row) => row.name === 'Visible Mid').skipReason).toBe('picked');
+      const items = normalizeItems(info, itemdata);
+      expect(items).toHaveLength(1);
+      expect(items[0].name).toBe('Visible Mid');
    });
 
    it('falls back to first eligible item when none have prices', () => {
@@ -114,11 +123,11 @@ describe('dailies itemdb picker', () => {
          { internal_id: 2, name: 'First Tradeable', specialType: 'trading', isNC: false },
          { internal_id: 3, name: 'Second Tradeable', specialType: 'trading', isNC: false }
       ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      const picked = pickFromRaw(info, itemdata);
       expect(picked.name).toBe('First Tradeable');
    });
 
-   it('skips zero NP when a priced eligible item exists', () => {
+   it('sorts priced items before zero NP in normalized cache', () => {
       const info = [
          { item_iid: 1, order: 0, isHidden: false },
          { item_iid: 2, order: 1, isHidden: false }
@@ -127,8 +136,10 @@ describe('dailies itemdb picker', () => {
          { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
          { internal_id: 2, name: 'Priced Book', specialType: 'trading', isNC: false, price: { value: 500 } }
       ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
-      expect(picked.name).toBe('Priced Book');
+      const items = normalizeItems(info, itemdata);
+      expect(items[0].name).toBe('Priced Book');
+      expect(items[1].name).toBe('Zero NP Book');
+      expect(pickFromRaw(info, itemdata).name).toBe('Priced Book');
    });
 
    it('picks zero NP only when no priced eligible items remain', () => {
@@ -140,22 +151,17 @@ describe('dailies itemdb picker', () => {
          { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
          { internal_id: 2, name: 'No Price Book', specialType: 'trading', isNC: false }
       ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      const picked = pickFromRaw(info, itemdata);
       expect(picked.name).toBe('Zero NP Book');
    });
 
-   it('zero NP sorts after priced items in debug trace', () => {
-      const info = [
-         { item_iid: 1, order: 0, isHidden: false },
-         { item_iid: 2, order: 1, isHidden: false }
+   it('pickFirstWishlistItem skips local skip ids', () => {
+      const items = [
+         { itemIid: 1, name: 'Cheap', priceNp: 100 },
+         { itemIid: 2, name: 'Next', priceNp: 500 }
       ];
-      const itemdata = [
-         { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
-         { internal_id: 2, name: 'Priced Book', specialType: 'trading', isNC: false, price: { value: 500 } }
-      ];
-      const result = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata, { debug: true });
-      expect(result.trace[0].name).toBe('Priced Book');
-      expect(result.trace.find((row) => row.name === 'Zero NP Book').skipReason).toBe('zero-price');
+      const picked = window.DailiesItemdb.pickFirstWishlistItem(items, { skipItemIds: [1] });
+      expect(picked.name).toBe('Next');
    });
 
    it('503 maps to unavailable not rate limit', () => {
@@ -337,21 +343,137 @@ describe('dailies itemdb cache and skip', () => {
       runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
    });
 
-   it('cache read/write round-trips list data', () => {
+   it('cache read/write round-trips v2 normalized items', () => {
       const list = makeList('books', 'book-list');
       const payload = {
          info: [{ item_iid: 1, order: 0, isHidden: false }],
-         itemdata: [{ internal_id: 1, name: 'Cached Item', specialType: 'trading', isNC: false, price: { value: 100 } }],
+         itemdata: [{
+            internal_id: 1,
+            name: 'Cached Item',
+            specialType: 'trading',
+            isNC: false,
+            price: { value: 100 },
+            description: 'A book'
+         }],
          fetches: ['list-info', 'itemdata']
       };
       window.DailiesItemdb.saveListCache(list, payload, NOW);
       const loaded = window.DailiesItemdb.loadListCache(list);
       expect(loaded.fetchedAt).toBe(NOW);
-      expect(loaded.info).toEqual(payload.info);
-      expect(loaded.itemdata).toEqual(payload.itemdata);
+      expect(loaded.formatVersion).toBe(window.DailiesItemdb.CACHE_FORMAT_VERSION);
+      expect(loaded.localSkipIds).toEqual([]);
+      expect(loaded.items).toEqual([{
+         itemIid: 1,
+         name: 'Cached Item',
+         priceNp: 100,
+         image: null,
+         shopWizardUrl: null,
+         description: 'A book'
+      }]);
+      expect(loaded.info).toBeUndefined();
+      expect(loaded.itemdata).toBeUndefined();
    });
 
-   it('cold start fetches every list when any cache is missing', async () => {
+   it('migrates legacy local hidden into v2 cache', () => {
+      const list = makeList('books', 'book-list');
+      localStorage.setItem(
+         'rayenz-itemdb-local-hidden',
+         JSON.stringify({ books: [1, 2] })
+      );
+      window.DailiesItemdb.saveListCache(list, {
+         info: [{ item_iid: 1, order: 0, isHidden: false }],
+         itemdata: [{ internal_id: 1, name: 'Item', specialType: 'trading', isNC: false, price: { value: 100 } }],
+         fetches: ['list-info', 'itemdata']
+      }, NOW);
+
+      const loaded = window.DailiesItemdb.loadListCache(list);
+      expect(loaded.localSkipIds).toEqual([1, 2]);
+      expect(localStorage.getItem('rayenz-itemdb-local-hidden')).toBeNull();
+   });
+
+   it('rejects legacy v1 cache format', () => {
+      const list = makeList('books', 'book-list');
+      localStorage.setItem(
+         window.DailiesItemdb.cacheListKey(list),
+         JSON.stringify({
+            fetchedAt: NOW,
+            info: [{ item_iid: 1, isHidden: false }],
+            itemdata: [{ internal_id: 1, name: 'Old Item', specialType: 'trading', isNC: false, price: { value: 100 } }],
+            fetches: ['list-info', 'itemdata']
+         })
+      );
+      expect(window.DailiesItemdb.loadListCache(list)).toBeNull();
+   });
+
+   it('retries cache save without descriptions on quota failure', () => {
+      const list = makeList('books', 'big-list');
+      const payload = {
+         info: [{ item_iid: 1, order: 0, isHidden: false }],
+         itemdata: [{
+            internal_id: 1,
+            name: 'Big Item',
+            specialType: 'trading',
+            isNC: false,
+            price: { value: 100 },
+            description: 'Very long description'
+         }],
+         fetches: ['list-info', 'itemdata']
+      };
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalSetItem = localStorage.setItem.bind(localStorage);
+      let firstAttempt = true;
+      vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+         if (firstAttempt) {
+            firstAttempt = false;
+            throw new DOMException('QuotaExceededError');
+         }
+         originalSetItem(key, value);
+      });
+
+      const saved = window.DailiesItemdb.saveListCache(list, payload, NOW);
+
+      expect(saved).toBe(true);
+      expect(warnSpy).toHaveBeenCalled();
+      const loaded = window.DailiesItemdb.loadListCache(list);
+      expect(loaded.items[0].description).toBeUndefined();
+      expect(loaded.items[0].name).toBe('Big Item');
+
+      warnSpy.mockRestore();
+      vi.restoreAllMocks();
+   });
+
+   it('only fetches uncached list when others are cached', async () => {
+      const listA = makeList('books', 'book-a');
+      const listB = makeList('stamps', 'stamp-a');
+      const info = [{ item_iid: 1, order: 0, isHidden: false }];
+      const itemdata = [{ internal_id: 1, name: 'Cached Item', specialType: 'trading', isNC: false, price: { value: 100 } }];
+      seedCache(listA, info, itemdata, NOW);
+      const calls = [];
+
+      window.__bridgeFetch = async (url) => {
+         calls.push(url);
+         if (url.endsWith('/itemdata')) {
+            return { ok: true, status: 200, json: async () => [{ internal_id: 2, name: 'New Item', specialType: 'trading', isNC: false, price: { value: 200 } }] };
+         }
+         return {
+            ok: true,
+            status: 200,
+            json: async () => [{ name: 'List', itemInfo: [{ item_iid: 2, order: 0, isHidden: false }] }]
+         };
+      };
+
+      const results = await window.DailiesItemdb.loadListTargets([listA, listB], {}, { now: NOW });
+
+      const listInfoCalls = calls.filter((url) => url.includes('/lists/rayenz/') && !url.endsWith('/items') && !url.endsWith('/itemdata'));
+      expect(listInfoCalls).toHaveLength(1);
+      expect(listInfoCalls[0]).toContain('stamp-a');
+      expect(results[0].item.name).toBe('Cached Item');
+      expect(results[0].fromCache).toBe(true);
+      expect(results[1].refreshed).toBe(true);
+      delete window.__bridgeFetch;
+   });
+
+   it('fetches at most one uncached list per visit', async () => {
       const lists = [makeList('books', 'book-a'), makeList('stamps', 'stamp-a')];
       const calls = [];
 
@@ -367,10 +489,95 @@ describe('dailies itemdb cache and skip', () => {
          };
       };
 
-      await window.DailiesItemdb.loadListTargets(lists, {}, { now: NOW });
+      const results = await window.DailiesItemdb.loadListTargets(lists, {}, { now: NOW });
 
       const listInfoCalls = calls.filter((url) => url.includes('/lists/rayenz/') && !url.endsWith('/items') && !url.endsWith('/itemdata'));
-      expect(listInfoCalls).toHaveLength(2);
+      expect(listInfoCalls).toHaveLength(1);
+      expect(results[0].refreshed).toBe(true);
+      expect(results[1].error).toBe('waiting-for-cache');
+      delete window.__bridgeFetch;
+   });
+
+   it('429 sets rateLimitedUntil and skips further fetches', async () => {
+      const lists = [makeList('books', 'book-a'), makeList('stamps', 'stamp-a')];
+
+      window.__bridgeFetch = async () => ({
+         ok: false,
+         status: 429,
+         json: async () => ({ error: 'Too Many Requests' })
+      });
+
+      const results = await window.DailiesItemdb.loadListTargets(lists, {}, { now: NOW });
+
+      const meta = window.DailiesItemdb.loadRefreshMeta();
+      expect(meta.rateLimitedUntil).toBe(NOW + window.DailiesItemdb.RATE_LIMIT_BACKOFF_MS);
+      expect(results[0].error).toContain('rate limit');
+      expect(results[1].error).toBe('waiting-for-cache');
+      delete window.__bridgeFetch;
+   });
+
+   it('uncached list wins fetch slot over due TTL refresh', async () => {
+      const listA = makeList('books', 'book-a');
+      const listB = makeList('stamps', 'stamp-a');
+      const info = [{ item_iid: 1, order: 0, isHidden: false }];
+      const itemdata = [{ internal_id: 1, name: 'Stale Item', specialType: 'trading', isNC: false, price: { value: 100 } }];
+      const ttl = window.DailiesItemdb.CACHE_TTL_MS;
+      const gap = window.DailiesItemdb.MIN_REFRESH_GAP_MS;
+
+      seedCache(listA, info, itemdata, NOW - ttl - 1000);
+      window.DailiesItemdb.saveRefreshMeta({
+         lastAnyRefreshAt: NOW - gap - 1000,
+         lastRefreshAt: { 'books': NOW - ttl - 1000 },
+         rateLimitedUntil: 0
+      });
+
+      const calls = [];
+      window.__bridgeFetch = async (url) => {
+         calls.push(url);
+         if (url.endsWith('/itemdata')) {
+            return { ok: true, status: 200, json: async () => [{ internal_id: 2, name: 'Fresh Item', specialType: 'trading', isNC: false, price: { value: 50 } }] };
+         }
+         return {
+            ok: true,
+            status: 200,
+            json: async () => [{ name: 'List', itemInfo: [{ item_iid: 2, order: 0, isHidden: false }] }]
+         };
+      };
+
+      const results = await window.DailiesItemdb.loadListTargets([listA, listB], {}, { now: NOW });
+
+      expect(calls.some((url) => url.includes('stamp-a'))).toBe(true);
+      expect(calls.some((url) => url.includes('book-a'))).toBe(false);
+      expect(results[0].fromCache).toBe(true);
+      expect(results[1].refreshed).toBe(true);
+      delete window.__bridgeFetch;
+   });
+
+   it('all cached and rate limited serves cache without network', async () => {
+      const listA = makeList('books', 'book-a');
+      const listB = makeList('stamps', 'stamp-a');
+      const info = [{ item_iid: 1, order: 0, isHidden: false }];
+      const itemdata = [{ internal_id: 1, name: 'Item', specialType: 'trading', isNC: false, price: { value: 100 } }];
+
+      seedCache(listA, info, itemdata, NOW - 1000);
+      seedCache(listB, info, itemdata, NOW - 1000);
+      window.DailiesItemdb.saveRefreshMeta({
+         lastAnyRefreshAt: 0,
+         lastRefreshAt: {},
+         rateLimitedUntil: NOW + window.DailiesItemdb.RATE_LIMIT_BACKOFF_MS
+      });
+
+      const calls = [];
+      window.__bridgeFetch = async (url) => {
+         calls.push(url);
+         return { ok: true, status: 200, json: async () => [] };
+      };
+
+      const results = await window.DailiesItemdb.loadListTargets([listA, listB], {}, { now: NOW });
+
+      expect(calls).toHaveLength(0);
+      expect(results[0].fromCache).toBe(true);
+      expect(results[1].fromCache).toBe(true);
       delete window.__bridgeFetch;
    });
 
@@ -437,19 +644,6 @@ describe('dailies itemdb cache and skip', () => {
       delete window.__bridgeFetch;
    });
 
-   it('skipItemIds skips locally hidden cheapest item', () => {
-      const info = [
-         { item_iid: 1, order: 0, isHidden: false },
-         { item_iid: 2, order: 1, isHidden: false }
-      ];
-      const itemdata = [
-         { internal_id: 1, name: 'Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
-         { internal_id: 2, name: 'Next', specialType: 'trading', isNC: false, price: { value: 500 } }
-      ];
-      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata, { skipItemIds: [1] });
-      expect(picked.name).toBe('Next');
-   });
-
    it('skipCurrentItem persists local hidden and re-picks without network', () => {
       const list = makeList('books', 'book-a');
       const info = [
@@ -464,7 +658,7 @@ describe('dailies itemdb cache and skip', () => {
 
       const target = window.DailiesItemdb.skipCurrentItem(list, 1);
 
-      expect(window.DailiesItemdb.getLocalSkipIds('books')).toEqual([1]);
+      expect(window.DailiesItemdb.loadListCache(list).localSkipIds).toEqual([1]);
       expect(target.item.name).toBe('Next');
       expect(target.fromCache).toBe(true);
    });

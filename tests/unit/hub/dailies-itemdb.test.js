@@ -701,4 +701,45 @@ describe('dailies itemdb cache and skip', () => {
       expect(results[0].error).toBeNull();
       delete window.__bridgeFetch;
    });
+
+   it('logs watch item diagnostics when serving from cache', async () => {
+      const list = makeList('foods', 'food-list');
+      const watchId = window.DailiesItemdb.WATCH_ITEM_IIDS[0];
+      const info = [
+         { item_iid: watchId, order: 0, isHidden: false },
+         { item_iid: 999, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         {
+            internal_id: watchId,
+            name: 'Marshmallows with Gravy',
+            specialType: 'trading',
+            isNC: false,
+            price: { value: 5 }
+         },
+         { internal_id: 999, name: 'Other', specialType: 'trading', isNC: false, price: { value: 100 } }
+      ];
+      seedCache(list, info, itemdata, NOW);
+
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+      window.__bridgeFetch = async () => {
+         throw new Error('should not fetch');
+      };
+
+      await window.DailiesItemdb.loadListTargets([list], {}, { now: NOW });
+
+      const watchLog = infoSpy.mock.calls.find(function (call) {
+         return call[0] === '[Dailies ItemDB] watch item (cache)';
+      });
+      expect(watchLog).toBeTruthy();
+      const payload = JSON.parse(watchLog[3]);
+      expect(payload.item.itemIid).toBe(watchId);
+      expect(payload.cacheIndex).toBe(0);
+      expect(payload.isPicked).toBe(true);
+      expect(payload.inLocalSkips).toBe(false);
+
+      infoSpy.mockRestore();
+      delete window.__bridgeFetch;
+   });
 });

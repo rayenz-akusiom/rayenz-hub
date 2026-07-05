@@ -118,6 +118,56 @@ describe('dailies itemdb picker', () => {
       expect(picked.name).toBe('First Tradeable');
    });
 
+   it('skips zero NP when a priced eligible item exists', () => {
+      const info = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
+         { internal_id: 2, name: 'Priced Book', specialType: 'trading', isNC: false, price: { value: 500 } }
+      ];
+      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      expect(picked.name).toBe('Priced Book');
+   });
+
+   it('picks zero NP only when no priced eligible items remain', () => {
+      const info = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
+         { internal_id: 2, name: 'No Price Book', specialType: 'trading', isNC: false }
+      ];
+      const picked = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata);
+      expect(picked.name).toBe('Zero NP Book');
+   });
+
+   it('zero NP sorts after priced items in debug trace', () => {
+      const info = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         { internal_id: 1, name: 'Zero NP Book', specialType: 'trading', isNC: false, price: { value: 0 } },
+         { internal_id: 2, name: 'Priced Book', specialType: 'trading', isNC: false, price: { value: 500 } }
+      ];
+      const result = window.DailiesItemdb.pickCheapestTradeableItem(info, itemdata, { debug: true });
+      expect(result.trace[0].name).toBe('Priced Book');
+      expect(result.trace.find((row) => row.name === 'Zero NP Book').skipReason).toBe('zero-price');
+   });
+
+   it('503 maps to unavailable not rate limit', () => {
+      expect(window.DailiesItemdb.itemdbErrorMessage(503, 'list info')).toContain('temporarily unavailable');
+      expect(window.DailiesItemdb.itemdbErrorMessage(503, 'list info')).not.toContain('rate limit');
+   });
+
+   it('429 mentions outage as well as rate limit', () => {
+      expect(window.DailiesItemdb.itemdbErrorMessage(429, 'items')).toContain('rate limit');
+      expect(window.DailiesItemdb.itemdbErrorMessage(429, 'items')).toContain('outage');
+   });
+
    it('returns no-bridge when userscript bridge is unavailable', async () => {
       const lists = [{ id: 'test', label: 'Test', slug: 'test-list', user: 'rayenz' }];
       const results = await window.DailiesItemdb.loadListTargets(lists, {});
@@ -431,5 +481,30 @@ describe('dailies itemdb cache and skip', () => {
       const meta = { lastAnyRefreshAt: NOW - gap - 1000, lastRefreshAt: {} };
       const picked = window.DailiesItemdb.pickListToRefresh([listA, listB], caches, meta, NOW);
       expect(picked.id).toBe('stamps');
+   });
+
+   it('warm refresh failure serves cached pick', async () => {
+      const list = makeList('books', 'book-a');
+      const info = [{ item_iid: 1, order: 0, isHidden: false }];
+      const itemdata = [{ internal_id: 1, name: 'Cached Book', specialType: 'trading', isNC: false, price: { value: 100 } }];
+      const ttl = window.DailiesItemdb.CACHE_TTL_MS;
+      const gap = window.DailiesItemdb.MIN_REFRESH_GAP_MS;
+
+      seedCache(list, info, itemdata, NOW - ttl - 1000);
+      window.DailiesItemdb.saveRefreshMeta({
+         lastAnyRefreshAt: NOW - gap - 1000,
+         lastRefreshAt: { 'books': NOW - ttl - 1000 }
+      });
+
+      window.__bridgeFetch = async () => {
+         throw new Error('ItemDB temporarily unavailable — try again later');
+      };
+
+      const results = await window.DailiesItemdb.loadListTargets([list], {}, { now: NOW });
+
+      expect(results[0].item.name).toBe('Cached Book');
+      expect(results[0].fromCache).toBe(true);
+      expect(results[0].error).toBeNull();
+      delete window.__bridgeFetch;
    });
 });

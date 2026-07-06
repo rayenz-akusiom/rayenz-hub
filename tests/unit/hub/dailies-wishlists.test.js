@@ -7,6 +7,7 @@ describe('dailies wishlist cards', () => {
       runInWindow(readHubFile('shared/hub-utils.js'));
       runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
       runInWindow(readHubFile('apps/dailies/dailies-links.js'));
+      runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
       runInWindow(readHubFile('apps/dailies/dailies-render.js'));
    });
 
@@ -22,6 +23,7 @@ describe('dailies wishlist cards', () => {
          },
          item: {
             itemIid: 42,
+            itemdbId: 9001,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',
@@ -37,14 +39,20 @@ describe('dailies wishlist cards', () => {
       expect(html).toContain('1,500 NP');
       expect(html).toContain('https://www.neopets.com/shops/wizard.phtml?string=Cheap+Book');
       expect(html).toContain('wishlist-card-item-image');
+      expect(html).toContain('wishlist-action-btn');
+      expect(html).toContain('shopkeepers/shopwizard.gif');
+      expect(html).toContain('itemdb.com.br/favicon.ico');
       expect(html).toContain('data-wishlist-next');
-      expect(html).toContain('Next item</button>');
-      expect(html).toContain('Hide on ItemDB</a>');
+      expect(html).toContain('aria-label="Next item"');
+      expect(html).toContain('aria-label="Hide on ItemDB"');
+      expect(html).toContain('https://itemdb.com.br/items/9001');
+      expect(html).not.toContain('Next item</button>');
+      expect(html).not.toContain('Hide on ItemDB</a>');
       expect(html).toContain('https://itemdb.com.br/lists/rayenz/book-award-checklist-2');
+      expect(html).not.toContain('ItemDB list →');
    });
 
-   it('shows cache hint when cachedAt is present', () => {
-      runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
+   it('shows cache hint in header when cachedAt is present', () => {
       const html = window.DailiesRender.renderWishlistCard({
          list: {
             id: 'books-checklist',
@@ -56,6 +64,7 @@ describe('dailies wishlist cards', () => {
          },
          item: {
             itemIid: 42,
+            itemdbId: 9001,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',
@@ -68,6 +77,10 @@ describe('dailies wishlist cards', () => {
 
       expect(html).toContain('wishlist-cache-hint');
       expect(html).toContain('Cached 2h ago');
+      const headerEnd = html.indexOf('</div>', html.indexOf('wishlist-card-header'));
+      const actionsIndex = html.indexOf('wishlist-card-actions');
+      expect(headerEnd).toBeLessThan(actionsIndex);
+      expect(html.indexOf('Cached 2h ago')).toBeLessThan(actionsIndex);
    });
 
    it('formats NP prices for display', () => {

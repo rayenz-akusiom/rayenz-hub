@@ -39,7 +39,28 @@ describe('dailies itemdb picker', () => {
       ];
       const picked = pickFromRaw(info, itemdata);
       expect(picked.name).toBe('Cheap Item');
+      expect(picked.itemdbId).toBe(2);
       expect(picked.shopWizardUrl).toBe('https://example/ssw');
+   });
+
+   it('itemdbUrlForWishlistItem prefers itemdbId over name', () => {
+      expect(window.DailiesItemdb.itemdbUrlForWishlistItem({
+         itemdbId: 9001,
+         name: 'Cheap Book'
+      })).toBe('https://itemdb.com.br/items/9001');
+      expect(window.DailiesItemdb.itemdbUrlForWishlistItem({
+         name: 'Cheap Book'
+      })).toBe('https://itemdb.com.br/items/Cheap%20Book');
+   });
+
+   it('normalize stores itemdbId from itemdata internal_id', () => {
+      const info = [{ item_iid: 42, order: 0, isHidden: false }];
+      const itemdata = [
+         { internal_id: 99, item_id: 42, name: 'Cheap Item', specialType: 'trading', isNC: false, price: { value: 1200 } }
+      ];
+      const items = normalizeItems(info, itemdata);
+      expect(items[0].itemdbId).toBe(99);
+      expect(items[0].itemIid).toBe(42);
    });
 
    it('skips hidden cheapest item and picks next cheapest visible item', () => {
@@ -364,6 +385,7 @@ describe('dailies itemdb cache and skip', () => {
       expect(loaded.localSkipIds).toEqual([]);
       expect(loaded.items).toEqual([{
          itemIid: 1,
+         itemdbId: 1,
          name: 'Cached Item',
          priceNp: 100,
          image: null,

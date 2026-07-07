@@ -382,7 +382,7 @@ describe('dailies itemdb cache and skip', () => {
       const loaded = window.DailiesItemdb.loadListCache(list);
       expect(loaded.fetchedAt).toBe(NOW);
       expect(loaded.formatVersion).toBe(window.DailiesItemdb.CACHE_FORMAT_VERSION);
-      expect(loaded.localSkipIds).toEqual([]);
+      expect(loaded.localSkipIds).toBeUndefined();
       expect(loaded.items).toEqual([{
          itemIid: 1,
          itemdbId: 1,
@@ -396,21 +396,34 @@ describe('dailies itemdb cache and skip', () => {
       expect(loaded.itemdata).toBeUndefined();
    });
 
-   it('migrates legacy local hidden into v2 cache', () => {
+   it('migrates legacy local hidden into blacklist', () => {
       const list = makeList('books', 'book-list');
       localStorage.setItem(
          'rayenz-itemdb-local-hidden',
          JSON.stringify({ books: [1, 2] })
       );
-      window.DailiesItemdb.saveListCache(list, {
-         info: [{ item_iid: 1, order: 0, isHidden: false }],
-         itemdata: [{ internal_id: 1, name: 'Item', specialType: 'trading', isNC: false, price: { value: 100 } }],
-         fetches: ['list-info', 'itemdata']
-      }, NOW);
+      window.DailiesItemdb.loadBlacklist();
+
+      expect(window.DailiesItemdb.getBlacklistIds(list)).toEqual([1, 2]);
+      expect(localStorage.getItem('rayenz-itemdb-local-hidden')).toBeNull();
+   });
+
+   it('migrates cache localSkipIds into blacklist', () => {
+      const list = makeList('books', 'book-list');
+      localStorage.setItem(
+         window.DailiesItemdb.cacheListKey(list),
+         JSON.stringify({
+            formatVersion: 2,
+            fetchedAt: NOW,
+            fetches: ['list-info'],
+            items: [{ itemIid: 1, itemdbId: 1, name: 'Item', priceNp: 100, image: null, shopWizardUrl: null, description: null }],
+            localSkipIds: [5, 6]
+         })
+      );
 
       const loaded = window.DailiesItemdb.loadListCache(list);
-      expect(loaded.localSkipIds).toEqual([1, 2]);
-      expect(localStorage.getItem('rayenz-itemdb-local-hidden')).toBeNull();
+      expect(loaded.localSkipIds).toBeUndefined();
+      expect(window.DailiesItemdb.getBlacklistIds(list)).toEqual([5, 6]);
    });
 
    it('rejects legacy v1 cache format', () => {
@@ -666,7 +679,7 @@ describe('dailies itemdb cache and skip', () => {
       delete window.__bridgeFetch;
    });
 
-   it('skipCurrentItem persists local hidden and re-picks without network', () => {
+   it('skipCurrentItem session-skips and re-picks without persisting blacklist', () => {
       const list = makeList('books', 'book-a');
       const info = [
          { item_iid: 1, order: 0, isHidden: false },
@@ -680,9 +693,48 @@ describe('dailies itemdb cache and skip', () => {
 
       const target = window.DailiesItemdb.skipCurrentItem(list, 1);
 
-      expect(window.DailiesItemdb.loadListCache(list).localSkipIds).toEqual([1]);
+      expect(window.DailiesItemdb.getBlacklistIds(list)).toEqual([]);
       expect(target.item.name).toBe('Next');
       expect(target.fromCache).toBe(true);
+   });
+
+   it('blacklist persists across cache refresh', () => {
+      const list = makeList('books', 'book-a');
+      const info = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         { internal_id: 1, name: 'Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
+         { internal_id: 2, name: 'Next', specialType: 'trading', isNC: false, price: { value: 500 } }
+      ];
+      seedCache(list, info, itemdata, NOW);
+
+      const target = window.DailiesItemdb.addToBlacklist(list, 1);
+      expect(target.item.name).toBe('Next');
+      expect(window.DailiesItemdb.getBlacklistIds(list)).toEqual([1]);
+
+      window.DailiesItemdb.saveListCache(list, { info, itemdata, fetches: ['list-info', 'itemdata'] }, NOW + 1000);
+      const afterRefresh = window.DailiesItemdb.pickNextForList(list);
+      expect(afterRefresh.item.name).toBe('Next');
+   });
+
+   it('session skip clears on clearSessionSkips', () => {
+      const list = makeList('books', 'book-a');
+      const info = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false }
+      ];
+      const itemdata = [
+         { internal_id: 1, name: 'Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
+         { internal_id: 2, name: 'Next', specialType: 'trading', isNC: false, price: { value: 500 } }
+      ];
+      seedCache(list, info, itemdata, NOW);
+
+      window.DailiesItemdb.skipCurrentItem(list, 1);
+      window.DailiesItemdb.clearSessionSkips();
+      const target = window.DailiesItemdb.pickNextForList(list);
+      expect(target.item.name).toBe('Cheap');
    });
 
    it('scheduler picks oldest due cache first', () => {
@@ -721,47 +773,6 @@ describe('dailies itemdb cache and skip', () => {
       expect(results[0].item.name).toBe('Cached Book');
       expect(results[0].fromCache).toBe(true);
       expect(results[0].error).toBeNull();
-      delete window.__bridgeFetch;
-   });
-
-   it('logs watch item diagnostics when serving from cache', async () => {
-      const list = makeList('foods', 'food-list');
-      const watchId = window.DailiesItemdb.WATCH_ITEM_IIDS[0];
-      const info = [
-         { item_iid: watchId, order: 0, isHidden: false },
-         { item_iid: 999, order: 1, isHidden: false }
-      ];
-      const itemdata = [
-         {
-            internal_id: watchId,
-            name: 'Marshmallows with Gravy',
-            specialType: 'trading',
-            isNC: false,
-            price: { value: 5 }
-         },
-         { internal_id: 999, name: 'Other', specialType: 'trading', isNC: false, price: { value: 100 } }
-      ];
-      seedCache(list, info, itemdata, NOW);
-
-      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-
-      window.__bridgeFetch = async () => {
-         throw new Error('should not fetch');
-      };
-
-      await window.DailiesItemdb.loadListTargets([list], {}, { now: NOW });
-
-      const watchLog = infoSpy.mock.calls.find(function (call) {
-         return call[0] === '[Dailies ItemDB] watch item (cache)';
-      });
-      expect(watchLog).toBeTruthy();
-      const payload = JSON.parse(watchLog[3]);
-      expect(payload.item.itemIid).toBe(watchId);
-      expect(payload.cacheIndex).toBe(0);
-      expect(payload.isPicked).toBe(true);
-      expect(payload.inLocalSkips).toBe(false);
-
-      infoSpy.mockRestore();
       delete window.__bridgeFetch;
    });
 });

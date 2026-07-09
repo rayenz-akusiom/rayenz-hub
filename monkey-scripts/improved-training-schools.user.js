@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Improved Training Schools <Rayenz>
 // @description  Adds some much needed useability functions to the training school(s). **Tested in Chrome only!**
-// @version      2026-06-27-2
+// @version      2026-07-08
 // @author       rayenz-akusiom
 // @match        *://*.neopets.com/pirates/academy.phtml?type=status*
 // @match        *://*.neopets.com/island/*training.phtml?*type=status*
@@ -191,6 +191,14 @@ const CODESTONE_ICONS = {
     'Sho Codestone': 'https://images.neopets.com/items/codestone15.gif',
     'Zed Codestone': 'https://images.neopets.com/items/codestone16.gif',
 };
+const PAYMENT_ITEM_ORDER = [
+    'Mau Codestone', 'Tai-Kai Codestone', 'Lu Codestone', 'Vo Codestone',
+    'Eo Codestone', 'Main Codestone', 'Zei Codestone', 'Orn Codestone',
+    'Har Codestone', 'Bri Codestone',
+    'Mag Codestone', 'Vux Codestone', 'Cui Codestone', 'Kew Codestone',
+    'Sho Codestone', 'Zed Codestone',
+    'One Dubloon Coin', 'Two Dubloon Coin', 'Five Dubloon Coin',
+];
 let petStorage = new Map();
 if (GM_getValue(PET_STORAGE)){
     petStorage = new Map(JSON.parse(GM_getValue(PET_STORAGE)));
@@ -737,6 +745,18 @@ function findPaymentItemImage(bold){
     return getPaymentIcon(name);
 }
 
+function getPaymentItemRank(name){
+    const index = PAYMENT_ITEM_ORDER.indexOf(name);
+    return index === -1 ? PAYMENT_ITEM_ORDER.length : index;
+}
+
+function sortPaymentItems(items){
+    return [...items].sort((a, b) => {
+        const rankDiff = getPaymentItemRank(a.name) - getPaymentItemRank(b.name);
+        return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+    });
+}
+
 function aggregatePaymentItems(items){
     const map = new Map();
     for (const item of items) {
@@ -748,7 +768,7 @@ function aggregatePaymentItems(items){
             map.set(item.name, { name: item.name, image: item.image, quantity: 1 });
         }
     }
-    return [...map.values()];
+    return sortPaymentItems([...map.values()]);
 }
 
 function costsToMap(costs){
@@ -1076,7 +1096,11 @@ function fillSdbForm(costs){
 }
 
 function showCostsOnSdb(costs){
-    for (const cost in costs) {
+    const sortedCosts = Object.keys(costs).sort((a, b) => {
+        const rankDiff = getPaymentItemRank(a) - getPaymentItemRank(b);
+        return rankDiff !== 0 ? rankDiff : a.localeCompare(b);
+    });
+    for (const cost of sortedCosts) {
         const itemNameB = [...document.getElementsByTagName('b')].find(b => b.innerText.trim().startsWith(cost));
         if (!itemNameB) {
             continue;

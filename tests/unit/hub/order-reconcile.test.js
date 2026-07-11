@@ -5,6 +5,8 @@ let OR;
 
 const FILES = [
    'shared/hub-utils.js',
+   'shared/scryfall-cache.js',
+   'shared/swap-queue.js',
    'apps/deck-review/archidekt-export.js',
    'apps/order-reconcile/email-parse.js',
    'apps/order-reconcile/order-reconcile-export.js',

@@ -5,8 +5,8 @@ let ORE;
 
 beforeEach(() => {
    resetHubModules();
-   // order-reconcile-export depends on ArchidektExport at load time.
    loadHubModule('apps/deck-review/archidekt-export.js', 'ArchidektExport');
+   loadHubModule('shared/swap-queue.js', 'SwapQueue');
    ORE = loadHubModule('apps/order-reconcile/order-reconcile-export.js', 'OrderReconcileExport');
 });
 
@@ -84,6 +84,19 @@ describe('OrderReconcileExport.deriveSwapQueue / pairSwapSlots', () => {
       expect(pairs[0].in.name).toBe('Queue In');
       expect(pairs[0].out.name).toBe('Queue Out');
       expect(pairs[0].index).toBe(0);
+   });
+
+   it('returns empty queues when snapshot is null or missing cards', () => {
+      expect(ORE.deriveSwapQueue(null)).toEqual({
+         new_set_in: [],
+         new_set_out: [],
+         metadata_flags: [],
+      });
+      expect(ORE.deriveSwapQueue({})).toEqual({
+         new_set_in: [],
+         new_set_out: [],
+         metadata_flags: [],
+      });
    });
 });
 

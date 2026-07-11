@@ -1,6 +1,6 @@
 # Hub Refactor Roadmap
 
-Last updated: 2026-07-05
+Last updated: 2026-07-11
 
 Incremental refactors using the **ItemDB v2 pattern**: normalize once at fetch/save, store a compact typed cache, pick at read with a trivial loop, reject legacy formats, log chosen objects for debugging.
 
@@ -67,16 +67,16 @@ Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cur
 
 ---
 
-## Phase 2 — MTG Hub (deferred)
+## Phase 2 — MTG Hub (in progress)
 
-Do **not** start until Phase 1 is complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.plan.md`.
+Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.plan.md`.
 
-### P0 — Small deduplication wins
+### P0 — Small deduplication wins (done 2026-07-11)
 
-| ID | Task | Files |
-|----|------|-------|
-| mtg-1 | Unify `deriveSwapQueue` | `shared/swap-queue.js`, `order-reconcile-export.js` |
-| mtg-2 | Shared Scryfall `fetchPrintings` cache | `dr-data.js`, `or-data.js`, new `shared/scryfall-cache.js` |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| mtg-1 | Unify `deriveSwapQueue` | `shared/swap-queue.js`, `order-reconcile-export.js` | done |
+| mtg-2 | Shared Scryfall `fetchPrintings` cache | `dr-data.js`, `or-data.js`, `shared/scryfall-cache.js` | done |
 
 ### P1 — Medium
 
@@ -98,4 +98,5 @@ Do **not** start until Phase 1 is complete. Full audit: `.cursor/plans/similar_r
 
 | Date | Item |
 |------|------|
+| 2026-07-11 | MTG P0: unified `deriveSwapQueue` (ORE → SwapQueue); shared `scryfall-cache.js` |
 | 2026-07-05 | ItemDB v2 normalized cache + simplified pick path |

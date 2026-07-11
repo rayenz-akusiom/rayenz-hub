@@ -6,6 +6,7 @@ const FIXTURE_NAME = 'msh-2026-06-21.json';
 
 const DR_FILES = [
    'shared/hub-utils.js',
+   'shared/scryfall-cache.js',
    'shared/swap-queue.js',
    'apps/deck-review/archidekt-export.js',
    'apps/deck-review/profile-sync.js',

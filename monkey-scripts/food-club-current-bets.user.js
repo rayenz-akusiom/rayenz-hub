@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Food Club Current Bets <Rayenz>
 // @namespace    neopets.foodclub
-// @version      2026-07-11-2
+// @version      2026-07-11-3
 // @description  X/10 bet status row, total spent summary, and winnings-sorted rows on Food Club current bets page.
 // @author       rayenz-akusiom
 // @match        *://*.neopets.com/pirates/foodclub.phtml?*type=current_bets*
@@ -127,13 +127,22 @@
     }
 
     function findCurrentBetsTable(doc) {
-        const tables = doc.querySelectorAll('table');
-        for (const table of tables) {
-            if (/current bets/i.test(table.textContent)) {
-                return table;
+        // Anchor on the "Current Bets" title cell and take its closest table so we
+        // get the innermost bets table, not an outer Neopets layout table that
+        // merely contains it (which would place injected rows in the page body).
+        const cells = doc.querySelectorAll('td, th');
+        for (const cell of cells) {
+            if (/^\s*current bets\s*$/i.test(cell.textContent || '')) {
+                const table = cell.closest('table');
+                if (table) {
+                    return table;
+                }
             }
         }
-        return null;
+
+        // Fallback: pick the innermost table whose text mentions Current Bets.
+        const matches = [...doc.querySelectorAll('table')].filter(t => /current bets/i.test(t.textContent || ''));
+        return matches.length ? matches[matches.length - 1] : null;
     }
 
     function parseLegacyCurrentBets(doc) {
@@ -455,6 +464,10 @@
 
         const totalSpent = bets.reduce((sum, bet) => sum + (bet.betAmountNp || 0), 0);
         const summaryRow = [...table.querySelectorAll('tr')].find(row => {
+            // Skip layout rows that only contain the text via a nested table.
+            if (row.querySelector('table')) {
+                return false;
+            }
             return /total possible winnings/i.test(row.textContent || '');
         });
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Premium Shopping List <Rayenz>
 // @description  Keep track of shopping list **Tested in Chrome only!**
-// @version      2024-06-18
+// @version      2026-07-11
 // @author       rayenz-akusiom
 // @match        *://*.neopets.com/premium/
 // @match        *://*.neopets.com/safetydeposit.phtml*
@@ -25,6 +25,24 @@
  * Globals
  */
 let ITEM_COUNT = 0;
+
+const PAYMENT_ITEM_ORDER = [
+    'Mau Codestone', 'Tai-Kai Codestone', 'Lu Codestone', 'Vo Codestone',
+    'Eo Codestone', 'Main Codestone', 'Zei Codestone', 'Orn Codestone',
+    'Har Codestone', 'Bri Codestone',
+    'Mag Codestone', 'Vux Codestone', 'Cui Codestone', 'Kew Codestone',
+    'Sho Codestone', 'Zed Codestone',
+    'One Dubloon Coin', 'Two Dubloon Coin', 'Five Dubloon Coin',
+];
+
+function paymentItemRank(name) {
+    const index = PAYMENT_ITEM_ORDER.indexOf(name);
+    return index === -1 ? PAYMENT_ITEM_ORDER.length : index;
+}
+
+function isPaymentItem(name) {
+    return paymentItemRank(name) < PAYMENT_ITEM_ORDER.length;
+}
 
 /**
 * Monkey Storage
@@ -161,8 +179,18 @@ function sortShoppingList(){
     for (let [category, list] of shoppingStorage){
         let sortedCategory = Array.from(list);
 
-        // Sort by name first
-        sortedCategory = sortedCategory.sort((firstItem, secondItem) => {return ('' + firstItem.name).localeCompare(secondItem.name)});
+        // Sort by name; codestones/dubloons use SDB order
+        sortedCategory = sortedCategory.sort((firstItem, secondItem) => {
+            const aPay = isPaymentItem(firstItem.name);
+            const bPay = isPaymentItem(secondItem.name);
+            if (aPay && bPay) {
+                const diff = paymentItemRank(firstItem.name) - paymentItemRank(secondItem.name);
+                if (diff !== 0) {
+                    return diff;
+                }
+            }
+            return ('' + firstItem.name).localeCompare(secondItem.name);
+        });
 
         // Put SSW-able items first
         let sswItems = [];

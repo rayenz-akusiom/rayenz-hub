@@ -10,6 +10,7 @@ const MODULES = [
    'shared/hub-utils.js',
    'shared/scryfall-cache.js',
    'shared/swap-queue.js',
+   'shared/suggestions-bundle.js',
    'apps/deck-review/archidekt-export.js',
    'apps/deck-review/deck-review.js',
    'apps/order-reconcile/order-reconcile-export.js',

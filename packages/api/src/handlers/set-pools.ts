@@ -1,20 +1,18 @@
 import { SetPoolUpsertSchema } from '@rayenz-hub/shared';
 import { errorResponse, jsonResponse } from '../lib/response.js';
-import { authErrorResponse, withAuth } from '../lib/request-auth.js';
-import { createDocClient } from '../repositories/settings-repository.js';
-import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
-import { SetPoolRepository } from '../repositories/set-pool-repository.js';
+import { mapHandlerError } from '../lib/handler-errors.js';
+import { getAppServices, type AppServices } from '../ioc/index.js';
 
 export async function handleSetPool(
   method: string,
   codesKey: string,
   headers: Record<string, string | undefined>,
   body: string | null | undefined,
-  deps?: { setPoolRepo?: SetPoolRepository },
+  services: AppServices = getAppServices(),
 ) {
   try {
-    const { auth, env } = withAuth(headers);
-    const repo = deps?.setPoolRepo ?? buildSetPoolRepo(env);
+    const { auth, env } = services.authService.authenticate(headers);
+    const repo = services.setPoolRepository;
 
     if (method === 'GET') {
       const record = await repo.get(auth, env, codesKey);
@@ -41,17 +39,10 @@ export async function handleSetPool(
 
     return errorResponse(405, 'Method not allowed', 'METHOD_NOT_ALLOWED');
   } catch (e) {
-    try {
-      const authErr = authErrorResponse(e);
-      return errorResponse(authErr.statusCode, authErr.body.error, authErr.body.code);
-    } catch {
-      throw e;
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) {
+      return mapped;
     }
+    throw e;
   }
-}
-
-function buildSetPoolRepo(env: ReturnType<typeof withAuth>['env']) {
-  const doc = createDocClient(env);
-  const s3 = new S3BlobStore(createS3Client(env), env.HUB_BUCKET_NAME || 'rayenz-hub-data-local');
-  return new SetPoolRepository(doc, env.HUB_TABLE_NAME || 'HubTable', s3);
 }

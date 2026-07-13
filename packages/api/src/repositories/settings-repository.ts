@@ -9,7 +9,7 @@ import {
   type SettingsDomain,
   type SettingsUpsert,
 } from '@rayenz-hub/shared';
-import type { ApiEnv } from './auth.js';
+import type { ApiEnv } from '../lib/auth.js';
 
 export interface SettingsRecord {
   domain: string;

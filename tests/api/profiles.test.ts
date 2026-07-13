@@ -1,48 +1,27 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { handleListProfiles, handleProfile } from '../../packages/api/src/handlers/profiles.ts';
-import { ProfileRepository } from '../../packages/api/src/repositories/profile-repository.ts';
-import { MemoryDocClient } from './helpers/memory-dynamo.ts';
-import { MemoryS3Store } from './helpers/memory-s3.ts';
-import { asBlobStore } from './helpers/test-blob-store.ts';
-
-const API_KEY = 'test-api-key-local';
-const AUTH = { authorization: `Bearer ${API_KEY}` };
+import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 
 describe('profiles API', () => {
-  let memory: MemoryDocClient;
-  let s3: MemoryS3Store;
-  let repo: ProfileRepository;
-
-  beforeEach(() => {
-    process.env.HUB_API_KEY = API_KEY;
-    process.env.HUB_USER_ID = 'default';
-    memory = new MemoryDocClient();
-    s3 = new MemoryS3Store();
-    repo = new ProfileRepository(memory, 'HubTable', asBlobStore(s3));
-  });
-
-  afterEach(() => {
-    delete process.env.HUB_API_KEY;
-  });
-
   it('stores profile in DDB and S3', async () => {
+    const { memory, s3, services } = createMemoryStores();
     const put = await handleProfile(
       'PUT',
       'deck-1',
-      AUTH,
+      TEST_AUTH_HEADERS,
       JSON.stringify({
         deckName: 'Test Deck',
         protectedCards: ['Sol Ring'],
         blockedCards: ['Opponent Card'],
       }),
-      { profileRepo: repo },
+      services,
     );
     expect(put.statusCode).toBe(200);
     const body = JSON.parse(String(put.body));
     expect(body.protectedCards).toEqual(['Sol Ring']);
     expect(body.yaml).toContain('protected_cards:');
 
-    const get = await handleProfile('GET', 'deck-1', AUTH, null, { profileRepo: repo });
+    const get = await handleProfile('GET', 'deck-1', TEST_AUTH_HEADERS, null, services);
     expect(get.statusCode).toBe(200);
     expect(JSON.parse(String(get.body)).yaml).toContain('Sol Ring');
 
@@ -53,8 +32,15 @@ describe('profiles API', () => {
   });
 
   it('lists profile summaries', async () => {
-    await handleProfile('PUT', 'deck-a', AUTH, JSON.stringify({ protectedCards: [], blockedCards: [] }), { profileRepo: repo });
-    const list = await handleListProfiles(AUTH, { profileRepo: repo });
+    const { services } = createMemoryStores();
+    await handleProfile(
+      'PUT',
+      'deck-a',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ protectedCards: [], blockedCards: [] }),
+      services,
+    );
+    const list = await handleListProfiles(TEST_AUTH_HEADERS, services);
     expect(list.statusCode).toBe(200);
     expect(JSON.parse(String(list.body)).profiles).toHaveLength(1);
   });

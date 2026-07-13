@@ -1,19 +1,18 @@
 import { ReviewProgressUpsertSchema } from '@rayenz-hub/shared';
 import { errorResponse, jsonResponse } from '../lib/response.js';
-import { authErrorResponse, withAuth } from '../lib/request-auth.js';
-import { createDocClient } from '../repositories/settings-repository.js';
-import { ReviewProgressRepository } from '../repositories/review-repository.js';
+import { mapHandlerError } from '../lib/handler-errors.js';
+import { getAppServices, type AppServices } from '../ioc/index.js';
 
 export async function handleReviewProgress(
   method: string,
   fileId: string,
   headers: Record<string, string | undefined>,
   body: string | null | undefined,
-  deps?: { reviewRepo?: ReviewProgressRepository },
+  services: AppServices = getAppServices(),
 ) {
   try {
-    const { auth, env } = withAuth(headers);
-    const repo = deps?.reviewRepo ?? new ReviewProgressRepository(createDocClient(env), env.HUB_TABLE_NAME || 'HubTable');
+    const { auth, env } = services.authService.authenticate(headers);
+    const repo = services.reviewProgressRepository;
 
     if (method === 'GET') {
       const record = await repo.get(auth, env, fileId);
@@ -40,11 +39,10 @@ export async function handleReviewProgress(
 
     return errorResponse(405, 'Method not allowed', 'METHOD_NOT_ALLOWED');
   } catch (e) {
-    try {
-      const authErr = authErrorResponse(e);
-      return errorResponse(authErr.statusCode, authErr.body.error, authErr.body.code);
-    } catch {
-      throw e;
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) {
+      return mapped;
     }
+    throw e;
   }
 }

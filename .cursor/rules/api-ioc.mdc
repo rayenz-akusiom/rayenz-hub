@@ -12,8 +12,9 @@ Phase F convention — see `documents/specs/002-hub-backend-platform/research.md
 
 - **Composition root only** binds dependencies: `packages/api/src/composition-root.ts`
 - Handlers and services use `@injectable()`; dependencies via `@inject(TYPES.X)` or constructor injection
+- Handlers receive `AppServices` (from `getAppServices()` or `createAppServices(overrides)` in tests)
 - Handlers MUST NOT call `new Repository()`, `createDocClient()`, `readEnv()`, or `parseAuthContext()` directly
-- Tests use `createContainer(overrides)` — avoid mutating `process.env` when overrides can express the same thing
+- Tests use `createTestServices()` / `createAppServices()` from `tests/api/helpers/test-services.ts`
 - Register new services in the composition root before use in handlers
 
 ## Binding patterns

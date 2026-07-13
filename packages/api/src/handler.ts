@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { errorResponse } from './lib/response.js';
 import { handleHealth } from './handlers/health.js';

@@ -1,38 +1,25 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { INLINE_SET_POOL_MAX_BYTES } from '../../packages/shared/src/schemas/entities.ts';
 import { handleSetPool } from '../../packages/api/src/handlers/set-pools.ts';
 import { SetPoolRepository } from '../../packages/api/src/repositories/set-pool-repository.ts';
 import { MemoryDocClient } from './helpers/memory-dynamo.ts';
 import { MemoryS3Store } from './helpers/memory-s3.ts';
 import { asBlobStore } from './helpers/test-blob-store.ts';
-
-const API_KEY = 'test-api-key-local';
-const AUTH = { authorization: `Bearer ${API_KEY}` };
+import { TEST_AUTH_HEADERS, createTestServices } from './helpers/test-services.ts';
 
 describe('set pool API', () => {
-  let memory: MemoryDocClient;
-  let s3: MemoryS3Store;
-  let repo: SetPoolRepository;
-
-  beforeEach(() => {
-    process.env.HUB_API_KEY = API_KEY;
-    memory = new MemoryDocClient();
-    s3 = new MemoryS3Store();
-    repo = new SetPoolRepository(memory, 'HubTable', asBlobStore(s3));
-  });
-
-  afterEach(() => {
-    delete process.env.HUB_API_KEY;
-  });
-
   it('stores small pools inline', async () => {
+    const memory = new MemoryDocClient();
+    const services = createTestServices({
+      setPoolRepository: new SetPoolRepository(memory, 'HubTable', asBlobStore(new MemoryS3Store())),
+    });
     const cards = [{ name: 'Card A' }];
     const put = await handleSetPool(
       'PUT',
       'MSH',
-      AUTH,
+      TEST_AUTH_HEADERS,
       JSON.stringify({ codes: ['MSH'], complete: true, cards }),
-      { setPoolRepo: repo },
+      services,
     );
     expect(put.statusCode).toBe(200);
     const item = [...memory.snapshot().values()][0];
@@ -41,14 +28,19 @@ describe('set pool API', () => {
   });
 
   it('stores large pools in S3', async () => {
+    const memory = new MemoryDocClient();
+    const s3 = new MemoryS3Store();
+    const services = createTestServices({
+      setPoolRepository: new SetPoolRepository(memory, 'HubTable', asBlobStore(s3)),
+    });
     const big = 'x'.repeat(INLINE_SET_POOL_MAX_BYTES);
     const cards = [{ name: big }];
     await handleSetPool(
       'PUT',
       'MAR,MSH',
-      AUTH,
+      TEST_AUTH_HEADERS,
       JSON.stringify({ codes: ['MAR', 'MSH'], complete: true, cards }),
-      { setPoolRepo: repo },
+      services,
     );
     const item = [...memory.snapshot().values()][0];
     expect(item.inlineCards).toBe(false);

@@ -76,6 +76,42 @@ describe('OrderReconcile.findCandidatesForName', () => {
    });
 });
 
+describe('OrderReconcile.buildAssignmentIndex', () => {
+   it('precomputes swap and maybeboard candidate maps from deck snapshots', () => {
+      OR.state.decks = [commanderDeck('d1', 'Test Deck')];
+      const index = OR.buildAssignmentIndex(OR.state.decks);
+      expect(index.swapByName['new card']).toHaveLength(1);
+      expect(index.swapByName['new card'][0].deck_id).toBe('d1');
+      expect(index.maybeboardByName['stash me']).toHaveLength(1);
+      expect(index.maybeboardByName['stash me'][0].is_maybeboard).toBe(true);
+   });
+
+   it('findCandidatesForName uses the precomputed index', () => {
+      OR.state.decks = [commanderDeck('d1', 'Test Deck')];
+      OR.state.assignmentIndex = OR.buildAssignmentIndex(OR.state.decks);
+      const candidates = OR.findCandidatesForName('New Card');
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].paired_out.name).toBe('Cut Card');
+   });
+
+   it('indexes double-faced card names by each face', () => {
+      const deck = {
+         deck_id: 'd1',
+         deck_name: 'DFC Deck',
+         deck_snapshot: {
+            cards: [
+               { name: 'Delver of Secrets // Insectile Aberration', primary_category: 'New Set In', set_code: 'isd', collector_number: '51' },
+               { name: 'Cut Card', primary_category: 'New Set Out', set_code: 'x', collector_number: '1' },
+            ],
+         },
+      };
+      OR.state.decks = [deck];
+      OR.state.assignmentIndex = OR.buildAssignmentIndex(OR.state.decks);
+      expect(OR.findCandidatesForName('Delver of Secrets')).toHaveLength(1);
+      expect(OR.findCandidatesForName('Insectile Aberration')).toHaveLength(1);
+   });
+});
+
 describe('OrderReconcile.findMaybeboardCandidatesForName', () => {
    it('finds maybeboard entries in non-cube decks as a fallback', () => {
       OR.state.decks = [commanderDeck('d1', 'Test Deck')];

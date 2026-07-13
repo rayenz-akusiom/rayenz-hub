@@ -83,7 +83,7 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 | ID | Task | Files | Status |
 |----|------|-------|--------|
 | mtg-3 | Shared `buildCutCandidates` | `shared/cut-candidates.js`, `dr-pickers.js`, `or-reconcile.js` | done |
-| mtg-4 | Order Reconcile precomputed assignment index | `or-assign.js`, `or-reconcile.js`, `or-input.js` | pending |
+| mtg-4 | Order Reconcile precomputed assignment index | `or-assign.js`, `or-data.js` | done |
 
 ### P2 — Larger pipelines
 
@@ -98,6 +98,7 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 | Date | Item |
 |------|------|
+| 2026-07-12 | MTG P1 mtg-4: Order Reconcile precomputed assignment index (`buildAssignmentIndex`) |
 | 2026-07-12 | MTG P1 mtg-3: shared `buildCutCandidates` in `shared/cut-candidates.js` |
 | 2026-07-11 | MTG P0: unified `deriveSwapQueue` (ORE → SwapQueue); shared `scryfall-cache.js` |
 | 2026-07-05 | ItemDB v2 normalized cache + simplified pick path |

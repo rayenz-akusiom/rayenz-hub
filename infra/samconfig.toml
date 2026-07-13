@@ -1,0 +1,21 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = rayenz-hub-api
+
+[default.build.parameters]
+cached = true
+parallel = true
+template_file = infra/template.yaml
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+template_file = .aws-sam/build/template.yaml
+capabilities = CAPABILITY_IAM
+confirm_changeset = true
+resolve_s3 = true
+region = us-east-1
+# Create the SSM SecureString first — see documents/specs/002-hub-backend-platform/quickstart.md §12
+parameter_overrides = "HubApiKeySsmPath=/rayenz-hub/prod/api-key HubUserId=default"

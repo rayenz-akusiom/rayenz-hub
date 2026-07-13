@@ -19,7 +19,10 @@
     "deploy:hub": "git subtree push --prefix=rayenz-hub hub-prod main",
     "build:api": "sam build --template-file infra/template.yaml",
     "start:api": "sam local start-api --template-file infra/template.yaml --env-vars infra/env.local.json --port 3000",
-    "deploy:api": "sam deploy --template-file infra/template.yaml --stack-name rayenz-hub-api --capabilities CAPABILITY_IAM"
+    "deploy:api": "sam build --template-file infra/template.yaml && sam deploy --config-file infra/samconfig.toml",
+    "deploy:api:guided": "sam build --template-file infra/template.yaml && sam deploy --guided --config-file infra/samconfig.toml",
+    "test:api:deployed": "vitest run tests/api/deployed.contract.test.ts",
+    "migrate:user-partition": "tsx scripts/migrate-user-partition.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
@@ -32,6 +35,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "happy-dom": "^17.4.4",
     "jsdom": "^26.0.0",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^3.1.1"
   }

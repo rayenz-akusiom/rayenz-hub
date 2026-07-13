@@ -11,10 +11,15 @@ Globals:
       - x86_64
 
 Parameters:
+  HubApiKeySsmPath:
+    Type: String
+    Default: ''
+    Description: SSM SecureString path (e.g. /rayenz-hub/prod/api-key). Leave empty for inline HubApiKey (local only).
   HubApiKey:
     Type: String
     Default: local-dev-key
     NoEcho: true
+    Description: Inline API key for SAM local only. Production uses HubApiKeySsmPath.
   HubUserId:
     Type: String
     Default: default
@@ -25,6 +30,7 @@ Parameters:
 
 Conditions:
   UseLocalDynamo: !Not [!Equals [!Ref DynamoDbEndpoint, '']]
+  UseSsmApiKey: !Not [!Equals [!Ref HubApiKeySsmPath, '']]
 
 Resources:
   HubTable:
@@ -65,7 +71,10 @@ Resources:
         Variables:
           HUB_TABLE_NAME: !Ref HubTable
           HUB_BUCKET_NAME: !Ref HubDataBucket
-          HUB_API_KEY: !Ref HubApiKey
+          HUB_API_KEY: !If
+            - UseSsmApiKey
+            - !Sub '{{resolve:ssm-secure:${HubApiKeySsmPath}}}'
+            - !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
       Policies:

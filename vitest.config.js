@@ -7,5 +7,6 @@ export default defineConfig({
          ['tests/api/**', 'node'],
       ],
       include: ['tests/unit/**/*.test.js', 'tests/api/**/*.test.ts'],
+      exclude: ['tests/api/deployed.contract.test.ts'],
    },
 });

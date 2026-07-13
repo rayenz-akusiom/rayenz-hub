@@ -2,18 +2,27 @@
   "name": "rayenz-hub",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "vitest run",
-    "test:unit:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:api": "vitest run tests/api",
+    "test:unit:watch": "vitest tests/unit",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "extract:suggestion-fixture": "node tests/scripts/extract-suggestion-fixture.mjs",
-    "deploy:hub": "git subtree push --prefix=rayenz-hub hub-prod main"
+    "deploy:hub": "git subtree push --prefix=rayenz-hub hub-prod main",
+    "build:api": "sam build --template-file infra/template.yaml",
+    "start:api": "sam local start-api --template-file infra/template.yaml --env-vars infra/env.local.json --port 3000",
+    "deploy:api": "sam deploy --template-file infra/template.yaml --stack-name rayenz-hub-api --capabilities CAPABILITY_IAM"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
+    "@types/node": "^22.13.10",
     "happy-dom": "^17.4.4",
+    "typescript": "^5.8.2",
     "vitest": "^3.1.1"
   }
 }

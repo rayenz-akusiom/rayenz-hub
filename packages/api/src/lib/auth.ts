@@ -4,7 +4,9 @@ export interface ApiEnv {
   HUB_API_KEY?: string;
   HUB_USER_ID?: string;
   HUB_TABLE_NAME?: string;
+  HUB_BUCKET_NAME?: string;
   DYNAMODB_ENDPOINT?: string;
+  S3_ENDPOINT?: string;
   AWS_REGION?: string;
 }
 
@@ -13,7 +15,9 @@ export function readEnv(): ApiEnv {
     HUB_API_KEY: process.env.HUB_API_KEY,
     HUB_USER_ID: process.env.HUB_USER_ID,
     HUB_TABLE_NAME: process.env.HUB_TABLE_NAME || 'HubTable',
+    HUB_BUCKET_NAME: process.env.HUB_BUCKET_NAME || 'rayenz-hub-data-local',
     DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT,
+    S3_ENDPOINT: process.env.S3_ENDPOINT,
     AWS_REGION: process.env.AWS_REGION || 'us-east-1',
   };
 }

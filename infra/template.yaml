@@ -64,6 +64,7 @@ Resources:
       Environment:
         Variables:
           HUB_TABLE_NAME: !Ref HubTable
+          HUB_BUCKET_NAME: !Ref HubDataBucket
           HUB_API_KEY: !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
@@ -90,6 +91,48 @@ Resources:
           Properties:
             ApiId: !Ref HubHttpApi
             Path: /v1/settings/{domain}
+            Method: PUT
+        ProfilesList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/profiles
+            Method: GET
+        ProfileGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/profiles/{deckId}
+            Method: GET
+        ProfilePut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/profiles/{deckId}
+            Method: PUT
+        ReviewProgressGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/review-progress/{fileId}
+            Method: GET
+        ReviewProgressPut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/review-progress/{fileId}
+            Method: PUT
+        SetPoolGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/set-pools/{codesKey}
+            Method: GET
+        SetPoolPut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/set-pools/{codesKey}
             Method: PUT
     Metadata:
       BuildMethod: esbuild

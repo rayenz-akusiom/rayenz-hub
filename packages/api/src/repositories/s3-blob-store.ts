@@ -13,7 +13,12 @@ export function createS3Client(env: ApiEnv): S3Client {
   return new S3Client(config);
 }
 
-export class S3BlobStore {
+export interface BlobStore {
+  getText(key: string): Promise<string | null>;
+  putText(key: string, body: string, contentType: string): Promise<void>;
+}
+
+export class S3BlobStore implements BlobStore {
   constructor(
     private readonly client: S3Client,
     private readonly bucket: string,

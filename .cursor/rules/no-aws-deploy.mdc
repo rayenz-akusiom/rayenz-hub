@@ -1,0 +1,26 @@
+---
+description: Do not deploy to AWS unless the user explicitly overrides this rule
+alwaysApply: true
+---
+
+# No AWS deploy (default)
+
+Until the user **explicitly** says otherwise, **never deploy or push to AWS**.
+
+## Do not run
+
+- `npm run deploy:api` or `npm run deploy:api:guided`
+- `sam deploy` (any variant)
+- AWS CLI commands that create, update, or delete cloud resources (stacks, Lambda, DynamoDB tables, S3 buckets, SSM parameters, etc.)
+- Suggesting or offering to deploy to AWS without being asked
+
+## Allowed without override
+
+- Local development: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, LocalStack
+- `npm run test:api` and `npm run test:api:deployed` (only when the user supplies `HUB_API_URL` / credentials)
+- Documentation and code changes for AWS deploy tooling
+- `git push` to GitHub (not AWS)
+
+## Override
+
+Only deploy to AWS when the user clearly requests it (e.g. "deploy to AWS", "run deploy:api", or "push to AWS").

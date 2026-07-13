@@ -67,7 +67,7 @@ Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cur
 
 ---
 
-## Phase 2 — MTG Hub (in progress)
+## Phase 2 — MTG Hub (complete)
 
 Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.plan.md`.
 

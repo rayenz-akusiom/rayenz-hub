@@ -1,0 +1,35 @@
+---
+description: Inversify IoC conventions for packages/api handlers and services
+globs: packages/api/**/*
+alwaysApply: false
+---
+
+# API Inversion of Control (Inversify)
+
+Phase F convention — see `documents/specs/002-hub-backend-platform/research.md` Decision 7.
+
+## Rules
+
+- **Composition root only** binds dependencies: `packages/api/src/composition-root.ts`
+- Handlers and services use `@injectable()`; dependencies via `@inject(TYPES.X)` or constructor injection
+- Handlers MUST NOT call `new Repository()`, `createDocClient()`, `readEnv()`, or `parseAuthContext()` directly
+- Tests use `createContainer(overrides)` — avoid mutating `process.env` when overrides can express the same thing
+- Register new services in the composition root before use in handlers
+
+## Binding patterns
+
+```typescript
+// Symbols in types.ts
+export const TYPES = {
+  ApiEnv: Symbol.for('ApiEnv'),
+  ProfileRepository: Symbol.for('ProfileRepository'),
+  AuthService: Symbol.for('AuthService'),
+};
+
+// composition-root.ts
+container.bind<ProfileRepository>(TYPES.ProfileRepository).to(ProfileRepository).inSingletonScope();
+```
+
+## Cognito-ready
+
+Use named or tagged bindings for auth implementations (`ApiKeyAuth`, `JwtAuth`) when JWT ships — do not branch on `process.env` inside handlers.

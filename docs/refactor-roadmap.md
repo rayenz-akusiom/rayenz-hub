@@ -87,10 +87,10 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 ### P2 — Larger pipelines
 
-| ID | Task | Files |
-|----|------|-------|
-| mtg-5 | Deck Suggest precomputed eligibility / candidate pools | `ds-data.js`, `ds-rules*.js` |
-| mtg-6 | Deck Review normalized suggestion bundle at export | `ds-export.js`, `deck-review.js`, `dr-data.js` |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| mtg-5 | Deck Suggest precomputed eligibility / candidate pools | `ds-data.js`, `ds-rules*.js` | done |
+| mtg-6 | Deck Review normalized suggestion bundle at export | `ds-export.js`, `deck-review.js`, `dr-data.js` | pending |
 
 ---
 
@@ -98,6 +98,7 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 | Date | Item |
 |------|------|
+| 2026-07-12 | MTG P2 mtg-5: Deck Suggest precomputed set pool index + deck rule context |
 | 2026-07-12 | MTG P1 mtg-4: Order Reconcile precomputed assignment index (`buildAssignmentIndex`) |
 | 2026-07-12 | MTG P1 mtg-3: shared `buildCutCandidates` in `shared/cut-candidates.js` |
 | 2026-07-11 | MTG P0: unified `deriveSwapQueue` (ORE → SwapQueue); shared `scryfall-cache.js` |

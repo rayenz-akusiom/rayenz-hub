@@ -101,6 +101,9 @@ describe('DeckSuggest.Data tryRestoreSetPool', () => {
       HubStorage.saveSetPoolCache('MSH', scope);
       DeckSuggest.Data.clearSetPoolCache();
       const restored = DeckSuggest.Data.tryRestoreSetPool('MSH');
-      expect(restored).toEqual(scope);
+      expect(restored.codes).toEqual(scope.codes);
+      expect(restored.cards).toEqual(scope.cards);
+      expect(restored.indexVersion).toBe(1);
+      expect(restored.cardsByName.a).toHaveLength(1);
    });
 });

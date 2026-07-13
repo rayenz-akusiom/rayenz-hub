@@ -27,6 +27,7 @@ const MODULE_GLOBALS = [
    'DeckReview',
    'DeckSuggest',
    'SwapQueue',
+   'CutCandidates',
    'ScryfallCache',
    'HubProgress',
 ];

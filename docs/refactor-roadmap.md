@@ -1,6 +1,6 @@
 # Hub Refactor Roadmap
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 Incremental refactors using the **ItemDB v2 pattern**: normalize once at fetch/save, store a compact typed cache, pick at read with a trivial loop, reject legacy formats, log chosen objects for debugging.
 
@@ -80,10 +80,10 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 ### P1 — Medium
 
-| ID | Task | Files |
-|----|------|-------|
-| mtg-3 | Shared `buildCutCandidates` | `dr-pickers.js`, `or-reconcile.js` |
-| mtg-4 | Order Reconcile precomputed assignment index | `or-assign.js`, `or-reconcile.js`, `or-input.js` |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| mtg-3 | Shared `buildCutCandidates` | `shared/cut-candidates.js`, `dr-pickers.js`, `or-reconcile.js` | done |
+| mtg-4 | Order Reconcile precomputed assignment index | `or-assign.js`, `or-reconcile.js`, `or-input.js` | pending |
 
 ### P2 — Larger pipelines
 
@@ -98,5 +98,6 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 | Date | Item |
 |------|------|
+| 2026-07-12 | MTG P1 mtg-3: shared `buildCutCandidates` in `shared/cut-candidates.js` |
 | 2026-07-11 | MTG P0: unified `deriveSwapQueue` (ORE → SwapQueue); shared `scryfall-cache.js` |
 | 2026-07-05 | ItemDB v2 normalized cache + simplified pick path |

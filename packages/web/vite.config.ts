@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, '../../rayenz-hub/web/dailies-settings'),
+    outDir: path.resolve(rootDir, '../../rayenz-hub/web/settings'),
     emptyOutDir: true,
   },
 });

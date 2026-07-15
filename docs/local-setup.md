@@ -178,7 +178,8 @@ Try:
 | Route                | Behavior                                   |
 | -------------------- | ------------------------------------------ |
 | `#/dailies`          | Settings pull/push via `hub-api-client.js` |
-| `#/settings/dailies` | React settings shell (iframe)              |
+| `#/settings` | Hub Settings shell (tabs: Dailies, Deck Suggest, Order Reconcile) |
+| `#/settings/dailies` | Deep-link to Dailies settings tab |
 | `#/deck-review`      | Profile reads from API when configured     |
 
 
@@ -197,7 +198,7 @@ localStorage.removeItem('rayenz-hub-api-key');
 
 ```powershell
 npm run dev:web      # Vite dev server — packages/web
-npm run build:web    # Build to rayenz-hub/web/dailies-settings/ for static Hub iframe
+npm run build:web    # Build to rayenz-hub/web/settings/ for static Hub iframe
 ```
 
 ---

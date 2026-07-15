@@ -10,10 +10,22 @@ body {
   color: #18181b;
 }
 
+.hub-web-shell {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2.5rem;
+}
+
 .hub-web-page {
   max-width: 40rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 2.5rem;
+}
+
+.hub-web-page--tab {
+  max-width: none;
+  margin: 0;
+  padding: 0.5rem 0 0;
 }
 
 .hub-web-header h1 {
@@ -21,10 +33,53 @@ body {
   font-size: 1.5rem;
 }
 
+.hub-web-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+}
+
 .hub-web-lead {
   margin: 0;
   color: #52525b;
   font-size: 0.95rem;
+}
+
+.hub-web-hint {
+  margin: 0.35rem 0 0.75rem;
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+.hub-web-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1.25rem 0 0.75rem;
+  border-bottom: 1px solid #e4e4e7;
+  padding-bottom: 0.5rem;
+}
+
+.hub-web-tab {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: #52525b;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.hub-web-tab:hover {
+  background: #e4e4e7;
+  color: #18181b;
+}
+
+.hub-web-tab--active {
+  background: #fff;
+  border-color: #d4d4d8;
+  color: #18181b;
 }
 
 .hub-web-status {
@@ -74,7 +129,9 @@ body {
   font-size: 0.9rem;
 }
 
-.hub-web-field input {
+.hub-web-field input,
+.hub-web-field select,
+.hub-web-field textarea {
   display: block;
   width: 100%;
   margin-top: 0.25rem;
@@ -82,6 +139,7 @@ body {
   border: 1px solid #d4d4d8;
   border-radius: 0.375rem;
   font: inherit;
+  box-sizing: border-box;
 }
 
 .hub-web-radio {
@@ -103,6 +161,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+  margin-top: 0.75rem;
 }
 
 .hub-web-actions {
@@ -120,9 +179,39 @@ body {
   cursor: pointer;
 }
 
+.hub-web-button--secondary {
+  background: #e4e4e7;
+  color: #18181b;
+  margin-right: 0.4rem;
+  margin-top: 0.35rem;
+}
+
 .hub-web-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.hub-web-pet-preview {
+  margin-top: 0.75rem;
+}
+
+.hub-web-pet-preview img {
+  border-radius: 0.5rem;
+  background: #e4e4e7;
+}
+
+.hub-web-wishlist-actions {
+  margin-bottom: 0.5rem;
+}
+
+.hub-web-wishlist-row {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f4f4f5;
+}
+
+.hub-web-wishlist-row-actions {
+  margin-top: 0.5rem;
 }
 
 code {

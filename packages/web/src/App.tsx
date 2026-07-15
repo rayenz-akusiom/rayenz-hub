@@ -1,5 +1,5 @@
-import { DailiesSettingsPage } from './pages/DailiesSettingsPage';
+import { SettingsShell } from './SettingsShell';
 
 export function App() {
-  return <DailiesSettingsPage />;
+  return <SettingsShell />;
 }

@@ -16,7 +16,7 @@ Until the user **explicitly** says otherwise, **never deploy or push to AWS**.
 
 ## Allowed without override
 
-- Local development: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, LocalStack
+- Local development: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, MinIO
 - `npm run test:api` and `npm run test:api:deployed` (only when the user supplies `HUB_API_URL` / credentials)
 - Documentation and code changes for AWS deploy tooling
 - `git push` to GitHub (not AWS)

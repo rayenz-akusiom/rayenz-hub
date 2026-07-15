@@ -8,7 +8,7 @@ export function createS3Client(env: ApiEnv): S3Client {
   if (env.S3_ENDPOINT) {
     config.endpoint = env.S3_ENDPOINT;
     config.forcePathStyle = true;
-    config.credentials = { accessKeyId: 'local', secretAccessKey: 'local' };
+    config.credentials = { accessKeyId: 'local', secretAccessKey: 'localpass1' };
   }
   return new S3Client(config);
 }

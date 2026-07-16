@@ -76,11 +76,18 @@ function buildPetHref(template: string | undefined, petName: string): string {
   return template.replace('{pet}', encodeURIComponent(petName));
 }
 
-function petPortraitUrl(petName: string, slug: string): string {
+function petHeadshotUrl(petName: string, slug: string): string {
   if (slug) {
     return 'https://pets.neopets.com/cp/' + encodeURIComponent(slug) + '/1/1.png';
   }
   return 'https://pets.neopets.com/cpn/' + encodeURIComponent(petName) + '/1/1.png';
+}
+
+function petFullBodyUrl(petName: string, slug: string): string {
+  if (slug) {
+    return 'https://pets.neopets.com/cp/' + encodeURIComponent(slug) + '/1/4.png';
+  }
+  return 'https://pets.neopets.com/cpn/' + encodeURIComponent(petName) + '/1/4.png';
 }
 
 function ActionIcon(props: {
@@ -125,7 +132,7 @@ function LinkTile({
     url = buildPetHref(link.petHref, petName);
   }
   if (link.kind === 'pet') {
-    img = petPortraitUrl(petName, getMainPetSlug());
+    img = petFullBodyUrl(petName, getMainPetSlug());
   }
   const tileClass = 'daily-tile' + (extraClass ? ' ' + extraClass : '');
   return (
@@ -433,7 +440,7 @@ export function DailiesApp() {
                 >
                   <img
                     className="pet-headshot"
-                    src={petPortraitUrl(petName, petSlug)}
+                    src={petHeadshotUrl(petName, petSlug)}
                     alt="Main pet"
                   />
                 </a>
@@ -596,7 +603,6 @@ export function DailiesApp() {
                   Ready.
                 </div>
               </div>
-              <hr className="automated-divider" />
               <div className="automated-item" id="wishingwell-automation">
                 <div className="automated-header">
                   <a
@@ -669,7 +675,7 @@ export function DailiesApp() {
                   target="_blank"
                   rel="noopener"
                 >
-                  <img src={petPortraitUrl(petName, petSlug)} alt="" referrerPolicy="no-referrer" />
+                  <img src={petFullBodyUrl(petName, petSlug)} alt="" referrerPolicy="no-referrer" />
                 </a>
                 <span className="main-pet-label">{petName}</span>
               </div>

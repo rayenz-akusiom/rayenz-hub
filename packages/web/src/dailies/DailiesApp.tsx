@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { setParentHash } from '../lib/hub-storage';
+import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { neopetsFetch } from '../lib/neopets-bridge';
 import { runCoconutShy, refreshWishingWellStatus, runWishingWell } from './automations';
 import {
@@ -374,6 +375,30 @@ export function DailiesApp() {
   }, []);
 
   useEffect(() => {
+    type ProgressWindow = Window & {
+      __cocoshyProgress?: HubProgressController;
+      __wishingwellProgress?: HubProgressController;
+    };
+    const win = window as ProgressWindow;
+    const cocoHost = document.getElementById('cocoshy-progress-host');
+    const wishHost = document.getElementById('wishingwell-progress-host');
+    const cocoProgress = cocoHost ? HubProgress.mount(cocoHost) : null;
+    const wishProgress = wishHost ? HubProgress.mount(wishHost) : null;
+    if (cocoProgress) {
+      win.__cocoshyProgress = cocoProgress;
+    }
+    if (wishProgress) {
+      win.__wishingwellProgress = wishProgress;
+    }
+    return () => {
+      cocoProgress?.dismiss();
+      wishProgress?.dismiss();
+      delete win.__cocoshyProgress;
+      delete win.__wishingwellProgress;
+    };
+  }, []);
+
+  useEffect(() => {
     let timers: number[] = [];
     const schedule = () => {
       timers.forEach((id) => window.clearTimeout(id));
@@ -475,7 +500,6 @@ export function DailiesApp() {
             ⚙
           </a>
         </header>
-        <div className="hub-progress-host" id="dailies-progress-host" />
         <div id="seasonal-alerts" className="seasonal-alerts" hidden={alerts.length === 0}>
           <div className="seasonal-alerts-heading">Timed &amp; Seasonal</div>
           <div className="seasonal-alerts-grid">
@@ -583,25 +607,25 @@ export function DailiesApp() {
                       referrerPolicy="no-referrer"
                     />
                   </a>
-                  <div>
+                  <div className="automated-header-text">
                     <strong>Coconut Shy</strong>
-                    <br />
                     <span className="text-small">20 throws/day · 100 NP each</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="automated-run"
-                  id="cocoshy-run"
-                  onClick={() => {
-                    void runCoconutShy();
-                  }}
-                >
-                  Run 20 throws
-                </button>
-                <div className="automated-status" id="cocoshy-status">
-                  Ready.
+                <div className="automated-body" />
+                <div className="automated-actions">
+                  <button
+                    type="button"
+                    className="automated-run"
+                    id="cocoshy-run"
+                    onClick={() => {
+                      void runCoconutShy();
+                    }}
+                  >
+                    Run 20 throws
+                  </button>
                 </div>
+                <div className="hub-progress-host automated-progress-host" id="cocoshy-progress-host" />
               </div>
               <div className="automated-item" id="wishingwell-automation">
                 <div className="automated-header">
@@ -617,48 +641,52 @@ export function DailiesApp() {
                       referrerPolicy="no-referrer"
                     />
                   </a>
-                  <div>
+                  <div className="automated-header-text">
                     <strong>Wishing Well</strong>
-                    <br />
                     <span className="text-small">7 wishes per period · 21 NP min</span>
                   </div>
                 </div>
-                <div className="automated-field">
-                  <label htmlFor="wishingwell-wish">Wish for</label>
-                  <input
-                    type="text"
-                    id="wishingwell-wish"
-                    placeholder="e.g. Snowager Stamp"
-                    value={wish}
-                    onChange={(e) => setWish(e.target.value)}
-                    onBlur={() => updateWishingPreferences(wish, parseInt(donation, 10))}
-                  />
+                <div className="automated-body">
+                  <div className="automated-field">
+                    <label htmlFor="wishingwell-wish">Wish for</label>
+                    <input
+                      type="text"
+                      id="wishingwell-wish"
+                      placeholder="e.g. Snowager Stamp"
+                      value={wish}
+                      onChange={(e) => setWish(e.target.value)}
+                      onBlur={() => updateWishingPreferences(wish, parseInt(donation, 10))}
+                    />
+                  </div>
+                  <div className="automated-field">
+                    <label htmlFor="wishingwell-donation">Donation (NP)</label>
+                    <input
+                      type="number"
+                      id="wishingwell-donation"
+                      min={21}
+                      value={donation}
+                      onChange={(e) => setDonation(e.target.value)}
+                      onBlur={() => updateWishingPreferences(wish, parseInt(donation, 10))}
+                    />
+                  </div>
                 </div>
-                <div className="automated-field">
-                  <label htmlFor="wishingwell-donation">Donation (NP)</label>
-                  <input
-                    type="number"
-                    id="wishingwell-donation"
-                    min={21}
-                    value={donation}
-                    onChange={(e) => setDonation(e.target.value)}
-                    onBlur={() => updateWishingPreferences(wish, parseInt(donation, 10))}
-                  />
+                <div className="automated-actions">
+                  <button
+                    type="button"
+                    className="automated-run"
+                    id="wishingwell-run"
+                    onClick={() => {
+                      updateWishingPreferences(wish, parseInt(donation, 10));
+                      void runWishingWell();
+                    }}
+                  >
+                    Run 7 wishes
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="automated-run"
-                  id="wishingwell-run"
-                  onClick={() => {
-                    updateWishingPreferences(wish, parseInt(donation, 10));
-                    void runWishingWell();
-                  }}
-                >
-                  Run 7 wishes
-                </button>
-                <div className="automated-status" id="wishingwell-status">
-                  Ready.
-                </div>
+                <div
+                  className="hub-progress-host automated-progress-host"
+                  id="wishingwell-progress-host"
+                />
               </div>
             </div>
           </section>

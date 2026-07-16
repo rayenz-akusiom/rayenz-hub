@@ -1,4 +1,5 @@
 import { neopetsFetch, neopetsPost } from '../lib/neopets-bridge';
+import type { HubProgressController } from '../lib/hub-progress';
 import {
   WISHING_MAX,
   buildWishingPayload,
@@ -22,11 +23,18 @@ const WISHING_PAGE_URL = 'https://www.neopets.com/wishing.phtml';
 const WISHING_PROCESS_URL = 'https://www.neopets.com/process_wishing.phtml';
 const WISHING_DELAY_MS = 400;
 
-type DailiesProgress = {
-  start: (opts: { label: string }) => void;
-  update: (opts: { current: number; total: number; label: string }) => void;
-  finish: (opts: { label: string; variant?: string }) => void;
+type ProgressWindow = Window & {
+  __cocoshyProgress?: HubProgressController;
+  __wishingwellProgress?: HubProgressController;
 };
+
+function cocoShyProgress(): HubProgressController | null {
+  return (window as ProgressWindow).__cocoshyProgress || null;
+}
+
+function wishingWellProgress(): HubProgressController | null {
+  return (window as ProgressWindow).__wishingwellProgress || null;
+}
 
 type CocoShyResult = {
   points: string | null;
@@ -69,26 +77,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function setStatus(statusEl: HTMLElement, message: string, className?: string): void {
-  statusEl.textContent = message;
-  statusEl.className = 'automated-status' + (className ? ' ' + className : '');
-}
-
-function dailiesProgress(): DailiesProgress | null {
-  try {
-    if (window.parent && window.parent !== window) {
-      const parentProgress = (window.parent as Window & { __dailiesProgress?: DailiesProgress })
-        .__dailiesProgress;
-      if (parentProgress) {
-        return parentProgress;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return (window as Window & { __dailiesProgress?: DailiesProgress }).__dailiesProgress || null;
-}
-
 function saveWishingPreferencesFromDom(): void {
   const wishInput = document.getElementById('wishingwell-wish') as HTMLInputElement | null;
   const donationInput = document.getElementById('wishingwell-donation') as HTMLInputElement | null;
@@ -100,18 +88,16 @@ function saveWishingPreferencesFromDom(): void {
 
 export async function runCoconutShy(): Promise<void> {
   const runBtn = document.getElementById('cocoshy-run') as HTMLButtonElement | null;
-  const statusEl = document.getElementById('cocoshy-status') as HTMLElement | null;
-  const progress = dailiesProgress();
+  const progress = cocoShyProgress();
   let processed = 0;
   let wonItem: boolean | null = null;
   let hadError = false;
 
-  if (!runBtn || !statusEl) {
+  if (!runBtn) {
     return;
   }
 
   runBtn.disabled = true;
-  setStatus(statusEl, 'Running throws...');
   if (progress) {
     progress.start({ label: 'Running Coco Shy throws…' });
   }
@@ -129,7 +115,6 @@ export async function runCoconutShy(): Promise<void> {
       const responseText = response.text;
 
       if (isLoginPage(responseText)) {
-        setStatus(statusEl, 'Not logged in to Neopets. Log in at neopets.com and try again.', 'error');
         hadError = true;
         if (progress) {
           progress.finish({ label: 'Not logged in to Neopets.', variant: 'error' });
@@ -150,7 +135,6 @@ export async function runCoconutShy(): Promise<void> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setStatus(statusEl, message, 'error');
       hadError = true;
       if (progress) {
         progress.finish({ label: message, variant: 'error' });
@@ -163,31 +147,24 @@ export async function runCoconutShy(): Promise<void> {
     }
   }
 
-  if (!hadError) {
+  if (!hadError && progress) {
     let summary = processed + ' throw' + (processed === 1 ? '' : 's') + ' processed.';
     if (wonItem) {
       summary += ' Item won!';
-      setStatus(statusEl, summary, 'win');
     } else {
       summary += ' No item won.';
-      setStatus(statusEl, summary);
     }
-    if (progress) {
-      progress.finish({ label: summary, variant: 'success' });
-    }
+    progress.finish({ label: summary, variant: 'success' });
   }
 
   runBtn.disabled = false;
 }
 
 export async function refreshWishingWellStatus(): Promise<void> {
-  const statusEl = document.getElementById('wishingwell-status') as HTMLElement | null;
-  if (!statusEl) {
-    return;
-  }
+  const progress = wishingWellProgress();
 
   if (isWishingPeriodComplete()) {
-    setStatus(statusEl, 'Ready.');
+    progress?.dismiss();
     return;
   }
 
@@ -195,7 +172,10 @@ export async function refreshWishingWellStatus(): Promise<void> {
     const response = await neopetsFetch(WISHING_PAGE_URL);
     const html = response.text;
     if (isLoginPage(html)) {
-      setStatus(statusEl, 'Log in at neopets.com to check wish status.', 'notice');
+      progress?.finish({
+        label: 'Log in at neopets.com to check wish status.',
+        variant: 'error',
+      });
       return;
     }
 
@@ -207,34 +187,35 @@ export async function refreshWishingWellStatus(): Promise<void> {
     }
 
     if (wishCount === null) {
-      setStatus(statusEl, 'Ready.');
+      progress?.dismiss();
       return;
     }
 
     if (wishCount >= WISHING_MAX) {
       markWishingPeriodComplete(state);
-      setStatus(statusEl, 'Ready.');
+      progress?.dismiss();
       return;
     }
 
     if (wishCount === 0) {
-      setStatus(statusEl, 'New wish period — you have not donated yet.', 'notice');
+      progress?.finish({ label: 'New wish period — you have not donated yet.' });
     } else {
-      setStatus(statusEl, 'New wish period — only ' + wishCount + '/' + WISHING_MAX + ' wishes submitted.', 'notice');
+      progress?.finish({
+        label: 'New wish period — only ' + wishCount + '/' + WISHING_MAX + ' wishes submitted.',
+      });
     }
   } catch {
-    setStatus(statusEl, 'Ready.');
+    progress?.dismiss();
   }
 }
 
 export async function runWishingWell(): Promise<void> {
   const runBtn = document.getElementById('wishingwell-run') as HTMLButtonElement | null;
-  const statusEl = document.getElementById('wishingwell-status') as HTMLElement | null;
   const wishInput = document.getElementById('wishingwell-wish') as HTMLInputElement | null;
   const donationInput = document.getElementById('wishingwell-donation') as HTMLInputElement | null;
-  const progress = dailiesProgress();
+  const progress = wishingWellProgress();
 
-  if (!runBtn || !statusEl || !wishInput || !donationInput) {
+  if (!runBtn || !wishInput || !donationInput) {
     return;
   }
 
@@ -242,18 +223,17 @@ export async function runWishingWell(): Promise<void> {
   const donation = parseInt(donationInput.value, 10) || 21;
 
   if (!wishText) {
-    setStatus(statusEl, 'Enter an item to wish for.', 'error');
+    progress?.finish({ label: 'Enter an item to wish for.', variant: 'error' });
     return;
   }
 
   if (donation < 21) {
-    setStatus(statusEl, 'Donation must be at least 21 NP.', 'error');
+    progress?.finish({ label: 'Donation must be at least 21 NP.', variant: 'error' });
     return;
   }
 
   saveWishingPreferencesFromDom();
   runBtn.disabled = true;
-  setStatus(statusEl, 'Submitting wishes...');
   if (progress) {
     progress.start({ label: 'Submitting Wishing Well wishes…' });
   }
@@ -266,7 +246,6 @@ export async function runWishingWell(): Promise<void> {
     const pageResponse = await neopetsFetch(WISHING_PAGE_URL);
     const pageHtml = pageResponse.text;
     if (isLoginPage(pageHtml)) {
-      setStatus(statusEl, 'Not logged in to Neopets. Log in at neopets.com and try again.', 'error');
       hadError = true;
       if (progress) {
         progress.finish({ label: 'Not logged in to Neopets.', variant: 'error' });
@@ -276,7 +255,6 @@ export async function runWishingWell(): Promise<void> {
 
     let formData = parseWishingForm(pageHtml);
     if (!formData) {
-      setStatus(statusEl, 'Could not read the Wishing Well form.', 'error');
       hadError = true;
       if (progress) {
         progress.finish({ label: 'Could not read the Wishing Well form.', variant: 'error' });
@@ -293,7 +271,6 @@ export async function runWishingWell(): Promise<void> {
 
     if (remaining === 0) {
       markWishingPeriodComplete(state);
-      setStatus(statusEl, 'Already submitted ' + WISHING_MAX + ' wishes this period.');
       if (progress) {
         progress.finish({ label: 'Already submitted ' + WISHING_MAX + ' wishes this period.' });
       }
@@ -313,7 +290,6 @@ export async function runWishingWell(): Promise<void> {
       const responseHtml = response.text || '';
 
       if (isLoginPage(responseHtml)) {
-        setStatus(statusEl, 'Not logged in to Neopets. Log in at neopets.com and try again.', 'error');
         hadError = true;
         if (progress) {
           progress.finish({ label: 'Not logged in to Neopets.', variant: 'error' });
@@ -328,10 +304,12 @@ export async function runWishingWell(): Promise<void> {
         if (!responseHtml.trim() && response.url) {
           console.warn('Wishing Well response URL:', response.url);
         }
-        setStatus(statusEl, outcome.error || 'Unexpected response from Wishing Well.', 'error');
         hadError = true;
         if (progress) {
-          progress.finish({ label: outcome.error || 'Unexpected response from Wishing Well.', variant: 'error' });
+          progress.finish({
+            label: outcome.error || 'Unexpected response from Wishing Well.',
+            variant: 'error',
+          });
         }
         break;
       }
@@ -353,23 +331,19 @@ export async function runWishingWell(): Promise<void> {
       }
     }
 
-    if (!hadError) {
+    if (!hadError && progress) {
       const summary = processed + ' wish' + (processed === 1 ? '' : 'es') + ' processed.';
       if (processed >= remaining) {
         markWishingPeriodComplete(state);
       }
-      setStatus(statusEl, summary);
-      if (progress) {
-        progress.finish({ label: summary });
-      }
+      progress.finish({ label: summary });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    setStatus(statusEl, message, 'error');
     if (progress) {
       progress.finish({ label: message, variant: 'error' });
     }
+  } finally {
+    runBtn.disabled = false;
   }
-
-  runBtn.disabled = false;
 }

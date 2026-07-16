@@ -41,10 +41,6 @@
    background: #fff;
 }
 
-.dailies-sticky-chrome .hub-progress-host:not(:empty) {
-   border-bottom: 1px solid #e2e8f0;
-}
-
 .dailies-layout {
    display: grid;
    grid-template-columns: 1fr 180px;
@@ -990,30 +986,55 @@
    display: grid;
    grid-template-columns: repeat(2, minmax(0, 1fr));
    gap: 8px;
+   align-items: stretch;
    text-align: left;
    padding: 8px 0;
 }
 
 .automated-item {
+   display: flex;
+   flex-direction: column;
    margin: 0;
-   padding: 16px;
+   padding: 0;
    border: 1px solid #ddd;
    border-radius: 6px;
    background: #fff;
    box-sizing: border-box;
+   overflow: hidden;
+   min-height: 0;
 }
 
 .automated-header {
    display: flex;
    align-items: center;
-   gap: 16px;
-   margin-bottom: 12px;
+   gap: 10px;
+   padding: 8px 12px;
+   background: #f5f5f5;
+   border-bottom: 1px solid #e8e8e8;
+   margin: 0;
+}
+
+.automated-header-text {
+   display: flex;
+   flex-direction: column;
+   gap: 2px;
+   min-width: 0;
+}
+
+.automated-header-text strong {
+   font-size: 14px;
+   line-height: 1.2;
+}
+
+.automated-header .daily-icon-box {
+   flex-shrink: 0;
 }
 
 .automated-header .daily-icon-box img {
-   max-width: 72px;
-   max-height: 72px;
+   max-width: 48px;
+   max-height: 48px;
    object-fit: contain;
+   display: block;
 }
 
 a.daily-icon-box {
@@ -1025,15 +1046,32 @@ a.daily-icon-box:hover {
    filter: brightness(1.08);
 }
 
+.automated-body {
+   flex: 1 1 auto;
+   padding: 12px;
+   display: flex;
+   flex-direction: column;
+   gap: 10px;
+   min-height: 0;
+}
+
+.automated-actions {
+   padding: 0 12px 12px;
+}
+
 .automated-run {
+   display: block;
+   width: 100%;
    background-color: #555;
    color: white;
    border: none;
+   border-radius: 4px;
    padding: 10px 16px;
    font-size: 14px;
    font-weight: bold;
    cursor: pointer;
-   margin-right: 8px;
+   margin: 0;
+   box-sizing: border-box;
 }
 
 .automated-run:hover:not(:disabled) {
@@ -1045,23 +1083,25 @@ a.daily-icon-box:hover {
    cursor: wait;
 }
 
-.automated-status {
-   margin: 12px 0 0;
-   font-size: 14px;
+.automated-progress-host {
+   margin-top: auto;
+   flex-shrink: 0;
 }
 
-.automated-status.win {
-   color: #006400;
-   font-weight: bold;
+.automated-item .hub-progress-bar {
+   background: #f7fafc;
+   border-bottom: none;
+   border-top: 1px solid #e8e8e8;
+   padding: 8px 12px;
 }
 
-.automated-status.error {
-   color: #8b0000;
+.automated-item .hub-progress-bar-track {
+   height: 5px;
+   margin-bottom: 4px;
 }
 
-.automated-status.notice {
-   color: #8b4513;
-   font-weight: bold;
+.automated-item .hub-progress-bar-label {
+   font-size: 0.8rem;
 }
 
 .automated-divider {
@@ -1069,13 +1109,14 @@ a.daily-icon-box:hover {
 }
 
 .automated-field {
-   margin-bottom: 10px;
+   margin: 0;
 }
 
 .automated-field label {
    display: block;
    font-size: 13px;
    margin-bottom: 4px;
+   color: #4a5568;
 }
 
 .automated-field input {
@@ -1084,6 +1125,8 @@ a.daily-icon-box:hover {
    padding: 6px 8px;
    font-size: 14px;
    box-sizing: border-box;
+   border: 1px solid #ccc;
+   border-radius: 4px;
 }
 
 @media (max-width: 1100px) {

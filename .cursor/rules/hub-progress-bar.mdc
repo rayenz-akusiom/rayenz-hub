@@ -39,7 +39,6 @@ Row format:
 
 - **Deck Review** — `setProfileStatus` in `dr-profiles.js`, `dr-render.js` — profile connect, bridge hint, staging banner — short messages only; deck refresh uses `HubProgress` (added: 2026-06-30)
 - **Order Reconcile** — `#or-status` / `OR.setStatus` in `order-reconcile.js` — ephemeral feedback (settings saved, copy applied, Scryfall miss) — deck fetch uses `HubProgress` (added: 2026-06-30)
-- **Dailies** — `.automated-status` in `dailies.js` — idle Ready, validation, and per-section errors — Coco Shy / Wishing Well batch progress uses header `HubProgress` (added: 2026-06-30)
 
 ## Enforcement
 

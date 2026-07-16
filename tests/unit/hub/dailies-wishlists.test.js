@@ -4,6 +4,8 @@ import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
 describe('dailies wishlist cards', () => {
    beforeEach(() => {
       runInWindow(readHubFile('shared/storage.js'));
+      runInWindow(readHubFile('shared/string-utils.js'));
+      runInWindow(readHubFile('shared/icons/neopets-icons.svg.js'));
       runInWindow(readHubFile('shared/hub-utils.js'));
       runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
       runInWindow(readHubFile('apps/dailies/dailies-links.js'));
@@ -23,7 +25,6 @@ describe('dailies wishlist cards', () => {
          },
          item: {
             itemIid: 42,
-            itemdbId: 9001,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',
@@ -45,7 +46,7 @@ describe('dailies wishlist cards', () => {
       expect(html).toContain('data-wishlist-next');
       expect(html).toContain('aria-label="Next item"');
       expect(html).toContain('aria-label="Hide on ItemDB"');
-      expect(html).toContain('https://itemdb.com.br/items/9001');
+      expect(html).toContain('https://itemdb.com.br/item/cheap-book');
       expect(html).not.toContain('Next item</button>');
       expect(html).not.toContain('Hide on ItemDB</a>');
       expect(html).toContain('https://itemdb.com.br/lists/rayenz/book-award-checklist-2');
@@ -64,7 +65,6 @@ describe('dailies wishlist cards', () => {
          },
          item: {
             itemIid: 42,
-            itemdbId: 9001,
             name: 'Cheap Book',
             description: 'A very cheap book for testing.',
             image: 'https://images.neopets.com/items/boo_cheap.gif',

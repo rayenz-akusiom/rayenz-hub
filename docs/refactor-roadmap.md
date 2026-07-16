@@ -1,6 +1,6 @@
 # Hub Refactor Roadmap
 
-Last updated: 2026-07-12
+Last updated: 2026-07-16
 
 Incremental refactors using the **ItemDB v2 pattern**: normalize once at fetch/save, store a compact typed cache, pick at read with a trivial loop, reject legacy formats, log chosen objects for debugging.
 
@@ -25,13 +25,13 @@ Use when evaluating any workflow:
 
 ---
 
-## Phase 1 — Neopets / Dailies (active)
+## Phase 1 — Neopets / Dailies (complete)
 
-Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cursor/ideas/IDEAS.md) when complete.
+Phase 1 data refactors are done. **Dailies UI/domain now live in React/TypeScript** under `packages/web` (iframe at `web/dailies/`), with schemas in `packages/shared`.
 
 ### 1.1 ItemDB wishlist picker — v2 cache (done)
 
-**Files:** `rayenz-hub/apps/dailies/dailies-itemdb.js`, `dailies-render.js`, `tests/unit/hub/dailies-itemdb.test.js`
+**Files (legacy vanilla removed):** now `packages/web/src/dailies/itemdb.ts`, `tests/unit/hub/dailies-itemdb.test.js`
 
 - [x] v2 cache: `{ formatVersion: 2, items: WishlistItem[] }` with normalize-on-save
 - [x] Legacy v1 cache invalidation
@@ -46,7 +46,7 @@ Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cur
 
 ### 1.2 Wishing Well automation — normalized state (done)
 
-**Files:** `rayenz-hub/apps/dailies/dailies-wishing-well.js`, `dailies.js`
+**Files:** `packages/web/src/dailies/wishing-well.ts`, `automations.ts`
 
 - [x] Single `rayenz-wishing-well-state` doc with legacy key migration
 - [x] `evaluateWishingPost` centralizes success/failure
@@ -55,15 +55,20 @@ Work through in order. Mark items done in [IDEAS.md](file:///C:/Users/akusi/.cur
 
 ### 1.3 Wishlist settings — normalize-on-save (done)
 
-**File:** `rayenz-hub/apps/dailies/dailies-settings.js`
+**File:** `packages/web/src/dailies/settings.ts` (+ React settings page)
 
 - [x] `saveSettings` normalizes wishlists; `getWishlists` reads stored shape (lazy normalize for legacy entries)
 
-### 1.4 Out of scope (no refactor needed)
+### 1.4 React migration (done)
 
-- `dailies-timed.js` — pure date/filter logic
-- `dailies-links.js` — static link registry
-- Coconut Shy — live fetch loop; no cache complexity
+- [x] Vite MPA: `web/settings` + `web/dailies`
+- [x] Domain ports under `packages/web/src/dailies/`
+- [x] React `DailiesApp` (wishlists, alerts, sidebar, grid, automations)
+- [x] Vanilla `apps/dailies/dailies-*.js` removed; `load.js` is iframe-only
+
+### 1.5 Out of scope historically
+
+- timed / links / Coconut Shy — now TypeScript modules under `packages/web/src/dailies/`
 
 ---
 

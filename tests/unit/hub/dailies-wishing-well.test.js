@@ -1,11 +1,12 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
+import { installDailiesGlobals } from './installDailiesGlobals.js';
 
 describe('dailies wishing well state', () => {
    beforeEach(() => {
-      localStorage.clear();
-      runInWindow(readHubFile('apps/dailies/dailies-wishing-well.js'));
-   });
+      
+      installDailiesGlobals();
+localStorage.clear();
+      });
 
    it('migrates legacy wish and donation keys into state doc', () => {
       localStorage.setItem('rayenz-wishing-well-wish', 'Rainbow Paint Brush');

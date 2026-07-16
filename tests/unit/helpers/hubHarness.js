@@ -86,14 +86,12 @@ export function buildHubDom() {
 }
 
 export function mockFetch() {
-   const dailiesHtml = readHubFile('apps/dailies/dailies.html');
-
    return vi.fn(async (url) => {
       const requestUrl = String(url);
-      if (requestUrl.includes('dailies.html')) {
+      if (requestUrl.includes('dailies.html') || requestUrl.includes('web/dailies')) {
          return {
             ok: true,
-            text: () => Promise.resolve(dailiesHtml),
+            text: () => Promise.resolve('<div id="root"></div>'),
          };
       }
       if (requestUrl.includes('latest.json')) {
@@ -118,19 +116,13 @@ function flushPromises() {
 
 export function loadHubScripts() {
    runInWindow(readHubFile('shared/storage.js'));
+   runInWindow(readHubFile('shared/string-utils.js'));
    runInWindow(readHubFile('shared/hub-utils.js'));
    runInWindow(readHubFile('shared/hub-progress.js'));
    runInWindow(readHubFile('shared/router.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-links.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-timed.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-wishing-well.js'));
-   runInWindow(readHubFile('apps/dailies/dailies-render.js'));
-   runInWindow(readHubFile('apps/dailies/dailies.js'));
+   runInWindow(readHubFile('apps/dailies/load.js'));
    window.__dailiesScriptLoaded = true;
    window.__dailiesModulesLoaded = true;
-   runInWindow(readHubFile('apps/dailies/load.js'));
 }
 
 export async function setupHub(options = {}) {
@@ -174,11 +166,11 @@ export async function setupHub(options = {}) {
 
 async function waitForDailiesReady(attempts = 50) {
    for (let i = 0; i < attempts; i++) {
-      const grid = document.querySelector('#app-root .dailies-grid');
-      if (grid && grid.querySelector('.daily-tile')) {
-         return grid;
+      const frame = document.querySelector('#app-root iframe.hub-web-frame');
+      if (frame && /web\/dailies/i.test(frame.getAttribute('src') || '')) {
+         return frame;
       }
       await flushPromises();
    }
-   throw new Error('Timed out waiting for dailies init (daily-tile)');
+   throw new Error('Timed out waiting for dailies iframe');
 }

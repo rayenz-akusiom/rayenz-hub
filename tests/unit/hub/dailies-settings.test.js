@@ -1,11 +1,17 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
+import { installDailiesGlobals } from './installDailiesGlobals.js';
 
 describe('dailies settings filters', () => {
    beforeEach(() => {
-      runInWindow(readHubFile('shared/storage.js'));
-      runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
-      runInWindow(readHubFile('apps/dailies/dailies-links.js'));
+      installDailiesGlobals();
+      const blob = {};
+      window.HubStorage = {
+         loadDailiesSettings: () => ({ ...blob }),
+         saveDailiesSettings: (settings) => {
+            Object.keys(blob).forEach((k) => delete blob[k]);
+            Object.assign(blob, settings);
+         },
+      };
    });
 
    it('shows only selected faerie quest link', () => {

@@ -12,7 +12,7 @@ describe('hub router', () => {
    it('defaults empty hash to the dailies route', async () => {
       const hub = await setupHub();
       expect(hub.getRoutePath()).toBe('/dailies');
-      expect(hub.getLinkTiles().length).toBeGreaterThan(0);
+      expect(document.querySelector('#app-root iframe.hub-web-frame')).toBeTruthy();
    });
 
    it('navigates to deck review and back', async () => {
@@ -23,7 +23,7 @@ describe('hub router', () => {
 
       await hub.navigate('#/dailies');
       expect(hub.getRoutePath()).toBe('/dailies');
-      expect(hub.getLinkTiles().length).toBeGreaterThan(0);
+      expect(document.querySelector('#app-root iframe.hub-web-frame')).toBeTruthy();
    });
 
    it('loads deck review once when navigate sets hash programmatically', async () => {

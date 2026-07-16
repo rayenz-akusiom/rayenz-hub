@@ -194,12 +194,19 @@ localStorage.removeItem('rayenz-hub-api-key');
 
 
 
-## 5. React settings dev (optional)
+## 5. React web apps (settings + dailies)
 
 ```powershell
 npm run dev:web      # Vite dev server — packages/web
-npm run build:web    # Build to rayenz-hub/web/settings/ for static Hub iframe
+npm run build:web    # Build MPA to rayenz-hub/web/{settings,dailies}/ for Hub iframes
 ```
+
+Hub routes:
+
+- `#/settings…` → iframe `web/settings/index.html`
+- `#/dailies` → iframe `web/dailies/index.html`
+
+Deploy the static Hub only after `npm run build:web` so both iframes exist on gh-pages.
 
 ---
 

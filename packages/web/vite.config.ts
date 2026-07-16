@@ -14,7 +14,13 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, '../../rayenz-hub/web/settings'),
+    outDir: path.resolve(rootDir, '../../rayenz-hub/web'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        settings: path.resolve(rootDir, 'settings/index.html'),
+        dailies: path.resolve(rootDir, 'dailies/index.html'),
+      },
+    },
   },
 });

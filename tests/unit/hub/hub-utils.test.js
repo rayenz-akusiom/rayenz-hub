@@ -6,6 +6,7 @@ let HubUtils;
 beforeEach(() => {
    document.head.innerHTML = '';
    resetHubModules();
+   loadHubModule('shared/string-utils.js', 'StringUtils');
    HubUtils = loadHubModule('shared/hub-utils.js', 'HubUtils');
 });
 

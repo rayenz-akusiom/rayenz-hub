@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
+import { installDailiesGlobals } from './installDailiesGlobals.js';
 
 describe('dailies timed cards', () => {
    beforeEach(() => {
-      runInWindow(readHubFile('apps/dailies/dailies-settings.js'));
-      runInWindow(readHubFile('apps/dailies/dailies-timed.js'));
-      localStorage.clear();
+      
+      installDailiesGlobals();
+localStorage.clear();
    });
 
    it('shows Snowager during NST window hours', () => {

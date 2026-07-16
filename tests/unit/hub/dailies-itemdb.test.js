@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { readHubFile, runInWindow } from '../helpers/hubHarness.js';
+import { installDailiesGlobals } from './installDailiesGlobals.js';
 
 const NOW = 1_700_000_000_000;
 
@@ -22,10 +22,10 @@ function pickFromRaw(info, itemdata, options) {
 
 describe('dailies itemdb picker', () => {
    beforeEach(() => {
-      localStorage.clear();
-      runInWindow(readHubFile('shared/string-utils.js'));
-      runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
-   });
+      
+      installDailiesGlobals();
+localStorage.clear();
+      });
 
    it('picks cheapest non-hidden tradeable item by ItemDB price', () => {
       const info = [
@@ -363,9 +363,10 @@ describe('dailies itemdb picker', () => {
 
 describe('dailies itemdb cache and skip', () => {
    beforeEach(() => {
-      localStorage.clear();
-      runInWindow(readHubFile('apps/dailies/dailies-itemdb.js'));
-   });
+      
+      installDailiesGlobals();
+localStorage.clear();
+      });
 
    it('cache read/write round-trips v2 normalized items', () => {
       const list = makeList('books', 'book-list');

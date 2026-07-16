@@ -1,0 +1,23 @@
+---
+description: Prefer card images over names in deck-builder card UIs
+globs: packages/web/src/deck-builder/**/*.{tsx,ts,css}
+alwaysApply: false
+---
+
+# Deck builder: card images over names
+
+Where possible, use **Scryfall card images** for pickers, queues, selection, and swap UIs — not card-name lists.
+
+## Prefer
+
+- `CardTile`, swap `MiniCard`, or equivalent image tiles via `cardImageUrl`
+- Names as `alt` text, image-load fallbacks, or tooltips only
+
+## Avoid
+
+- Name-only `<select>` / text lists for choosing cards when an image affordance can work
+- Introducing name-primary edit flows that diverge from the visual swap queue
+
+## Exception
+
+Explicit list/name layouts (or a future list view mode) may use card names as the primary display. Filters that narrow an image grid by name are fine as auxiliary controls.

@@ -8,6 +8,7 @@ import {
   type DeckDocument,
 } from '@rayenz-hub/shared';
 import { CardGroup, DeckHeaderRow } from './CategoryBrowse';
+import { MasonryColumns } from './MasonryColumns';
 
 export function ColourIdentityBrowse({
   deck,
@@ -54,7 +55,7 @@ export function ColourIdentityBrowse({
         onSelectCard={onSelectCard}
       />
       {layout === 'stacked' ? (
-        <div className="db-cat-columns">{sections}</div>
+        <MasonryColumns>{sections}</MasonryColumns>
       ) : (
         sections
       )}

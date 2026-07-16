@@ -7,6 +7,7 @@ import {
   type DeckDocument,
 } from '@rayenz-hub/shared';
 import { CardTile, DRAG_MIME } from './CardTile';
+import { MasonryColumns } from './MasonryColumns';
 
 export function CardGroup({
   cards,
@@ -31,6 +32,14 @@ export function CardGroup({
               selected={selectedId === card.instanceId}
               onSelect={onSelectCard}
               draggable={draggable}
+            />
+            <button
+              type="button"
+              className="db-card-stack-peek"
+              tabIndex={-1}
+              aria-hidden="true"
+              title={card.name}
+              onClick={() => onSelectCard?.(card)}
             />
           </div>
         ))}
@@ -147,6 +156,7 @@ export function CategoryBrowse({
   layout = 'stacked',
   onDropCard,
   mode = 'main',
+  includeSwapCategories = false,
 }: {
   deck: Pick<DeckDocument, 'cards' | 'categories'> | { cards: CardInstance[]; categories: CategoryDef[] };
   onSelectCard?: (card: CardInstance) => void;
@@ -154,9 +164,10 @@ export function CategoryBrowse({
   layout?: CardLayout;
   onDropCard?: (instanceId: string, category: string) => void;
   mode?: 'main' | 'aside';
+  includeSwapCategories?: boolean;
 }) {
   const { header, included, excluded, headerKeys, includedKeys, excludedKeys } =
-    partitionCategories(deck);
+    partitionCategories(deck, { includeSwapCategories });
 
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;
@@ -203,7 +214,7 @@ export function CategoryBrowse({
       {layout === 'grid' ? (
         includedSections
       ) : (
-        <div className="db-cat-columns">{includedSections}</div>
+        <MasonryColumns>{includedSections}</MasonryColumns>
       )}
     </div>
   );

@@ -1,4 +1,12 @@
-import { moveCardCategory, type CardInstance, type DeckDocument } from '@rayenz-hub/shared';
+import {
+  addCardToDeck,
+  changeCardPrinting,
+  moveCardCategory,
+  removeCardFromDeck,
+  type CardInstance,
+  type DeckDocument,
+  type PrintingFields,
+} from '@rayenz-hub/shared';
 
 /** Pointer-friendly helper used by tests / future DnD wiring. */
 export function applyCardMove(
@@ -14,4 +22,24 @@ export function applyCardMove(
   };
 }
 
-export type { CardInstance };
+export function applyAddCard(
+  deck: DeckDocument,
+  printing: PrintingFields,
+  category: string,
+): DeckDocument {
+  return addCardToDeck(deck, printing, category);
+}
+
+export function applyRemoveCard(deck: DeckDocument, instanceId: string): DeckDocument {
+  return removeCardFromDeck(deck, instanceId);
+}
+
+export function applyChangePrinting(
+  deck: DeckDocument,
+  instanceId: string,
+  printing: PrintingFields,
+): DeckDocument {
+  return changeCardPrinting(deck, instanceId, printing);
+}
+
+export type { CardInstance, PrintingFields };

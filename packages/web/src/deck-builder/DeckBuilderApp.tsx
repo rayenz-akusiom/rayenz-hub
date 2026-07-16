@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
 import { LibraryView } from './library/LibraryView';
@@ -38,6 +38,7 @@ export function DeckBuilderApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiWarning, setApiWarning] = useState<string | null>(null);
+  const persistSeq = useRef(0);
 
   const refreshLibrary = useCallback(async () => {
     setLoading(true);
@@ -89,8 +90,11 @@ export function DeckBuilderApp() {
   }
 
   async function persist(next: DeckDocument) {
+    const seq = ++persistSeq.current;
+    setActive(next);
     setApiWarning(null);
     const { saved, apiError } = await saveDualMode(next);
+    if (seq !== persistSeq.current) return;
     setActive(saved);
     if (apiError) setApiWarning(apiError);
     await refreshLibrary();

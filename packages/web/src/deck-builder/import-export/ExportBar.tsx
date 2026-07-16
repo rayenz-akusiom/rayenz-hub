@@ -7,9 +7,11 @@ import { RefreshDialog } from './RefreshDialog';
 export function ExportBar({
   deck,
   onDeckChange,
+  onAddCard,
 }: {
   deck: DeckDocument;
   onDeckChange: (next: DeckDocument) => void;
+  onAddCard?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [refreshOpen, setRefreshOpen] = useState(false);
@@ -34,6 +36,11 @@ export function ExportBar({
 
   return (
     <div className="db-export-bar">
+      {onAddCard ? (
+        <button type="button" className="db-btn is-active" onClick={onAddCard}>
+          Add card…
+        </button>
+      ) : null}
       <button type="button" className="db-btn" onClick={copy}>
         {copied ? 'Copied' : 'Copy Archidekt import'}
       </button>

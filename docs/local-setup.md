@@ -198,15 +198,16 @@ localStorage.removeItem('rayenz-hub-api-key');
 
 ```powershell
 npm run dev:web      # Vite dev server — packages/web
-npm run build:web    # Build MPA to rayenz-hub/web/{settings,dailies}/ for Hub iframes
+npm run build:web    # Build MPA to rayenz-hub/web/{settings,dailies,deck-builder}/ for Hub iframes
 ```
 
 Hub routes:
 
 - `#/settings…` → iframe `web/settings/index.html`
 - `#/dailies` → iframe `web/dailies/index.html`
+- `#/deck-builder` → iframe `web/deck-builder/index.html`
 
-Deploy the static Hub only after `npm run build:web` so both iframes exist on gh-pages.
+Deploy the static Hub only after `npm run build:web` so iframes exist on gh-pages.
 
 ---
 

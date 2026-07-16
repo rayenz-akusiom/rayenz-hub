@@ -4,6 +4,7 @@ import { errorResponse } from './lib/response.js';
 import { handleHealth } from './handlers/health.js';
 import { handleSettings } from './handlers/settings.js';
 import { handleListProfiles, handleProfile } from './handlers/profiles.js';
+import { handleListDecks, handleDeck } from './handlers/decks.js';
 import { handleReviewProgress } from './handlers/review-progress.js';
 import { handleSetPool } from './handlers/set-pools.js';
 
@@ -30,6 +31,15 @@ export async function route(
   const profileMatch = /^\/v1\/profiles\/([^/]+)$/.exec(path);
   if (profileMatch) {
     return handleProfile(method, decodeURIComponent(profileMatch[1]), headers, event.body);
+  }
+
+  if (method === 'GET' && path === '/v1/decks') {
+    return handleListDecks(headers);
+  }
+
+  const deckMatch = /^\/v1\/decks\/([^/]+)$/.exec(path);
+  if (deckMatch) {
+    return handleDeck(method, decodeURIComponent(deckMatch[1]), headers, event.body);
   }
 
   const reviewMatch = /^\/v1\/review-progress\/([^/]+)$/.exec(path);

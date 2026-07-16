@@ -5,6 +5,7 @@ import { SettingsRepository } from '../../../packages/api/src/repositories/setti
 import { ProfileRepository } from '../../../packages/api/src/repositories/profile-repository.ts';
 import { ReviewProgressRepository } from '../../../packages/api/src/repositories/review-repository.ts';
 import { SetPoolRepository } from '../../../packages/api/src/repositories/set-pool-repository.ts';
+import { DeckRepository } from '../../../packages/api/src/repositories/deck-repository.ts';
 import { MemoryDocClient } from './memory-dynamo.ts';
 import { MemoryS3Store } from './memory-s3.ts';
 import { asBlobStore } from './test-blob-store.ts';
@@ -34,14 +35,16 @@ export function createTestServices(overrides: ContainerOverrides = {}): AppServi
 export function createMemoryStores() {
   const memory = new MemoryDocClient();
   const s3 = new MemoryS3Store();
+  const blob = asBlobStore(s3);
   return {
     memory,
     s3,
     services: createTestServices({
       settingsRepository: new SettingsRepository(memory, 'HubTable'),
-      profileRepository: new ProfileRepository(memory, 'HubTable', asBlobStore(s3)),
+      profileRepository: new ProfileRepository(memory, 'HubTable', blob),
       reviewProgressRepository: new ReviewProgressRepository(memory, 'HubTable'),
-      setPoolRepository: new SetPoolRepository(memory, 'HubTable', asBlobStore(s3)),
+      setPoolRepository: new SetPoolRepository(memory, 'HubTable', blob),
+      deckRepository: new DeckRepository(memory, 'HubTable', blob),
     }),
   };
 }

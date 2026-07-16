@@ -119,6 +119,30 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/profiles/{deckId}
             Method: PUT
+        DecksList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks
+            Method: GET
+        DeckGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks/{deckId}
+            Method: GET
+        DeckPut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks/{deckId}
+            Method: PUT
+        DeckDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks/{deckId}
+            Method: DELETE
         ReviewProgressGet:
           Type: HttpApi
           Properties:
@@ -165,6 +189,7 @@ Resources:
         AllowMethods:
           - GET
           - PUT
+          - DELETE
           - OPTIONS
 
 Outputs:

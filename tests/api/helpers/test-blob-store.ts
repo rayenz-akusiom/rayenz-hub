@@ -5,5 +5,6 @@ export function asBlobStore(memory: MemoryS3Store): BlobStore {
   return {
     getText: (key) => memory.getText(key),
     putText: (key, body, _contentType) => memory.putText(key, body),
+    deleteObject: (key) => memory.deleteObject(key),
   };
 }

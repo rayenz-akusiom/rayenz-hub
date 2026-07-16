@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "deckId": "cmd-fixture",
+  "name": "Fixture Commander",
+  "format": "commander",
+  "archidektId": 1,
+  "archidektUrl": null,
+  "categories": [
+    { "name": "Creature", "includedInDeck": true, "includedInPrice": true },
+    { "name": "Land", "includedInDeck": true, "includedInPrice": true },
+    { "name": "New Set In", "includedInDeck": false, "includedInPrice": false },
+    { "name": "New Set Out", "includedInDeck": false, "includedInPrice": false }
+  ],
+  "cards": [
+    {
+      "instanceId": "c1",
+      "name": "Birds of Paradise",
+      "quantity": 1,
+      "primaryCategory": "Creature",
+      "categories": ["Creature"],
+      "stack": null,
+      "setCode": "m12",
+      "collectorNumber": "165",
+      "scryfallId": null,
+      "colourIdentity": ["G"],
+      "typeLine": "Creature — Bird",
+      "archidektCardId": null
+    },
+    {
+      "instanceId": "c2",
+      "name": "Forest",
+      "quantity": 1,
+      "primaryCategory": "Land",
+      "categories": ["Land"],
+      "stack": null,
+      "setCode": "m12",
+      "collectorNumber": "246",
+      "scryfallId": null,
+      "colourIdentity": ["G"],
+      "typeLine": "Basic Land — Forest",
+      "archidektCardId": null
+    },
+    {
+      "instanceId": "c3",
+      "name": "Counterspell",
+      "quantity": 1,
+      "primaryCategory": "Instant",
+      "categories": ["Instant"],
+      "stack": null,
+      "setCode": "mh2",
+      "collectorNumber": "267",
+      "scryfallId": null,
+      "colourIdentity": ["U"],
+      "typeLine": "Instant",
+      "archidektCardId": null
+    }
+  ],
+  "formalSwapEntries": [],
+  "browseViewDefault": null,
+  "createdAt": "2026-07-16T00:00:00.000Z",
+  "updatedAt": "2026-07-16T00:00:00.000Z",
+  "lastArchidektSyncAt": null,
+  "lastArchidektImportAt": null
+}

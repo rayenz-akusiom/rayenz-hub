@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth-service.js';
 import type { ProfileRepository } from '../repositories/profile-repository.js';
 import type { ReviewProgressRepository } from '../repositories/review-repository.js';
 import type { SetPoolRepository } from '../repositories/set-pool-repository.js';
+import type { DeckRepository } from '../repositories/deck-repository.js';
 import type { SettingsRepository } from '../repositories/settings-repository.js';
 import { TYPES } from './types.js';
 
@@ -12,6 +13,7 @@ export interface AppServices {
   profileRepository: ProfileRepository;
   reviewProgressRepository: ReviewProgressRepository;
   setPoolRepository: SetPoolRepository;
+  deckRepository: DeckRepository;
 }
 
 export function resolveAppServices(container: Container): AppServices {
@@ -21,5 +23,6 @@ export function resolveAppServices(container: Container): AppServices {
     profileRepository: container.get<ProfileRepository>(TYPES.ProfileRepository),
     reviewProgressRepository: container.get<ReviewProgressRepository>(TYPES.ReviewProgressRepository),
     setPoolRepository: container.get<SetPoolRepository>(TYPES.SetPoolRepository),
+    deckRepository: container.get<DeckRepository>(TYPES.DeckRepository),
   };
 }

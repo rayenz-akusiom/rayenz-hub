@@ -9,6 +9,10 @@ export class MemoryS3Store {
     this.objects.set(key, body);
   }
 
+  async deleteObject(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+
   snapshot(): Map<string, string> {
     return new Map(this.objects);
   }

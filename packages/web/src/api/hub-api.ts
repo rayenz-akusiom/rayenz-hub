@@ -30,7 +30,11 @@ export function getHubApiConfig(): HubApiConfig {
   return { url, key, enabled: !!(url && key) };
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
+export function isApiConfigured(): boolean {
+  return getHubApiConfig().enabled;
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   const cfg = getHubApiConfig();
   if (!cfg.enabled) {
     throw new Error('Hub API not configured. Set rayenz-hub-api-url and rayenz-hub-api-key in localStorage.');

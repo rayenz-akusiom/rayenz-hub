@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Archidekt Deck Review Bridge
 // @namespace    rayenz.hub.deck-review
-// @version      2026-06-26
+// @version      2026-07-16
 // @description  CORS bridge for Rayenz Hub deck snapshots; stages full-deck apply on Archidekt deck pages.
 // @author       rayenz-akusiom
 // @match        https://archidekt.com/decks/*
@@ -51,6 +51,20 @@
         return map;
     }
 
+    function buildCategories(rawDeck) {
+        return (rawDeck.categories || [])
+            .filter(function (cat) {
+                return cat && cat.name;
+            })
+            .map(function (cat) {
+                return {
+                    name: cat.name,
+                    includedInDeck: cat.includedInDeck !== false,
+                    includedInPrice: cat.includedInPrice !== false
+                };
+            });
+    }
+
     function buildSnapshot(rawDeck) {
         var cards = [];
         (rawDeck.cards || []).forEach(function (entry) {
@@ -67,7 +81,9 @@
             var edition = (entry.card && entry.card.edition) || {};
             var setCode = edition.editioncode || edition.editionCode;
             var colorIdentity = (oracle && oracle.colorIdentity) || [];
+            var scryfallId = (entry.card && entry.card.uid) || null;
             cards.push({
+                id: entry.id != null ? entry.id : null,
                 name: name,
                 quantity: entry.quantity || 1,
                 set_code: setCode ? String(setCode).toLowerCase() : null,
@@ -75,12 +91,21 @@
                 primary_category: primary,
                 categories: cats,
                 color_identity: Array.isArray(colorIdentity) ? colorIdentity.slice() : [],
+                type_line: (oracle && oracle.typeLine) || null,
+                foil: entry.foil === true || entry.modifier === 'Foil',
+                scryfall_id: scryfallId,
                 archidekt_uid: entry.uid || null
             });
         });
+        var deckId = rawDeck.id != null ? rawDeck.id : null;
         return {
             fetched_at: new Date().toISOString().slice(0, 10),
+            deck_id: deckId,
+            deck_name: rawDeck.name || null,
+            name: rawDeck.name || null,
+            url: deckId != null ? 'https://archidekt.com/decks/' + deckId : null,
             cards: cards,
+            categories: buildCategories(rawDeck),
             category_settings: buildCategorySettings(rawDeck)
         };
     }

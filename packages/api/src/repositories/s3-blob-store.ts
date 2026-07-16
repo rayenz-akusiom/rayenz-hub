@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import type { ApiEnv } from '../lib/auth.js';
 
 export function createS3Client(env: ApiEnv): S3Client {
@@ -16,6 +16,7 @@ export function createS3Client(env: ApiEnv): S3Client {
 export interface BlobStore {
   getText(key: string): Promise<string | null>;
   putText(key: string, body: string, contentType: string): Promise<void>;
+  deleteObject?(key: string): Promise<void>;
 }
 
 export class S3BlobStore implements BlobStore {
@@ -47,6 +48,10 @@ export class S3BlobStore implements BlobStore {
         ContentType: contentType,
       }),
     );
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 }
 

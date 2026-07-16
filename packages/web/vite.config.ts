@@ -20,6 +20,7 @@ export default defineConfig({
       input: {
         settings: path.resolve(rootDir, 'settings/index.html'),
         dailies: path.resolve(rootDir, 'dailies/index.html'),
+        'deck-builder': path.resolve(rootDir, 'deck-builder/index.html'),
       },
     },
   },

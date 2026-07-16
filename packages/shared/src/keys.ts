@@ -26,6 +26,10 @@ export function setPoolSk(codesKey: string): string {
   return `SET_POOL::${codesKey}`;
 }
 
+export function deckSk(deckId: string): string {
+  return `DECK::${deckId}`;
+}
+
 export function settingsDomainFromPath(domain: string): SettingsDomain | null {
   return REST_TO_SETTINGS_DOMAIN[domain] ?? null;
 }

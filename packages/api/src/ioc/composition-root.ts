@@ -5,6 +5,7 @@ import { AuthService } from '../services/auth-service.js';
 import { ProfileRepository } from '../repositories/profile-repository.js';
 import { ReviewProgressRepository } from '../repositories/review-repository.js';
 import { SetPoolRepository } from '../repositories/set-pool-repository.js';
+import { DeckRepository } from '../repositories/deck-repository.js';
 import { createDocClient, SettingsRepository } from '../repositories/settings-repository.js';
 import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
 import { TYPES } from './types.js';
@@ -16,6 +17,7 @@ export interface ContainerOverrides {
   profileRepository?: ProfileRepository;
   reviewProgressRepository?: ReviewProgressRepository;
   setPoolRepository?: SetPoolRepository;
+  deckRepository?: DeckRepository;
 }
 
 function bindRepositories(container: Container, env: ApiEnv, overrides: ContainerOverrides): void {
@@ -61,6 +63,19 @@ function bindRepositories(container: Container, env: ApiEnv, overrides: Containe
         const doc = createDocClient(env);
         const s3 = new S3BlobStore(createS3Client(env), env.HUB_BUCKET_NAME || 'rayenz-hub-data-local');
         return new SetPoolRepository(doc, env.HUB_TABLE_NAME || 'HubTable', s3);
+      })
+      .inSingletonScope();
+  }
+
+  if (overrides.deckRepository) {
+    container.bind(TYPES.DeckRepository).toConstantValue(overrides.deckRepository);
+  } else {
+    container
+      .bind(TYPES.DeckRepository)
+      .toDynamicValue(() => {
+        const doc = createDocClient(env);
+        const s3 = new S3BlobStore(createS3Client(env), env.HUB_BUCKET_NAME || 'rayenz-hub-data-local');
+        return new DeckRepository(doc, env.HUB_TABLE_NAME || 'HubTable', s3);
       })
       .inSingletonScope();
   }

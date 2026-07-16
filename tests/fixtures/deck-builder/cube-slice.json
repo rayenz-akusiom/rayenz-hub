@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "deckId": "cube-fixture",
+  "name": "Vintage Cube",
+  "format": "cube",
+  "archidektId": 2,
+  "archidektUrl": null,
+  "categories": [
+    { "name": "White", "includedInDeck": true, "includedInPrice": true },
+    { "name": "Maybeboard", "includedInDeck": false, "includedInPrice": false }
+  ],
+  "cards": [
+    {
+      "instanceId": "u1",
+      "name": "Swords to Plowshares",
+      "quantity": 1,
+      "primaryCategory": "White",
+      "categories": ["White"],
+      "stack": null,
+      "setCode": "ema",
+      "collectorNumber": "32",
+      "scryfallId": null,
+      "colourIdentity": ["W"],
+      "typeLine": "Instant",
+      "archidektCardId": null
+    },
+    {
+      "instanceId": "u2",
+      "name": "Hallowed Fountain",
+      "quantity": 1,
+      "primaryCategory": "White",
+      "categories": ["White"],
+      "stack": null,
+      "setCode": "rna",
+      "collectorNumber": "251",
+      "scryfallId": null,
+      "colourIdentity": ["W", "U"],
+      "typeLine": "Land — Plains Island",
+      "archidektCardId": null
+    },
+    {
+      "instanceId": "u3",
+      "name": "Sol Ring",
+      "quantity": 1,
+      "primaryCategory": "Colorless",
+      "categories": ["Colorless"],
+      "stack": null,
+      "setCode": "c21",
+      "collectorNumber": "263",
+      "scryfallId": null,
+      "colourIdentity": [],
+      "typeLine": "Artifact",
+      "archidektCardId": null
+    }
+  ],
+  "formalSwapEntries": [],
+  "browseViewDefault": null,
+  "createdAt": "2026-07-16T00:00:00.000Z",
+  "updatedAt": "2026-07-16T00:00:00.000Z",
+  "lastArchidektSyncAt": null,
+  "lastArchidektImportAt": null
+}

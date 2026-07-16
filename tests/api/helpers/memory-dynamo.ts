@@ -1,11 +1,11 @@
-import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 type Item = Record<string, unknown>;
 
 export class MemoryDocClient {
   private readonly store = new Map<string, Item>();
 
-  async send(command: GetCommand | PutCommand | QueryCommand): Promise<unknown> {
+  async send(command: GetCommand | PutCommand | QueryCommand | DeleteCommand): Promise<unknown> {
     if (command instanceof GetCommand) {
       const input = command.input;
       const key = itemKey(input.Key as Item);
@@ -16,6 +16,11 @@ export class MemoryDocClient {
       const input = command.input;
       const item = input.Item as Item;
       this.store.set(itemKey({ PK: item.PK, SK: item.SK }), { ...item });
+      return {};
+    }
+    if (command instanceof DeleteCommand) {
+      const input = command.input;
+      this.store.delete(itemKey(input.Key as Item));
       return {};
     }
     if (command instanceof QueryCommand) {

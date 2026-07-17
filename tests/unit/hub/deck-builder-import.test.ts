@@ -214,7 +214,7 @@ describe('import', () => {
     expect(oracle?.colourIdentity).toEqual(['W', 'U']);
   });
 
-  it('defaults layout to normal, or transform for dual-faced names', () => {
+  it('defaults layout to normal, or null for dual-named cards pending Scryfall', () => {
     const doc = documentFromArchidektSnapshot({
       deck_id: 42,
       name: 'Cube',
@@ -242,7 +242,7 @@ describe('import', () => {
     const bolt = doc.cards.find((c) => c.name === 'Lightning Bolt')!;
     const delver = doc.cards.find((c) => c.name.startsWith('Delver of Secrets'))!;
     expect(doc.oracle?.[oracleKey(bolt)]?.layout).toBe('normal');
-    expect(doc.oracle?.[oracleKey(delver)]?.layout).toBe('transform');
+    expect(doc.oracle?.[oracleKey(delver)]?.layout).toBeNull();
   });
 
 

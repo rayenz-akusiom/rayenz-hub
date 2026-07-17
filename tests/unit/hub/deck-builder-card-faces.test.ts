@@ -3,6 +3,7 @@ import {
   cardHasBackFace,
   cardImageUrl,
   provisionalLayoutFromCard,
+  nameOrTypeLooksDual,
   scryfallImageFromId,
   scryfallImageFromName,
   scryfallImageFromPrinting,
@@ -22,6 +23,7 @@ describe('cardHasBackFace', () => {
     expect(cardHasBackFace('normal')).toBe(false);
     expect(cardHasBackFace('adventure')).toBe(false);
     expect(cardHasBackFace('split')).toBe(false);
+    expect(cardHasBackFace('prepare')).toBe(false);
     expect(cardHasBackFace('flip')).toBe(false);
     expect(cardHasBackFace(null)).toBe(false);
     expect(cardHasBackFace(undefined)).toBe(false);
@@ -30,21 +32,27 @@ describe('cardHasBackFace', () => {
 });
 
 describe('provisionalLayoutFromCard', () => {
-  it('defaults to normal', () => {
+  it('defaults to normal for single-faced and dual-named cards', () => {
     expect(provisionalLayoutFromCard('Lightning Bolt', 'Instant')).toBe('normal');
     expect(provisionalLayoutFromCard('Sol Ring', null)).toBe('normal');
-  });
-
-  it('uses transform when name or type line looks dual-faced', () => {
     expect(provisionalLayoutFromCard('Delver of Secrets // Insectile Aberration', null)).toBe(
-      'transform',
+      'normal',
     );
     expect(
       provisionalLayoutFromCard(
-        'Delver of Secrets',
-        'Creature — Human Wizard // Creature — Human Insect',
+        'Emeritus of Ideation // Ancestral Recall',
+        'Creature — Human Wizard // Instant',
       ),
-    ).toBe('transform');
+    ).toBe('normal');
+    expect(provisionalLayoutFromCard('Fire // Ice', 'Instant // Instant')).toBe('normal');
+  });
+});
+
+describe('nameOrTypeLooksDual', () => {
+  it('detects // in name or type line', () => {
+    expect(nameOrTypeLooksDual('Fire // Ice', null)).toBe(true);
+    expect(nameOrTypeLooksDual('Delver', 'Creature // Creature')).toBe(true);
+    expect(nameOrTypeLooksDual('Lightning Bolt', 'Instant')).toBe(false);
   });
 });
 

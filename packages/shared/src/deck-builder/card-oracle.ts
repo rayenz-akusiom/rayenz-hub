@@ -5,7 +5,7 @@ import type {
 } from '../schemas/deck-builder.js';
 import { normalizeColourIdentity, type ColourLetter } from './color-identity-map.js';
 import { isHeaderLeaderCategory, parsePartnerWithName } from './partner.js';
-import { provisionalLayoutFromCard, scryfallImageFromId } from './scryfall-images.js';
+import { provisionalLayoutFromCard, nameOrTypeLooksDual, scryfallImageFromId } from './scryfall-images.js';
 
 /** UI / logic view: lean list card + resolved oracle fields. */
 export type CardView = CardInstance & {
@@ -96,6 +96,11 @@ export function resolveDeckCards(doc: Pick<DeckDocument, 'cards' | 'oracle'>): C
   return (doc.cards || []).map((c) => resolveCardView(c, oracle[oracleKey(c)]));
 }
 
+/** Dual-named type lines need an authoritative layout (not `//` guessing). */
+function typeLineNeedsLayout(typeLine: string | null | undefined): boolean {
+  return nameOrTypeLooksDual(null, typeLine);
+}
+
 /** Whether oracle entry is complete enough to skip Scryfall for this card. */
 export function oracleSatisfiesCard(
   oracle: CardOracle | null | undefined,
@@ -105,6 +110,7 @@ export function oracleSatisfiesCard(
   if (!(oracle.colourIdentity && oracle.colourIdentity.length)) return false;
   if (!oracle.typeLine) return false;
   if (oracle.manaValue == null) return false;
+  if (typeLineNeedsLayout(oracle.typeLine) && oracle.layout == null) return false;
   if (isHeaderLeaderCategory(card.primaryCategory) && oracle.keywords == null) return false;
   return true;
 }
@@ -149,7 +155,11 @@ function legacyOracleFromCard(card: LegacyCard): Partial<CardOracle> | null {
     scryfallId: card.scryfallId ?? null,
     colourIdentity: card.colourIdentity?.length ? [...card.colourIdentity] : [],
     typeLine: card.typeLine ?? null,
-    layout: card.layout ?? provisionalLayoutFromCard(card.name, card.typeLine ?? null),
+    layout:
+      card.layout ??
+      (nameOrTypeLooksDual(card.name, card.typeLine ?? null)
+        ? null
+        : provisionalLayoutFromCard(card.name, card.typeLine ?? null)),
     keywords: card.keywords ?? null,
     partnerWith: card.partnerWith ?? null,
     imageUrl: card.scryfallId ? scryfallImageFromId(card.scryfallId) : null,
@@ -171,7 +181,8 @@ function mergeOraclePreferExisting(
           ? incoming.colourIdentity
           : [],
     typeLine: base.typeLine || incoming.typeLine || null,
-    layout: base.layout ?? incoming.layout ?? null,
+    // Prefer incoming so Scryfall can correct provisional/wrong layouts.
+    layout: incoming.layout ?? base.layout ?? null,
     keywords: base.keywords ?? incoming.keywords ?? null,
     partnerWith: base.partnerWith ?? incoming.partnerWith ?? null,
     oracleText: base.oracleText ?? incoming.oracleText ?? null,
@@ -206,6 +217,8 @@ export function upsertOracle(
 /**
  * Migrate legacy on-card enrich fields into `oracle`, strip them from cards,
  * ensure imageUrl when scryfallId is known.
+ * schemaVersion < 2: one-shot clear of dual type-line layouts so sticky
+ * provisional `transform` is re-fetched from Scryfall.
  */
 export function migrateDeckDocument<T extends Record<string, unknown>>(raw: T): T {
   if (!raw || typeof raw !== 'object') return raw;
@@ -213,6 +226,10 @@ export function migrateDeckDocument<T extends Record<string, unknown>>(raw: T): 
   let oracle: Record<string, CardOracle> = {
     ...((raw.oracle as Record<string, CardOracle>) || {}),
   };
+  const prevVersion =
+    typeof raw.schemaVersion === 'number' && Number.isFinite(raw.schemaVersion)
+      ? raw.schemaVersion
+      : 1;
 
   const cards: CardInstance[] = cardsIn.map((card) => {
     const legacy = legacyOracleFromCard(card);
@@ -242,7 +259,21 @@ export function migrateDeckDocument<T extends Record<string, unknown>>(raw: T): 
     }
   }
 
-  return { ...raw, cards, oracle };
+  // One-shot: clear dual type-line layouts so wrong provisional transform is re-enriched.
+  if (prevVersion < 2) {
+    for (const [key, entry] of Object.entries(oracle)) {
+      if (typeLineNeedsLayout(entry.typeLine) && entry.layout != null) {
+        oracle[key] = { ...entry, layout: null };
+      }
+    }
+  }
+
+  return {
+    ...raw,
+    cards,
+    oracle,
+    schemaVersion: Math.max(prevVersion, 2),
+  };
 }
 
 export function cardOracleFromScryfall(data: {

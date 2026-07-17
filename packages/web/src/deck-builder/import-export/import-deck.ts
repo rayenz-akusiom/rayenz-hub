@@ -8,6 +8,7 @@ import {
   normalizeColourIdentity,
   oracleKey,
   provisionalLayoutFromCard,
+  nameOrTypeLooksDual,
   scryfallImageFromId,
   seedFormalSwapsFromCategories,
   upsertOracle,
@@ -283,7 +284,9 @@ export function documentFromImportText(
       oracle,
       oracleKey(card),
       emptyCardOracle({
-        layout: provisionalLayoutFromCard(card.name, null),
+        layout: nameOrTypeLooksDual(card.name, null)
+          ? null
+          : provisionalLayoutFromCard(card.name, null),
       }),
     );
   }
@@ -440,7 +443,9 @@ export function documentFromArchidektSnapshot(
       scryfallId,
       colourIdentity: ci,
       typeLine,
-      layout: provisionalLayoutFromCard(name, typeLine),
+      layout: nameOrTypeLooksDual(name, typeLine)
+        ? null
+        : provisionalLayoutFromCard(name, typeLine),
       keywords: null,
       partnerWith: null,
       oracleText: null,

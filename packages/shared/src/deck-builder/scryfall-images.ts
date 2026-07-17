@@ -15,16 +15,23 @@ export function cardHasBackFace(layout: string | null | undefined): boolean {
 }
 
 /**
- * Layout without a Scryfall round-trip: DFC-looking names/type lines get a
- * provisional dual-faced layout so flip UI works; everything else is normal.
+ * Layout without a Scryfall round-trip. Dual names (`//`) are not enough to
+ * infer a back face — adventure, split, and prepare share that pattern — so
+ * always return normal until Scryfall provides the real layout.
  */
 export function provisionalLayoutFromCard(
-  name: string | null | undefined,
-  typeLine: string | null | undefined,
+  _name?: string | null,
+  _typeLine?: string | null,
 ): string {
-  const haystack = `${name || ''} ${typeLine || ''}`;
-  if (haystack.includes(' // ')) return 'transform';
   return 'normal';
+}
+
+/** True when name or type line uses Scryfall's dual-face separator. */
+export function nameOrTypeLooksDual(
+  name?: string | null,
+  typeLine?: string | null,
+): boolean {
+  return `${name || ''} ${typeLine || ''}`.includes(' // ');
 }
 
 function withFaceParam(url: string, face?: CardImageFace): string {

@@ -7,6 +7,7 @@ import {
   needsOracleEnrich,
   oracleKey,
   provisionalLayoutFromCard,
+  nameOrTypeLooksDual,
   upsertOracle,
   type CardInstance,
   type CardOracle,
@@ -170,7 +171,10 @@ export function useScryfallEnrich(
     const needsNetwork = deck.cards.filter((c) => needsOracleEnrich(deck, c));
     const needsLocalLayout = deck.cards.filter((c) => {
       const o = getOracle(deck, c);
-      return !o?.layout;
+      if (o?.layout) return false;
+      // Dual names need Scryfall layout; do not stamp provisional normal.
+      if (nameOrTypeLooksDual(c.name, o?.typeLine)) return false;
+      return true;
     });
 
     if (!needsNetwork.length && !needsLocalLayout.length) {

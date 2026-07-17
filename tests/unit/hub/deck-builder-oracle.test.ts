@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   cardDisplayName,
   cardImageUrl,
+  cardOracleFromScryfall,
   DeckDocumentSchema,
   migrateDeckDocument,
   needsOracleEnrich,
   oracleKey,
+  oracleSatisfiesCard,
   resolveCardView,
+  upsertOracle,
 } from '@rayenz-hub/shared';
 
 describe('oracleKey', () => {
@@ -75,6 +78,61 @@ describe('migrateDeckDocument', () => {
       scryfallId: 'bolt-id',
     });
     expect(migrated.oracle[key].imageUrl).toContain('bolt-id');
+    expect(migrated.schemaVersion).toBe(2);
+  });
+
+  it('clears dual type-line layouts once when schemaVersion < 2', () => {
+    const key = 'name:emeritus of ideation // ancestral recall';
+    const raw = {
+      schemaVersion: 1,
+      deckId: 'd1',
+      cards: [
+        {
+          instanceId: 'c1',
+          name: 'Emeritus of Ideation // Ancestral Recall',
+          quantity: 1,
+          primaryCategory: 'Other',
+          categories: ['Other'],
+          scryfallId: null,
+          setCode: null,
+          collectorNumber: null,
+          archidektCardId: null,
+          foil: false,
+          stack: null,
+        },
+      ],
+      oracle: {
+        [key]: {
+          scryfallId: null,
+          colourIdentity: ['U'],
+          typeLine: 'Creature — Human Wizard // Instant',
+          layout: 'transform',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 5,
+          imageUrl: null,
+          updatedAt: null,
+        },
+      },
+    };
+    const migrated = migrateDeckDocument(raw);
+    expect(migrated.oracle[key].layout).toBeNull();
+    expect(migrated.schemaVersion).toBe(2);
+
+    // Second pass must not clear a corrected Scryfall layout.
+    const corrected = {
+      ...migrated,
+      oracle: {
+        ...migrated.oracle,
+        [key]: { ...migrated.oracle[key], layout: 'prepare' },
+      },
+    };
+    const again = migrateDeckDocument(corrected);
+    expect(again.oracle[key].layout).toBe('prepare');
+    expect(again.schemaVersion).toBe(2);
   });
 
   it('runs via DeckDocumentSchema.parse preprocess', () => {
@@ -98,6 +156,7 @@ describe('migrateDeckDocument', () => {
     });
     expect(doc.cards[0]).not.toHaveProperty('colourIdentity');
     expect(Object.keys(doc.oracle)).toHaveLength(1);
+    expect(doc.schemaVersion).toBe(2);
   });
 });
 
@@ -174,6 +233,43 @@ describe('cardImageUrl', () => {
   });
 });
 
+describe('upsertOracle layout merge', () => {
+  it('lets Scryfall prepare overwrite provisional transform', () => {
+    const key = 'name:emeritus of ideation // ancestral recall';
+    let oracle = upsertOracle({}, key, {
+      colourIdentity: ['U'],
+      typeLine: 'Creature — Human Wizard // Instant',
+      layout: 'transform',
+      manaValue: 5,
+    });
+    expect(oracle[key].layout).toBe('transform');
+
+    const fromScryfall = cardOracleFromScryfall({
+      id: '75961d36-acf6-425f-9698-0bf52af74f31',
+      type_line: 'Creature — Human Wizard // Instant',
+      color_identity: ['U'],
+      layout: 'prepare',
+      cmc: 5,
+    });
+    oracle = upsertOracle(oracle, key, fromScryfall);
+    expect(oracle[key].layout).toBe('prepare');
+  });
+
+  it('keeps existing layout when incoming omits layout', () => {
+    const key = 'name:delver of secrets // insectile aberration';
+    let oracle = upsertOracle({}, key, {
+      layout: 'transform',
+      typeLine: 'Creature — Human Wizard // Creature — Human Insect',
+      colourIdentity: ['U'],
+      manaValue: 1,
+    });
+    oracle = upsertOracle(oracle, key, {
+      typeLine: 'Creature — Human Wizard // Creature — Human Insect',
+    });
+    expect(oracle[key].layout).toBe('transform');
+  });
+});
+
 describe('needsOracleEnrich', () => {
   it('is false when oracle is complete for a non-leader', () => {
     const card = {
@@ -243,5 +339,38 @@ describe('needsOracleEnrich', () => {
       },
     };
     expect(needsOracleEnrich(doc, card)).toBe(true);
+  });
+
+  it('requires layout when type line is dual-named', () => {
+    const card = {
+      instanceId: 'c1',
+      name: 'Emeritus of Ideation // Ancestral Recall',
+      quantity: 1,
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      stack: null,
+      setCode: null,
+      collectorNumber: null,
+      scryfallId: null,
+      archidektCardId: null,
+      foil: false,
+    };
+    const baseOracle = {
+      scryfallId: null,
+      colourIdentity: ['U'] as ('U')[],
+      typeLine: 'Creature — Human Wizard // Instant',
+      layout: null as string | null,
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      printedName: null,
+      flavorName: null,
+      manaValue: 5,
+      imageUrl: null,
+      updatedAt: null,
+    };
+    expect(oracleSatisfiesCard(baseOracle, card)).toBe(false);
+    expect(needsOracleEnrich({ oracle: { [oracleKey(card)]: baseOracle } }, card)).toBe(true);
+    expect(oracleSatisfiesCard({ ...baseOracle, layout: 'prepare' }, card)).toBe(true);
   });
 });

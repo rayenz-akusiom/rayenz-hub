@@ -93,6 +93,11 @@ export function DeckBuilderApp() {
       }
       const match = list.find((d) => toKebabCase(d.name) === route.deckSlug);
       if (!match) {
+        // Library index can lag a just-saved deck; keep browse open if slug already matches.
+        if (activeRef.current && toKebabCase(activeRef.current.name) === route.deckSlug) {
+          setError(null);
+          return;
+        }
         setError('Deck not found');
         setActive(null);
         return;

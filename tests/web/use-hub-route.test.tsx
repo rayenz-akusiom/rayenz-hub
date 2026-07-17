@@ -110,6 +110,16 @@ describe('useHubRoute', () => {
     });
   });
 
+  it('persists full deck-builder deep-link hash to localStorage', async () => {
+    window.location.hash = '#/deck-builder/default/fixture-commander';
+    render(<RouteProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('path')).toHaveTextContent('/deck-builder');
+      expect(localStorage.getItem(ROUTE_KEY)).toBe('#/deck-builder/default/fixture-commander');
+    });
+  });
+
   it('navigate applies path immediately when hash is unchanged', async () => {
     window.location.hash = '#/dailies';
     const user = userEvent.setup();

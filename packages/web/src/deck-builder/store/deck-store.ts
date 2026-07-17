@@ -65,12 +65,13 @@ export async function listDecks(): Promise<DeckSummary[]> {
   return ensureLibraryCovers(readLibraryIndex());
 }
 
-/** Rebuild coverImageUrl for summaries missing it (pre-cover library index). */
+/** Rebuild cover fields for summaries missing them (pre-cover / pre-partner index). */
 async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummary[]> {
   let changed = false;
   const next: DeckSummary[] = [];
   for (const s of summaries) {
-    if (s.coverImageUrl) {
+    const hasPartnerFields = 'coverImageUrlSecondary' in s && 'coverPartnerStatus' in s;
+    if (s.coverImageUrl && hasPartnerFields) {
       next.push(s);
       continue;
     }

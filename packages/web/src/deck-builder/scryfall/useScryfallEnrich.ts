@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  isHeaderLeaderCategory,
   normalizeColourIdentity,
+  parsePartnerWithName,
   type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
 
-const CACHE_DB = 'rayenz-deck-builder';
-const CACHE_STORE = 'scryfall-oracle-v1';
+const CACHE_DB = 'rayenz-deck-builder-oracle';
+const CACHE_STORE = 'scryfall-oracle-v2';
 const REQUEST_GAP_MS = 120;
 const RATE_LIMIT_BACKOFF_MS = 2000;
 
@@ -15,6 +17,8 @@ export type ScryfallOracleCache = {
   typeLine: string | null;
   scryfallId: string | null;
   layout: string | null;
+  keywords: string[];
+  partnerWith: string | null;
 };
 
 type FetchOracleResult =
@@ -23,7 +27,13 @@ type FetchOracleResult =
 
 type EnrichCardFields = Pick<
   CardInstance,
-  'colourIdentity' | 'typeLine' | 'layout' | 'scryfallId'
+  | 'colourIdentity'
+  | 'typeLine'
+  | 'layout'
+  | 'scryfallId'
+  | 'keywords'
+  | 'partnerWith'
+  | 'primaryCategory'
 >;
 
 function cacheKey(card: CardInstance): string {
@@ -84,29 +94,44 @@ async function cachePut(key: string, value: ScryfallOracleCache): Promise<void> 
 }
 
 export function needsEnrich(
-  card: Pick<CardInstance, 'colourIdentity' | 'typeLine' | 'layout'>,
+  card: Pick<
+    CardInstance,
+    'colourIdentity' | 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'
+  >,
 ): boolean {
   const missingCi = !(card.colourIdentity && card.colourIdentity.length);
   const missingType = !card.typeLine;
   const missingLayout = card.layout == null;
-  return missingCi || missingType || missingLayout;
+  const missingLeaderKeywords =
+    isHeaderLeaderCategory(card.primaryCategory) && card.keywords == null;
+  return missingCi || missingType || missingLayout || missingLeaderKeywords;
 }
 
 /** Cache is usable only when it can supply fields the card still needs. */
 export function isUsableOracleCache(
   cached: ScryfallOracleCache | null,
-  card: Pick<CardInstance, 'typeLine' | 'layout'>,
+  card: Pick<CardInstance, 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'>,
 ): cached is ScryfallOracleCache {
   if (!cached) return false;
   if (!card.typeLine && !cached.typeLine) return false;
   if (card.layout == null && !cached.layout) return false;
+  if (
+    isHeaderLeaderCategory(card.primaryCategory) &&
+    card.keywords == null &&
+    !Array.isArray(cached.keywords)
+  ) {
+    return false;
+  }
   return true;
 }
 
 /** Attempt-once key: deck + cards that still need enrich (not updatedAt). */
 export function enrichAttemptSignature(
   deckId: string,
-  cards: Pick<CardInstance, 'instanceId' | 'colourIdentity' | 'typeLine' | 'layout'>[],
+  cards: Pick<
+    CardInstance,
+    'instanceId' | 'colourIdentity' | 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'
+  >[],
 ): string {
   const missing = cards
     .filter(needsEnrich)
@@ -130,8 +155,20 @@ export function materialOraclePatch(
   const ciImproved = !(card.colourIdentity && card.colourIdentity.length) && nextCi.length > 0;
   const idImproved = !card.scryfallId && Boolean(nextId);
   const layoutImproved = card.layout == null && Boolean(nextLayout);
+  const keywordsImproved = card.keywords == null && Array.isArray(oracle.keywords);
+  const partnerWithImproved =
+    !keywordsImproved && card.partnerWith == null && oracle.partnerWith != null;
 
-  if (!typeImproved && !ciImproved && !idImproved && !layoutImproved) return null;
+  if (
+    !typeImproved &&
+    !ciImproved &&
+    !idImproved &&
+    !layoutImproved &&
+    !keywordsImproved &&
+    !partnerWithImproved
+  ) {
+    return null;
+  }
   // Still need a type line and oracle did not provide one — do not patch/cache.
   if (!card.typeLine && !nextType) return null;
 
@@ -140,20 +177,31 @@ export function materialOraclePatch(
   if (ciImproved) patch.colourIdentity = nextCi;
   if (idImproved) patch.scryfallId = nextId;
   if (layoutImproved) patch.layout = nextLayout;
+  if (keywordsImproved) {
+    patch.keywords = oracle.keywords;
+    patch.partnerWith = oracle.partnerWith;
+  } else if (partnerWithImproved) {
+    patch.partnerWith = oracle.partnerWith;
+  }
   return patch;
 }
 
-function parseOracleJson(data: {
+export function parseOracleJson(data: {
   id?: string;
   type_line?: string;
   color_identity?: string[];
   layout?: string;
+  keywords?: string[];
+  oracle_text?: string;
 }): ScryfallOracleCache {
+  const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
   return {
     scryfallId: data.id || null,
     typeLine: data.type_line || null,
     colourIdentity: normalizeColourIdentity(data.color_identity || []),
     layout: data.layout || 'normal',
+    keywords,
+    partnerWith: parsePartnerWithName(data.oracle_text),
   };
 }
 
@@ -167,6 +215,8 @@ async function fetchOracleResponse(url: string): Promise<FetchOracleResult> {
       type_line?: string;
       color_identity?: string[];
       layout?: string;
+      keywords?: string[];
+      oracle_text?: string;
     };
     return { ok: true, data: parseOracleJson(data) };
   } catch {
@@ -190,7 +240,7 @@ async function fetchNamed(name: string): Promise<FetchOracleResult> {
 }
 
 /**
- * Enrich cards missing colour identity / type line / layout via Scryfall; caches in IndexedDB.
+ * Enrich cards missing colour identity / type line / layout / leader keywords via Scryfall.
  * Calls onPatch when cards were updated.
  */
 export function useScryfallEnrich(
@@ -217,69 +267,84 @@ export function useScryfallEnrich(
       return;
     }
 
-    // Attempt once for this missing set (success or failure).
+    // Attempt once for this missing set; cleared on cancel so Strict Mode can retry.
     ranFor.current = signature;
 
     let cancelled = false;
+    let settled = false;
     (async () => {
       setEnriching(true);
       const updates = new Map<string, Partial<CardInstance>>();
+      let rateLimitedAt = -1;
 
-      for (const card of missing) {
-        if (cancelled) return;
-        const key = cacheKey(card);
-        const cached = await cacheGet(key);
-        if (isUsableOracleCache(cached, card)) {
-          const patch = materialOraclePatch(card, cached);
-          if (patch) updates.set(card.instanceId, patch);
-          continue;
-        }
-
-        let result: FetchOracleResult = { ok: false };
-        if (card.setCode && card.collectorNumber) {
-          result = await fetchBySetCollector(
-            String(card.setCode),
-            String(card.collectorNumber),
-          );
-        }
-        if (!result.ok && !result.rateLimited) {
-          result = await fetchNamed(card.name);
-        }
-        if (result.ok) {
-          const patch = materialOraclePatch(card, result.data);
-          if (patch) {
-            await cachePut(key, result.data);
-            updates.set(card.instanceId, patch);
+      try {
+        for (let i = 0; i < missing.length; i++) {
+          const card = missing[i];
+          if (cancelled) return;
+          const key = cacheKey(card);
+          const cached = await cacheGet(key);
+          if (isUsableOracleCache(cached, card)) {
+            const patch = materialOraclePatch(card, cached);
+            if (patch) updates.set(card.instanceId, patch);
+            continue;
           }
-        } else if (result.rateLimited) {
-          await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
-          break;
+
+          let result: FetchOracleResult = { ok: false };
+          if (card.setCode && card.collectorNumber) {
+            result = await fetchBySetCollector(
+              String(card.setCode),
+              String(card.collectorNumber),
+            );
+          }
+          if (!result.ok && !result.rateLimited) {
+            result = await fetchNamed(card.name);
+          }
+          if (result.ok) {
+            const patch = materialOraclePatch(card, result.data);
+            if (patch) {
+              await cachePut(key, result.data);
+              updates.set(card.instanceId, patch);
+            }
+          } else if (result.rateLimited) {
+            rateLimitedAt = i;
+            await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+            break;
+          }
+
+          await new Promise((r) => setTimeout(r, REQUEST_GAP_MS));
         }
 
-        await new Promise((r) => setTimeout(r, REQUEST_GAP_MS));
-      }
+        if (cancelled) return;
 
-      if (cancelled) {
+        if (updates.size) {
+          const current = deckRef.current;
+          const nextCards = current.cards.map((c) => {
+            const patch = updates.get(c.instanceId);
+            return patch ? { ...c, ...patch } : c;
+          });
+          onPatchRef.current(nextCards);
+        }
+
+        // Lock only after a full pass (not rate-limit abort). Partial patches change
+        // the signature so a follow-up effect can continue; zero-progress 429 can retry.
+        if (rateLimitedAt < 0) {
+          ranFor.current = signature;
+        } else if (ranFor.current === signature) {
+          ranFor.current = null;
+        }
+        settled = true;
+      } finally {
         setEnriching(false);
-        return;
       }
-
-      if (!updates.size) {
-        setEnriching(false);
-        return;
-      }
-
-      const current = deckRef.current;
-      const nextCards = current.cards.map((c) => {
-        const patch = updates.get(c.instanceId);
-        return patch ? { ...c, ...patch } : c;
-      });
-      onPatchRef.current(nextCards);
-      setEnriching(false);
     })();
 
     return () => {
       cancelled = true;
+      // React Strict Mode (and deck identity churn) aborts the in-flight pass —
+      // clear the one-shot guard so the remount can retry the same missing set.
+      if (!settled && ranFor.current === signature) {
+        ranFor.current = null;
+      }
     };
   }, [deck.deckId, deck.cards, enabled]);
 

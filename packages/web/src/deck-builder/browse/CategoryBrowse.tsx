@@ -1,13 +1,66 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  pickCommanderPair,
   partitionCategories,
   type CardInstance,
   type CardLayout,
   type CategoryDef,
   type DeckDocument,
+  type DeckFormat,
 } from '@rayenz-hub/shared';
 import { CardTile, DRAG_MIME } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
+
+export type DropCardHandler = (
+  instanceId: string,
+  category: string,
+  opts?: { commanderSlot?: 0 | 1 },
+) => void;
+
+/** True while a deck-builder card drag is in progress. */
+function useDeckBuilderDragging(): boolean {
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    function isDeckBuilderDrag(e: DragEvent): boolean {
+      const types = e.dataTransfer?.types;
+      if (!types) return false;
+      const list = Array.from(types);
+      return list.includes(DRAG_MIME) || list.includes('text/plain');
+    }
+
+    function onDragStart(e: DragEvent) {
+      if (isDeckBuilderDrag(e)) setDragging(true);
+    }
+    function onDragEnd() {
+      setDragging(false);
+    }
+
+    document.addEventListener('dragstart', onDragStart);
+    document.addEventListener('dragend', onDragEnd);
+    document.addEventListener('drop', onDragEnd);
+    return () => {
+      document.removeEventListener('dragstart', onDragStart);
+      document.removeEventListener('dragend', onDragEnd);
+      document.removeEventListener('drop', onDragEnd);
+    };
+  }, []);
+
+  return dragging;
+}
+
+function PartnerTie({ illegal }: { illegal?: boolean }) {
+  return (
+    <span className={`db-partner-tie${illegal ? ' is-illegal' : ''}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false">
+        <path
+          fill="currentColor"
+          d="M7 12a4 4 0 0 1 4-4h2v2h-2a2 2 0 1 0 0 4h2v2h-2a4 4 0 0 1-4-4zm6-4h2a4 4 0 0 1 0 8h-2v-2h2a2 2 0 0 0 0-4h-2V8z"
+        />
+      </svg>
+    </span>
+  );
+}
 
 export function CardGroup({
   cards,
@@ -75,7 +128,7 @@ export function DropSection({
   layout: CardLayout;
   selectedId?: string | null;
   onSelectCard?: (card: CardInstance) => void;
-  onDropCard?: (instanceId: string, category: string) => void;
+  onDropCard?: DropCardHandler;
   variant?: 'section' | 'header' | 'column';
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -115,20 +168,173 @@ export function DropSection({
   );
 }
 
+function CommanderSlot({
+  slot,
+  card,
+  selectedId,
+  onSelectCard,
+  onDropCard,
+  draggable,
+}: {
+  slot: 0 | 1;
+  card: CardInstance | null;
+  selectedId?: string | null;
+  onSelectCard?: (card: CardInstance) => void;
+  onDropCard?: DropCardHandler;
+  draggable?: boolean;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const canDrop = Boolean(onDropCard);
+
+  return (
+    <div
+      className={`db-commander-slot${card ? '' : ' is-empty'}${dragOver ? ' is-drop-target' : ''}`}
+      onDragOver={(e) => {
+        if (!canDrop) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        if (!onDropCard) return;
+        e.preventDefault();
+        setDragOver(false);
+        const id = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
+        if (id) onDropCard(id, 'Commander', { commanderSlot: slot });
+      }}
+    >
+      {card ? (
+        <CardTile
+          card={card}
+          selected={selectedId === card.instanceId}
+          onSelect={onSelectCard}
+          draggable={draggable}
+        />
+      ) : (
+        <span className="db-commander-slot-placeholder">Drop commander</span>
+      )}
+    </div>
+  );
+}
+
+function CommanderSlots({
+  commanders,
+  selectedId,
+  onSelectCard,
+  onDropCard,
+  dragging,
+}: {
+  commanders: CardInstance[];
+  selectedId?: string | null;
+  onSelectCard?: (card: CardInstance) => void;
+  onDropCard?: DropCardHandler;
+  dragging: boolean;
+}) {
+  const canDrop = Boolean(onDropCard);
+  const slot0 = commanders[0] ?? null;
+  const slot1 = commanders[1] ?? null;
+  const showSecond =
+    commanders.length >= 2 || (commanders.length === 1 && dragging);
+  const pair = pickCommanderPair(commanders);
+  const bothFilled = Boolean(slot0 && slot1);
+  const illegal = bothFilled && pair.status === 'illegal';
+
+  return (
+    <div
+      className={`db-partner-pair${illegal ? ' is-illegal' : ''}`}
+      aria-label={illegal ? 'Commanders (illegal partner pair)' : 'Commanders'}
+    >
+      <h3 className="db-partner-pair-title">
+        Commander{commanders.length !== 1 ? 's' : ''}{' '}
+        <span className="db-count">({commanders.length})</span>
+      </h3>
+      <div className="db-partner-pair-row">
+        <CommanderSlot
+          slot={0}
+          card={slot0}
+          selectedId={selectedId}
+          onSelectCard={onSelectCard}
+          onDropCard={onDropCard}
+          draggable={canDrop}
+        />
+        {showSecond ? (
+          <>
+            {bothFilled ? <PartnerTie illegal={illegal} /> : null}
+            <CommanderSlot
+              slot={1}
+              card={slot1}
+              selectedId={selectedId}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              draggable={canDrop}
+            />
+          </>
+        ) : null}
+      </div>
+      {illegal ? (
+        <p className="db-partner-pair-warn" role="status">
+          These commanders can’t partner
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function DeckHeaderRow({
   header,
   headerKeys,
   selectedId,
   onSelectCard,
   onDropCard,
+  format,
 }: {
   header: Record<string, CardInstance[]>;
   headerKeys: string[];
   selectedId?: string | null;
   onSelectCard?: (card: CardInstance) => void;
-  onDropCard?: (instanceId: string, category: string) => void;
+  onDropCard?: DropCardHandler;
+  format?: DeckFormat | null;
 }) {
+  const commanders = header['Commander'] || [];
+  const lieutenants = header['Lieutenants'] || [];
+  const dragging = useDeckBuilderDragging();
+  const showLieutenants = lieutenants.length > 0 || dragging;
+
+  if (format === 'commander') {
+    return (
+      <div className="db-deck-leaders" aria-label="Deck leaders">
+        <div className="db-header-row">
+          <div className="db-header-slot is-commander">
+            <CommanderSlots
+              commanders={commanders}
+              selectedId={selectedId}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              dragging={dragging}
+            />
+          </div>
+          {showLieutenants ? (
+            <div className="db-header-slot is-lieutenants">
+              <div className="db-header-divider" aria-hidden="true" />
+              <DropSection
+                category="Lieutenants"
+                cards={lieutenants}
+                layout="grid"
+                selectedId={selectedId}
+                onSelectCard={onSelectCard}
+                onDropCard={onDropCard}
+                variant="header"
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (!headerKeys.length) return null;
+
   return (
     <div className="db-deck-leaders" aria-label="Deck leaders">
       <div className="db-header-row">
@@ -163,16 +369,19 @@ export function CategoryBrowse({
   mode = 'main',
   includeSwapCategories = false,
 }: {
-  deck: Pick<DeckDocument, 'cards' | 'categories'> | { cards: CardInstance[]; categories: CategoryDef[] };
+  deck:
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format'>
+    | { cards: CardInstance[]; categories: CategoryDef[]; format?: DeckFormat };
   onSelectCard?: (card: CardInstance) => void;
   selectedId?: string | null;
   layout?: CardLayout;
-  onDropCard?: (instanceId: string, category: string) => void;
+  onDropCard?: DropCardHandler;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
 }) {
   const { header, included, excluded, headerKeys, includedKeys, excludedKeys } =
     partitionCategories(deck, { includeSwapCategories });
+  const format = 'format' in deck ? deck.format : undefined;
 
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;
@@ -215,6 +424,7 @@ export function CategoryBrowse({
         selectedId={selectedId}
         onSelectCard={onSelectCard}
         onDropCard={onDropCard}
+        format={format}
       />
       {layout === 'grid' ? (
         includedSections

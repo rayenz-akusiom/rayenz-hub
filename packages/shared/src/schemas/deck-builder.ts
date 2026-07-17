@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { deckCoverImageUrl } from '../deck-builder/deck-cover.js';
+import {
+  deckCoverImageUrl,
+  deckCoverImageUrlSecondary,
+  pickCoverPartnerStatus,
+} from '../deck-builder/deck-cover.js';
 
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
@@ -31,6 +35,10 @@ export const CardInstanceSchema = z.object({
   typeLine: z.string().nullable().default(null),
   /** Scryfall layout (e.g. transform, modal_dfc); used to detect dual-faced cards. */
   layout: z.string().nullable().default(null),
+  /** Scryfall keywords; null until enriched (leaders need this for partner checks). */
+  keywords: z.array(z.string()).nullable().default(null),
+  /** Parsed "Partner with [Name]" target; null if none / not yet known. */
+  partnerWith: z.string().nullable().default(null),
   archidektCardId: z.number().nullable().default(null),
   foil: z.boolean().default(false),
 });
@@ -73,6 +81,10 @@ export const DeckSummarySchema = z.object({
   archidektId: z.number().nullable().default(null),
   /** Scryfall image URL for library cover (commander, or first card for cubes). */
   coverImageUrl: z.string().nullable().optional().default(null),
+  /** Second commander face when the deck has exactly two leaders. */
+  coverImageUrlSecondary: z.string().nullable().optional().default(null),
+  /** Partner legality for dual-cover tiles: legal | illegal | null (single / N/A). */
+  coverPartnerStatus: z.enum(['legal', 'illegal']).nullable().optional().default(null),
 });
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
 
@@ -84,5 +96,7 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     updatedAt: doc.updatedAt,
     archidektId: doc.archidektId ?? null,
     coverImageUrl: deckCoverImageUrl(doc),
+    coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
+    coverPartnerStatus: doc.format === 'commander' ? pickCoverPartnerStatus(doc) : null,
   };
 }

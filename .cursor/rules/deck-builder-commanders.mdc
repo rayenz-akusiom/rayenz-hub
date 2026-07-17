@@ -1,0 +1,25 @@
+---
+description: Commander vs Lieutenants categories in deck builder
+globs: packages/{web/src/deck-builder,shared/src/deck-builder,shared/src/schemas/deck-builder*}/**/*.{ts,tsx,css,mdc}
+alwaysApply: false
+---
+
+# Commander vs Lieutenants
+
+## Commander
+
+- Cards in the **`Commander`** category are command-zone card(s).
+- Partner-family pairs (Partner, Partner with, Friends forever, Doctor’s companion, Choose a Background) are **two cards in `Commander`**.
+- Bonded partner UI and dual library covers use **only** `Commander` cards.
+
+## Lieutenants
+
+- **`Lieutenants` are not commanders.** They are backup / standby cards that still count in the 99.
+- Always render Lieutenants as a **separate** header section (divider + own slot).
+- Never fold a Lieutenant into the partner bonded “Commanders” tile.
+- Never use a Lieutenant as the secondary library cover for a partner pair.
+- Do **not** treat `Commander` + `Lieutenants` as a partner pair.
+
+## Import note
+
+Archidekt’s singular `Lieutenant` still aliases to Hub `Lieutenants` on import. That does not make those cards commanders.

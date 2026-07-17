@@ -2,6 +2,8 @@ import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/li
 import {
   DeckDocumentSchema,
   deckCoverImageUrl,
+  deckCoverImageUrlSecondary,
+  pickCoverPartnerStatus,
   deckSk,
   resolveUserId,
   userPk,
@@ -40,6 +42,12 @@ export class DeckRepository {
       updatedAt: String(item.updatedAt ?? ''),
       archidektId: item.archidektId != null ? Number(item.archidektId) : null,
       coverImageUrl: item.coverImageUrl != null ? String(item.coverImageUrl) : null,
+      coverImageUrlSecondary:
+        item.coverImageUrlSecondary != null ? String(item.coverImageUrlSecondary) : null,
+      coverPartnerStatus:
+        item.coverPartnerStatus === 'legal' || item.coverPartnerStatus === 'illegal'
+          ? item.coverPartnerStatus
+          : null,
     }));
   }
 
@@ -92,6 +100,8 @@ export class DeckRepository {
           updatedAt: doc.updatedAt,
           createdAt: doc.createdAt,
           coverImageUrl: deckCoverImageUrl(doc),
+          coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
+          coverPartnerStatus: pickCoverPartnerStatus(doc),
         },
       }),
     );

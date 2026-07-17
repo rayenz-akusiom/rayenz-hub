@@ -26,7 +26,9 @@ export function ColourIdentityBrowse({
   layout = 'stacked',
   separateLands = false,
 }: {
-  deck: Pick<DeckDocument, 'cards' | 'categories'> | { cards: CardInstance[]; categories: CategoryDef[] };
+  deck:
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format'>
+    | { cards: CardInstance[]; categories: CategoryDef[]; format?: DeckDocument['format'] };
   onSelectCard?: (card: CardInstance) => void;
   selectedId?: string | null;
   layout?: CardLayout;
@@ -92,6 +94,7 @@ export function ColourIdentityBrowse({
         headerKeys={headerKeys}
         selectedId={selectedId}
         onSelectCard={onSelectCard}
+        format={'format' in deck ? deck.format : undefined}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

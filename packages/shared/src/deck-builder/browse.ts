@@ -32,6 +32,70 @@ export function moveCardCategory(
   });
 }
 
+function asCommander(card: CardInstance): CardInstance {
+  if (card.primaryCategory === 'Commander') return card;
+  return {
+    ...card,
+    primaryCategory: 'Commander',
+    categories: [
+      ...new Set([
+        'Commander',
+        ...(card.categories || []).filter((x) => x !== card.primaryCategory),
+      ]),
+    ],
+  };
+}
+
+/**
+ * Place (or reorder) a card into Commander slot 0 or 1.
+ * Preserves non-commander card order; emits ordered commanders at the first
+ * commander / incoming position in the deck list.
+ */
+export function placeCardInCommanderSlot(
+  cards: CardInstance[],
+  instanceId: string,
+  slot: 0 | 1,
+): CardInstance[] {
+  const dropped = cards.find((c) => c.instanceId === instanceId);
+  if (!dropped) return cards;
+
+  const incoming = asCommander(dropped);
+  const others = cards.filter(
+    (c) => c.primaryCategory === 'Commander' && c.instanceId !== instanceId,
+  );
+
+  let ordered: CardInstance[];
+  if (others.length === 0) {
+    ordered = [incoming];
+  } else if (others.length === 1) {
+    ordered = slot === 0 ? [incoming, others[0]] : [others[0], incoming];
+  } else {
+    const pair = others.slice(0, 2);
+    const rest = others.slice(2);
+    const displaced = pair[slot];
+    const kept = pair[1 - slot];
+    const newPair = slot === 0 ? [incoming, kept] : [kept, incoming];
+    ordered = [...newPair, displaced, ...rest];
+  }
+
+  const result: CardInstance[] = [];
+  let inserted = false;
+  for (const c of cards) {
+    const isIncoming = c.instanceId === instanceId;
+    const isCommander = c.primaryCategory === 'Commander';
+    if (isIncoming || isCommander) {
+      if (!inserted) {
+        result.push(...ordered);
+        inserted = true;
+      }
+      continue;
+    }
+    result.push(c);
+  }
+  if (!inserted) result.push(...ordered);
+  return result;
+}
+
 export function categoryIncluded(categories: CategoryDef[], name: string): boolean {
   const def = (categories || []).find((c) => c.name === name);
   if (!def) return true;

@@ -55,6 +55,9 @@ export function DeckBuilderApp() {
               byId.set(r.deckId, {
                 ...r,
                 coverImageUrl: r.coverImageUrl || local?.coverImageUrl || null,
+                coverImageUrlSecondary:
+                  r.coverImageUrlSecondary || local?.coverImageUrlSecondary || null,
+                coverPartnerStatus: r.coverPartnerStatus ?? local?.coverPartnerStatus ?? null,
               });
               const full = await deckApi.apiGetDeck(r.deckId);
               if (full) {

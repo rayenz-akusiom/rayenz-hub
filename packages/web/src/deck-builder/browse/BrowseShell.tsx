@@ -6,6 +6,7 @@ import {
   defaultBrowseView,
   incompleteEntryCount,
   moveCardCategory,
+  placeCardInCommanderSlot,
   removeCardFromDeck,
   totalCardQuantity,
   type BrowseView,
@@ -148,9 +149,24 @@ export function BrowseShell({
     }
   }
 
-  function onDropCard(instanceId: string, category: string) {
+  function onDropCard(
+    instanceId: string,
+    category: string,
+    opts?: { commanderSlot?: 0 | 1 },
+  ) {
     const card = deck.cards.find((c) => c.instanceId === instanceId);
-    if (!card || card.primaryCategory === category) return;
+    if (!card) return;
+
+    if (category === 'Commander' && opts?.commanderSlot != null) {
+      onChange({
+        ...deck,
+        cards: placeCardInCommanderSlot(deck.cards, instanceId, opts.commanderSlot),
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (card.primaryCategory === category) return;
     onChange({
       ...deck,
       cards: moveCardCategory(deck.cards, instanceId, category, card.stack),

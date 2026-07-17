@@ -18,7 +18,7 @@ const HUB_STATIC_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-/** Serve rayenz-hub static assets (shared/, apps/, data/) during Vite dev/preview. */
+/** Serve rayenz-hub static assets (shared CSS, data/) during Vite dev/preview. */
 function hubStaticPlugin(): Plugin {
   function serveHubStatic(req: any, res: any, next: () => void) {
     const url = (req.url || '').split('?')[0];

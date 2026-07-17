@@ -11,31 +11,10 @@ import {
   type OrderReconcileSettingsPayload,
 } from '@rayenz-hub/shared';
 import { getDailiesSettingsApi, getHubStorage } from '../lib/hub-storage';
+import { getHubApiConfig, isApiConfigured, HubApiClient } from './hub-api-client';
 
-const API_URL_KEY = 'rayenz-hub-api-url';
-const API_KEY_KEY = 'rayenz-hub-api-key';
-
-export interface HubApiConfig {
-  url: string;
-  key: string;
-  enabled: boolean;
-}
-
-export function getHubApiConfig(): HubApiConfig {
-  let url = '';
-  let key = '';
-  try {
-    url = (localStorage.getItem(API_URL_KEY) || '').replace(/\/$/, '');
-    key = localStorage.getItem(API_KEY_KEY) || '';
-  } catch {
-    /* ignore */
-  }
-  return { url, key, enabled: !!(url && key) };
-}
-
-export function isApiConfigured(): boolean {
-  return getHubApiConfig().enabled;
-}
+export type { HubApiConfig } from './hub-api-client';
+export { getHubApiConfig, isApiConfigured, HubApiClient };
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   const cfg = getHubApiConfig();

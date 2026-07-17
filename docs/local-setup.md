@@ -201,7 +201,7 @@ npm run dev:web      # Vite dev server — packages/web (serves SPA + rayenz-hub
 npm run build:web    # Build SPA into rayenz-hub/ (index.html + assets/); emptyOutDir is false
 ```
 
-The Hub is a single React SPA (`packages/web`). Hash routes (`#/dailies`, `#/deck-builder`, `#/settings…`, etc.) render in-tree. Deck Review / Suggest / Order Reconcile mount via React hosts that load remaining vanilla app scripts from `rayenz-hub/apps/` and use the shared React CardPicker.
+The Hub is a single React SPA (`packages/web`). All hash routes (`#/dailies`, `#/deck-builder`, `#/deck-review`, `#/deck-suggest`, `#/order-reconcile`, `#/settings…`, etc.) render in-tree as React/TypeScript apps. Shared CSS lives under `rayenz-hub/shared/`.
 
 **Always run `npm run build:web` before `deploy:hub`** so `rayenz-hub/index.html` points at the current SPA bundle.
 

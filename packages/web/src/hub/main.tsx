@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CardFaceSessionProvider } from '../cards/CardFaceSession';
 import { HubShell } from './HubShell';
-import { ensureCoreScripts } from './core-scripts';
+import { installHubGlobals } from './install-hub-globals';
 import '../../../../rayenz-hub/shared/shell.css';
 import '../../../../rayenz-hub/shared/card-picker.css';
 import '../../../../rayenz-hub/shared/deck-chip.css';
@@ -13,12 +13,8 @@ import '../styles.css';
 import '../dailies/dailies.css';
 import '../deck-builder/deck-builder.css';
 
-async function boot() {
-  try {
-    await ensureCoreScripts();
-  } catch (err) {
-    console.warn('Core hub scripts failed to load (settings sync may be limited):', err);
-  }
+function boot() {
+  installHubGlobals();
   const root = document.getElementById('root');
   if (root) {
     createRoot(root).render(
@@ -31,4 +27,4 @@ async function boot() {
   }
 }
 
-void boot();
+boot();

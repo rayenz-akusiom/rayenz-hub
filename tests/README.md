@@ -13,6 +13,7 @@ Automated tests for the [rayenz-hub](../rayenz-hub/) hub live in this folder at 
 |---------|-------------|
 | `npm run test:unit` | Vitest + happy-dom (fast in-process DOM tests) |
 | `npm run test:unit:watch` | Vitest watch mode |
+| `npm run test:web` | Vitest React component tests |
 | `npm run test:e2e` | Playwright browser tests |
 | `npm run test:e2e:install` | Install Chromium for Playwright (one-time) |
 | `npm test` | Run unit tests, then e2e |
@@ -27,14 +28,15 @@ tests/
     extract-suggestion-fixture.mjs
   unit/
     helpers/
-      hubHarness.js         # Loads hub IIFE sources into happy-dom
-      fixtureLoader.js      # Reads tests/fixtures/suggestions/*.json
-    hub/                    # Hub app tests
-    userscripts/            # Reserved for Tampermonkey script tests
+      hubHarness.ts         # DOM reset / fixture paths for hub tests
+      fixtureLoader.ts      # Reads tests/fixtures/suggestions/*.json
+    hub/                    # Hub app tests (.ts / .tsx)
   e2e/
     static-server.mjs       # Serves rayenz-hub/ over HTTP
-    hub-navigation.spec.js  # Real-browser navigation regression
+    hub-navigation.spec.ts  # Real-browser navigation regression
 ```
+
+Unit tests import TypeScript modules from `packages/web` and `packages/shared` directly.
 
 ## MSH suggestion fixtures
 
@@ -49,14 +51,7 @@ npm run extract:suggestion-fixture -- \
   --output tests/fixtures/suggestions/msh-YYYY-MM-DD.json
 ```
 
-`tests/unit/hub/deck-review-msh.test.js` exercises swap-queue, staleness, reconciliation, filtering, and Archidekt export against these fixtures.
-
-## Regression: Dailies expand after navigation
-
-The hub re-injects `dailies.html` when switching routes. `dailies.js` must re-run `window.__initDailiesApp()` so collapsible sections get click listeners again.
-
-- **Unit:** `tests/unit/hub/dailies-reinit.test.js` — Dailies → Deck Review → Dailies, then toggle `.active` on a collapsible.
-- **E2E:** `tests/e2e/hub-navigation.spec.js` — same flow in Chromium against the real static server.
+`tests/unit/hub/deck-review-msh.test.ts` exercises swap-queue, staleness, reconciliation, filtering, and Archidekt export against these fixtures.
 
 ## Future: userscripts
 

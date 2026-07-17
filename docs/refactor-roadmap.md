@@ -104,10 +104,9 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 - [x] Single Vite SPA (`HubShell` + hash router) builds into `rayenz-hub/`
 - [x] Dailies, Settings, Deck Builder, Neopets More mount in-tree (no iframes)
 - [x] Shared card kit (`packages/web/src/cards/`) + React `HubCardPicker` bridge
-- [x] Deck Review / Deck Suggest / Order Reconcile React route hosts (`VanillaMtgApp`) with shared CardPicker; domain UI still vanilla JS under `rayenz-hub/apps/` pending full JSX rewrite
-- [x] Vanilla hub `router.js` + iframe loaders removed
-
-**Follow-up:** Rewrite DR / DS / OR render layers to JSX; port `HubStorage` / `HubApiClient` fully to TypeScript.
+- [x] Deck Review / Deck Suggest / Order Reconcile full React/TypeScript apps under `packages/web`
+- [x] `HubStorage` / `HubApiClient` and shared MTG helpers ported to TypeScript
+- [x] Vanilla hub `router.js`, iframe loaders, and `rayenz-hub/apps/` / `shared/*.js` removed
 
 ---
 
@@ -115,10 +114,11 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 | Date | Item |
 |------|------|
+| 2026-07-16 | Full React/TS rewrite: Deck Review, Deck Suggest, Order Reconcile; shared core TS; vanilla trees removed |
 | 2026-07-16 | Hub React SPA: shell, card kit, Neopets More; MTG apps React-hosted |
-| 2026-07-12 | MTG P2 mtg-6: shared `suggestions-bundle.js` for export/load normalization |
+| 2026-07-12 | MTG P2 mtg-6: shared `suggestions-bundle` for export/load normalization |
 | 2026-07-12 | MTG P2 mtg-5: Deck Suggest precomputed set pool index + deck rule context |
 | 2026-07-12 | MTG P1 mtg-4: Order Reconcile precomputed assignment index (`buildAssignmentIndex`) |
-| 2026-07-12 | MTG P1 mtg-3: shared `buildCutCandidates` in `shared/cut-candidates.js` |
-| 2026-07-11 | MTG P0: unified `deriveSwapQueue` (ORE → SwapQueue); shared `scryfall-cache.js` |
+| 2026-07-12 | MTG P1 mtg-3: shared `buildCutCandidates` |
+| 2026-07-11 | MTG P0: unified `deriveSwapQueue`; shared Scryfall printings cache |
 | 2026-07-05 | ItemDB v2 normalized cache + simplified pick path |

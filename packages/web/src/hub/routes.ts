@@ -27,7 +27,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/settings/order-reconcile',
 ]);
 
-/** @deprecated Empty — all routes are React-owned; MTG apps use VanillaMtgApp. */
+/** All hub routes are React-owned. */
 export const LEGACY_PATHS = new Set<string>();
 
 export function normalizeHash(hash: string | null | undefined): string {

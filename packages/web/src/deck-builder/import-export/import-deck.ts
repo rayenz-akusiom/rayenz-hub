@@ -15,6 +15,7 @@ import {
   seedFormalSwapsFromCategories,
   upsertOracle,
   canonicalizeSwapCategory,
+  canonicalizeCategoryName,
   isSwapQueueCategoryName,
   PROXIES_CATEGORY,
   type BrowseView,
@@ -243,15 +244,16 @@ function categoriesFromSettings(
       name: normalizeArchidektCategoryName(name),
       includedInDeck: v?.includedInDeck !== false,
       includedInPrice: v?.includedInPrice !== false,
+      target: null,
     })),
   );
 }
 
-/** Archidekt singular → Hub plural header category; legacy swap queues → Queued In/Out. */
+/** Archidekt singular → Hub plural header category; legacy swap queues → Queued In/Out; Colorless → Colourless. */
 export function normalizeArchidektCategoryName(name: string): string {
   const trimmed = String(name || '').trim();
   if (trimmed === 'Lieutenant') return 'Lieutenants';
-  return canonicalizeSwapCategory(trimmed);
+  return canonicalizeCategoryName(canonicalizeSwapCategory(trimmed));
 }
 
 function dedupeCategoryDefs(categories: CategoryDef[]): CategoryDef[] {
@@ -416,6 +418,7 @@ export function documentFromArchidektSnapshot(
       name: normalizeArchidektCategoryName(c.name),
       includedInDeck: c.includedInDeck !== false,
       includedInPrice: c.includedInPrice !== false,
+      target: null,
     })),
   );
 
@@ -508,6 +511,23 @@ export function documentFromArchidektSnapshot(
   }
   for (const name of new Set(rawCards.map((c) => c.primaryCategory))) {
     categories = ensureCategoryDef(categories, name);
+  }
+
+  if (existing?.categories?.length) {
+    const targetByName = new Map(
+      existing.categories
+        .filter((c) => c.target != null && Number.isFinite(c.target))
+        .map((c) => [c.name, c.target as number]),
+    );
+    categories = categories.map((c) =>
+      targetByName.has(c.name) ? { ...c, target: targetByName.get(c.name)! } : c,
+    );
+    // Keep Hub-only category defs (order + targets) that Archidekt omitted.
+    for (const prev of existing.categories) {
+      if (!categories.some((c) => c.name === prev.name)) {
+        categories.push(prev);
+      }
+    }
   }
 
 

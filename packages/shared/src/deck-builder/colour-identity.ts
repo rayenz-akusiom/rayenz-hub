@@ -177,9 +177,51 @@ export function colourIdentitySectionsFor(
     ...enemy,
     ...FOUR_ORDER,
     'Prismatic',
-    'Colorless',
+    'Colourless',
   ];
   return separateLands ? [...sections, 'Lands'] : sections;
+}
+
+/**
+ * Cube Categories browse order: WUBRG → Colourless → Dual → Tri → Quad → Prismatic → Lands.
+ * Differs from CI browse (Colourless after Prismatic).
+ */
+export function cubeCategorySectionsOrder(
+  options?: ColourIdentityOptionsInput,
+): readonly string[] {
+  const { style } = resolveColourIdentityOptions(options);
+  const ally = style.allyThreeColourNames === 'capenna' ? CAPENNA_ORDER : SHARD_ORDER;
+  const enemy = style.enemyThreeColourNames === 'ikoria' ? IKORIA_ORDER : WEDGE_ORDER;
+  return [
+    'White',
+    'Blue',
+    'Black',
+    'Red',
+    'Green',
+    'Colourless',
+    ...GUILD_ORDER,
+    ...ally,
+    ...enemy,
+    ...FOUR_ORDER,
+    'Prismatic',
+    'Lands',
+  ];
+}
+
+/** Default CategoryDef list for a new empty cube (Maybeboard + full CI taxonomy + Lands). */
+export function defaultCubeCategoryDefs(
+  options?: ColourIdentityOptionsInput,
+): { name: string; includedInDeck: boolean; includedInPrice: boolean; target: null }[] {
+  const sections = cubeCategorySectionsOrder(options);
+  return [
+    { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+    ...sections.map((name) => ({
+      name,
+      includedInDeck: true,
+      includedInPrice: true,
+      target: null,
+    })),
+  ];
 }
 
 /** Default section list (shards + wedges). Prefer `colourIdentitySectionsFor` when style is known. */
@@ -232,14 +274,14 @@ export function colourIdentitySection(
   const { style, separateLands } = resolveColourIdentityOptions(options);
   if (separateLands && isLandCard(card)) return 'Lands';
   const colours = resolveColours(card);
-  if (colours.length === 0) return 'Colorless';
-  if (colours.length === 1) return MONO[colours[0]] || 'Colorless';
+  if (colours.length === 0) return 'Colourless';
+  if (colours.length === 1) return MONO[colours[0]] || 'Colourless';
   const key = colours.join('');
-  if (colours.length === 2) return GUILDS[key] || 'Colorless';
-  if (colours.length === 3) return threeColourLabel(key, style) || 'Colorless';
-  if (colours.length === 4) return FOUR_COLOUR[key] || 'Colorless';
+  if (colours.length === 2) return GUILDS[key] || 'Colourless';
+  if (colours.length === 3) return threeColourLabel(key, style) || 'Colourless';
+  if (colours.length === 4) return FOUR_COLOUR[key] || 'Colourless';
   if (colours.length === 5) return 'Prismatic';
-  return 'Colorless';
+  return 'Colourless';
 }
 
 export function groupByColourIdentity<T extends ColourIdentityCard>(

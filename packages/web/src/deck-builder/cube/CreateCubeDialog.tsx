@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { applyForcedFormat, type CategoryDef, type DeckDocument } from '@rayenz-hub/shared';
+import { applyForcedFormat, defaultCubeCategoryDefs, type DeckDocument } from '@rayenz-hub/shared';
 import { canStageApply, getParentArchidektBridge, isBridgeAvailable } from '../import-export/archidekt-bridge';
 import {
   documentFromArchidektSnapshot,
@@ -8,17 +8,7 @@ import {
 } from '../import-export/import-deck';
 import type { CreateDialogProps } from '../shared/BuilderApp';
 
-const DEFAULT_CUBE_CATEGORIES: CategoryDef[] = [
-  { name: 'Maybeboard', includedInDeck: false, includedInPrice: false },
-  { name: 'White', includedInDeck: true, includedInPrice: true },
-  { name: 'Blue', includedInDeck: true, includedInPrice: true },
-  { name: 'Black', includedInDeck: true, includedInPrice: true },
-  { name: 'Red', includedInDeck: true, includedInPrice: true },
-  { name: 'Green', includedInDeck: true, includedInPrice: true },
-  { name: 'Multicolor', includedInDeck: true, includedInPrice: true },
-  { name: 'Colorless', includedInDeck: true, includedInPrice: true },
-  { name: 'Lands', includedInDeck: true, includedInPrice: true },
-];
+const DEFAULT_CUBE_CATEGORIES = defaultCubeCategoryDefs();
 
 export function CreateCubeDialog({
   onClose,
@@ -143,7 +133,9 @@ export function CreateCubeDialog({
             onChange={(e) => setTargetSize(e.target.value)}
           />
         </label>
-        <p className="db-meta">Default browse view: colour identity. Empty cubes seed basic section categories.</p>
+        <p className="db-meta">
+          Default browse view: colour identity. Empty cubes seed WUBRG / guild / shard colour categories.
+        </p>
         <label>
           Archidekt import text (optional)
           <textarea

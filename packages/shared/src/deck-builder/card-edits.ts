@@ -6,6 +6,8 @@ import type {
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
 import { isSwapQueueCategory } from './browse.js';
+import { canonicalizeCategoryName } from './category-names.js';
+import { colourIdentitySection } from './colour-identity.js';
 import {
   emptyCardOracle,
   getOracle,
@@ -21,8 +23,27 @@ function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/** Prefer Maybeboard, else first excluded (aside) category, else Other. */
-export function defaultAddCategory(deck: Pick<DeckDocument, 'categories'>): string {
+/**
+ * Default primary category when adding a card.
+ * Cubes: colour-identity section. Lands are the only auto-filing exception that
+ * ignores colour identity (→ Lands via separateLands); all other cards file by CI.
+ * Commander/other: Maybeboard, else first aside, else Other.
+ */
+export function defaultAddCategory(
+  deck: Pick<DeckDocument, 'categories' | 'format'>,
+  printing?: Pick<PrintingFields, 'name' | 'colourIdentity' | 'typeLine'> | null,
+): string {
+  if (deck.format === 'cube' && printing) {
+    // Lands → Lands (ignores CI); everything else → CI section name.
+    return colourIdentitySection(
+      {
+        name: printing.name,
+        colourIdentity: printing.colourIdentity,
+        typeLine: printing.typeLine,
+      },
+      { separateLands: true },
+    );
+  }
   const cats = deck.categories || [];
   if (cats.some((c) => c.name === 'Maybeboard')) return 'Maybeboard';
   const aside = cats.find(
@@ -51,15 +72,20 @@ export function ensureCategoryDef(
   categories: CategoryDef[],
   name: string,
 ): CategoryDef[] {
-  if (categories.some((c) => c.name === name)) return categories;
-  const aside = name === 'Maybeboard';
-  const proxies = name === PROXIES_CATEGORY;
+  const canonical = canonicalizeCategoryName(name);
+  if (!canonical) return categories;
+  if (categories.some((c) => canonicalizeCategoryName(c.name) === canonical)) {
+    return categories;
+  }
+  const aside = canonical === 'Maybeboard';
+  const proxies = canonical === PROXIES_CATEGORY;
   return [
     ...categories,
     {
-      name,
+      name: canonical,
       includedInDeck: !aside,
       includedInPrice: aside || proxies ? false : true,
+      target: null,
     },
   ];
 }
@@ -183,7 +209,8 @@ export function addCardToDeck(
   },
 ): DeckDocument {
   const nextId = opts?.nextId || defaultNextId;
-  const primaryCategory = String(category || '').trim() || defaultAddCategory(deck);
+  const primaryCategory =
+    String(category || '').trim() || defaultAddCategory(deck, printing);
   const quantity = Math.max(1, Number(opts?.quantity) || 1);
   const proxy = Boolean(opts?.proxy);
   const instance: CardInstance = {

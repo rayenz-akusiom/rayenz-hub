@@ -50,7 +50,7 @@ describe('colourIdentitySection', () => {
   it('appends Lands last when separateLands is set', () => {
     const sections = colourIdentitySectionsFor({ separateLands: true });
     expect(sections[sections.length - 1]).toBe('Lands');
-    expect(sections[sections.length - 2]).toBe('Colorless');
+    expect(sections[sections.length - 2]).toBe('Colourless');
   });
 
   it('maps mono colours', () => {
@@ -76,7 +76,7 @@ describe('colourIdentitySection', () => {
         colourIdentity: ['W', 'U', 'B', 'R', 'G'],
       }),
     ).toBe('Prismatic');
-    expect(colourIdentitySection({ typeLine: 'Artifact', colourIdentity: [] })).toBe('Colorless');
+    expect(colourIdentitySection({ typeLine: 'Artifact', colourIdentity: [] })).toBe('Colourless');
   });
 
   it('uses Capenna and Ikoria naming when requested', () => {
@@ -103,7 +103,7 @@ describe('colourIdentitySection', () => {
         typeLine: 'Basic Land',
         colourIdentity: [],
       }),
-    ).toBe('Colorless');
+    ).toBe('Colourless');
   });
 
   it('lists Capenna sections when ally style is capenna', () => {
@@ -118,7 +118,7 @@ describe('colourIdentitySection', () => {
     const groups = groupByColourIdentity(cube.cards);
     expect(groups.White).toHaveLength(1);
     expect(groups.Azorius).toHaveLength(1);
-    expect(groups.Colorless).toHaveLength(1);
+    expect(groups.Colourless).toHaveLength(1);
   });
 
   it('groups cube lands separately in spells mode', async () => {
@@ -127,6 +127,6 @@ describe('colourIdentitySection', () => {
     expect(groups.Azorius || []).toHaveLength(0);
     expect(groups.Lands).toHaveLength(1);
     expect(groups.White).toHaveLength(1);
-    expect(groups.Colorless).toHaveLength(1);
+    expect(groups.Colourless).toHaveLength(1);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 
@@ -14,6 +14,8 @@ export function CardContextMenu({
   foil,
   foilEnabled,
   proxy,
+  secondaryCategories = [],
+  categoryOptions = [],
   onClose,
   onToggleFoil,
   onToggleProxy,
@@ -22,12 +24,17 @@ export function CardContextMenu({
   onMove,
   onChangePrinting,
   onRemove,
+  onRemoveSecondary,
+  onAddSecondary,
 }: {
   state: CardContextMenuState;
   isCover: boolean;
   foil: boolean;
   foilEnabled: boolean;
   proxy: boolean;
+  secondaryCategories?: string[];
+  /** Categories available to add as secondary (excludes current memberships). */
+  categoryOptions?: string[];
   onClose: () => void;
   onToggleFoil: () => void;
   onToggleProxy: () => void;
@@ -36,8 +43,13 @@ export function CardContextMenu({
   onMove: () => void;
   onChangePrinting: () => void;
   onRemove: () => void;
+  onRemoveSecondary?: (category: string) => void;
+  onAddSecondary?: (category: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [addingSecondary, setAddingSecondary] = useState(false);
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -55,11 +67,17 @@ export function CardContextMenu({
     };
   }, [onClose]);
 
-  // Keep menu on-screen roughly.
   const style = {
-    left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 200 : state.x),
-    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 260 : state.y),
+    left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 220 : state.x),
+    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 320 : state.y),
   };
+
+  function commitAddSecondary(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed || !onAddSecondary) return;
+    onAddSecondary(trimmed);
+    onClose();
+  }
 
   return (
     <div
@@ -134,6 +152,72 @@ export function CardContextMenu({
       >
         Move…
       </button>
+      {secondaryCategories.map((cat) => (
+        <button
+          key={cat}
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onRemoveSecondary?.(cat);
+            onClose();
+          }}
+        >
+          Remove from {cat}
+        </button>
+      ))}
+      {onAddSecondary ? (
+        addingSecondary ? (
+          <div className="db-card-context-add-secondary" role="none">
+            {creatingNew ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  commitAddSecondary(newCategory);
+                }}
+              >
+                <input
+                  className="db-input"
+                  placeholder="New category"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  autoFocus
+                />
+              </form>
+            ) : (
+              <select
+                className="db-select"
+                value=""
+                aria-label="Add secondary category"
+                onChange={(e) => {
+                  if (e.target.value === '__new__') {
+                    setCreatingNew(true);
+                    return;
+                  }
+                  if (e.target.value) commitAddSecondary(e.target.value);
+                }}
+              >
+                <option value="">Choose…</option>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value="__new__">New category…</option>
+              </select>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            className="db-card-context-item"
+            onClick={() => setAddingSecondary(true)}
+          >
+            Add secondary category…
+          </button>
+        )
+      ) : null}
       <button
         type="button"
         role="menuitem"

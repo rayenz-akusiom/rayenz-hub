@@ -6,6 +6,8 @@ import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 
 const VIEW_LABELS: Record<BrowseView, string> = {
   category: 'Categories',
+  category_custom: 'Categories (Custom)',
+  category_multi: 'Multiple categories',
   colour_identity: 'Colour identity',
   colour_identity_spells: 'Colour identity (Spells)',
 };
@@ -32,6 +34,7 @@ export function ExportBar({
   onCardSortChange,
   cardSize,
   onCardSizeChange,
+  onOpenCategories,
 }: {
   view: BrowseView;
   onViewChange: (next: BrowseView) => void;
@@ -41,12 +44,25 @@ export function ExportBar({
   onCardSortChange: (next: CardSortMode) => void;
   cardSize: CardSizeKey;
   onCardSizeChange: (next: CardSizeKey) => void;
+  onOpenCategories?: () => void;
 }) {
   return (
     <div className="db-toolbar-controls">
       <DbMenu label="Browse" value={VIEW_LABELS[view]}>
         <DbMenuItem active={view === 'category'} onSelect={() => onViewChange('category')}>
           Categories
+        </DbMenuItem>
+        <DbMenuItem
+          active={view === 'category_custom'}
+          onSelect={() => onViewChange('category_custom')}
+        >
+          Categories (Custom)
+        </DbMenuItem>
+        <DbMenuItem
+          active={view === 'category_multi'}
+          onSelect={() => onViewChange('category_multi')}
+        >
+          Multiple categories
         </DbMenuItem>
         <DbMenuItem
           active={view === 'colour_identity'}
@@ -81,6 +97,11 @@ export function ExportBar({
         ))}
       </DbMenu>
       <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
+      {onOpenCategories ? (
+        <button type="button" className="db-btn" onClick={onOpenCategories}>
+          Categories…
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -169,4 +169,62 @@ describe('CategoryBrowse', () => {
     expect(document.querySelector('.db-section, .db-cat-column, .db-deck-leaders')).toBeTruthy();
     void onSelect;
   });
+
+  it('shows N/T counts and disables drag in multiple categories mode', () => {
+    const onDropCard = vi.fn();
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      categories: [
+        { name: 'Creature', includedInDeck: true, includedInPrice: true, target: 5 },
+        { name: 'Land', includedInDeck: true, includedInPrice: true, target: 2 },
+        { name: 'Ramp', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+      cards: [
+        {
+          ...cardAt(0),
+          primaryCategory: 'Creature',
+          categories: ['Creature', 'Ramp'],
+        },
+        cardAt(1),
+      ],
+    };
+
+    const { rerender } = render(
+      <CategoryBrowse
+        deck={deck}
+        layout="grid"
+        browseView="category"
+        onDropCard={onDropCard}
+      />,
+    );
+    expect(screen.getByText('(1/5)')).toBeInTheDocument();
+
+    rerender(
+      <CategoryBrowse
+        deck={deck}
+        layout="grid"
+        browseView="category_multi"
+        onDropCard={onDropCard}
+      />,
+    );
+    expect(screen.getByText('Ramp')).toBeInTheDocument();
+    const secondary = document.querySelector('.db-card-tile.is-secondary-cat');
+    expect(secondary).toBeTruthy();
+    expect(secondary).toHaveAttribute('draggable', 'false');
+  });
+
+  it('respects Categories (Custom) order', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      categories: [
+        { name: 'Land', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+    };
+    render(<CategoryBrowse deck={deck} layout="grid" browseView="category_custom" />);
+    const titles = [...document.querySelectorAll('.db-section-title')].map((el) =>
+      el.textContent?.replace(/\s*\(.*\)$/, '').trim(),
+    );
+    expect(titles.indexOf('Land')).toBeLessThan(titles.indexOf('Creature'));
+  });
 });

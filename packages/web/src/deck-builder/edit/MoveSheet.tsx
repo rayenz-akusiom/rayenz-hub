@@ -56,7 +56,7 @@ export function MoveSheet({
                 ? deck.categories
                 : [
                     ...deck.categories,
-                    { name: cat, includedInDeck: true, includedInPrice: true },
+                    { name: cat, includedInDeck: true, includedInPrice: true, target: null },
                   ];
               onApply({
                 ...deck,

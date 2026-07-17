@@ -1,15 +1,24 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   addCardToDeck,
+  addSecondaryCategory,
   cardDisplayName,
   cardSupportsFoilToggle,
+  categoryTargetsMismatchCubeSize,
   changeCardPrinting,
+  deckCategoryOptions,
+  deckHeaderTarget,
   deckSize,
+  deckSizeMismatch,
   defaultBrowseView,
+  ensureCategoryDef,
   incompleteEntryCount,
+  isCategoryBrowseView,
   moveCardCategory,
   placeCardInCommanderSlot,
   removeCardFromDeck,
+  removeSecondaryCategory,
+  secondaryCategoriesOf,
   setCardFoil,
   setCardProxy,
   type BrowseView,
@@ -26,6 +35,8 @@ import { SwapQueuePanel, type SwapEditDraft } from '../swaps/SwapQueuePanel';
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
 import { MoveSheet } from '../edit/MoveSheet';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
+import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
+import { CategoryEditDialog } from '../edit/CategoryEditDialog';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
@@ -78,6 +89,8 @@ export function BrowseShell({
   const [draft, setDraft] = useState<SwapEditDraft | null>(null);
   const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
   const [contextMenu, setContextMenu] = useState<CardContextMenuState | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
@@ -130,8 +143,15 @@ export function BrowseShell({
   // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
+  const headerTarget = deckHeaderTarget(deck);
+  const sizeWarn = deckSizeMismatch(deck);
+  const targetsVsCubeWarn = categoryTargetsMismatchCubeSize(deck);
+  const sizeLabel =
+    headerTarget != null ? `${size}/${headerTarget} cards` : `${size} cards`;
   const deckMeta = [
-    `${size} cards`,
+    sizeLabel,
+    sizeWarn ? 'size warning' : null,
+    targetsVsCubeWarn ? 'category targets ≠ cube size' : null,
     incomplete ? `${incomplete} incomplete swaps` : null,
     enriching ? 'Enriching…' : null,
   ]
@@ -193,6 +213,7 @@ export function BrowseShell({
     onChange({
       ...deck,
       cards: moveCardCategory(deck.cards, instanceId, category, card.stack),
+      categories: ensureCategoryDef(deck.categories || [], category),
       updatedAt: new Date().toISOString(),
     });
   }
@@ -337,6 +358,7 @@ export function BrowseShell({
           onCardSortChange={setCardSortAndPersist}
           cardSize={cardSize}
           onCardSizeChange={setCardSize}
+          onOpenCategories={() => setCategoriesOpen(true)}
         />
         <DeckActionsMenu deck={deck} onDeckChange={onChange} />
       </header>
@@ -409,6 +431,7 @@ export function BrowseShell({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               deckMeta={deckMeta}
+              deckMetaWarn={sizeWarn || targetsVsCubeWarn}
             />
           ) : (
             <CategoryBrowse
@@ -419,8 +442,10 @@ export function BrowseShell({
               cardSort={cardSort}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
-              mode="main"
               deckMeta={deckMeta}
+              deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+              browseView={isCategoryBrowseView(view) ? view : 'category'}
+              onEditCategory={(cat) => setEditingCategory(cat)}
             />
           )}
         </main>
@@ -475,10 +500,12 @@ export function BrowseShell({
               onSelectCard={onSelectCard}
               layout="stacked"
               cardSort={cardSort}
-              onDropCard={onDropCard}
+              onDropCard={view === 'category_multi' ? undefined : onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onEditCategory={(cat) => setEditingCategory(cat)}
               mode="aside"
               includeSwapCategories={editingSwap}
+              browseView={isCategoryBrowseView(view) ? view : 'category'}
             />
           </div>
           <div
@@ -527,6 +554,25 @@ export function BrowseShell({
         />
       ) : null}
 
+      {categoriesOpen ? (
+        <CategorySettingsPanel
+          deck={deck}
+          onChange={onChange}
+          onClose={() => setCategoriesOpen(false)}
+          initialFocus="order"
+        />
+      ) : null}
+
+      {editingCategory ? (
+        <CategoryEditDialog
+          deck={deck}
+          categoryName={editingCategory}
+          onChange={onChange}
+          onClose={() => setEditingCategory(null)}
+          onOpenReorder={() => setCategoriesOpen(true)}
+        />
+      ) : null}
+
       {contextMenu && contextCard ? (
         <CardContextMenu
           state={contextMenu}
@@ -534,6 +580,12 @@ export function BrowseShell({
           foil={Boolean(contextCard.foil)}
           foilEnabled={cardSupportsFoilToggle(deck, contextCard)}
           proxy={Boolean(contextCard.proxy)}
+          secondaryCategories={secondaryCategoriesOf(contextCard)}
+          categoryOptions={deckCategoryOptions(deck).filter(
+            (c) =>
+              c !== contextCard.primaryCategory &&
+              !(contextCard.categories || []).includes(c),
+          )}
           onClose={() => setContextMenu(null)}
           onToggleFoil={() => {
             onChange(setCardFoil(deck, contextCard.instanceId, !contextCard.foil));
@@ -552,6 +604,21 @@ export function BrowseShell({
           onMove={() => setMoveOpen(true)}
           onChangePrinting={() => setPrintingOpen(true)}
           onRemove={onRemoveSelected}
+          onRemoveSecondary={(category) => {
+            onChange({
+              ...deck,
+              cards: removeSecondaryCategory(deck.cards, contextCard.instanceId, category),
+              updatedAt: new Date().toISOString(),
+            });
+          }}
+          onAddSecondary={(category) => {
+            onChange({
+              ...deck,
+              cards: addSecondaryCategory(deck.cards, contextCard.instanceId, category),
+              categories: ensureCategoryDef(deck.categories || [], category),
+              updatedAt: new Date().toISOString(),
+            });
+          }}
         />
       ) : null}
 

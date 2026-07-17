@@ -5,12 +5,17 @@ import {
   resolveDeckCards,
   sortCardsInGroup,
   cardDisplayName,
+  categoryTarget,
+  primaryCategoryCount,
+  type BrowseView,
   type CardLayout,
   type CardSortMode,
   type CardView,
   type CategoryDef,
+  type CategoryMembership,
   type DeckDocument,
   type DeckFormat,
+  categoryKeySortFor,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { CardTile, DRAG_MIME } from './CardTile';
@@ -76,25 +81,32 @@ export function CardGroup({
   onSelectCard,
   draggable,
   onCardContextMenu,
+  categoryKey,
 }: {
-  cards: CardView[];
+  cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   draggable?: boolean;
   onCardContextMenu?: CardContextMenuHandler;
+  /** Disambiguates duplicate instance keys in multi-category browse. */
+  categoryKey?: string;
 }) {
   if (layout === 'stacked') {
     return (
       <div className="db-card-stack">
         {cards.map((card) => (
-          <div key={card.instanceId} className="db-card-stack-item">
+          <div
+            key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
+            className="db-card-stack-item"
+          >
             <CardTile
               card={card}
               selected={selectedId === card.instanceId}
               onSelect={onSelectCard}
               draggable={draggable}
               onContextMenu={onCardContextMenu}
+              membership={card.membership || 'primary'}
             />
             <button
               type="button"
@@ -118,12 +130,13 @@ export function CardGroup({
     <div className="db-card-grid">
       {cards.map((card) => (
         <CardTile
-          key={card.instanceId}
+          key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
           card={card}
           selected={selectedId === card.instanceId}
           onSelect={onSelectCard}
           draggable={draggable}
           onContextMenu={onCardContextMenu}
+          membership={card.membership || 'primary'}
         />
       ))}
     </div>
@@ -138,28 +151,46 @@ export function DropSection({
   onSelectCard,
   onDropCard,
   onCardContextMenu,
+  onEditCategory,
   variant = 'section',
   cardSort = 'name_asc',
+  target = null,
+  primaryCount,
+  warnTarget = false,
 }: {
   category: string;
-  cards: CardView[];
+  cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
+  onEditCategory?: (category: string) => void;
   variant?: 'section' | 'header' | 'column';
   cardSort?: CardSortMode;
+  target?: number | null;
+  /** Primary-only count for target warnings (multi browse may inflate `cards.length`). */
+  primaryCount?: number;
+  warnTarget?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
   const base =
     variant === 'header' ? 'db-header-cat' : variant === 'column' ? 'db-cat-column' : 'db-section';
   const sorted = useMemo(() => sortCardsInGroup(cards, cardSort), [cards, cardSort]);
+  const n = sorted.length;
+  const countLabel =
+    target != null ? `(${n}/${target})` : `(${n})`;
+  const mismatch =
+    warnTarget &&
+    target != null &&
+    (primaryCount != null ? primaryCount : n) !== target;
+  const titleClass =
+    variant === 'header' ? 'db-header-cat-title' : 'db-section-title';
 
   return (
     <section
-      className={`${base}${dragOver ? ' is-drop-target' : ''}`}
+      className={`${base}${dragOver ? ' is-drop-target' : ''}${mismatch ? ' is-target-warn' : ''}`}
       onDragOver={(e) => {
         if (!canDrop) return;
         e.preventDefault();
@@ -175,9 +206,26 @@ export function DropSection({
         if (id) onDropCard?.(id, category);
       }}
     >
-      <h3 className={variant === 'header' ? 'db-header-cat-title' : 'db-section-title'}>
-        {category} <span className="db-count">({sorted.length})</span>
-      </h3>
+      {onEditCategory ? (
+        <button
+          type="button"
+          className={`${titleClass} db-section-title-edit${mismatch ? ' is-target-warn' : ''}`}
+          onClick={() => onEditCategory(category)}
+          title={`Edit ${category}`}
+          aria-label={`Edit ${category}`}
+        >
+          <span className="db-section-title-text">
+            {category} <span className="db-count">{countLabel}</span>
+          </span>
+          <span className="db-section-title-pencil" aria-hidden="true">
+            ✎
+          </span>
+        </button>
+      ) : (
+        <h3 className={`${titleClass}${mismatch ? ' is-target-warn' : ''}`}>
+          {category} <span className="db-count">{countLabel}</span>
+        </h3>
+      )}
       <CardGroup
         cards={sorted}
         layout={layout}
@@ -185,6 +233,7 @@ export function DropSection({
         onSelectCard={onSelectCard}
         draggable={canDrop}
         onCardContextMenu={onCardContextMenu}
+        categoryKey={category}
       />
     </section>
   );
@@ -317,10 +366,12 @@ export function DeckHeaderRow({
   onSelectCard,
   onDropCard,
   onCardContextMenu,
+  onEditCategory,
   format,
   cardSort = 'name_asc',
   deckName,
   deckMeta,
+  deckMetaWarn,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -328,10 +379,12 @@ export function DeckHeaderRow({
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
+  onEditCategory?: (category: string) => void;
   format?: DeckFormat | null;
   cardSort?: CardSortMode;
   deckName?: string;
   deckMeta?: string;
+  deckMetaWarn?: boolean;
 }) {
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
@@ -364,6 +417,7 @@ export function DeckHeaderRow({
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onEditCategory={onEditCategory}
               variant="header"
               cardSort={cardSort}
             />
@@ -388,6 +442,7 @@ export function DeckHeaderRow({
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onEditCategory={onEditCategory}
               variant="header"
               cardSort={cardSort}
             />
@@ -407,7 +462,9 @@ export function DeckHeaderRow({
             <FormatBadge format={badgeFormat} />
             <span>{deckName}</span>
           </h2>
-          {deckMeta ? <p className="db-meta">{deckMeta}</p> : null}
+          {deckMeta ? (
+            <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+          ) : null}
         </div>
       ) : null}
       {slots}
@@ -423,9 +480,12 @@ export function CategoryBrowse({
   cardSort = 'name_asc',
   onDropCard,
   onCardContextMenu,
+  onEditCategory,
   mode = 'main',
   includeSwapCategories = false,
   deckMeta,
+  deckMetaWarn,
+  browseView = 'category',
 }: {
   deck:
     | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
@@ -442,20 +502,32 @@ export function CategoryBrowse({
   cardSort?: CardSortMode;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
+  onEditCategory?: (category: string) => void;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
   deckMeta?: string;
+  deckMetaWarn?: boolean;
+  browseView?: BrowseView;
 }) {
   const resolved = useMemo(
     () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
     [deck.cards, deck.oracle],
   );
+  const format = ('format' in deck ? deck.format : undefined) || 'other';
+  const multi = browseView === 'category_multi';
+  const keySort = categoryKeySortFor(browseView, format);
   const { header, included, excluded, headerKeys, includedKeys, excludedKeys } = useMemo(
-    () => partitionCategories({ ...deck, cards: resolved }, { includeSwapCategories }),
-    [deck, resolved, includeSwapCategories],
+    () =>
+      partitionCategories(
+        { ...deck, cards: resolved },
+        { includeSwapCategories, multi, keySort },
+      ),
+    [deck, resolved, includeSwapCategories, multi, keySort],
   );
-  const format = 'format' in deck ? deck.format : undefined;
   const deckName = 'name' in deck && typeof deck.name === 'string' ? deck.name : undefined;
+  const categories = deck.categories || [];
+  const dropHandler = multi ? undefined : onDropCard;
+  const warnTargets = !multi;
 
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;
@@ -469,10 +541,14 @@ export function CategoryBrowse({
             layout={layout}
             selectedId={selectedId}
             onSelectCard={onSelectCard}
-            onDropCard={onDropCard}
+            onDropCard={dropHandler}
             onCardContextMenu={onCardContextMenu}
+            onEditCategory={onEditCategory}
             variant="column"
             cardSort={cardSort}
+            target={categoryTarget(categories, cat)}
+            primaryCount={primaryCategoryCount(resolved, cat)}
+            warnTarget={warnTargets}
           />
         ))}
       </div>
@@ -487,10 +563,14 @@ export function CategoryBrowse({
       layout={layout}
       selectedId={selectedId}
       onSelectCard={onSelectCard}
-      onDropCard={onDropCard}
+      onDropCard={dropHandler}
       onCardContextMenu={onCardContextMenu}
+      onEditCategory={onEditCategory}
       variant={layout === 'grid' ? 'section' : 'column'}
       cardSort={cardSort}
+      target={categoryTarget(categories, cat)}
+      primaryCount={primaryCategoryCount(resolved, cat)}
+      warnTarget={warnTargets}
     />
   ));
 
@@ -501,12 +581,14 @@ export function CategoryBrowse({
         headerKeys={headerKeys}
         selectedId={selectedId}
         onSelectCard={onSelectCard}
-        onDropCard={onDropCard}
+        onDropCard={dropHandler}
         onCardContextMenu={onCardContextMenu}
+        onEditCategory={onEditCategory}
         format={format}
         cardSort={cardSort}
         deckName={deckName}
         deckMeta={deckMeta}
+        deckMetaWarn={deckMetaWarn}
       />
       {layout === 'grid' ? (
         includedSections

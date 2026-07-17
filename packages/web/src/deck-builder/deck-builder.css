@@ -551,6 +551,119 @@ body,
   font-size: 1rem;
 }
 
+.db-section-title-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.db-section-title-edit:hover .db-section-title-pencil,
+.db-section-title-edit:focus-visible .db-section-title-pencil {
+  opacity: 1;
+}
+
+.db-section-title-pencil {
+  opacity: 0;
+  font-size: 0.85em;
+  color: var(--db-muted, #888);
+  transition: opacity 0.12s ease;
+}
+
+.db-category-settings-section {
+  margin: 1rem 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--db-border, #ddd);
+}
+
+.db-category-settings-section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.db-category-settings-section h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.db-category-reorder-name {
+  flex: 1;
+}
+
+.db-category-edit {
+  max-width: 24rem;
+  width: min(24rem, 96vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.db-category-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.db-category-edit-target-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.db-category-edit-target {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.db-category-edit-target .db-input {
+  max-width: 8rem;
+}
+
+.db-category-edit-current {
+  flex: 0 0 auto;
+  margin-bottom: 0.15rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--db-muted, #666);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.db-category-edit-current:hover,
+.db-category-edit-current:focus-visible {
+  color: var(--db-accent, #1f6feb);
+}
+
+.db-category-edit-included {
+  margin-top: 0.15rem;
+}
+
+.db-category-edit-actions {
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.db-category-edit-actions-end {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .db-count {
   color: var(--db-muted);
   font-weight: 400;
@@ -874,6 +987,102 @@ body,
 
 .db-card-tile.is-selected {
   border-color: var(--db-accent);
+}
+
+.db-card-tile.is-secondary-cat {
+  opacity: 0.55;
+  outline: 2px dashed var(--db-muted, #888);
+  outline-offset: -2px;
+}
+
+.db-section.is-target-warn .db-section-title,
+.db-cat-column.is-target-warn .db-section-title,
+.db-section-title.is-target-warn,
+.db-header-cat-title.is-target-warn,
+.db-meta.is-warn {
+  color: #8a6116;
+}
+
+.db-section.is-target-warn,
+.db-cat-column.is-target-warn,
+.db-category-reorder-row.is-target-warn {
+  box-shadow: inset 0 0 0 1px #f0d9a0;
+  background: rgba(255, 246, 224, 0.45);
+}
+
+.db-category-settings {
+  max-width: 42rem;
+  width: min(42rem, 96vw);
+}
+
+.db-category-cube-target {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  max-width: 12rem;
+}
+
+.db-category-reorder-list {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: min(50vh, 28rem);
+  overflow: auto;
+}
+
+.db-category-reorder-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--db-border, #ddd);
+  border-radius: 6px;
+  background: var(--db-surface, #fff);
+}
+
+.db-category-reorder-row.is-dragging {
+  opacity: 0.7;
+}
+
+.db-category-drag-handle {
+  cursor: grab;
+  color: var(--db-muted, #888);
+  user-select: none;
+  letter-spacing: -0.15em;
+}
+
+.db-category-name-input {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+}
+
+.db-category-target-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.db-category-target-field .db-input {
+  width: 4.5rem;
+}
+
+.db-category-count {
+  min-width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.db-card-context-add-secondary {
+  padding: 0.35rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .db-card-badges {

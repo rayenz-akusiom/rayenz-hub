@@ -32,6 +32,7 @@ export function ColourIdentityBrowse({
   onDropCard,
   onCardContextMenu,
   deckMeta,
+  deckMetaWarn,
 }: {
   deck:
     | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
@@ -50,6 +51,7 @@ export function ColourIdentityBrowse({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
   deckMeta?: string;
+  deckMetaWarn?: boolean;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -130,6 +132,7 @@ export function ColourIdentityBrowse({
         cardSort={cardSort}
         deckName={deckName}
         deckMeta={deckMeta}
+        deckMetaWarn={deckMetaWarn}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

@@ -46,7 +46,14 @@ export function ScryfallSearchModal({
   const [pending, setPending] = useState<ScryfallCard | null>(null);
 
   const categories = deckCategoryOptions(deck);
-  const defaultCat = defaultCategory || defaultAddCategory(deck);
+  const printingHint = pending
+    ? {
+        name: pending.name,
+        colourIdentity: (pending.color_identity || []) as ('W' | 'U' | 'B' | 'R' | 'G')[],
+        typeLine: pending.type_line || null,
+      }
+    : null;
+  const defaultCat = defaultCategory || defaultAddCategory(deck, printingHint);
 
   async function runSearch(e?: FormEvent) {
     e?.preventDefault();

@@ -3,6 +3,7 @@ import {
   cardHasBackFace,
   cardImageUrl,
   type CardView,
+  type CategoryMembership,
 } from '@rayenz-hub/shared';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { CardFace } from './CardFace';
@@ -16,6 +17,7 @@ export function CardTile({
   draggable = false,
   actionLabel,
   onContextMenu,
+  membership = 'primary',
 }: {
   card: CardView;
   onSelect?: (card: CardView) => void;
@@ -24,6 +26,7 @@ export function CardTile({
   /** Accessible name when the tile is an action (e.g. swap Change). */
   actionLabel?: string;
   onContextMenu?: (card: CardView, e: ReactMouseEvent) => void;
+  membership?: CategoryMembership;
 }) {
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
@@ -32,12 +35,13 @@ export function CardTile({
   const foil = Boolean(card.foil);
   const proxy = Boolean(card.proxy);
   const displayName = cardDisplayName(card);
+  const secondary = membership === 'secondary';
 
   return (
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}`}
       onClick={() => onSelect?.(card)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

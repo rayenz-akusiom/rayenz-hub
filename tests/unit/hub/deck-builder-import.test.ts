@@ -315,6 +315,7 @@ describe('import', () => {
     expect(normalizeArchidektCategoryName('New Set In')).toBe('Queued In');
     expect(normalizeArchidektCategoryName('New Set Out')).toBe('Queued Out');
     expect(normalizeArchidektCategoryName('  Ramp  ')).toBe('Ramp');
+    expect(normalizeArchidektCategoryName('Colorless')).toBe('Colourless');
   });
 
   it('deckNameFromArchidektUrl returns null for missing or invalid URLs', () => {

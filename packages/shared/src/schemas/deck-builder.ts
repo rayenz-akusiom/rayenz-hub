@@ -10,7 +10,13 @@ import {
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
-export const BrowseViewSchema = z.enum(['category', 'colour_identity', 'colour_identity_spells']);
+export const BrowseViewSchema = z.enum([
+  'category',
+  'category_custom',
+  'category_multi',
+  'colour_identity',
+  'colour_identity_spells',
+]);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
 
 export const CardLayoutSchema = z.enum(['stacked', 'grid']);
@@ -30,6 +36,8 @@ export const CategoryDefSchema = z.object({
   name: z.string().min(1),
   includedInDeck: z.boolean().default(true),
   includedInPrice: z.boolean().default(true),
+  /** Optional card-count target for this section (Hub-only). */
+  target: z.number().int().nonnegative().nullable().optional().default(null),
 });
 export type CategoryDef = z.infer<typeof CategoryDefSchema>;
 

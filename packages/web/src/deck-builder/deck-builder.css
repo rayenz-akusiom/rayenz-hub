@@ -313,6 +313,68 @@ body,
   gap: 1.5rem;
 }
 
+.db-library-skeleton {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.db-skeleton-title {
+  margin-bottom: 0;
+}
+
+.db-skeleton-tile {
+  pointer-events: none;
+}
+
+.db-skeleton-art {
+  display: block;
+  background: linear-gradient(145deg, #e8eef4, #d5dde6);
+}
+
+.db-skeleton-line {
+  display: block;
+  border-radius: 4px;
+  background: #d5dde6;
+}
+
+.db-skeleton-line-title {
+  width: 7rem;
+  height: 1rem;
+}
+
+.db-skeleton-line-badge {
+  flex: 0 0 auto;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 3px;
+}
+
+.db-skeleton-line-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 0.85rem;
+}
+
+.db-skeleton-pulse {
+  animation: db-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes db-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-skeleton-pulse {
+    animation: none;
+  }
+}
+
 .db-library-section-title {
   display: flex;
   align-items: center;

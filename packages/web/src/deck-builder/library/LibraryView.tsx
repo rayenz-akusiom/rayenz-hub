@@ -92,6 +92,34 @@ function LibraryCoverArt({ deck }: { deck: DeckSummary }) {
   );
 }
 
+const SKELETON_TILE_COUNT = 8;
+
+function LibrarySkeleton() {
+  return (
+    <div
+      className="db-library-skeleton"
+      aria-busy="true"
+      aria-label="Loading library"
+      role="status"
+    >
+      <div className="db-library-section-title db-skeleton-title">
+        <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-title" />
+      </div>
+      <ul className="db-library-grid" aria-hidden="true">
+        {Array.from({ length: SKELETON_TILE_COUNT }, (_, i) => (
+          <li key={i} className="db-library-tile db-skeleton-tile">
+            <span className="db-library-tile-art db-skeleton-pulse db-skeleton-art" />
+            <span className="db-library-tile-caption">
+              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-badge" />
+              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-name" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function LibrarySection({
   format,
   decks,
@@ -230,8 +258,9 @@ export function LibraryView({
         </div>
       </header>
       {error ? <p className="db-error">{error}</p> : null}
-      {loading ? <p className="db-meta">Loading…</p> : null}
-      {!loading && !decks.length ? (
+      {loading ? (
+        <LibrarySkeleton />
+      ) : !decks.length ? (
         <div className="db-empty-state">
           <p>No Hub-saved decks yet.</p>
           <p>
@@ -242,13 +271,13 @@ export function LibraryView({
             Add deck
           </button>
         </div>
-      ) : !loading ? (
+      ) : (
         <div className="db-library-sections">
           <LibrarySection format="commander" decks={commanders} onOpen={onOpen} onDelete={onDelete} />
           <LibrarySection format="cube" decks={cubes} onOpen={onOpen} onDelete={onDelete} />
           <LibrarySection format="other" decks={other} onOpen={onOpen} onDelete={onDelete} />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

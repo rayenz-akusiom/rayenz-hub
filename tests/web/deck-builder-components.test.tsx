@@ -96,7 +96,7 @@ describe('LibraryView', () => {
         onDelete={noop}
       />,
     );
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByLabelText(/loading library/i)).toBeInTheDocument();
 
     rerender(
       <LibraryView
@@ -109,6 +109,7 @@ describe('LibraryView', () => {
       />,
     );
     expect(screen.getByText('Load failed')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
   });
 
   it('renders empty state and sync button when provided', async () => {

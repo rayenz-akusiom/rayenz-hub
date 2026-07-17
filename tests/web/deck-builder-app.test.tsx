@@ -130,13 +130,13 @@ describe('DeckBuilderApp', () => {
     );
 
     render(<DeckBuilderApp />);
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByLabelText(/loading library/i)).toBeInTheDocument();
 
     resolveList([]);
     await waitFor(() => {
       expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
   });
 
   it('lists decks grouped by format', async () => {

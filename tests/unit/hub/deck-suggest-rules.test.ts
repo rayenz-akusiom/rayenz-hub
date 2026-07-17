@@ -34,8 +34,8 @@ describe('deck-suggest rules analysis', () => {
       deck_id: 'd1',
       deck_snapshot: {
         cards: [
-          { name: 'In Card', primary_category: 'New Set In' },
-          { name: 'Only Out', primary_category: 'New Set Out' },
+          { name: 'In Card', primary_category: 'Queued In' },
+          { name: 'Only Out', primary_category: 'Queued Out' },
         ],
       },
     };

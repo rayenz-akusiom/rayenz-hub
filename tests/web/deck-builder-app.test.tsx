@@ -50,6 +50,18 @@ vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => 
   useScryfallEnrich: () => ({ enriching: false }),
 }));
 
+vi.mock('../../packages/web/src/deck-suggest/data', () => ({
+  readProfileForDeck: vi.fn(async () => null),
+}));
+
+vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
+  ProfileSync: {
+    isConnected: vi.fn(async () => false),
+    connectProfilesDir: vi.fn(async () => {}),
+    readProfileYaml: vi.fn(async () => null),
+  },
+}));
+
 function withLayouts(doc: DeckDocument): DeckDocument {
   return {
     ...doc,
@@ -173,6 +185,30 @@ describe('DeckBuilderApp', () => {
     });
     expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
     expect(screen.getByText('Swap queue')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Deck' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
+  });
+
+  it('shows profile panel behind the Profile tab', async () => {
+    const user = userEvent.setup();
+    render(<DeckBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+    });
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Profile' }));
+    expect(screen.getByRole('region', { name: 'Deck profile' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Swap queue' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Deck' }));
+    expect(screen.getByRole('heading', { name: 'Swap queue' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
   });
 
   it('returns to library from BrowseShell back button', async () => {

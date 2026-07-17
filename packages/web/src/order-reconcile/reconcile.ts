@@ -1,4 +1,4 @@
-import { CutCandidates } from '@rayenz-hub/shared';
+import { CutCandidates, SWAP_IN_LEGACY, SWAP_OUT_LEGACY } from '@rayenz-hub/shared';
 import { optionKey, scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import type {
@@ -15,6 +15,8 @@ export function excludeCategories(): Record<string, boolean> {
   const excluded: Record<string, boolean> = {};
   excluded[CutCandidates.SWAP_IN] = true;
   excluded[CutCandidates.SWAP_OUT] = true;
+  excluded[SWAP_IN_LEGACY] = true;
+  excluded[SWAP_OUT_LEGACY] = true;
   Object.keys(CutCandidates.PROTECTED_CATEGORIES).forEach((key) => {
     excluded[key] = true;
   });

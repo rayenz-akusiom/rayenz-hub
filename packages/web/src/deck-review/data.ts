@@ -47,12 +47,12 @@ export function getSuggestionStaleness(
   const replaces = (suggestion.replaces || []) as Array<{ name?: string }>;
   const queuedOut = replaces.some((r) => r.name && swapQueueHasName(queue.new_set_out, r.name));
   if (queuedIn) {
-    reasons.push((slot || incoming) + ' is already in your Archidekt New Set In queue.');
+    reasons.push((slot || incoming) + ' is already in your Archidekt Queued In queue.');
   }
   if (queuedOut) {
     replaces.forEach((r) => {
       if (r.name && swapQueueHasName(queue.new_set_out, r.name)) {
-        reasons.push(r.name + ' is already in your Archidekt New Set Out queue.');
+        reasons.push(r.name + ' is already in your Archidekt Queued Out queue.');
       }
     });
   }

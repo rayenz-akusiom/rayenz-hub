@@ -36,8 +36,8 @@ function deckWithSnapshot() {
     deck_snapshot: {
       fetched_at: '2026-01-01',
       cards: [
-        { name: 'New Card', primary_category: 'New Set In', set_code: 'nin', collector_number: '1' },
-        { name: 'Old Card', primary_category: 'New Set Out', set_code: 'old', collector_number: '2' },
+        { name: 'New Card', primary_category: 'Queued In', set_code: 'nin', collector_number: '1' },
+        { name: 'Old Card', primary_category: 'Queued Out', set_code: 'old', collector_number: '2' },
         { name: 'Sol Ring', primary_category: 'Ramp', set_code: 'cmm', collector_number: '3' },
         { name: 'Cut Me', primary_category: 'Ramp', set_code: 'cmm', collector_number: '4' },
       ],
@@ -65,7 +65,7 @@ describe('DeckReview module wiring', () => {
 });
 
 describe('DeckReview.deriveSwapQueue', () => {
-  it('splits snapshot cards into New Set In/Out', () => {
+  it('splits snapshot cards into Queued In/Out', () => {
     const queue = DeckReview.deriveSwapQueue(deckWithSnapshot());
     expect(queue!.new_set_in.map((c) => c.name)).toEqual(['New Card']);
     expect(queue!.new_set_out.map((c) => c.name)).toEqual(['Old Card']);

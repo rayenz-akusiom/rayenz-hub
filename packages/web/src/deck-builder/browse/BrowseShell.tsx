@@ -18,11 +18,8 @@ import {
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
-import {
-  SwapQueuePanel,
-  type SwapEditDraft,
-  type SwapPickSlot,
-} from '../swaps/SwapQueuePanel';
+import { SwapQueuePanel, type SwapEditDraft } from '../swaps/SwapQueuePanel';
+import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
 import { MoveSheet } from '../edit/MoveSheet';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
@@ -31,6 +28,7 @@ import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
 import { useCardSize } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
+import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 
 function BookIcon() {
   return (
@@ -71,7 +69,7 @@ export function BrowseShell({
   const [addOpen, setAddOpen] = useState(false);
   const [printingOpen, setPrintingOpen] = useState(false);
   const [draft, setDraft] = useState<SwapEditDraft | null>(null);
-  const [picking, setPicking] = useState<SwapPickSlot | null>(null);
+  const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
@@ -110,6 +108,8 @@ export function BrowseShell({
 
   const deckRef = useRef(deck);
   deckRef.current = deck;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   const onEnrichPatch = useCallback(
     (cards: CardInstance[]) => {
@@ -129,16 +129,6 @@ export function BrowseShell({
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
   function onSelectCard(card: CardInstance) {
-    if (draft && picking) {
-      setDraft({
-        ...draft,
-        ...(picking === 'out'
-          ? { outInstanceId: card.instanceId }
-          : { inInstanceId: card.instanceId }),
-      });
-      setPicking(null);
-      return;
-    }
     setSelectedId((prev) => (prev === card.instanceId ? null : card.instanceId));
   }
 
@@ -176,7 +166,6 @@ export function BrowseShell({
 
   function clearSwapEdit() {
     setDraft(null);
-    setPicking(null);
   }
 
   function saveSwapEdit() {
@@ -225,6 +214,24 @@ export function BrowseShell({
     setAddOpen(false);
   }
 
+  function onConfirmSwapIn(printing: PrintingFields, category: string) {
+    const currentDraft = draftRef.current;
+    if (!currentDraft) return;
+    const currentDeck = deckRef.current;
+    const existing = findMatchingPrintingInstance(currentDeck, printing);
+    if (existing) {
+      setDraft({ ...currentDraft, inInstanceId: existing.instanceId });
+      return;
+    }
+    const before = new Set(currentDeck.cards.map((c) => c.instanceId));
+    const next = addCardToDeck(currentDeck, printing, category);
+    const added = next.cards.find((c) => !before.has(c.instanceId));
+    onChange(next);
+    if (added) {
+      setDraft({ ...currentDraft, inInstanceId: added.instanceId });
+    }
+  }
+
   function onChangePrinting(printing: PrintingFields) {
     if (!selectedId) return;
     onChange(changeCardPrinting(deck, selectedId, printing));
@@ -240,12 +247,35 @@ export function BrowseShell({
     setPrintingOpen(false);
   }
 
+  function onSetCover() {
+    if (!selected) return;
+    onChange({
+      ...deck,
+      coverInstanceId: selected.instanceId,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function onClearCover() {
+    onChange({
+      ...deck,
+      coverInstanceId: null,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
   } as CSSProperties;
 
+  const isCover = selected != null && deck.coverInstanceId === selected.instanceId;
+
   return (
-    <div ref={shellRef} className="db-shell" style={shellStyle}>
+    <div
+      ref={shellRef}
+      className={`db-shell${draft ? ' is-swap-editing' : ''}`}
+      style={shellStyle}
+    >
       <header className="db-header">
         <button type="button" className="db-btn db-library-back" onClick={onBack} aria-label="Library" title="Library">
           <BookIcon />
@@ -267,7 +297,7 @@ export function BrowseShell({
       </header>
 
       <ExportBar
-        onAddCard={picking ? undefined : () => setAddOpen(true)}
+        onAddCard={() => setAddOpen(true)}
         view={view}
         onViewChange={setView}
         layout={layout}
@@ -278,17 +308,19 @@ export function BrowseShell({
 
       <div className="db-body">
         <main className="db-main">
-          {picking ? (
-            <div className="db-selection-bar is-pick">
-              <span>Select {picking === 'out' ? 'Out' : 'In'} card…</span>
-              <button type="button" className="db-btn" onClick={() => setPicking(null)}>
-                Cancel pick
-              </button>
-            </div>
-          ) : selected ? (
+          {selected ? (
             <div className="db-selection-bar">
               <span>{selected.name}</span>
               <div className="db-selection-bar-actions">
+                {isCover ? (
+                  <button type="button" className="db-btn" onClick={onClearCover}>
+                    Clear cover
+                  </button>
+                ) : (
+                  <button type="button" className="db-btn" onClick={onSetCover}>
+                    Set as cover
+                  </button>
+                )}
                 <button type="button" className="db-btn" onClick={() => setMoveOpen(true)}>
                   Move…
                 </button>
@@ -325,34 +357,73 @@ export function BrowseShell({
           )}
         </main>
         <aside className="db-aside">
-          <SwapQueuePanel
-            deck={deck}
-            onChange={onChange}
-            draft={draft}
-            picking={picking}
-            onStartEdit={(entry) => {
-              setDraft(draftFromEntry(entry));
-              setPicking(null);
-            }}
-            onDraftChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
-            onSetPicking={setPicking}
-            onCancelEdit={clearSwapEdit}
-            onSaveEdit={saveSwapEdit}
-            onRemoveEdit={removeSwapEdit}
-          />
-          <CategoryBrowse
-            deck={deck}
-            selectedId={picking ? null : selectedId}
-            onSelectCard={onSelectCard}
-            layout="stacked"
-            onDropCard={onDropCard}
-            mode="aside"
-            includeSwapCategories={editingSwap}
-          />
+          <div className="db-aside-tabs" role="tablist" aria-label="Deck side panel">
+            <button
+              type="button"
+              role="tab"
+              id="db-aside-tab-deck"
+              aria-selected={asideTab === 'deck'}
+              aria-controls="db-aside-panel-deck"
+              className={`db-aside-tab${asideTab === 'deck' ? ' is-active' : ''}`}
+              onClick={() => setAsideTab('deck')}
+            >
+              Deck
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="db-aside-tab-profile"
+              aria-selected={asideTab === 'profile'}
+              aria-controls="db-aside-panel-profile"
+              className={`db-aside-tab${asideTab === 'profile' ? ' is-active' : ''}`}
+              onClick={() => setAsideTab('profile')}
+            >
+              Profile
+            </button>
+          </div>
+          <div
+            role="tabpanel"
+            id="db-aside-panel-deck"
+            aria-labelledby="db-aside-tab-deck"
+            hidden={asideTab !== 'deck'}
+            className="db-aside-panel"
+          >
+            <SwapQueuePanel
+              deck={deck}
+              onChange={onChange}
+              draft={draft}
+              onStartEdit={(entry) => {
+                setDraft(draftFromEntry(entry));
+              }}
+              onDraftChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
+              onConfirmIn={onConfirmSwapIn}
+              onCancelEdit={clearSwapEdit}
+              onSaveEdit={saveSwapEdit}
+              onRemoveEdit={removeSwapEdit}
+            />
+            <CategoryBrowse
+              deck={deck}
+              selectedId={selectedId}
+              onSelectCard={onSelectCard}
+              layout="stacked"
+              onDropCard={onDropCard}
+              mode="aside"
+              includeSwapCategories={editingSwap}
+            />
+          </div>
+          <div
+            role="tabpanel"
+            id="db-aside-panel-profile"
+            aria-labelledby="db-aside-tab-profile"
+            hidden={asideTab !== 'profile'}
+            className="db-aside-panel"
+          >
+            {asideTab === 'profile' ? <DeckProfilePanel deck={deck} /> : null}
+          </div>
         </aside>
       </div>
 
-      {moveOpen && selected && !picking ? (
+      {moveOpen && selected ? (
         <MoveSheet
           deck={deck}
           card={selected}
@@ -372,7 +443,7 @@ export function BrowseShell({
         />
       ) : null}
 
-      {printingOpen && selected && !picking ? (
+      {printingOpen && selected ? (
         <PrintingPickerModal
           cardName={selected.name}
           defaultScryfallId={selected.scryfallId}

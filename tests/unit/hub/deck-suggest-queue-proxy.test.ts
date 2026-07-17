@@ -25,9 +25,9 @@ describe('rules queue analysis', () => {
       deck_id: 'd1',
       deck_snapshot: {
         cards: [
-          { name: 'In1', primary_category: 'New Set In' },
-          { name: 'In2', primary_category: 'New Set In' },
-          { name: 'Out1', primary_category: 'New Set Out' },
+          { name: 'In1', primary_category: 'Queued In' },
+          { name: 'In2', primary_category: 'Queued In' },
+          { name: 'Out1', primary_category: 'Queued Out' },
         ],
       },
     };
@@ -65,7 +65,7 @@ describe('QueueRules.pickCutForUnpairedIn', () => {
       deck_id: 'd1',
       deck_snapshot: {
         cards: [
-          { name: 'Island', primary_category: 'New Set In', type_line: 'Land' },
+          { name: 'Island', primary_category: 'Queued In', type_line: 'Land' },
           { name: 'Sol Ring', primary_category: 'Ramp', cmc: 1 },
         ],
       },
@@ -123,9 +123,9 @@ describe('QueueRules.runQueueOutFill', () => {
       deck_id: 'd1',
       deck_snapshot: {
         cards: [
-          { name: 'Queued In', primary_category: 'New Set In' },
-          { name: 'Extra Out A', primary_category: 'New Set Out' },
-          { name: 'Extra Out B', primary_category: 'New Set Out' },
+          { name: 'Queued In', primary_category: 'Queued In' },
+          { name: 'Extra Out A', primary_category: 'Queued Out' },
+          { name: 'Extra Out B', primary_category: 'Queued Out' },
           { name: 'Cut Me', primary_category: 'Ramp', cmc: 3, type_line: 'Instant', oracle_text: 'protection token' },
         ],
       },
@@ -179,9 +179,9 @@ describe('QueueRules.runQueueOutFill', () => {
       deck_id: 'd1',
       deck_snapshot: {
         cards: [
-          { name: 'Queued In', primary_category: 'New Set In' },
-          { name: 'Extra Out A', primary_category: 'New Set Out' },
-          { name: 'Extra Out B', primary_category: 'New Set Out' },
+          { name: 'Queued In', primary_category: 'Queued In' },
+          { name: 'Extra Out A', primary_category: 'Queued Out' },
+          { name: 'Extra Out B', primary_category: 'Queued Out' },
         ],
       },
       profile: { roles: [{ id: 'ramp', tags: ['ramp'] }] },

@@ -72,63 +72,63 @@ describe('browse grouping', () => {
     expect(colourIdentitySection(land)).toBe('Azorius');
   });
 
-  it('omits New Set In/Out from partition by default', () => {
+  it('omits Queued In/Out from partition by default', () => {
     const withSwaps = {
       ...commander,
       categories: [
         ...commander.categories,
-        { name: 'New Set In', includedInDeck: false, includedInPrice: true },
-        { name: 'New Set Out', includedInDeck: false, includedInPrice: true },
+        { name: 'Queued In', includedInDeck: false, includedInPrice: true },
+        { name: 'Queued Out', includedInDeck: false, includedInPrice: true },
       ],
       cards: [
         ...commander.cards,
         {
           ...commander.cards[0],
           instanceId: 'in1',
-          primaryCategory: 'New Set In',
-          categories: ['New Set In'],
+          primaryCategory: 'Queued In',
+          categories: ['Queued In'],
         },
         {
           ...commander.cards[0],
           instanceId: 'out1',
-          primaryCategory: 'New Set Out',
-          categories: ['New Set Out'],
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out'],
         },
       ],
     };
     const part = partitionCategories(withSwaps);
-    expect(part.excludedKeys).not.toContain('New Set In');
-    expect(part.excludedKeys).not.toContain('New Set Out');
-    expect(part.includedKeys).not.toContain('New Set In');
+    expect(part.excludedKeys).not.toContain('Queued In');
+    expect(part.excludedKeys).not.toContain('Queued Out');
+    expect(part.includedKeys).not.toContain('Queued In');
   });
 
-  it('surfaces New Set In/Out in aside when includeSwapCategories', () => {
+  it('surfaces Queued In/Out in aside when includeSwapCategories', () => {
     const withSwaps = {
       ...commander,
       categories: [
         ...commander.categories,
-        { name: 'New Set In', includedInDeck: false, includedInPrice: true },
-        { name: 'New Set Out', includedInDeck: false, includedInPrice: true },
+        { name: 'Queued In', includedInDeck: false, includedInPrice: true },
+        { name: 'Queued Out', includedInDeck: false, includedInPrice: true },
       ],
       cards: [
         ...commander.cards,
         {
           ...commander.cards[0],
           instanceId: 'in1',
-          primaryCategory: 'New Set In',
-          categories: ['New Set In'],
+          primaryCategory: 'Queued In',
+          categories: ['Queued In'],
         },
         {
           ...commander.cards[0],
           instanceId: 'out1',
-          primaryCategory: 'New Set Out',
-          categories: ['New Set Out'],
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out'],
         },
       ],
     };
     const part = partitionCategories(withSwaps, { includeSwapCategories: true });
-    expect(part.excludedKeys).toEqual(expect.arrayContaining(['New Set In', 'New Set Out']));
-    expect(part.excluded['New Set In']).toHaveLength(1);
-    expect(part.excluded['New Set Out']).toHaveLength(1);
+    expect(part.excludedKeys).toEqual(expect.arrayContaining(['Queued In', 'Queued Out']));
+    expect(part.excluded['Queued In']).toHaveLength(1);
+    expect(part.excluded['Queued Out']).toHaveLength(1);
   });
 });

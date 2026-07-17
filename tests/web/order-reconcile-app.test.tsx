@@ -60,7 +60,7 @@ function mockDecks() {
         deck_snapshot: {
           fetched_at: '2026-01-01',
           cards: [
-            { name: 'Sol Ring', primary_category: 'New Set In', categories: ['New Set In'] },
+            { name: 'Sol Ring', primary_category: 'Queued In', categories: ['Queued In'] },
             { name: 'Lightning Bolt', primary_category: 'Ramp', categories: ['Ramp'] },
           ],
         },
@@ -72,7 +72,7 @@ function mockDecks() {
       archidekt_url: 'https://archidekt.com/decks/99999/staging',
       deck_snapshot: {
         fetched_at: '2026-01-01',
-        cards: [{ name: 'Shock', primary_category: 'New Set In', categories: ['New Set In'] }],
+        cards: [{ name: 'Shock', primary_category: 'Queued In', categories: ['Queued In'] }],
       },
     },
     assignmentIndex: {},
@@ -100,7 +100,7 @@ function mockAssignmentPlan() {
         card_name: 'Sol Ring',
         queued_in: { name: 'Sol Ring' },
         paired_out: { name: 'Lightning Bolt' },
-        destination_category: 'New Set In',
+        destination_category: 'Queued In',
         reason: 'matched',
       },
     ],

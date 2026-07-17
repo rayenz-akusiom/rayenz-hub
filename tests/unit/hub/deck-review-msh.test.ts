@@ -178,9 +178,9 @@ describe('MSH Archidekt export from fixtures', () => {
     const accepted = acceptedFromSuggestion(moleMan!);
     const text = ArchidektExport.buildFullDeckImport(borbs, accepted);
     expect(text).toContain('Mole Man, Moloid Master');
-    expect(text).toContain('[New Set In{noDeck}{noPrice}]');
+    expect(text).toContain('[Queued In{noDeck}{noPrice}]');
     expect(text).toContain('Conduit of Worlds');
-    expect(text).toContain('[New Set Out]');
+    expect(text).toContain('[Queued Out]');
   });
 
   it('builds swap-only import text for one accepted swap', () => {
@@ -189,8 +189,8 @@ describe('MSH Archidekt export from fixtures', () => {
     const accepted = acceptedFromSuggestion(moleMan!);
     const settings = borbs.deck_snapshot!.category_settings;
     const text = ArchidektExport.buildImportTextForDeck(accepted, settings);
-    expect(text).toContain('[New Set In{noDeck}{noPrice}]');
-    expect(text).toContain('[New Set Out]');
+    expect(text).toContain('[Queued In{noDeck}{noPrice}]');
+    expect(text).toContain('[Queued Out]');
     expect(text).not.toContain('Ramunap Excavator');
   });
 

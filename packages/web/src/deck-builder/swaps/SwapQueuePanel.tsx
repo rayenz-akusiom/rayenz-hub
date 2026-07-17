@@ -1,14 +1,21 @@
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import {
   categoryIncluded,
+  defaultAddCategory,
   incompleteEntryCount,
   isSwapQueueCategory,
   type CardInstance,
   type DeckDocument,
   type FormalSwapEntry,
+  type PrintingFields,
 } from '@rayenz-hub/shared';
 import { cardHasBackFace, cardImageUrl } from '@rayenz-hub/shared';
 import { CardTile } from '../browse/CardTile';
 import { CardFace } from '../browse/CardFace';
+import { useCardSize } from '../card-size';
+import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
+import { openOutCardPicker } from './swap-pickers';
 
 export type SwapEditDraft = {
   entryId: string;
@@ -17,8 +24,6 @@ export type SwapEditDraft = {
   inTargetCategory: string | null;
   notes: string;
 };
-
-export type SwapPickSlot = 'in' | 'out';
 
 function newEntry(sortIndex: number): FormalSwapEntry {
   return {
@@ -36,11 +41,23 @@ function blockDrag(e: React.DragEvent) {
   e.stopPropagation();
 }
 
-function MiniCard({ card, label }: { card: CardInstance | null; label: string }) {
+function SwapArrow({ className }: { className?: string }) {
+  return (
+    <span className={`db-swap-arrow${className ? ` ${className}` : ''}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false">
+        <path
+          fill="currentColor"
+          d="M4 11h12.17l-3.58-3.59L14 6l6 6-6 6-1.41-1.41L16.17 13H4v-2z"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function MiniCard({ card }: { card: CardInstance | null }) {
   if (!card) {
     return (
-      <div className="db-swap-mini is-empty" data-label={label}>
-        <span className="db-swap-mini-label">{label}</span>
+      <div className="db-swap-mini is-empty">
         <span className="db-swap-mini-fallback">—</span>
       </div>
     );
@@ -53,10 +70,8 @@ function MiniCard({ card, label }: { card: CardInstance | null; label: string })
   return (
     <div
       className={`db-swap-mini${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
-      data-label={label}
       onDragStart={blockDrag}
     >
-      <span className="db-swap-mini-label">{label}</span>
       <CardFace
         src={src}
         backSrc={backSrc}
@@ -70,53 +85,192 @@ function MiniCard({ card, label }: { card: CardInstance | null; label: string })
   );
 }
 
+function SwapPairFaces({
+  outCard,
+  inCard,
+  variant,
+}: {
+  outCard: CardInstance | null;
+  inCard: CardInstance | null;
+  variant: 'preview' | 'popout';
+}) {
+  return (
+    <div
+      className={`db-swap-pair-stack${variant === 'popout' ? ' is-full' : ' is-preview'}`}
+    >
+      <div className="db-swap-pair-out">
+        <MiniCard card={outCard} />
+      </div>
+      <SwapArrow className="db-swap-pair-arrow" />
+      <div className="db-swap-pair-in">
+        <MiniCard card={inCard} />
+      </div>
+    </div>
+  );
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function SwapPairButton({
+  entry,
+  outCard,
+  inCard,
+  incompleteEntry,
+  isEditing,
+  cardWidthPx,
+  onStartEdit,
+}: {
+  entry: FormalSwapEntry;
+  outCard: CardInstance | null;
+  inCard: CardInstance | null;
+  incompleteEntry: boolean;
+  isEditing: boolean;
+  cardWidthPx: number;
+  onStartEdit: (entry: FormalSwapEntry) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!hover || !triggerRef.current) {
+      setPos(null);
+      return;
+    }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const gap = 10;
+    const edge = 8;
+    const popW = cardWidthPx * 2 + 48;
+    const popH = cardWidthPx * 1.4 + (entry.inTargetCategory ? 40 : 24);
+    // Prefer left of the pair; fall back to right, then clamp.
+    let left = rect.left - popW - gap;
+    if (left < edge) {
+      left = rect.right + gap;
+    }
+    left = clamp(left, edge, window.innerWidth - popW - edge);
+    const top = clamp(
+      rect.top + rect.height / 2 - popH / 2,
+      edge,
+      window.innerHeight - popH - edge,
+    );
+    setPos({ top, left });
+  }, [hover, cardWidthPx, entry.inTargetCategory]);
+
+  const popoutStyle = {
+    ['--db-card-w']: `${cardWidthPx}px`,
+    top: pos?.top ?? 0,
+    left: pos?.left ?? 0,
+  } as CSSProperties;
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`db-swap-pair${incompleteEntry ? ' is-draft' : ''}${isEditing ? ' is-editing' : ''}`}
+        onClick={() => onStartEdit(entry)}
+        onDragStart={blockDrag}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        title="Click to edit swap"
+      >
+        <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
+        {entry.inTargetCategory ? (
+          <span className="db-swap-target">→ {entry.inTargetCategory}</span>
+        ) : null}
+      </button>
+      {hover && pos
+        ? createPortal(
+            <div
+              className="db-swap-pair-popout"
+              style={popoutStyle}
+              role="presentation"
+              aria-hidden="true"
+            >
+              <SwapPairFaces outCard={outCard} inCard={inCard} variant="popout" />
+              {entry.inTargetCategory ? (
+                <span className="db-swap-target">→ {entry.inTargetCategory}</span>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 function SwapEditSlot({
   card,
-  label,
-  picking,
+  role,
   onChange,
 }: {
   card: CardInstance | null;
-  label: string;
-  picking: boolean;
+  role: 'out' | 'in';
   onChange: () => void;
 }) {
+  const roleLabel = role === 'out' ? 'Out' : 'In';
   return (
-    <div className={`db-swap-edit-slot${picking ? ' is-picking' : ''}`}>
-      <span className="db-swap-edit-slot-label">{label}</span>
+    <div className="db-swap-edit-slot">
       {card ? (
-        <CardTile card={card} selected={picking} onSelect={() => onChange()} />
+        <CardTile
+          card={card}
+          selected={false}
+          onSelect={() => onChange()}
+          actionLabel={`Change ${roleLabel}`}
+        />
       ) : (
-        <button type="button" className="db-swap-edit-empty" onClick={onChange}>
-          Choose {label}
+        <button
+          type="button"
+          className="db-swap-edit-empty"
+          aria-label={`Choose ${roleLabel}`}
+          onClick={onChange}
+        >
+          Choose
         </button>
       )}
-      <button type="button" className="db-btn" onClick={onChange}>
-        Change
-      </button>
     </div>
   );
+}
+
+function useModalScrollLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const main = document.querySelector('.hub-main') as HTMLElement | null;
+    const prevMain = main?.style.overflow ?? '';
+    const prevBody = document.body.style.overflow;
+    if (main) main.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      if (main) main.style.overflow = prevMain;
+      document.body.style.overflow = prevBody;
+    };
+  }, [active]);
 }
 
 function SwapEditChrome({
   deck,
   draft,
-  picking,
   onDraftChange,
-  onSetPicking,
+  onConfirmIn,
   onClose,
   onSave,
   onRemove,
 }: {
   deck: DeckDocument;
   draft: SwapEditDraft;
-  picking: SwapPickSlot | null;
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
-  onSetPicking: (slot: SwapPickSlot | null) => void;
+  onConfirmIn: (printing: PrintingFields, category: string) => void;
   onClose: () => void;
   onSave: () => void;
   onRemove: () => void;
 }) {
+  const [phase, setPhase] = useState<'edit' | 'in-search'>('edit');
+  useModalScrollLock(true);
+
   const byId = new Map(deck.cards.map((c) => [c.instanceId, c]));
   const inCard = draft.inInstanceId ? byId.get(draft.inInstanceId) || null : null;
   const outCard = draft.outInstanceId ? byId.get(draft.outInstanceId) || null : null;
@@ -126,70 +280,80 @@ function SwapEditChrome({
     .map((c) => c.name)
     .sort((a, b) => a.localeCompare(b));
 
-  return (
-    <div
-      className={`db-modal${picking ? ' is-picking' : ''}`}
-      role="dialog"
-      aria-modal={!picking}
-      aria-label="Edit swap"
-    >
-      <div className="db-modal-card db-modal-wide db-swap-edit-chrome">
-        <h3>Edit swap</h3>
-        <div className="db-swap-edit-slots">
-          <SwapEditSlot
-            card={outCard}
-            label="Out"
-            picking={picking === 'out'}
-            onChange={() => onSetPicking(picking === 'out' ? null : 'out')}
-          />
-          <SwapEditSlot
-            card={inCard}
-            label="In"
-            picking={picking === 'in'}
-            onChange={() => onSetPicking(picking === 'in' ? null : 'in')}
-          />
+  const swapInDefaultCategory = draft.inTargetCategory || defaultAddCategory(deck);
+
+  function pickOut() {
+    openOutCardPicker(deck, draft.outInstanceId, (instanceId) => {
+      onDraftChange({ outInstanceId: instanceId });
+    });
+  }
+
+  const dialogLabel = phase === 'in-search' ? 'Choose In card from Scryfall' : 'Edit swap';
+
+  return createPortal(
+    <div className="db-modal" role="dialog" aria-modal="true" aria-label={dialogLabel}>
+      {phase === 'in-search' ? (
+        <ScryfallSearchModal
+          embedded
+          deck={deck}
+          title="Choose In card from Scryfall"
+          confirmLabel="Use as In"
+          printingTitle={(name) => `Printing — ${name}`}
+          defaultCategory={swapInDefaultCategory}
+          onClose={() => setPhase('edit')}
+          onAdd={(printing, category) => {
+            onConfirmIn(printing, category);
+            setPhase('edit');
+          }}
+        />
+      ) : (
+        <div className="db-modal-card db-modal-wide db-swap-edit-chrome">
+          <h3>Edit swap</h3>
+          <div className="db-swap-edit-scroll">
+            <div className="db-swap-edit-slots">
+              <SwapEditSlot card={outCard} role="out" onChange={pickOut} />
+              <SwapArrow />
+              <SwapEditSlot card={inCard} role="in" onChange={() => setPhase('in-search')} />
+            </div>
+            <label>
+              Place In card in category
+              <select
+                className="db-select"
+                value={draft.inTargetCategory || ''}
+                onChange={(e) => onDraftChange({ inTargetCategory: e.target.value || null })}
+              >
+                <option value="">— not set —</option>
+                {targetOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Notes
+              <input
+                className="db-input"
+                value={draft.notes}
+                onChange={(e) => onDraftChange({ notes: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="db-modal-actions">
+            <button type="button" className="db-btn db-btn-danger" onClick={onRemove}>
+              Remove
+            </button>
+            <button type="button" className="db-btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className="db-btn is-active" onClick={onSave}>
+              Save
+            </button>
+          </div>
         </div>
-        <p className="db-muted-hint">
-          {picking
-            ? `Click a card in the browse view to set ${picking === 'out' ? 'Out' : 'In'}.`
-            : 'Use Change, then click a card in the main or aside browse.'}
-        </p>
-        <label>
-          Place In card in category
-          <select
-            className="db-select"
-            value={draft.inTargetCategory || ''}
-            onChange={(e) => onDraftChange({ inTargetCategory: e.target.value || null })}
-          >
-            <option value="">— not set —</option>
-            {targetOptions.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Notes
-          <input
-            className="db-input"
-            value={draft.notes}
-            onChange={(e) => onDraftChange({ notes: e.target.value })}
-          />
-        </label>
-        <div className="db-modal-actions">
-          <button type="button" className="db-btn db-btn-danger" onClick={onRemove}>
-            Remove
-          </button>
-          <button type="button" className="db-btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="db-btn is-active" onClick={onSave}>
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -197,10 +361,9 @@ export function SwapQueuePanel({
   deck,
   onChange,
   draft,
-  picking,
   onStartEdit,
   onDraftChange,
-  onSetPicking,
+  onConfirmIn,
   onCancelEdit,
   onSaveEdit,
   onRemoveEdit,
@@ -208,14 +371,14 @@ export function SwapQueuePanel({
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   draft: SwapEditDraft | null;
-  picking: SwapPickSlot | null;
   onStartEdit: (entry: FormalSwapEntry) => void;
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
-  onSetPicking: (slot: SwapPickSlot | null) => void;
+  onConfirmIn: (printing: PrintingFields, category: string) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onRemoveEdit: () => void;
 }) {
+  const { widthPx: cardWidthPx } = useCardSize();
   const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const incomplete = incompleteEntryCount(entries);
   const byId = new Map(deck.cards.map((c) => [c.instanceId, c]));
@@ -249,27 +412,15 @@ export function SwapQueuePanel({
           const isEditing = draft?.entryId === entry.id;
           return (
             <li key={entry.id}>
-              <button
-                type="button"
-                className={`db-swap-pair${incompleteEntry ? ' is-draft' : ''}${isEditing ? ' is-editing' : ''}`}
-                onClick={() => onStartEdit(entry)}
-                onDragStart={blockDrag}
-                title="Click to edit swap"
-              >
-                <div className="db-swap-pair-stack">
-                  <div className="db-swap-pair-out">
-                    <MiniCard card={outCard} label="Out" />
-                  </div>
-                  <div className="db-swap-pair-in">
-                    <MiniCard card={inCard} label="In" />
-                  </div>
-                </div>
-                {entry.inTargetCategory ? (
-                  <span className="db-swap-target">→ {entry.inTargetCategory}</span>
-                ) : (
-                  <span className="db-swap-target is-missing">→ category?</span>
-                )}
-              </button>
+              <SwapPairButton
+                entry={entry}
+                outCard={outCard}
+                inCard={inCard}
+                incompleteEntry={incompleteEntry}
+                isEditing={isEditing}
+                cardWidthPx={cardWidthPx}
+                onStartEdit={onStartEdit}
+              />
             </li>
           );
         })}
@@ -280,9 +431,8 @@ export function SwapQueuePanel({
         <SwapEditChrome
           deck={deck}
           draft={draft}
-          picking={picking}
           onDraftChange={onDraftChange}
-          onSetPicking={onSetPicking}
+          onConfirmIn={onConfirmIn}
           onClose={onCancelEdit}
           onSave={onSaveEdit}
           onRemove={onRemoveEdit}

@@ -209,6 +209,17 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   background: #fff;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hub-picker-dialog--react .hub-picker-dialog-header {
+  flex-shrink: 0;
+}
+
+.hub-picker-dialog--react .hub-picker-grid {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .hub-picker-dialog--react .hub-picker-option-image {

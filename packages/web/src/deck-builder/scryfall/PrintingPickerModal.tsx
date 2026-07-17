@@ -24,6 +24,7 @@ export function PrintingPickerModal({
   onConfirm,
   onClose,
   onBack,
+  embedded = false,
 }: {
   cardName: string;
   defaultScryfallId?: string | null;
@@ -37,6 +38,8 @@ export function PrintingPickerModal({
   onConfirm: (printing: PrintingFields, category?: string) => void;
   onClose: () => void;
   onBack?: () => void;
+  /** Skip outer `.db-modal` backdrop (host provides the shell). */
+  embedded?: boolean;
 }) {
   const [prints, setPrints] = useState<ScryfallCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,29 +88,29 @@ export function PrintingPickerModal({
     onConfirm(printing, categoryOptions ? category : undefined);
   }
 
-  return (
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label={title || 'Choose printing'}>
-      <div className="db-modal-card db-modal-picker">
-        <div className="db-picker-header">
-          <h3>{title || `Printing — ${cardName}`}</h3>
-          <div className="db-picker-header-controls">
-            <CardSizePicker />
-            {anyFoil ? (
-              <label className="db-check">
-                <input
-                  type="checkbox"
-                  checked={foil}
-                  onChange={(e) => setFoil(e.target.checked)}
-                />
-                Foil
-              </label>
-            ) : null}
-            <button type="button" className="db-btn" onClick={onClose}>
-              Close
-            </button>
-          </div>
+  const card = (
+    <div className="db-modal-card db-modal-picker">
+      <div className="db-picker-header">
+        <h3>{title || `Printing — ${cardName}`}</h3>
+        <div className="db-picker-header-controls">
+          <CardSizePicker />
+          {anyFoil ? (
+            <label className="db-check">
+              <input
+                type="checkbox"
+                checked={foil}
+                onChange={(e) => setFoil(e.target.checked)}
+              />
+              Foil
+            </label>
+          ) : null}
+          <button type="button" className="db-btn" onClick={onClose}>
+            Close
+          </button>
         </div>
+      </div>
 
+      <div className="db-picker-scroll">
         {categoryOptions?.length ? (
           <label>
             Category
@@ -163,27 +166,35 @@ export function PrintingPickerModal({
             })}
           </div>
         ) : null}
-
-        <div className="db-modal-actions">
-          {onBack ? (
-            <button type="button" className="db-btn" onClick={onBack}>
-              Back
-            </button>
-          ) : (
-            <button type="button" className="db-btn" onClick={onClose}>
-              Cancel
-            </button>
-          )}
-          <button
-            type="button"
-            className="db-btn is-active"
-            disabled={!picked}
-            onClick={confirm}
-          >
-            {confirmLabel}
-          </button>
-        </div>
       </div>
+
+      <div className="db-modal-actions">
+        {onBack ? (
+          <button type="button" className="db-btn" onClick={onBack}>
+            Back
+          </button>
+        ) : (
+          <button type="button" className="db-btn" onClick={onClose}>
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          className="db-btn is-active"
+          disabled={!picked}
+          onClick={confirm}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (embedded) return card;
+
+  return (
+    <div className="db-modal" role="dialog" aria-modal="true" aria-label={title || 'Choose printing'}>
+      {card}
     </div>
   );
 }

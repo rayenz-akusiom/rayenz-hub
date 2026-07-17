@@ -1,7 +1,41 @@
-import type { CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
 import { CARD_SIZE_PX } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
+
+export const LIBRARY_SORT_KEY = 'rayenz-deck-builder-library-sort';
+export type LibrarySort = 'recent' | 'name' | 'cover';
+
+export function readLibrarySort(): LibrarySort {
+  try {
+    const raw = localStorage.getItem(LIBRARY_SORT_KEY);
+    if (raw === 'name' || raw === 'recent' || raw === 'cover') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'recent';
+}
+
+function coverSortKey(deck: DeckSummary): string {
+  return (deck.coverCardName || deck.name || '').trim();
+}
+
+export function sortLibraryDecks(decks: DeckSummary[], sort: LibrarySort): DeckSummary[] {
+  const list = [...decks];
+  if (sort === 'name') {
+    list.sort((a, b) => a.name.localeCompare(b.name) || b.updatedAt.localeCompare(a.updatedAt));
+  } else if (sort === 'cover') {
+    list.sort(
+      (a, b) =>
+        coverSortKey(a).localeCompare(coverSortKey(b)) ||
+        a.name.localeCompare(b.name) ||
+        b.updatedAt.localeCompare(a.updatedAt),
+    );
+  } else {
+    list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name));
+  }
+  return list;
+}
 
 function PartnerTie({ illegal }: { illegal?: boolean }) {
   return (
@@ -141,9 +175,21 @@ export function LibraryView({
   onDelete: (deckId: string) => void;
   onRefreshRemote?: () => void;
 }) {
-  const commanders = decks.filter((d) => d.format === 'commander');
-  const cubes = decks.filter((d) => d.format === 'cube');
-  const other = decks.filter((d) => d.format !== 'commander' && d.format !== 'cube');
+  const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort());
+
+  const sorted = useMemo(() => sortLibraryDecks(decks, sort), [decks, sort]);
+  const commanders = sorted.filter((d) => d.format === 'commander');
+  const cubes = sorted.filter((d) => d.format === 'cube');
+  const other = sorted.filter((d) => d.format !== 'commander' && d.format !== 'cube');
+
+  function onSortChange(next: LibrarySort) {
+    setSort(next);
+    try {
+      localStorage.setItem(LIBRARY_SORT_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const libraryStyle = {
     ['--db-card-w']: `${CARD_SIZE_PX.M}px`,
@@ -154,6 +200,19 @@ export function LibraryView({
       <header className="db-header">
         <h2>Deck Builder</h2>
         <div className="db-header-actions">
+          <label className="db-library-sort">
+            <span className="db-library-sort-label">Sort</span>
+            <select
+              className="db-select"
+              aria-label="Library sort"
+              value={sort}
+              onChange={(e) => onSortChange(e.target.value as LibrarySort)}
+            >
+              <option value="recent">Recent</option>
+              <option value="name">A–Z</option>
+              <option value="cover">A–Z (Highlighted Card)</option>
+            </select>
+          </label>
           {onRefreshRemote ? (
             <button type="button" className="db-btn" onClick={onRefreshRemote}>
               Sync from API

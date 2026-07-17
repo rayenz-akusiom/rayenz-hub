@@ -46,11 +46,13 @@ describe('deck-store local persistence', () => {
       coverImageUrl: null,
       coverImageUrlSecondary: undefined,
       coverPartnerStatus: undefined,
+      coverCardName: undefined,
     }));
     localStorage.setItem('rayenz-deck-builder-library', JSON.stringify(stale));
 
     const list = await listDecks();
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverImageUrl)).toBe(true);
+    expect(list.some((d) => d.deckId === 'cover-test' && d.coverCardName)).toBe(true);
   });
 
   it('mergeDeckDocuments prefers newer updatedAt', async () => {

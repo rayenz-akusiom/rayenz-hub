@@ -82,8 +82,8 @@ describe('RuleGuards helpers', () => {
       deck_snapshot: {
         cards: [
           { name: 'Commander', primary_category: 'Commander' },
-          { name: 'Queued In', primary_category: 'New Set In' },
-          { name: 'Queued Out', primary_category: 'New Set Out' },
+          { name: 'Queued In', primary_category: 'Queued In' },
+          { name: 'Queued Out', primary_category: 'Queued Out' },
           { name: 'Sol Ring', primary_category: 'Ramp', cmc: 1 },
           { name: 'Sol Ring', primary_category: 'Ramp', cmc: 1 },
           { name: '', primary_category: 'Ramp' },

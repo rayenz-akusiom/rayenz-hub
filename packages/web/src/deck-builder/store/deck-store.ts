@@ -71,7 +71,8 @@ async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummar
   const next: DeckSummary[] = [];
   for (const s of summaries) {
     const hasPartnerFields = 'coverImageUrlSecondary' in s && 'coverPartnerStatus' in s;
-    if (s.coverImageUrl && hasPartnerFields) {
+    const hasCoverName = 'coverCardName' in s;
+    if (s.coverImageUrl && hasPartnerFields && hasCoverName) {
       next.push(s);
       continue;
     }

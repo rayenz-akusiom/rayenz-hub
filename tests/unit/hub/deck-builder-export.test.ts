@@ -4,7 +4,7 @@ import { buildArchidektImportText } from '../../../packages/web/src/deck-builder
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 
 describe('export', () => {
-  it('includes New Set In/Out headers after formal swaps', () => {
+  it('includes Queued In/Out headers after formal swaps', () => {
     const doc = {
       ...commander,
       formalSwapEntries: [
@@ -12,8 +12,8 @@ describe('export', () => {
       ],
     };
     const text = buildArchidektImportText(doc);
-    expect(text).toContain('[New Set In');
-    expect(text).toContain('[New Set Out');
+    expect(text).toContain('[Queued In');
+    expect(text).toContain('[Queued Out');
     expect(text).toContain('Counterspell');
     expect(text).toContain('Birds of Paradise');
   });
@@ -21,10 +21,10 @@ describe('export', () => {
   it('applyFormalSwaps clears stale membership for unreferenced cards', () => {
     const stale = commander.cards.map((c) =>
       c.instanceId === 'c2'
-        ? { ...c, primaryCategory: 'New Set In', categories: ['New Set In'] }
+        ? { ...c, primaryCategory: 'Queued In', categories: ['Queued In'] }
         : c,
     );
     const out = applyFormalSwapsToCards(stale, [], 'commander');
-    expect(out.find((c) => c.instanceId === 'c2').primaryCategory).not.toBe('New Set In');
+    expect(out.find((c) => c.instanceId === 'c2').primaryCategory).not.toBe('Queued In');
   });
 });

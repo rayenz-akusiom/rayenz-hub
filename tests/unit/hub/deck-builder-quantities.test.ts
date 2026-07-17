@@ -114,7 +114,7 @@ describe('partitionCategories', () => {
         { name: 'Commander', includedInDeck: true, includedInPrice: true },
         { name: 'Creature', includedInDeck: true, includedInPrice: true },
         { name: 'Maybeboard', includedInDeck: false, includedInPrice: true },
-        { name: 'New Set Out', includedInDeck: false, includedInPrice: false },
+        { name: 'Queued Out', includedInDeck: false, includedInPrice: false },
       ],
       cards: [
         {

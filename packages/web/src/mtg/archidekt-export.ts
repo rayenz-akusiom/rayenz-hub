@@ -1,6 +1,16 @@
+import {
+  SWAP_IN,
+  SWAP_OUT,
+  SWAP_IN_LEGACY,
+  SWAP_OUT_LEGACY,
+  isSwapInCategory,
+  isSwapOutCategory,
+  isSwapQueueCategoryName,
+} from '@rayenz-hub/shared';
+
 const MANIFEST_VERSION = '1.1';
-const IN_CATEGORY = 'New Set In';
-const OUT_CATEGORY = 'New Set Out';
+const IN_CATEGORY = SWAP_IN;
+const OUT_CATEGORY = SWAP_OUT;
 const APPLY_STORAGE_PREFIX = 'rayenz-deck-apply:';
 
 type CategorySettings = Record<
@@ -108,13 +118,21 @@ function getCategorySettings(categorySettings: CategorySettings | null | undefin
   if (!category || !categorySettings) {
     return null;
   }
-  if (categorySettings[category]) {
-    return categorySettings[category];
+  const aliases = [category];
+  if (isSwapInCategory(category)) {
+    aliases.push(SWAP_IN, SWAP_IN_LEGACY);
+  } else if (isSwapOutCategory(category)) {
+    aliases.push(SWAP_OUT, SWAP_OUT_LEGACY);
   }
-  const lower = category.toLowerCase();
+  for (const key of aliases) {
+    if (categorySettings[key]) {
+      return categorySettings[key];
+    }
+  }
+  const lowerSet = new Set(aliases.map((a) => a.toLowerCase()));
   const keys = Object.keys(categorySettings);
   for (let i = 0; i < keys.length; i++) {
-    if (keys[i].toLowerCase() === lower) {
+    if (lowerSet.has(keys[i].toLowerCase())) {
       return categorySettings[keys[i]];
     }
   }
@@ -136,7 +154,7 @@ function formatSingleCategoryWithFlags(category: string, categorySettings: Categ
     }
   } else if (/^borrowed \(out\)$/i.test(category)) {
     bracket += '{noDeck}{noPrice}';
-  } else if (category === IN_CATEGORY || /^maybeboard$/i.test(category)) {
+  } else if (isSwapInCategory(category) || /^maybeboard$/i.test(category)) {
     bracket += '{noDeck}{noPrice}';
   }
   return bracket;
@@ -318,7 +336,7 @@ function buildMainDeckPool(snapshot: DeckSnapshot): PoolEntry[] {
   const pool: PoolEntry[] = [];
   (snapshot.cards || []).forEach((card) => {
     const primary = card.primary_category || (card.categories && card.categories[0]);
-    if (primary === IN_CATEGORY || primary === OUT_CATEGORY) {
+    if (isSwapQueueCategoryName(primary)) {
       return;
     }
     if (!card.name) {

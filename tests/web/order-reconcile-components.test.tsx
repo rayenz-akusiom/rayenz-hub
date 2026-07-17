@@ -14,11 +14,11 @@ import type {
 
 const mockValidateScryfallName = vi.fn(() => Promise.resolve(true));
 const mockResolveCubeDestination = vi.fn(() =>
-  Promise.resolve({ category: 'New Set In', colorIdentityCache: { cube: ['W'] } }),
+  Promise.resolve({ category: 'Queued In', colorIdentityCache: { cube: ['W'] } }),
 );
 const mockBuildAssignmentPlan = vi.fn();
 const mockIsCubeDeck = vi.fn(() => false);
-const mockDeckCategories = vi.fn(() => ['New Set In', 'Ramp', 'Removal']);
+const mockDeckCategories = vi.fn(() => ['Queued In', 'Ramp', 'Removal']);
 const mockCopyText = vi.fn(() => Promise.resolve());
 const mockStageDeckApply = vi.fn();
 const mockBridgeApplyAvailable = vi.fn(() => false);
@@ -98,7 +98,7 @@ function sampleDeck(over: Partial<OrderReconcileDeck> = {}): OrderReconcileDeck 
     deck_snapshot: {
       fetched_at: '2026-01-01',
       cards: [
-        { name: 'Sol Ring', primary_category: 'New Set In', categories: ['New Set In'] },
+        { name: 'Sol Ring', primary_category: 'Queued In', categories: ['Queued In'] },
         { name: 'Lightning Bolt', primary_category: 'Ramp', categories: ['Ramp'] },
       ],
     },
@@ -127,7 +127,7 @@ function baseState(over: Partial<OrderReconcileState> = {}): OrderReconcileState
         slot_key: 'slot-1',
         queued_in: { name: 'Sol Ring' },
         paired_out: { name: 'Lightning Bolt' },
-        destination_category: 'New Set In',
+        destination_category: 'Queued In',
         is_cube: false,
         maybeboard_entry: null,
         reason: 'matched',
@@ -260,13 +260,13 @@ describe('OrderReconcileAssign', () => {
               slot_key: 'slot-1',
               queued_in: { name: 'Shock' },
               paired_out: null,
-              destination_category: 'New Set In',
+              destination_category: 'Queued In',
               is_cube: false,
               maybeboard_entry: null,
             },
           ],
           assigned_deck_id: 'deck-1',
-          destination_category: 'New Set In',
+          destination_category: 'Queued In',
         }),
         needsReviewItem({
           reason: 'extra',
@@ -328,7 +328,7 @@ describe('OrderReconcileDeckPanel', () => {
       <OrderReconcileDeckPanel
         state={baseState()}
         deck={sampleDeck()}
-        items={[reconcileItem({ destination_category: 'New Set In' })]}
+        items={[reconcileItem({ destination_category: 'Queued In' })]}
         onDecision={onDecision}
         onItemChange={onItemChange}
         onCompleteDeck={vi.fn()}
@@ -336,7 +336,7 @@ describe('OrderReconcileDeckPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByRole('combobox'), 'New Set In');
+    await user.selectOptions(screen.getByRole('combobox'), 'Queued In');
     expect(onItemChange).toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Accept' }));
@@ -379,7 +379,7 @@ describe('OrderReconcileDeckPanel', () => {
   it('copies deck import when reconcile is complete', async () => {
     const onStatus = vi.fn();
     const user = userEvent.setup();
-    const item = reconcileItem({ destination_category: 'New Set In' });
+    const item = reconcileItem({ destination_category: 'Queued In' });
     const state = baseState({
       progress: {
         decisions: {
@@ -387,7 +387,7 @@ describe('OrderReconcileDeckPanel', () => {
             status: 'accepted',
             accepted: {
               quantity: 1,
-              destination_category: 'New Set In',
+              destination_category: 'Queued In',
               card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' },
               card_out: { name: 'Lightning Bolt' },
             },
@@ -421,7 +421,7 @@ describe('OrderReconcileDeckPanel', () => {
     const onStatus = vi.fn();
     const user = userEvent.setup();
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    const item = reconcileItem({ destination_category: 'New Set In' });
+    const item = reconcileItem({ destination_category: 'Queued In' });
     const state = baseState({
       progress: {
         decisions: {
@@ -429,7 +429,7 @@ describe('OrderReconcileDeckPanel', () => {
             status: 'accepted',
             accepted: {
               quantity: 1,
-              destination_category: 'New Set In',
+              destination_category: 'Queued In',
               card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' },
               card_out: { name: 'Lightning Bolt' },
             },
@@ -462,7 +462,7 @@ describe('OrderReconcileStaging', () => {
   it('copies staging import text', async () => {
     const onStatus = vi.fn();
     const user = userEvent.setup();
-    const item = reconcileItem({ deck_id: STAGING_DECK_ID, destination_category: 'New Set In' });
+    const item = reconcileItem({ deck_id: STAGING_DECK_ID, destination_category: 'Queued In' });
 
     render(
       <OrderReconcileStaging
@@ -474,7 +474,7 @@ describe('OrderReconcileStaging', () => {
                 status: 'accepted',
                 accepted: {
                   quantity: 1,
-                  destination_category: 'New Set In',
+                  destination_category: 'Queued In',
                   card_in: { name: 'Sol Ring' },
                   card_out: null,
                 },

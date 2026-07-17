@@ -1,12 +1,10 @@
 import type { CardInstance, CategoryDef, DeckDocument } from '../schemas/deck-builder.js';
-import { SWAP_IN, SWAP_OUT } from './formal-swaps.js';
+import { isSwapQueueCategoryName } from '../mtg/swap-queue.js';
 
 export const HEADER_CATEGORIES = ['Commander', 'Lieutenants'] as const;
 
-const HIDDEN_BROWSE_CATEGORIES = new Set([SWAP_IN, SWAP_OUT]);
-
 export function isSwapQueueCategory(name: string): boolean {
-  return HIDDEN_BROWSE_CATEGORIES.has(name);
+  return isSwapQueueCategoryName(name);
 }
 
 export function groupByCategory(cards: CardInstance[]): Record<string, CardInstance[]> {
@@ -131,7 +129,7 @@ export function orderedCategoryKeys(groups: Record<string, CardInstance[]>): {
 
 /**
  * Partition cards for browse: header categories, included main columns, excluded (aside).
- * New Set In / Out are omitted by default (shown only via the formal swap queue).
+ * Queued In / Out are omitted by default (shown only via the formal swap queue).
  * Pass `includeSwapCategories: true` to surface them in the aside (swap edit pick mode).
  */
 export function partitionCategories(
@@ -172,4 +170,4 @@ export function partitionCategories(
 
   return { header, included, excluded, headerKeys, includedKeys, excludedKeys };
 }
-
+

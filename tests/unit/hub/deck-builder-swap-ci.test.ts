@@ -55,12 +55,12 @@ describe('colour identity mapping', () => {
 });
 
 describe('partition omits swap categories', () => {
-  it('hides New Set In/Out from browse partitions', () => {
+  it('hides Queued In/Out from browse partitions', () => {
     const deck = {
       categories: [
         { name: 'Creature', includedInDeck: true, includedInPrice: true },
-        { name: 'New Set In', includedInDeck: true, includedInPrice: false },
-        { name: 'New Set Out', includedInDeck: false, includedInPrice: false },
+        { name: 'Queued In', includedInDeck: true, includedInPrice: false },
+        { name: 'Queued Out', includedInDeck: false, includedInPrice: false },
         { name: 'Maybeboard', includedInDeck: false, includedInPrice: true },
       ],
       cards: [
@@ -83,8 +83,8 @@ describe('partition omits swap categories', () => {
           instanceId: '2',
           name: 'In Card',
           quantity: 1,
-          primaryCategory: 'New Set In',
-          categories: ['New Set In'],
+          primaryCategory: 'Queued In',
+          categories: ['Queued In'],
           stack: null,
           setCode: null,
           collectorNumber: null,
@@ -98,8 +98,8 @@ describe('partition omits swap categories', () => {
           instanceId: '3',
           name: 'Out Card',
           quantity: 1,
-          primaryCategory: 'New Set Out',
-          categories: ['New Set Out'],
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out'],
           stack: null,
           setCode: null,
           collectorNumber: null,
@@ -129,8 +129,8 @@ describe('partition omits swap categories', () => {
     const p = partitionCategories(deck);
     expect(p.includedKeys).toEqual(['Creature']);
     expect(p.excludedKeys).toEqual(['Maybeboard']);
-    expect(p.includedKeys).not.toContain('New Set In');
-    expect(p.excludedKeys).not.toContain('New Set Out');
+    expect(p.includedKeys).not.toContain('Queued In');
+    expect(p.excludedKeys).not.toContain('Queued Out');
   });
 });
 

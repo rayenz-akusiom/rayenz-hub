@@ -1,5 +1,13 @@
 import { optionKey } from './option-key';
-import { deriveSwapQueue, SWAP_IN, SWAP_OUT, type DeckSnapshot, type SnapshotCard } from './swap-queue';
+import {
+  deriveSwapQueue,
+  SWAP_IN,
+  SWAP_OUT,
+  SWAP_IN_LEGACY,
+  SWAP_OUT_LEGACY,
+  type DeckSnapshot,
+  type SnapshotCard,
+} from './swap-queue';
 
 export const PROTECTED_CATEGORIES: Record<string, boolean> = {
   Commander: true,
@@ -47,6 +55,8 @@ function buildExcludeMap(options: BuildCutCandidatesOptions): Record<string, boo
   const excluded: Record<string, boolean> = {};
   excluded[SWAP_IN] = true;
   excluded[SWAP_OUT] = true;
+  excluded[SWAP_IN_LEGACY] = true;
+  excluded[SWAP_OUT_LEGACY] = true;
   Object.keys(PROTECTED_CATEGORIES).forEach((key) => {
     excluded[key] = true;
   });

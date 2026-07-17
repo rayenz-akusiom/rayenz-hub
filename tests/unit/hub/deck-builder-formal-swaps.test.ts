@@ -25,15 +25,15 @@ describe('formal swaps', () => {
       'commander',
     );
     const byId = Object.fromEntries(cards.map((c) => [c.instanceId, c]));
-    expect(byId.c3.primaryCategory).toBe('New Set In');
-    expect(byId.c1.primaryCategory).toBe('New Set Out');
+    expect(byId.c3.primaryCategory).toBe('Queued In');
+    expect(byId.c1.primaryCategory).toBe('Queued Out');
   });
 
-  it('seeds pairs from New Set In/Out and preserves existing', () => {
+  it('seeds pairs from Queued In/Out and preserves existing', () => {
     const cards = [
-      { ...commander.cards[0], instanceId: 'in1', primaryCategory: 'New Set In', categories: ['New Set In'] },
-      { ...commander.cards[1], instanceId: 'out1', primaryCategory: 'New Set Out', categories: ['New Set Out'] },
-      { ...commander.cards[2], instanceId: 'in2', primaryCategory: 'New Set In', categories: ['New Set In'] },
+      { ...commander.cards[0], instanceId: 'in1', primaryCategory: 'Queued In', categories: ['Queued In'] },
+      { ...commander.cards[1], instanceId: 'out1', primaryCategory: 'Queued Out', categories: ['Queued Out'] },
+      { ...commander.cards[2], instanceId: 'in2', primaryCategory: 'Queued In', categories: ['Queued In'] },
     ];
     const seeded = seedFormalSwapsFromCategories(cards, []);
     expect(seeded).toHaveLength(2);

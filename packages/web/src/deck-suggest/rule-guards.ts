@@ -1,13 +1,12 @@
 import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion, TaggerContext } from './types';
 import { countTagOverlap } from './tagger';
+import { isSwapQueueCategoryName } from '@rayenz-hub/shared';
 
 const PROTECTED_CATEGORIES: Record<string, boolean> = {
   Commander: true,
   Lieutenant: true,
   Lieutenants: true,
 };
-const SWAP_IN = 'New Set In';
-const SWAP_OUT = 'New Set Out';
 
 export function listHasName(list: string[] | undefined, name: string): boolean {
   return (list || []).some((n) => String(n).toLowerCase() === String(name).toLowerCase());
@@ -70,7 +69,7 @@ export function cutCandidates(deck: DeckRecord): SnapshotCard[] {
     if (primary && PROTECTED_CATEGORIES[primary]) {
       return;
     }
-    if (primary === SWAP_IN || primary === SWAP_OUT) {
+    if (isSwapQueueCategoryName(primary)) {
       return;
     }
     if (!card.name || seen[card.name]) {

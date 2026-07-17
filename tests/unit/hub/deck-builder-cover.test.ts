@@ -40,6 +40,7 @@ function doc(cards: CardInstance[], format: DeckDocument['format'] = 'commander'
     categories: [],
     cards,
     formalSwapEntries: [],
+    coverInstanceId: null,
     browseViewDefault: null,
     cardLayoutDefault: 'stacked',
     createdAt: '2020-01-01T00:00:00.000Z',
@@ -123,5 +124,52 @@ describe('deck cover partners', () => {
     ]);
     expect(deckCoverImageUrlSecondary(d)).toBeNull();
     expect(pickCoverPartnerStatus(d)).toBeNull();
+  });
+
+  it('uses coverInstanceId override as a single cover face', () => {
+    const d = {
+      ...doc([
+        card({
+          instanceId: 'a',
+          name: 'A',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+        card({
+          instanceId: 'b',
+          name: 'B',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+        card({ instanceId: 'c', name: 'Sol Ring', primaryCategory: 'Ramp' }),
+      ]),
+      coverInstanceId: 'c',
+    };
+    expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['Sol Ring']);
+    expect(deckCoverImageUrl(d)).toContain('c');
+    expect(deckCoverImageUrlSecondary(d)).toBeNull();
+    expect(pickCoverPartnerStatus(d)).toBeNull();
+  });
+
+  it('falls back to heuristic when coverInstanceId is missing from the deck', () => {
+    const d = {
+      ...doc([
+        card({
+          instanceId: 'a',
+          name: 'A',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+        card({
+          instanceId: 'b',
+          name: 'B',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+      ]),
+      coverInstanceId: 'gone',
+    };
+    expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['A', 'B']);
+    expect(pickCoverPartnerStatus(d)).toBe('legal');
   });
 });

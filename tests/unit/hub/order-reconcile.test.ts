@@ -26,8 +26,8 @@ function commanderDeck(id: string, name: string): OrderReconcileDeck {
     deck_name: name,
     deck_snapshot: {
       cards: [
-        { name: 'New Card', primary_category: 'New Set In', quantity: 1, set_code: 'nin', collector_number: '1' },
-        { name: 'Cut Card', primary_category: 'New Set Out', quantity: 1, set_code: 'nout', collector_number: '1' },
+        { name: 'New Card', primary_category: 'Queued In', quantity: 1, set_code: 'nin', collector_number: '1' },
+        { name: 'Cut Card', primary_category: 'Queued Out', quantity: 1, set_code: 'nout', collector_number: '1' },
         { name: 'Sol Ring', primary_category: 'Ramp', quantity: 1, set_code: 'cmm', collector_number: '1' },
         { name: 'Stash Me', primary_category: 'Maybeboard', quantity: 1, set_code: 'mb', collector_number: '9' },
       ],
@@ -123,11 +123,11 @@ describe('buildAssignmentIndex', () => {
         cards: [
           {
             name: 'Delver of Secrets // Insectile Aberration',
-            primary_category: 'New Set In',
+            primary_category: 'Queued In',
             set_code: 'isd',
             collector_number: '51',
           },
-          { name: 'Cut Card', primary_category: 'New Set Out', set_code: 'x', collector_number: '1' },
+          { name: 'Cut Card', primary_category: 'Queued Out', set_code: 'x', collector_number: '1' },
         ],
       },
     };

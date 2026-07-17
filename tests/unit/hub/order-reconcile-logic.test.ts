@@ -80,8 +80,8 @@ function commanderDeck(id: string, name: string): OrderReconcileDeck {
     deck_name: name,
     deck_snapshot: {
       cards: [
-        { name: 'New Card', primary_category: 'New Set In', quantity: 1, set_code: 'nin', collector_number: '1' },
-        { name: 'Cut Card', primary_category: 'New Set Out', quantity: 1, set_code: 'nout', collector_number: '1' },
+        { name: 'New Card', primary_category: 'Queued In', quantity: 1, set_code: 'nin', collector_number: '1' },
+        { name: 'Cut Card', primary_category: 'Queued Out', quantity: 1, set_code: 'nout', collector_number: '1' },
         { name: 'Sol Ring', primary_category: 'Ramp', quantity: 1, set_code: 'cmm', collector_number: '1' },
         { name: 'Stash Me', primary_category: 'Maybeboard', quantity: 1, set_code: 'mb', collector_number: '9' },
       ],
@@ -498,8 +498,8 @@ describe('reconcile.ts', () => {
 
   it('excludeCategories marks swap and protected categories', () => {
     const excluded = excludeCategories();
-    expect(excluded['New Set In']).toBe(true);
-    expect(excluded['New Set Out']).toBe(true);
+    expect(excluded['Queued In']).toBe(true);
+    expect(excluded['Queued Out']).toBe(true);
     expect(excluded.Maybeboard).toBe(true);
   });
 
@@ -557,10 +557,10 @@ describe('reconcile.ts', () => {
       deck_name: 'Test',
       deck_snapshot: {
         cards: [
-          { name: 'In One', primary_category: 'New Set In', set_code: 'a', collector_number: '1' },
-          { name: 'In Two', primary_category: 'New Set In', set_code: 'b', collector_number: '1' },
-          { name: 'Out One', primary_category: 'New Set Out', set_code: 'o1', collector_number: '1' },
-          { name: 'Out Two', primary_category: 'New Set Out', set_code: 'o2', collector_number: '1' },
+          { name: 'In One', primary_category: 'Queued In', set_code: 'a', collector_number: '1' },
+          { name: 'In Two', primary_category: 'Queued In', set_code: 'b', collector_number: '1' },
+          { name: 'Out One', primary_category: 'Queued Out', set_code: 'o1', collector_number: '1' },
+          { name: 'Out Two', primary_category: 'Queued Out', set_code: 'o2', collector_number: '1' },
         ],
       },
     };
@@ -705,8 +705,8 @@ describe('buildAssignmentPlan edge cases', () => {
       ...commanderDeck('d2', 'Deck B'),
       deck_snapshot: {
         cards: [
-          { name: 'Shared Card', primary_category: 'New Set In', set_code: 'a', collector_number: '1' },
-          { name: 'Cut A', primary_category: 'New Set Out', set_code: 'a', collector_number: '2' },
+          { name: 'Shared Card', primary_category: 'Queued In', set_code: 'a', collector_number: '1' },
+          { name: 'Cut A', primary_category: 'Queued Out', set_code: 'a', collector_number: '2' },
         ],
       },
     };
@@ -810,7 +810,7 @@ describe('assign.ts review helpers', () => {
     state.decks[1] = {
       ...state.decks[1],
       deck_snapshot: {
-        cards: [{ name: 'Other Card', primary_category: 'New Set In', set_code: 'x', collector_number: '1' }],
+        cards: [{ name: 'Other Card', primary_category: 'Queued In', set_code: 'x', collector_number: '1' }],
       },
     };
     expect(slotCountByDeckForCard(state, 'New Card')).toEqual({ d1: 1 });

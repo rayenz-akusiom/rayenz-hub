@@ -8,8 +8,8 @@
   "categories": [
     { "name": "Creature", "includedInDeck": true, "includedInPrice": true },
     { "name": "Land", "includedInDeck": true, "includedInPrice": true },
-    { "name": "New Set In", "includedInDeck": false, "includedInPrice": false },
-    { "name": "New Set Out", "includedInDeck": false, "includedInPrice": false }
+    { "name": "Queued In", "includedInDeck": false, "includedInPrice": false },
+    { "name": "Queued Out", "includedInDeck": false, "includedInPrice": false }
   ],
   "cards": [
     {
@@ -56,6 +56,7 @@
     }
   ],
   "formalSwapEntries": [],
+  "coverInstanceId": null,
   "browseViewDefault": null,
   "createdAt": "2026-07-16T00:00:00.000Z",
   "updatedAt": "2026-07-16T00:00:00.000Z",

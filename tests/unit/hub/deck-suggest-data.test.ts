@@ -60,7 +60,7 @@ describe('resolveDeckEligibility', () => {
         cards: [{
           name: 'Sideboard In',
           primary_category: 'Maybeboard',
-          categories: ['Maybeboard', 'New Set In'],
+          categories: ['Maybeboard', 'Queued In'],
         }],
       },
     });

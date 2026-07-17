@@ -125,7 +125,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
 
   const queue = deriveSwapQueue(deck as DeckWithSnapshot);
   if (!queue) {
-    push('queue_in_pair', 'no_swap_queue', 'Deck has no New Set In/Out queue');
+    push('queue_in_pair', 'no_swap_queue', 'Deck has no Queued In/Out queue');
   } else {
     let inIdx = -1;
     let outIdx = -1;

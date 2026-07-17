@@ -11,8 +11,8 @@
         "quantity": 1,
         "set_code": "dmu",
         "collector_number": "277",
-        "primary_category": "New Set Out",
-        "categories": ["New Set Out"]
+        "primary_category": "Queued Out",
+        "categories": ["Queued Out"]
       },
       {
         "name": "Sacred Foundry",
@@ -51,16 +51,16 @@
         "quantity": 1,
         "set_code": "blb",
         "collector_number": "6",
-        "primary_category": "New Set In",
-        "categories": ["New Set In"]
+        "primary_category": "Queued In",
+        "categories": ["Queued In"]
       },
       {
         "name": "Sunbillow Verge",
         "quantity": 1,
         "set_code": "dft",
         "collector_number": "264",
-        "primary_category": "New Set In",
-        "categories": ["New Set In"]
+        "primary_category": "Queued In",
+        "categories": ["Queued In"]
       }
     ]
   },

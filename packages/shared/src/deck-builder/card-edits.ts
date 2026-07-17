@@ -114,6 +114,7 @@ export function removeCardFromDeck(
     ...deck,
     cards: deck.cards.filter((c) => c.instanceId !== instanceId),
     formalSwapEntries: scrubSwapRefs(deck.formalSwapEntries || [], instanceId),
+    coverInstanceId: deck.coverInstanceId === instanceId ? null : deck.coverInstanceId ?? null,
     updatedAt: new Date().toISOString(),
   };
 }

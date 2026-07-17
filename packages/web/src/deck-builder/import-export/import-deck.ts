@@ -8,6 +8,10 @@ import {
 
   seedFormalSwapsFromCategories,
 
+  canonicalizeSwapCategory,
+
+  isSwapQueueCategoryName,
+
   type CardInstance,
 
   type CategoryDef,
@@ -159,7 +163,8 @@ export function parseImportText(text: string): { name: string; quantity: number;
 
     if (cat) {
 
-      currentCategory = cat[1].replace(/\{[^}]+\}/g, '').trim() || currentCategory;
+      currentCategory =
+        normalizeArchidektCategoryName(cat[1].replace(/\{[^}]+\}/g, '').trim()) || currentCategory;
 
       continue;
 
@@ -198,11 +203,11 @@ function categoriesFromSettings(
   );
 }
 
-/** Archidekt singular → Hub plural header category. */
+/** Archidekt singular → Hub plural header category; legacy swap queues → Queued In/Out. */
 export function normalizeArchidektCategoryName(name: string): string {
   const trimmed = String(name || '').trim();
   if (trimmed === 'Lieutenant') return 'Lieutenants';
-  return trimmed;
+  return canonicalizeSwapCategory(trimmed);
 }
 
 function dedupeCategoryDefs(categories: CategoryDef[]): CategoryDef[] {
@@ -243,9 +248,9 @@ export function documentFromImportText(
 
     name,
 
-    includedInDeck: !/^New Set (In|Out)$/i.test(name) && name !== 'Maybeboard',
+    includedInDeck: !isSwapQueueCategoryName(name) && name !== 'Maybeboard',
 
-    includedInPrice: !/^New Set (In|Out)$/i.test(name),
+    includedInPrice: !isSwapQueueCategoryName(name),
 
   }));
 
@@ -308,6 +313,8 @@ export function documentFromImportText(
     cards,
 
     formalSwapEntries,
+
+    coverInstanceId: null,
 
     browseViewDefault: null,
 
@@ -500,6 +507,8 @@ export function documentFromArchidektSnapshot(
     cards,
 
     formalSwapEntries,
+
+    coverInstanceId: existing?.coverInstanceId ?? null,
 
     browseViewDefault: existing?.browseViewDefault ?? null,
 

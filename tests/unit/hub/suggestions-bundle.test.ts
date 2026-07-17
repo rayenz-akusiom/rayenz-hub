@@ -8,8 +8,8 @@ function deckWithSnapshot() {
     deck_name: 'Test Deck',
     deck_snapshot: {
       cards: [
-        { name: 'In Card', primary_category: 'New Set In' },
-        { name: 'Out Card', primary_category: 'New Set Out' },
+        { name: 'In Card', primary_category: 'Queued In' },
+        { name: 'Out Card', primary_category: 'Queued Out' },
       ],
     },
     suggestions: [

@@ -1,7 +1,12 @@
 import type { CardInstance, DeckFormat, FormalSwapEntry } from '../schemas/deck-builder.js';
+import {
+  SWAP_IN,
+  SWAP_OUT,
+  isSwapInCategory,
+  isSwapOutCategory,
+  isSwapQueueCategoryName,
+} from '../mtg/swap-queue.js';
 
-const SWAP_IN = 'New Set In';
-const SWAP_OUT = 'New Set Out';
 const MAYBEBOARD = 'Maybeboard';
 
 export function incompleteEntryCount(entries: FormalSwapEntry[]): number {
@@ -31,13 +36,9 @@ function setPrimaryCategory(card: CardInstance, category: string): CardInstance 
 }
 
 function clearSwapCategories(card: CardInstance, format: DeckFormat): CardInstance {
-  const strip = new Set([SWAP_IN, SWAP_OUT]);
-  if (format === 'cube') {
-    // Keep Maybeboard if it was structural; only clear In/Out tags from primary when they were swap sides
-  }
-  const cats = (card.categories || []).filter((c) => !strip.has(c));
+  const cats = (card.categories || []).filter((c) => !isSwapQueueCategoryName(c));
   let primary = card.primaryCategory;
-  if (strip.has(primary)) {
+  if (isSwapQueueCategoryName(primary)) {
     primary = cats[0] || (format === 'cube' ? MAYBEBOARD : 'Other');
   }
   return { ...card, primaryCategory: primary, categories: cats.length ? cats : [primary] };
@@ -86,9 +87,9 @@ export function applyFormalSwapsToCards(
     }
     const existing = byId.get(c.instanceId)!;
     if (
-      existing.primaryCategory === SWAP_IN ||
-      existing.primaryCategory === SWAP_OUT ||
-      (existing.categories || []).some((x) => x === SWAP_IN || x === SWAP_OUT)
+      isSwapInCategory(existing.primaryCategory) ||
+      isSwapOutCategory(existing.primaryCategory) ||
+      (existing.categories || []).some((x) => isSwapQueueCategoryName(x))
     ) {
       return clearSwapCategories(existing, format);
     }
@@ -97,7 +98,7 @@ export function applyFormalSwapsToCards(
 }
 
 /**
- * Best-effort pair New Set In / New Set Out into formal swap entries.
+ * Best-effort pair Queued In / Queued Out (and legacy New Set In/Out) into formal swap entries.
  * If existingEntries is non-empty, returns it unchanged.
  */
 export function seedFormalSwapsFromCategories(
@@ -107,8 +108,8 @@ export function seedFormalSwapsFromCategories(
   if ((existingEntries || []).length > 0) {
     return normalizeFormalEntries(existingEntries);
   }
-  const ins = (cards || []).filter((c) => c.primaryCategory === SWAP_IN);
-  const outs = (cards || []).filter((c) => c.primaryCategory === SWAP_OUT);
+  const ins = (cards || []).filter((c) => isSwapInCategory(c.primaryCategory));
+  const outs = (cards || []).filter((c) => isSwapOutCategory(c.primaryCategory));
   const n = Math.max(ins.length, outs.length);
   if (n === 0) return [];
   const entries: FormalSwapEntry[] = [];

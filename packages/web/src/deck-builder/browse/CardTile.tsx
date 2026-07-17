@@ -8,11 +8,14 @@ export function CardTile({
   onSelect,
   selected,
   draggable = false,
+  actionLabel,
 }: {
   card: CardInstance;
   onSelect?: (card: CardInstance) => void;
   selected?: boolean;
   draggable?: boolean;
+  /** Accessible name when the tile is an action (e.g. swap Change). */
+  actionLabel?: string;
 }) {
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
@@ -26,6 +29,7 @@ export function CardTile({
       className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onClick={() => onSelect?.(card)}
       title={card.name}
+      aria-label={actionLabel || undefined}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;

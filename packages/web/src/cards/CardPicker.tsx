@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { cardHasBackFace, scryfallImageFromId } from '@rayenz-hub/shared';
+import { cardHasBackFace, scryfallImageFromId, SWAP_IN, SWAP_OUT, canonicalizeSwapCategory } from '@rayenz-hub/shared';
 import { CardFace } from './CardFace';
 import { CardSizePicker } from './CardSizePicker';
 import { useCardSize } from './card-size';
@@ -32,7 +32,7 @@ export type CardPickerConfig = {
 };
 
 const UNCATEGORIZED = '__uncategorized__';
-const PINNED = ['New Set In', 'New Set Out'];
+const PINNED = [SWAP_IN, SWAP_OUT];
 
 function sortItems(items: CardPickerItem[]): CardPickerItem[] {
   return items.slice().sort((a, b) => {
@@ -50,7 +50,7 @@ function groupItems(items: CardPickerItem[]): { name: string | null; items: Card
   const buckets: Record<string, CardPickerItem[]> = {};
   for (const item of items) {
     const cat = item.category ? String(item.category).trim() : '';
-    const key = cat || UNCATEGORIZED;
+    const key = cat ? canonicalizeSwapCategory(cat) : UNCATEGORIZED;
     if (!buckets[key]) buckets[key] = [];
     buckets[key].push(item);
   }

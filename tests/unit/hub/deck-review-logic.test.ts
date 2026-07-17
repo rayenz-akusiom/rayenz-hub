@@ -93,8 +93,8 @@ describe('deck-review data helpers', () => {
     const deck = {
       deck_snapshot: {
         cards: [
-          { name: 'Only In', primary_category: 'New Set In' },
-          { name: 'Only Out', primary_category: 'New Set Out' },
+          { name: 'Only In', primary_category: 'Queued In' },
+          { name: 'Only Out', primary_category: 'Queued Out' },
         ],
       },
       suggestions: [],
@@ -117,9 +117,9 @@ describe('deck-review data helpers', () => {
     const deck = {
       deck_snapshot: {
         cards: [
-          { name: 'In1', primary_category: 'New Set In' },
-          { name: 'Out1', primary_category: 'New Set Out' },
-          { name: 'Out2', primary_category: 'New Set Out' },
+          { name: 'In1', primary_category: 'Queued In' },
+          { name: 'Out1', primary_category: 'Queued Out' },
+          { name: 'Out2', primary_category: 'Queued Out' },
         ],
       },
       suggestions: [{ suggestion_id: 's1', card: { name: 'Cover In' }, fills_swap_slot: 'In1', replaces: [] }],
@@ -147,8 +147,8 @@ describe('deck-review data helpers', () => {
     const deck = {
       deck_snapshot: {
         cards: [
-          { name: 'In Card', primary_category: 'New Set In' },
-          { name: 'Out Card', primary_category: 'New Set Out' },
+          { name: 'In Card', primary_category: 'Queued In' },
+          { name: 'Out Card', primary_category: 'Queued Out' },
         ],
       },
       suggestions: [],
@@ -167,8 +167,8 @@ describe('deck-review data helpers', () => {
     const deck = {
       deck_snapshot: {
         cards: [
-          { name: 'Uncovered In', primary_category: 'New Set In' },
-          { name: 'Paired Out', primary_category: 'New Set Out' },
+          { name: 'Uncovered In', primary_category: 'Queued In' },
+          { name: 'Paired Out', primary_category: 'Queued Out' },
         ],
       },
       suggestions: [{ suggestion_id: 's1', overrides_queue_in: 'Uncovered In', replaces: [] }],
@@ -178,8 +178,8 @@ describe('deck-review data helpers', () => {
     const unpairedDeck = {
       deck_snapshot: {
         cards: [
-          { name: 'In1', primary_category: 'New Set In' },
-          { name: 'In2', primary_category: 'New Set In' },
+          { name: 'In1', primary_category: 'Queued In' },
+          { name: 'In2', primary_category: 'Queued In' },
         ],
       },
       suggestions: [],

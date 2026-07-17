@@ -19,10 +19,22 @@ export function ScryfallSearchModal({
   deck,
   onClose,
   onAdd,
+  title = 'Add card from Scryfall',
+  confirmLabel = 'Add to deck',
+  printingTitle,
+  defaultCategory,
+  embedded = false,
 }: {
   deck: DeckDocument;
   onClose: () => void;
   onAdd: (printing: PrintingFields, category: string) => void;
+  title?: string;
+  confirmLabel?: string;
+  /** Title for the nested printing step; defaults to `Add — {name}` / confirm-based. */
+  printingTitle?: (cardName: string) => string;
+  defaultCategory?: string;
+  /** Skip outer `.db-modal` backdrop (host provides the shell). */
+  embedded?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ScryfallCard[]>([]);
@@ -34,7 +46,7 @@ export function ScryfallSearchModal({
   const [pending, setPending] = useState<ScryfallCard | null>(null);
 
   const categories = deckCategoryOptions(deck);
-  const defaultCat = defaultAddCategory(deck);
+  const defaultCat = defaultCategory || defaultAddCategory(deck);
 
   async function runSearch(e?: FormEvent) {
     e?.preventDefault();
@@ -87,13 +99,14 @@ export function ScryfallSearchModal({
   if (pending) {
     return (
       <PrintingPickerModal
+        embedded={embedded}
         cardName={pending.name}
         defaultScryfallId={pending.id}
         selectedScryfallId={pending.id}
         categoryOptions={categories}
         defaultCategory={defaultCat}
-        confirmLabel="Add to deck"
-        title={`Add — ${pending.name}`}
+        confirmLabel={confirmLabel}
+        title={printingTitle ? printingTitle(pending.name) : `Add — ${pending.name}`}
         onBack={() => setPending(null)}
         onClose={onClose}
         onConfirm={(printing, category) => {
@@ -103,19 +116,19 @@ export function ScryfallSearchModal({
     );
   }
 
-  return (
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label="Search Scryfall">
-      <div className="db-modal-card db-modal-picker">
-        <div className="db-picker-header">
-          <h3>Add card from Scryfall</h3>
-          <div className="db-picker-header-controls">
-            <CardSizePicker />
-            <button type="button" className="db-btn" onClick={onClose}>
-              Close
-            </button>
-          </div>
+  const card = (
+    <div className="db-modal-card db-modal-picker">
+      <div className="db-picker-header">
+        <h3>{title}</h3>
+        <div className="db-picker-header-controls">
+          <CardSizePicker />
+          <button type="button" className="db-btn" onClick={onClose}>
+            {embedded ? 'Back' : 'Close'}
+          </button>
         </div>
+      </div>
 
+      <div className="db-picker-scroll">
         <form className="db-search-form" onSubmit={runSearch}>
           <label className="db-search-label">
             Scryfall query
@@ -142,43 +155,51 @@ export function ScryfallSearchModal({
 
         {results.length ? (
           <div className="db-picker-grid" role="listbox" aria-label="Search results">
-            {results.map((card) => {
-              const src = scryfallCardImageUrl(card);
-              const doubleFaced = cardHasBackFace(card.layout);
-              const backSrc = doubleFaced ? scryfallImageFromId(card.id, 'back') : null;
+            {results.map((cardResult) => {
+              const src = scryfallCardImageUrl(cardResult);
+              const doubleFaced = cardHasBackFace(cardResult.layout);
+              const backSrc = doubleFaced ? scryfallImageFromId(cardResult.id, 'back') : null;
               return (
                 <button
-                  key={card.id}
+                  key={cardResult.id}
                   type="button"
                   role="option"
                   className="db-picker-option"
-                  title={card.name}
-                  onClick={() => setPending(card)}
+                  title={cardResult.name}
+                  onClick={() => setPending(cardResult)}
                 >
                   <span className="db-picker-option-face">
                     <CardFace
                       src={src}
                       backSrc={backSrc}
-                      name={card.name}
-                      faceKey={card.id}
+                      name={cardResult.name}
+                      faceKey={cardResult.id}
                       doubleFaced={doubleFaced}
                     />
                   </span>
-                  <span className="db-picker-option-meta">{card.name}</span>
+                  <span className="db-picker-option-meta">{cardResult.name}</span>
                 </button>
               );
             })}
           </div>
         ) : null}
-
-        {hasMore ? (
-          <div className="db-modal-actions">
-            <button type="button" className="db-btn" disabled={loading} onClick={loadMore}>
-              {loading ? 'Loading…' : 'Load more'}
-            </button>
-          </div>
-        ) : null}
       </div>
+
+      {hasMore ? (
+        <div className="db-modal-actions">
+          <button type="button" className="db-btn" disabled={loading} onClick={loadMore}>
+            {loading ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (embedded) return card;
+
+  return (
+    <div className="db-modal" role="dialog" aria-modal="true" aria-label={title}>
+      {card}
     </div>
   );
 }

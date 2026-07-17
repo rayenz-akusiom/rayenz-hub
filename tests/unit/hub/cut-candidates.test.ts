@@ -5,8 +5,8 @@ import { resetHubModules } from '../helpers/hubHarness.ts';
 function commanderSnapshot() {
   return {
     cards: [
-      { name: 'New Card', primary_category: 'New Set In', quantity: 1, set_code: 'nin', collector_number: '1' },
-      { name: 'Cut Card', primary_category: 'New Set Out', quantity: 1, set_code: 'nout', collector_number: '1' },
+      { name: 'New Card', primary_category: 'Queued In', quantity: 1, set_code: 'nin', collector_number: '1' },
+      { name: 'Cut Card', primary_category: 'Queued Out', quantity: 1, set_code: 'nout', collector_number: '1' },
       { name: 'Sol Ring', primary_category: 'Ramp', quantity: 1, set_code: 'cmm', collector_number: '1' },
       { name: 'Stash Me', primary_category: 'Maybeboard', quantity: 1, set_code: 'mb', collector_number: '9' },
       { name: 'Atraxa', primary_category: 'Commander', quantity: 1, set_code: 'c16', collector_number: '1' },
@@ -39,7 +39,7 @@ describe('CutCandidates.buildCutCandidates', () => {
     expect(names).toContain('Sol Ring');
   });
 
-  it('includeOutQueue prepends New Set Out cards', () => {
+  it('includeOutQueue prepends Queued Out cards', () => {
     const names = CutCandidates.buildCutCandidates(commanderSnapshot(), {
       includeOutQueue: true,
     }).map((o) => o.name);
@@ -50,8 +50,8 @@ describe('CutCandidates.buildCutCandidates', () => {
   it('outQueueFallback adds out queue when main scan empty', () => {
     const snap = {
       cards: [
-        { name: 'New Card', primary_category: 'New Set In', quantity: 1 },
-        { name: 'Cut Card', primary_category: 'New Set Out', quantity: 1 },
+        { name: 'New Card', primary_category: 'Queued In', quantity: 1 },
+        { name: 'Cut Card', primary_category: 'Queued Out', quantity: 1 },
         { name: 'Atraxa', primary_category: 'Commander', quantity: 1 },
       ],
     };

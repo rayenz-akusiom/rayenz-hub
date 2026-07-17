@@ -104,9 +104,9 @@ describe('ArchidektExport.formatCategoryBracket', () => {
     expect(ArchidektExport.formatCategoryBracket('', 'Sol Ring', null)).toBe('');
   });
 
-  it('marks the New Set In category noDeck/noPrice', () => {
-    expect(ArchidektExport.formatCategoryBracket('New Set In', 'Sol Ring', null)).toBe(
-      ' [New Set In{noDeck}{noPrice}]',
+  it('marks the Queued In category noDeck/noPrice', () => {
+    expect(ArchidektExport.formatCategoryBracket('Queued In', 'Sol Ring', null)).toBe(
+      ' [Queued In{noDeck}{noPrice}]',
     );
   });
 
@@ -207,14 +207,14 @@ describe('ArchidektExport.buildFullDeckImport', () => {
     expect(text).toContain('1x Llanowar Elves (m19) 314 [Ramp]');
   });
 
-  it('emits the swapped-in card with foil token in the New Set In category', () => {
+  it('emits the swapped-in card with foil token in the Queued In category', () => {
     const text = ArchidektExport.buildFullDeckImport(deck, accepted);
-    expect(text).toContain('1x Sol Ring (cmm) 1 *F* [New Set In{noDeck}{noPrice}]');
+    expect(text).toContain('1x Sol Ring (cmm) 1 *F* [Queued In{noDeck}{noPrice}]');
   });
 
-  it('emits the swapped-out card in the New Set Out category', () => {
+  it('emits the swapped-out card in the Queued Out category', () => {
     const text = ArchidektExport.buildFullDeckImport(deck, accepted);
-    expect(text).toContain('1x Old Card (xyz) 1 [New Set Out]');
+    expect(text).toContain('1x Old Card (xyz) 1 [Queued Out]');
   });
 
   it('returns empty string for a deck without a snapshot', () => {
@@ -343,11 +343,11 @@ describe('ArchidektExport.cardKey', () => {
 });
 
 describe('ArchidektExport.buildMainDeckPool', () => {
-  it('excludes New Set In/Out and unnamed cards', () => {
+  it('excludes Queued In/Out and unnamed cards', () => {
     const pool = ArchidektExport.buildMainDeckPool({
       cards: [
-        { name: 'In', primary_category: 'New Set In' },
-        { name: 'Out', primary_category: 'New Set Out' },
+        { name: 'In', primary_category: 'Queued In' },
+        { name: 'Out', primary_category: 'Queued Out' },
         { primary_category: 'Ramp' },
         { name: 'Keeper', primary_category: 'Ramp', quantity: 2 },
       ],
@@ -418,8 +418,8 @@ describe('ArchidektExport.buildImportTextForDeck', () => {
       },
     ];
     const text = ArchidektExport.buildImportTextForDeck(accepted, null);
-    expect(text).toContain('[New Set In{noDeck}{noPrice}]');
-    expect(text).toContain('[New Set Out]');
+    expect(text).toContain('[Queued In{noDeck}{noPrice}]');
+    expect(text).toContain('[Queued Out]');
   });
 
   it('skips non-category swap decisions', () => {
@@ -477,11 +477,11 @@ describe('ArchidektExport.buildFullDeckImport deduct paths', () => {
     ];
     const text = ArchidektExport.buildFullDeckImport(deck, accepted);
     expect(text).not.toMatch(/Old Card \[Ramp\]/);
-    expect(text).toContain('Old Card [New Set Out]');
+    expect(text).toContain('Old Card [Queued Out]');
     expect(text).toContain('New Card');
   });
 
-  it('emits unmatched cuts in New Set Out when not in the pool', () => {
+  it('emits unmatched cuts in Queued Out when not in the pool', () => {
     const deck = {
       deck_snapshot: {
         cards: [{ name: 'Keeper', primary_category: 'Ramp', quantity: 1 }],
@@ -496,7 +496,7 @@ describe('ArchidektExport.buildFullDeckImport deduct paths', () => {
     ];
     const text = ArchidektExport.buildFullDeckImport(deck, accepted);
     expect(text).toContain('Ghost');
-    expect(text).toContain('[New Set Out]');
+    expect(text).toContain('[Queued Out]');
   });
 
   it('skips decisions without swap_categories', () => {

@@ -1,8 +1,8 @@
-import { SwapQueue } from '@rayenz-hub/shared';
+import { SWAP_IN, SWAP_OUT, SwapQueue, isSwapQueueCategoryName } from '@rayenz-hub/shared';
 import { ArchidektExport } from './archidekt-export';
 
-const IN_CATEGORY = 'New Set In';
-const OUT_CATEGORY = 'New Set Out';
+const IN_CATEGORY = SWAP_IN;
+const OUT_CATEGORY = SWAP_OUT;
 const MAYBEBOARD_CATEGORY = 'Maybeboard';
 
 type SnapshotCard = {
@@ -188,7 +188,7 @@ function deckCategories(snapshot: DeckSnapshot): string[] {
   const cats: Record<string, boolean> = {};
   (snapshot.cards || []).forEach((card) => {
     const primary = card.primary_category || (card.categories && card.categories[0]);
-    if (!primary || primary === IN_CATEGORY || primary === OUT_CATEGORY) {
+    if (!primary || isSwapQueueCategoryName(primary)) {
       return;
     }
     cats[primary] = true;

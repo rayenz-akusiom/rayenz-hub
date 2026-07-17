@@ -3,6 +3,7 @@ import {
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
   pickCoverPartnerStatus,
+  pickDeckCoverCard,
 } from '../deck-builder/deck-cover.js';
 
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
@@ -64,6 +65,8 @@ export const DeckDocumentSchema = z.object({
   categories: z.array(CategoryDefSchema).default([]),
   cards: z.array(CardInstanceSchema).default([]),
   formalSwapEntries: z.array(FormalSwapEntrySchema).default([]),
+  /** When set and present in cards, library cover uses this instance instead of the heuristic. */
+  coverInstanceId: z.string().nullable().default(null),
   browseViewDefault: BrowseViewSchema.nullable().default(null),
   cardLayoutDefault: CardLayoutSchema.optional().default('stacked'),
   createdAt: z.string(),
@@ -85,6 +88,8 @@ export const DeckSummarySchema = z.object({
   coverImageUrlSecondary: z.string().nullable().optional().default(null),
   /** Partner legality for dual-cover tiles: legal | illegal | null (single / N/A). */
   coverPartnerStatus: z.enum(['legal', 'illegal']).nullable().optional().default(null),
+  /** Display name of the highlighted cover card (for library sort). */
+  coverCardName: z.string().nullable().optional().default(null),
 });
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
 
@@ -98,5 +103,6 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     coverImageUrl: deckCoverImageUrl(doc),
     coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
     coverPartnerStatus: doc.format === 'commander' ? pickCoverPartnerStatus(doc) : null,
+    coverCardName: pickDeckCoverCard(doc)?.name ?? null,
   };
 }

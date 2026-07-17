@@ -1,5 +1,10 @@
-export const SWAP_IN = 'New Set In';
-export const SWAP_OUT = 'New Set Out';
+/** Canonical Archidekt swap-queue category names (Hub write/export). */
+export const SWAP_IN = 'Queued In';
+export const SWAP_OUT = 'Queued Out';
+
+/** Legacy Archidekt names — still accepted when reading decks/snapshots. */
+export const SWAP_IN_LEGACY = 'New Set In';
+export const SWAP_OUT_LEGACY = 'New Set Out';
 
 export type SnapshotCard = {
   name: string;
@@ -28,6 +33,27 @@ export type SwapQueueResult = {
   fetched_at: string | null;
 };
 
+export function isSwapInCategory(name: string | null | undefined): boolean {
+  const n = String(name || '');
+  return n === SWAP_IN || n === SWAP_IN_LEGACY;
+}
+
+export function isSwapOutCategory(name: string | null | undefined): boolean {
+  const n = String(name || '');
+  return n === SWAP_OUT || n === SWAP_OUT_LEGACY;
+}
+
+export function isSwapQueueCategoryName(name: string | null | undefined): boolean {
+  return isSwapInCategory(name) || isSwapOutCategory(name);
+}
+
+/** Map legacy New Set In/Out → Queued In/Out; leave other names unchanged. */
+export function canonicalizeSwapCategory(name: string): string {
+  if (isSwapInCategory(name)) return SWAP_IN;
+  if (isSwapOutCategory(name)) return SWAP_OUT;
+  return name;
+}
+
 export function deriveSwapQueue(deck: DeckWithSnapshot): SwapQueueResult | null {
   if (!deck.deck_snapshot || !Array.isArray(deck.deck_snapshot.cards)) {
     return null;
@@ -38,16 +64,16 @@ export function deriveSwapQueue(deck: DeckWithSnapshot): SwapQueueResult | null 
   deck.deck_snapshot.cards.forEach((card) => {
     const primary = card.primary_category || (card.categories && card.categories[0]);
     const cats = card.categories || [];
-    if (primary === SWAP_IN) {
+    if (isSwapInCategory(primary)) {
       newSetIn.push(card);
     }
-    if (primary === SWAP_OUT) {
+    if (isSwapOutCategory(primary)) {
       newSetOut.push(card);
     }
-    if (cats.indexOf(SWAP_IN) >= 0 && primary !== SWAP_IN) {
+    if (cats.some((c) => isSwapInCategory(c)) && !isSwapInCategory(primary)) {
       metadataFlags.push(card.name + ' (primary: ' + primary + ')');
     }
-    if (cats.indexOf(SWAP_OUT) >= 0 && primary !== SWAP_OUT) {
+    if (cats.some((c) => isSwapOutCategory(c)) && !isSwapOutCategory(primary)) {
       metadataFlags.push(card.name + ' (primary: ' + primary + ')');
     }
   });
@@ -72,12 +98,12 @@ export function hasMaybeboardOnlySwapQueue(snapshot: DeckSnapshot | null | undef
   snapshot.cards.forEach((card) => {
     const primary = card.primary_category || (card.categories && card.categories[0]);
     const cats = card.categories || [];
-    if (primary === SWAP_IN || primary === SWAP_OUT) {
+    if (isSwapInCategory(primary) || isSwapOutCategory(primary)) {
       hasPrimaryInOut = true;
     }
     if (
       cats.indexOf('Maybeboard') >= 0 &&
-      (cats.indexOf(SWAP_IN) >= 0 || cats.indexOf(SWAP_OUT) >= 0)
+      cats.some((c) => isSwapInCategory(c) || isSwapOutCategory(c))
     ) {
       hasMaybeboardInOut = true;
     }
@@ -88,6 +114,12 @@ export function hasMaybeboardOnlySwapQueue(snapshot: DeckSnapshot | null | undef
 export const SwapQueue = {
   SWAP_IN,
   SWAP_OUT,
+  SWAP_IN_LEGACY,
+  SWAP_OUT_LEGACY,
+  isSwapInCategory,
+  isSwapOutCategory,
+  isSwapQueueCategoryName,
+  canonicalizeSwapCategory,
   deriveSwapQueue,
   swapQueueHasName,
   hasMaybeboardOnlySwapQueue,

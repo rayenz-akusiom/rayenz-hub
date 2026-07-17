@@ -147,9 +147,9 @@ describe('Debug', () => {
       deck_id: 'extra-out',
       deck_snapshot: {
         cards: [
-          { name: 'In Card', primary_category: 'New Set In' },
-          { name: 'Extra Out A', primary_category: 'New Set Out' },
-          { name: 'Extra Out B', primary_category: 'New Set Out' },
+          { name: 'In Card', primary_category: 'Queued In' },
+          { name: 'Extra Out A', primary_category: 'Queued Out' },
+          { name: 'Extra Out B', primary_category: 'Queued Out' },
         ],
       },
       profile: deck.profile,

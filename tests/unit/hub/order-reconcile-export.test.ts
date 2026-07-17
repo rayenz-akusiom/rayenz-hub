@@ -87,14 +87,14 @@ describe('OrderReconcileExport.deriveSwapQueue / pairSwapSlots', () => {
     cards: [
       {
         name: 'Queue In',
-        primary_category: 'New Set In',
+        primary_category: 'Queued In',
         quantity: 1,
         set_code: 'qin',
         collector_number: '1',
       },
       {
         name: 'Queue Out',
-        primary_category: 'New Set Out',
+        primary_category: 'Queued Out',
         quantity: 1,
         set_code: 'qout',
         collector_number: '1',
@@ -165,8 +165,8 @@ describe('OrderReconcileExport.deckCategories', () => {
   it('lists sorted main-deck categories excluding swap staging categories', () => {
     const snapshot = {
       cards: [
-        { primary_category: 'New Set In' },
-        { primary_category: 'New Set Out' },
+        { primary_category: 'Queued In' },
+        { primary_category: 'Queued Out' },
         { primary_category: 'Ramp' },
         { primary_category: 'Land' },
       ],
@@ -202,14 +202,14 @@ describe('OrderReconcileExport.buildReconcileDeckImport', () => {
       { name: 'Cut Me', set_code: 'bbb', collector_number: '2', quantity: 1, primary_category: 'Ramp' },
       {
         name: 'Queue In',
-        primary_category: 'New Set In',
+        primary_category: 'Queued In',
         quantity: 1,
         set_code: 'qin',
         collector_number: '1',
       },
       {
         name: 'Queue Out',
-        primary_category: 'New Set Out',
+        primary_category: 'Queued Out',
         quantity: 1,
         set_code: 'qout',
         collector_number: '1',
@@ -242,8 +242,8 @@ describe('OrderReconcileExport.buildReconcileDeckImport', () => {
 
   it('still emits the unfulfilled swap queue in/out lines', () => {
     const text = OrderReconcileExport.buildReconcileDeckImport('d1', snapshot, acceptedItems, acceptedItems);
-    expect(text).toContain('1x Queue In (qin) 1 [New Set In{noDeck}{noPrice}]');
-    expect(text).toContain('1x Queue Out (qout) 1 [New Set Out]');
+    expect(text).toContain('1x Queue In (qin) 1 [Queued In{noDeck}{noPrice}]');
+    expect(text).toContain('1x Queue Out (qout) 1 [Queued Out]');
   });
 
   it('removes an accepted card from the maybeboard', () => {
@@ -290,14 +290,14 @@ describe('OrderReconcileExport.buildReconcileDeckImport', () => {
         },
         {
           name: 'Queue In',
-          primary_category: 'New Set In',
+          primary_category: 'Queued In',
           quantity: 1,
           set_code: 'qin',
           collector_number: '1',
         },
         {
           name: 'Queue Out',
-          primary_category: 'New Set Out',
+          primary_category: 'Queued Out',
           quantity: 1,
           set_code: 'qout',
           collector_number: '1',
@@ -360,7 +360,7 @@ describe('OrderReconcileExport.buildReconcileDeckImport', () => {
       ],
       [],
     );
-    expect(text).not.toContain('[New Set In{noDeck}{noPrice}]');
+    expect(text).not.toContain('[Queued In{noDeck}{noPrice}]');
     expect(text).not.toContain('Queue Out');
   });
 
@@ -437,8 +437,8 @@ describe('OrderReconcileExport.buildStagingCleanupImport', () => {
 describe('OrderReconcileExport.summarizeDeck', () => {
   const queueSnapshot = {
     cards: [
-      { name: 'Queue In', primary_category: 'New Set In', quantity: 1 },
-      { name: 'Queue Out', primary_category: 'New Set Out', quantity: 1 },
+      { name: 'Queue In', primary_category: 'Queued In', quantity: 1 },
+      { name: 'Queue Out', primary_category: 'Queued Out', quantity: 1 },
       { name: 'Keeper', primary_category: 'Ramp', quantity: 1 },
     ],
   };

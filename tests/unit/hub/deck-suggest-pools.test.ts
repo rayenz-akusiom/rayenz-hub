@@ -8,8 +8,8 @@ function sampleDeck() {
     deck_name: 'Test Deck',
     deck_snapshot: {
       cards: [
-        { name: 'New Card', primary_category: 'New Set In' },
-        { name: 'Cut Card', primary_category: 'New Set Out' },
+        { name: 'New Card', primary_category: 'Queued In' },
+        { name: 'Cut Card', primary_category: 'Queued Out' },
         { name: 'Sol Ring', primary_category: 'Ramp', cmc: 1 },
         { name: 'Command Tower', primary_category: 'Land', cmc: 0 },
       ],

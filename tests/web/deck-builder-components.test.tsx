@@ -82,6 +82,7 @@ describe('LibraryView', () => {
     coverImageUrl: over.coverImageUrl ?? null,
     coverImageUrlSecondary: over.coverImageUrlSecondary ?? null,
     coverPartnerStatus: over.coverPartnerStatus ?? null,
+    coverCardName: over.coverCardName ?? null,
   });
 
   it('renders loading and error states', () => {
@@ -166,6 +167,46 @@ describe('LibraryView', () => {
     await user.click(screen.getByRole('button', { name: 'Delete Partners' }));
     expect(onDelete).toHaveBeenCalledWith('p1');
   });
+
+  it('sorts commander decks by recent vs A–Z vs highlighted card', async () => {
+    localStorage.removeItem('rayenz-deck-builder-library-sort');
+    const user = userEvent.setup();
+    const decks = [
+      summary({
+        deckId: 'zebra',
+        name: 'Zebra',
+        format: 'commander',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        coverCardName: 'Sol Ring',
+      }),
+      summary({
+        deckId: 'alpha',
+        name: 'Alpha',
+        format: 'commander',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        coverCardName: 'Zetalpa, Primal Dawn',
+      }),
+    ];
+
+    render(
+      <LibraryView decks={decks} onOpen={noop} onAdd={noop} onDelete={noop} />,
+    );
+
+    const names = () =>
+      [...document.querySelectorAll('.db-library-section[aria-label="Commander"] .db-library-tile-name')].map(
+        (el) => el.textContent,
+      );
+
+    expect(names()).toEqual(['Zebra', 'Alpha']);
+
+    await user.selectOptions(screen.getByLabelText('Library sort'), 'name');
+    expect(names()).toEqual(['Alpha', 'Zebra']);
+    expect(localStorage.getItem('rayenz-deck-builder-library-sort')).toBe('name');
+
+    await user.selectOptions(screen.getByLabelText('Library sort'), 'cover');
+    expect(names()).toEqual(['Zebra', 'Alpha']);
+    expect(localStorage.getItem('rayenz-deck-builder-library-sort')).toBe('cover');
+  });
 });
 
 describe('ExportBar', () => {
@@ -240,6 +281,15 @@ describe('MoveSheet', () => {
 });
 
 describe('SwapQueuePanel', () => {
+  const panelProps = {
+    onStartEdit: vi.fn(),
+    onDraftChange: vi.fn(),
+    onConfirmIn: vi.fn(),
+    onCancelEdit: vi.fn(),
+    onSaveEdit: vi.fn(),
+    onRemoveEdit: vi.fn(),
+  };
+
   it('adds swap entry and shows incomplete warning', async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
@@ -249,13 +299,7 @@ describe('SwapQueuePanel', () => {
         deck={commanderDoc}
         onChange={onChange}
         draft={null}
-        picking={null}
-        onStartEdit={vi.fn()}
-        onDraftChange={vi.fn()}
-        onSetPicking={vi.fn()}
-        onCancelEdit={vi.fn()}
-        onSaveEdit={vi.fn()}
-        onRemoveEdit={vi.fn()}
+        {...panelProps}
       />,
     );
 
@@ -293,13 +337,8 @@ describe('SwapQueuePanel', () => {
         deck={deck}
         onChange={vi.fn()}
         draft={null}
-        picking={null}
+        {...panelProps}
         onStartEdit={onStartEdit}
-        onDraftChange={vi.fn()}
-        onSetPicking={vi.fn()}
-        onCancelEdit={vi.fn()}
-        onSaveEdit={vi.fn()}
-        onRemoveEdit={vi.fn()}
       />,
     );
 
@@ -308,7 +347,7 @@ describe('SwapQueuePanel', () => {
     expect(onStartEdit).toHaveBeenCalledWith(deck.formalSwapEntries[0]);
   });
 
-  it('shows incomplete warning and missing category label', () => {
+  it('shows incomplete warning and hides empty category text', () => {
     const deck: DeckDocument = {
       ...commanderDoc,
       formalSwapEntries: [
@@ -324,25 +363,49 @@ describe('SwapQueuePanel', () => {
     };
 
     render(
-      <SwapQueuePanel
-        deck={deck}
-        onChange={vi.fn()}
-        draft={null}
-        picking={null}
-        onStartEdit={vi.fn()}
-        onDraftChange={vi.fn()}
-        onSetPicking={vi.fn()}
-        onCancelEdit={vi.fn()}
-        onSaveEdit={vi.fn()}
-        onRemoveEdit={vi.fn()}
-      />,
+      <SwapQueuePanel deck={deck} onChange={vi.fn()} draft={null} {...panelProps} />,
     );
 
     expect(screen.getByText('1 incomplete pairing(s)')).toBeInTheDocument();
-    expect(screen.getByText('→ category?')).toBeInTheDocument();
+    expect(screen.queryByText('→ category?')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^→ /)).not.toBeInTheDocument();
   });
 
-  it('renders edit chrome actions and foil/qty mini cards', async () => {
+  it('shows picker-sized pop-out on hover', async () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const user = userEvent.setup();
+
+    render(
+      <SwapQueuePanel deck={deck} onChange={vi.fn()} draft={null} {...panelProps} />,
+    );
+
+    const pair = screen.getByTitle('Click to edit swap');
+    expect(document.querySelector('.db-swap-pair-popout')).not.toBeInTheDocument();
+
+    await user.hover(pair);
+
+    const popout = document.querySelector('.db-swap-pair-popout');
+    expect(popout).toBeInTheDocument();
+    expect(popout?.querySelector('.db-swap-pair-stack.is-full')).toBeTruthy();
+    expect(within(popout as HTMLElement).getByText('→ Creature')).toBeInTheDocument();
+
+    await user.unhover(pair);
+    expect(document.querySelector('.db-swap-pair-popout')).not.toBeInTheDocument();
+  });
+
+  it('renders edit chrome, Out picker, and In search takeover in the same dialog', async () => {
     const foilCard: CardInstance = {
       ...commanderDoc.cards[0]!,
       instanceId: 'foil-1',
@@ -373,10 +436,14 @@ describe('SwapQueuePanel', () => {
       notes: 'updated note',
     };
     const onDraftChange = vi.fn();
-    const onSetPicking = vi.fn();
+    const onConfirmIn = vi.fn();
     const onCancelEdit = vi.fn();
     const onSaveEdit = vi.fn();
     const onRemoveEdit = vi.fn();
+    const openPicker = vi.fn();
+    (window as Window & { HubCardPicker?: { open: typeof openPicker } }).HubCardPicker = {
+      open: openPicker,
+    };
     const user = userEvent.setup();
 
     render(
@@ -384,10 +451,9 @@ describe('SwapQueuePanel', () => {
         deck={deck}
         onChange={vi.fn()}
         draft={draft}
-        picking="in"
         onStartEdit={vi.fn()}
         onDraftChange={onDraftChange}
-        onSetPicking={onSetPicking}
+        onConfirmIn={onConfirmIn}
         onCancelEdit={onCancelEdit}
         onSaveEdit={onSaveEdit}
         onRemoveEdit={onRemoveEdit}
@@ -395,10 +461,30 @@ describe('SwapQueuePanel', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
-    expect(screen.getByText(/Click a card in the browse view to set In/i)).toBeInTheDocument();
+    expect(document.body.querySelectorAll('.db-modal')).toHaveLength(1);
+    expect(document.body.querySelector('.db-swap-edit-slots')).toBeTruthy();
 
-    await user.click(screen.getAllByRole('button', { name: 'Change' })[0]!);
-    expect(onSetPicking).toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Change Out' }));
+    expect(openPicker).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Select Out card',
+        groupByCategory: true,
+        selectedValue: commanderDoc.cards[1]!.instanceId,
+      }),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Change In' }));
+    expect(screen.getByRole('dialog', { name: 'Choose In card from Scryfall' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose In card from Scryfall' })).toBeInTheDocument();
+    expect(document.body.querySelectorAll('.db-modal')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
+    // Prior In remains pinned — edit form still has Out/In slots and notes
+    expect(document.body.querySelector('.db-swap-edit-slots')).toBeTruthy();
+    expect(screen.getByDisplayValue('updated note')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change Out' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change In' })).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Place In card in category'), 'Land');
     expect(onDraftChange).toHaveBeenCalledWith({ inTargetCategory: 'Land' });

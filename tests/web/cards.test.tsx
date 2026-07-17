@@ -118,7 +118,7 @@ describe('CardSizePicker', () => {
 describe('CardPickerModal', () => {
   const items: CardPickerItem[] = [
     { value: 'a', lines: ['Alpha'], imgSrc: 'https://example.com/a.jpg', category: 'Creatures' },
-    { value: 'b', lines: ['Beta', '2 MV'], imgSrc: 'https://example.com/b.jpg', category: 'New Set In' },
+    { value: 'b', lines: ['Beta', '2 MV'], imgSrc: 'https://example.com/b.jpg', category: 'Queued In' },
     { value: 'c', lines: ['Gamma'], category: 'Spells' },
   ];
 
@@ -146,11 +146,11 @@ describe('CardPickerModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('groups by category with pinned New Set In header', () => {
+  it('groups by category with pinned Queued In header', () => {
     render(
       <CardPickerModal config={{ items, groupByCategory: true }} onClose={() => {}} />,
     );
-    expect(screen.getByText('New Set In')).toBeInTheDocument();
+    expect(screen.getByText('Queued In')).toBeInTheDocument();
     expect(screen.getByText('Creatures')).toBeInTheDocument();
     expect(screen.getByText('Spells')).toBeInTheDocument();
   });

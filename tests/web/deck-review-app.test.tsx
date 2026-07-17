@@ -78,8 +78,8 @@ function handoffPayload() {
         deck_snapshot: {
           fetched_at: '2026-06-22',
           cards: [
-            { name: 'Plains', primary_category: 'New Set Out', categories: ['New Set Out'] },
-            { name: "Caretaker's Talent", primary_category: 'New Set In', categories: ['New Set In'] },
+            { name: 'Plains', primary_category: 'Queued Out', categories: ['Queued Out'] },
+            { name: "Caretaker's Talent", primary_category: 'Queued In', categories: ['Queued In'] },
             { name: 'Sol Ring', primary_category: 'Ramp', categories: ['Ramp'] },
           ],
         },

@@ -31,11 +31,11 @@ describe('import', () => {
 
 
 
-  it('seeds swap queue from New Set In/Out on paste', () => {
+  it('seeds swap queue from Queued In/Out on paste', () => {
 
     const doc = documentFromImportText(
 
-      '[New Set In]\n1 In Card\n[New Set Out]\n1 Out Card\n[Creature]\n1 Bear',
+      '[Queued In]\n1 In Card\n[Queued Out]\n1 Out Card\n[Creature]\n1 Bear',
 
       { name: 'Swaps' },
 
@@ -47,6 +47,17 @@ describe('import', () => {
 
     expect(doc.formalSwapEntries[0].outInstanceId).toBeTruthy();
 
+  });
+
+  it('aliases legacy New Set In/Out headers to Queued In/Out on paste', () => {
+    const doc = documentFromImportText(
+      '[New Set In]\n1 In Card\n[New Set Out]\n1 Out Card',
+      { name: 'Legacy Swaps' },
+    );
+    expect(doc.categories.some((c) => c.name === 'Queued In')).toBe(true);
+    expect(doc.categories.some((c) => c.name === 'Queued Out')).toBe(true);
+    expect(doc.categories.some((c) => c.name === 'New Set In')).toBe(false);
+    expect(doc.formalSwapEntries).toHaveLength(1);
   });
 
 
@@ -262,8 +273,10 @@ describe('import', () => {
     expect(typeLineFromArchidektCard({})).toBe(null);
   });
 
-  it('normalizeArchidektCategoryName only aliases Lieutenant', () => {
+  it('normalizeArchidektCategoryName aliases Lieutenant and legacy swap queues', () => {
     expect(normalizeArchidektCategoryName('Lieutenant')).toBe('Lieutenants');
+    expect(normalizeArchidektCategoryName('New Set In')).toBe('Queued In');
+    expect(normalizeArchidektCategoryName('New Set Out')).toBe('Queued Out');
     expect(normalizeArchidektCategoryName('  Ramp  ')).toBe('Ramp');
   });
 
@@ -273,15 +286,15 @@ describe('import', () => {
   });
 
   it('documentFromImportText marks Maybeboard and swap categories', () => {
-    const doc = documentFromImportText('[Maybeboard]\n1 Side Card\n[New Set In]\n1 In', {
+    const doc = documentFromImportText('[Maybeboard]\n1 Side Card\n[Queued In]\n1 In', {
       deckId: 'deck-1',
       formatHint: 'commander',
     });
     expect(doc.deckId).toBe('deck-1');
     expect(doc.format).toBe('commander');
     expect(doc.categories.find((c) => c.name === 'Maybeboard')?.includedInDeck).toBe(false);
-    expect(doc.categories.find((c) => c.name === 'New Set In')?.includedInDeck).toBe(false);
-    expect(doc.categories.find((c) => c.name === 'New Set In')?.includedInPrice).toBe(false);
+    expect(doc.categories.find((c) => c.name === 'Queued In')?.includedInDeck).toBe(false);
+    expect(doc.categories.find((c) => c.name === 'Queued In')?.includedInPrice).toBe(false);
   });
 
   it('documentFromArchidektSnapshot maps foil, uid, and dedupes categories', () => {
@@ -356,12 +369,12 @@ describe('import', () => {
       deck_id: 1,
       name: 'Swaps',
       cards: [
-        { id: 1, name: 'In Card', primary_category: 'New Set In', categories: ['New Set In'] },
-        { id: 2, name: 'Out Card', primary_category: 'New Set Out', categories: ['New Set Out'] },
+        { id: 1, name: 'In Card', primary_category: 'Queued In', categories: ['Queued In'] },
+        { id: 2, name: 'Out Card', primary_category: 'Queued Out', categories: ['Queued Out'] },
       ],
       categories: [
-        { name: 'New Set In', includedInDeck: false, includedInPrice: false },
-        { name: 'New Set Out', includedInDeck: false, includedInPrice: false },
+        { name: 'Queued In', includedInDeck: false, includedInPrice: false },
+        { name: 'Queued Out', includedInDeck: false, includedInPrice: false },
       ],
     };
     const doc = documentFromArchidektSnapshot(snap);

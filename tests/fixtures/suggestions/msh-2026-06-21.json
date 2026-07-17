@@ -33,7 +33,7 @@
         "card_count": 979,
         "collecting_article_url": "https://magic.wizards.com/en/news/feature/collecting-marvel-super-heroes",
         "resolution_source": "wizards_collecting_article",
-        "notes": "Many Archidekt New Set In tags point to non-Marvel sets (SOS, BLB, TMT, EOE, MH3). This file covers MSH/MSC/MAR only."
+        "notes": "Many Archidekt Queued In tags point to non-Marvel sets (SOS, BLB, TMT, EOE, MH3). This file covers MSH/MSC/MAR only."
     },
     "decks": [
         {
@@ -227,7 +227,7 @@
                         "includedInPrice": false,
                         "includedInDeck": false
                     },
-                    "New Set In": {
+                    "Queued In": {
                         "includedInPrice": false,
                         "includedInDeck": false
                     },
@@ -251,7 +251,7 @@
                         "includedInPrice": false,
                         "includedInDeck": true
                     },
-                    "New Set Out": {
+                    "Queued Out": {
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
@@ -314,9 +314,9 @@
                         "quantity": 2,
                         "set_code": "dmu",
                         "collector_number": "277",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out"
+                            "Queued Out"
                         ],
                         "archidekt_uid": null
                     },
@@ -1348,9 +1348,9 @@
                         "quantity": 1,
                         "set_code": "blb",
                         "collector_number": "6",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In"
+                            "Queued In"
                         ],
                         "archidekt_uid": null
                     },
@@ -1359,9 +1359,9 @@
                         "quantity": 1,
                         "set_code": "dft",
                         "collector_number": "264",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In"
+                            "Queued In"
                         ],
                         "archidekt_uid": null
                     }
@@ -1643,7 +1643,7 @@
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
-                    "New Set Out": {
+                    "Queued Out": {
                         "includedInPrice": false,
                         "includedInDeck": false
                     },
@@ -1667,7 +1667,7 @@
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
-                    "New Set In": {
+                    "Queued In": {
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
@@ -2816,9 +2816,9 @@
                         "quantity": 1,
                         "set_code": "tdc",
                         "collector_number": "238",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out"
+                            "Queued Out"
                         ],
                         "archidekt_uid": null
                     },
@@ -2884,9 +2884,9 @@
                         "quantity": 1,
                         "set_code": "msc",
                         "collector_number": "756",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In",
+                            "Queued In",
                             "Creature"
                         ],
                         "archidekt_uid": null
@@ -2896,9 +2896,9 @@
                         "quantity": 1,
                         "set_code": "msh",
                         "collector_number": "156",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In",
+                            "Queued In",
                             "Creature"
                         ],
                         "archidekt_uid": null
@@ -2908,9 +2908,9 @@
                         "quantity": 1,
                         "set_code": "msc",
                         "collector_number": "628",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In",
+                            "Queued In",
                             "Creature"
                         ],
                         "archidekt_uid": null
@@ -2931,9 +2931,9 @@
                         "quantity": 1,
                         "set_code": "one",
                         "collector_number": "153",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out",
+                            "Queued Out",
                             "Divines for the Slaughter"
                         ],
                         "archidekt_uid": null
@@ -2943,9 +2943,9 @@
                         "quantity": 1,
                         "set_code": "tle",
                         "collector_number": "127",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out",
+                            "Queued Out",
                             "Experience"
                         ],
                         "archidekt_uid": null
@@ -4277,7 +4277,7 @@
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
-                    "New Set Out": {
+                    "Queued Out": {
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
@@ -4301,7 +4301,7 @@
                         "includedInPrice": true,
                         "includedInDeck": true
                     },
-                    "New Set In": {
+                    "Queued In": {
                         "includedInPrice": false,
                         "includedInDeck": false
                     },
@@ -5268,9 +5268,9 @@
                         "quantity": 1,
                         "set_code": "one",
                         "collector_number": "163",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out"
+                            "Queued Out"
                         ],
                         "archidekt_uid": null
                     },
@@ -5279,9 +5279,9 @@
                         "quantity": 1,
                         "set_code": "cmr",
                         "collector_number": "433",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out"
+                            "Queued Out"
                         ],
                         "archidekt_uid": null
                     },
@@ -5290,9 +5290,9 @@
                         "quantity": 1,
                         "set_code": "sta",
                         "collector_number": "56",
-                        "primary_category": "New Set Out",
+                        "primary_category": "Queued Out",
                         "categories": [
-                            "New Set Out"
+                            "Queued Out"
                         ],
                         "archidekt_uid": null
                     },
@@ -5301,9 +5301,9 @@
                         "quantity": 1,
                         "set_code": "msh",
                         "collector_number": "177",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In"
+                            "Queued In"
                         ],
                         "archidekt_uid": null
                     },
@@ -5312,9 +5312,9 @@
                         "quantity": 1,
                         "set_code": "eoe",
                         "collector_number": "192",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In"
+                            "Queued In"
                         ],
                         "archidekt_uid": null
                     },
@@ -5323,9 +5323,9 @@
                         "quantity": 1,
                         "set_code": "tmt",
                         "collector_number": "89",
-                        "primary_category": "New Set In",
+                        "primary_category": "Queued In",
                         "categories": [
-                            "New Set In"
+                            "Queued In"
                         ],
                         "archidekt_uid": null
                     },

@@ -18,7 +18,7 @@ import {
   categoryKeySortFor,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
-import { CardTile, DRAG_MIME } from './CardTile';
+import { CardTile, DRAG_MIME, type SelectCardHandler } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
 
 export type DropCardHandler = (
@@ -26,6 +26,17 @@ export type DropCardHandler = (
   category: string,
   opts?: { commanderSlot?: 0 | 1 },
 ) => void;
+
+export type { SelectCardHandler };
+
+function cardIsSelected(
+  instanceId: string,
+  selectedIds?: ReadonlySet<string> | null,
+  selectedId?: string | null,
+): boolean {
+  if (selectedIds) return selectedIds.has(instanceId);
+  return selectedId === instanceId;
+}
 
 /** True while a deck-builder card drag is in progress. */
 function useDeckBuilderDragging(): boolean {
@@ -78,6 +89,7 @@ export function CardGroup({
   cards,
   layout,
   selectedId,
+  selectedIds,
   onSelectCard,
   draggable,
   onCardContextMenu,
@@ -86,7 +98,8 @@ export function CardGroup({
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
   selectedId?: string | null;
-  onSelectCard?: (card: CardView) => void;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
   draggable?: boolean;
   onCardContextMenu?: CardContextMenuHandler;
   /** Disambiguates duplicate instance keys in multi-category browse. */
@@ -102,7 +115,7 @@ export function CardGroup({
           >
             <CardTile
               card={card}
-              selected={selectedId === card.instanceId}
+              selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
               onSelect={onSelectCard}
               draggable={draggable}
               onContextMenu={onCardContextMenu}
@@ -114,7 +127,7 @@ export function CardGroup({
               tabIndex={-1}
               aria-hidden="true"
               title={cardDisplayName(card)}
-              onClick={() => onSelectCard?.(card)}
+              onClick={(e) => onSelectCard?.(card, e)}
               onContextMenu={(e) => {
                 if (!onCardContextMenu) return;
                 e.preventDefault();
@@ -132,7 +145,7 @@ export function CardGroup({
         <CardTile
           key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
           card={card}
-          selected={selectedId === card.instanceId}
+          selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
           onSelect={onSelectCard}
           draggable={draggable}
           onContextMenu={onCardContextMenu}
@@ -148,6 +161,7 @@ export function DropSection({
   cards,
   layout,
   selectedId,
+  selectedIds,
   onSelectCard,
   onDropCard,
   onCardContextMenu,
@@ -162,7 +176,8 @@ export function DropSection({
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
   selectedId?: string | null;
-  onSelectCard?: (card: CardView) => void;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
@@ -230,6 +245,7 @@ export function DropSection({
         cards={sorted}
         layout={layout}
         selectedId={selectedId}
+        selectedIds={selectedIds}
         onSelectCard={onSelectCard}
         draggable={canDrop}
         onCardContextMenu={onCardContextMenu}
@@ -243,6 +259,7 @@ function CommanderSlot({
   slot,
   card,
   selectedId,
+  selectedIds,
   onSelectCard,
   onDropCard,
   onCardContextMenu,
@@ -251,7 +268,8 @@ function CommanderSlot({
   slot: 0 | 1;
   card: CardView | null;
   selectedId?: string | null;
-  onSelectCard?: (card: CardView) => void;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
@@ -280,7 +298,7 @@ function CommanderSlot({
       {card ? (
         <CardTile
           card={card}
-          selected={selectedId === card.instanceId}
+          selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
           onSelect={onSelectCard}
           draggable={draggable}
           onContextMenu={onCardContextMenu}
@@ -295,6 +313,7 @@ function CommanderSlot({
 function CommanderSlots({
   commanders,
   selectedId,
+  selectedIds,
   onSelectCard,
   onDropCard,
   onCardContextMenu,
@@ -302,7 +321,8 @@ function CommanderSlots({
 }: {
   commanders: CardView[];
   selectedId?: string | null;
-  onSelectCard?: (card: CardView) => void;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   dragging: boolean;
@@ -330,6 +350,7 @@ function CommanderSlots({
           slot={0}
           card={slot0}
           selectedId={selectedId}
+          selectedIds={selectedIds}
           onSelectCard={onSelectCard}
           onDropCard={onDropCard}
           onCardContextMenu={onCardContextMenu}
@@ -342,6 +363,7 @@ function CommanderSlots({
               slot={1}
               card={slot1}
               selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
@@ -363,6 +385,7 @@ export function DeckHeaderRow({
   header,
   headerKeys,
   selectedId,
+  selectedIds,
   onSelectCard,
   onDropCard,
   onCardContextMenu,
@@ -376,7 +399,8 @@ export function DeckHeaderRow({
   header: Record<string, CardView[]>;
   headerKeys: string[];
   selectedId?: string | null;
-  onSelectCard?: (card: CardView) => void;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
@@ -400,6 +424,7 @@ export function DeckHeaderRow({
           <CommanderSlots
             commanders={commanders}
             selectedId={selectedId}
+            selectedIds={selectedIds}
             onSelectCard={onSelectCard}
             onDropCard={onDropCard}
             onCardContextMenu={onCardContextMenu}
@@ -414,6 +439,7 @@ export function DeckHeaderRow({
               cards={lieutenants}
               layout="grid"
               selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
@@ -439,6 +465,7 @@ export function DeckHeaderRow({
               cards={header[cat] || []}
               layout="grid"
               selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
@@ -476,11 +503,13 @@ export function CategoryBrowse({
   deck,
   onSelectCard,
   selectedId,
+  selectedIds,
   layout = 'stacked',
   cardSort = 'name_asc',
   onDropCard,
   onCardContextMenu,
   onEditCategory,
+  onVisibleOrderChange,
   mode = 'main',
   includeSwapCategories = false,
   deckMeta,
@@ -496,13 +525,16 @@ export function CategoryBrowse({
         oracle?: DeckDocument['oracle'];
         name?: string;
       };
-  onSelectCard?: (card: CardView) => void;
+  onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
+  selectedIds?: ReadonlySet<string> | null;
   layout?: CardLayout;
   cardSort?: CardSortMode;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
+  /** Flattened visible instance ids for shift-click range selection (main mode only). */
+  onVisibleOrderChange?: (ids: string[]) => void;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
   deckMeta?: string;
@@ -529,6 +561,39 @@ export function CategoryBrowse({
   const dropHandler = multi ? undefined : onDropCard;
   const warnTargets = !multi;
 
+  const visibleOrder = useMemo(() => {
+    if (mode === 'aside') {
+      return excludedKeys.flatMap((cat) =>
+        sortCardsInGroup(excluded[cat] || [], cardSort).map((c) => c.instanceId),
+      );
+    }
+    const headerIds = headerKeys.flatMap((cat) => {
+      if (format === 'commander' && cat === 'Commander') {
+        return (header[cat] || []).map((c) => c.instanceId);
+      }
+      return sortCardsInGroup(header[cat] || [], cardSort).map((c) => c.instanceId);
+    });
+    const bodyIds = includedKeys.flatMap((cat) =>
+      sortCardsInGroup(included[cat] || [], cardSort).map((c) => c.instanceId),
+    );
+    return [...headerIds, ...bodyIds];
+  }, [
+    mode,
+    excludedKeys,
+    excluded,
+    headerKeys,
+    header,
+    includedKeys,
+    included,
+    cardSort,
+    format,
+  ]);
+
+  useEffect(() => {
+    if (mode !== 'main' || !onVisibleOrderChange) return;
+    onVisibleOrderChange(visibleOrder);
+  }, [mode, onVisibleOrderChange, visibleOrder]);
+
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;
     return (
@@ -540,6 +605,7 @@ export function CategoryBrowse({
             cards={excluded[cat]}
             layout={layout}
             selectedId={selectedId}
+            selectedIds={selectedIds}
             onSelectCard={onSelectCard}
             onDropCard={dropHandler}
             onCardContextMenu={onCardContextMenu}
@@ -562,6 +628,7 @@ export function CategoryBrowse({
       cards={included[cat]}
       layout={layout}
       selectedId={selectedId}
+      selectedIds={selectedIds}
       onSelectCard={onSelectCard}
       onDropCard={dropHandler}
       onCardContextMenu={onCardContextMenu}
@@ -580,6 +647,7 @@ export function CategoryBrowse({
         header={header}
         headerKeys={headerKeys}
         selectedId={selectedId}
+        selectedIds={selectedIds}
         onSelectCard={onSelectCard}
         onDropCard={dropHandler}
         onCardContextMenu={onCardContextMenu}

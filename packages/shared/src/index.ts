@@ -22,6 +22,7 @@ export * from './deck-builder/scryfall-api';
 export * from './deck-builder/card-edits';
 export * from './deck-builder/card-oracle';
 export * from './deck-builder/card-sort';
+export * from './deck-builder/card-types';
 export * from './deck-builder/category-names';
 export * from './mtg/option-key';
 export * from './mtg/swap-queue';

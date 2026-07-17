@@ -10,6 +10,7 @@ export type CardContextMenuState = {
 
 export function CardContextMenu({
   state,
+  selectionCount = 1,
   isCover,
   foil,
   foilEnabled,
@@ -22,12 +23,15 @@ export function CardContextMenu({
   onSetCover,
   onClearCover,
   onMove,
+  onMoveToDefault,
   onChangePrinting,
   onRemove,
   onRemoveSecondary,
   onAddSecondary,
 }: {
   state: CardContextMenuState;
+  /** Number of cards in the active selection (menu targets all when > 1). */
+  selectionCount?: number;
   isCover: boolean;
   foil: boolean;
   foilEnabled: boolean;
@@ -41,6 +45,7 @@ export function CardContextMenu({
   onSetCover: () => void;
   onClearCover: () => void;
   onMove: () => void;
+  onMoveToDefault?: () => void;
   onChangePrinting: () => void;
   onRemove: () => void;
   onRemoveSecondary?: (category: string) => void;
@@ -50,6 +55,7 @@ export function CardContextMenu({
   const [addingSecondary, setAddingSecondary] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const multi = selectionCount > 1;
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -100,7 +106,13 @@ export function CardContextMenu({
         <span className={`db-card-context-foil${foil ? ' is-foil' : ''}`}>
           <FoilIcon filled={foil} />
         </span>
-        {foil ? 'Unmark foil' : 'Mark as foil'}
+        {foil
+          ? multi
+            ? `Unmark foil (${selectionCount})`
+            : 'Unmark foil'
+          : multi
+            ? `Mark as foil (${selectionCount})`
+            : 'Mark as foil'}
       </button>
       <button
         type="button"
@@ -114,33 +126,41 @@ export function CardContextMenu({
         <span className={`db-card-context-proxy${proxy ? ' is-proxy' : ''}`}>
           <ProxyIcon filled={proxy} />
         </span>
-        {proxy ? 'Unmark proxy' : 'Mark as proxy'}
+        {proxy
+          ? multi
+            ? `Unmark proxy (${selectionCount})`
+            : 'Unmark proxy'
+          : multi
+            ? `Mark as proxy (${selectionCount})`
+            : 'Mark as proxy'}
       </button>
-      {isCover ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="db-card-context-item"
-          onClick={() => {
-            onClearCover();
-            onClose();
-          }}
-        >
-          Clear cover
-        </button>
-      ) : (
-        <button
-          type="button"
-          role="menuitem"
-          className="db-card-context-item"
-          onClick={() => {
-            onSetCover();
-            onClose();
-          }}
-        >
-          Set as cover
-        </button>
-      )}
+      {!multi ? (
+        isCover ? (
+          <button
+            type="button"
+            role="menuitem"
+            className="db-card-context-item"
+            onClick={() => {
+              onClearCover();
+              onClose();
+            }}
+          >
+            Clear cover
+          </button>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            className="db-card-context-item"
+            onClick={() => {
+              onSetCover();
+              onClose();
+            }}
+          >
+            Set as cover
+          </button>
+        )
+      ) : null}
       <button
         type="button"
         role="menuitem"
@@ -150,23 +170,38 @@ export function CardContextMenu({
           onClose();
         }}
       >
-        Move…
+        {multi ? `Move ${selectionCount}…` : 'Move…'}
       </button>
-      {secondaryCategories.map((cat) => (
+      {onMoveToDefault ? (
         <button
-          key={cat}
           type="button"
           role="menuitem"
           className="db-card-context-item"
           onClick={() => {
-            onRemoveSecondary?.(cat);
+            onMoveToDefault();
             onClose();
           }}
         >
-          Remove from {cat}
+          {multi ? `Move ${selectionCount} to default` : 'Move to default'}
         </button>
-      ))}
-      {onAddSecondary ? (
+      ) : null}
+      {!multi
+        ? secondaryCategories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              role="menuitem"
+              className="db-card-context-item"
+              onClick={() => {
+                onRemoveSecondary?.(cat);
+                onClose();
+              }}
+            >
+              Remove from {cat}
+            </button>
+          ))
+        : null}
+      {!multi && onAddSecondary ? (
         addingSecondary ? (
           <div className="db-card-context-add-secondary" role="none">
             {creatingNew ? (
@@ -218,17 +253,19 @@ export function CardContextMenu({
           </button>
         )
       ) : null}
-      <button
-        type="button"
-        role="menuitem"
-        className="db-card-context-item"
-        onClick={() => {
-          onChangePrinting();
-          onClose();
-        }}
-      >
-        Change printing…
-      </button>
+      {!multi ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onChangePrinting();
+            onClose();
+          }}
+        >
+          Change printing…
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"
@@ -238,7 +275,7 @@ export function CardContextMenu({
           onClose();
         }}
       >
-        Remove
+        {multi ? `Remove ${selectionCount}` : 'Remove'}
       </button>
     </div>
   );

@@ -5,15 +5,17 @@ import type {
   DeckDocument,
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
-import { isSwapQueueCategory } from './browse.js';
+import { isSwapQueueCategory, moveCardCategory } from './browse.js';
 import { canonicalizeCategoryName } from './category-names.js';
 import { colourIdentitySection } from './colour-identity.js';
 import {
   emptyCardOracle,
   getOracle,
   oracleKey,
+  resolveCardView,
   upsertOracle,
 } from './card-oracle.js';
+import { commanderTypeCategory } from './card-types.js';
 import { normalizeCardQuantities } from './quantities.js';
 import type { PrintingFields } from './scryfall-api.js';
 import { applyPrintingToCard } from './scryfall-api.js';
@@ -51,6 +53,62 @@ export function defaultAddCategory(
   );
   if (aside) return aside.name;
   return 'Other';
+}
+
+/**
+ * Default primary category for filing an existing card (mass “Move to default”).
+ * Cube: CI section; Lands override identity.
+ * Commander/other: first card type by precedence (Land > Creature > …).
+ */
+export function defaultCategoryForCard(
+  deck: Pick<DeckDocument, 'format' | 'oracle'>,
+  card: Pick<CardInstance, 'name' | 'scryfallId' | 'setCode' | 'collectorNumber'> & {
+    colourIdentity?: string[] | null;
+    typeLine?: string | null;
+  },
+): string {
+  const oracle = getOracle(deck, card);
+  const view = resolveCardView(card as CardInstance, oracle);
+  const typeLine = card.typeLine ?? view.typeLine ?? null;
+  const colourIdentity =
+    (card.colourIdentity?.length ? card.colourIdentity : null) ||
+    (view.colourIdentity?.length ? view.colourIdentity : []) ||
+    [];
+
+  if (deck.format === 'cube') {
+    return colourIdentitySection(
+      {
+        name: card.name,
+        colourIdentity,
+        typeLine,
+      },
+      { separateLands: true },
+    );
+  }
+  return commanderTypeCategory(typeLine);
+}
+
+/** Move selected cards to each card’s default category; ensures category defs. */
+export function moveCardsToDefaultCategories(
+  deck: DeckDocument,
+  instanceIds: string[],
+): DeckDocument {
+  const idSet = new Set(instanceIds.filter(Boolean));
+  if (!idSet.size) return deck;
+  let cards = deck.cards;
+  let categories = deck.categories || [];
+  for (const card of deck.cards) {
+    if (!idSet.has(card.instanceId)) continue;
+    const target = defaultCategoryForCard(deck, card);
+    cards = moveCardCategory(cards, card.instanceId, target, card.stack);
+    categories = ensureCategoryDef(categories, target);
+  }
+  return {
+    ...deck,
+    cards,
+    categories,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /** Category names available for add / move, including common fallbacks. */
@@ -156,15 +214,29 @@ export function setCardFoil(
   instanceId: string,
   foil: boolean,
 ): DeckDocument {
-  const card = deck.cards.find((c) => c.instanceId === instanceId);
-  if (!card) return deck;
-  if (foil && !cardSupportsFoilToggle(deck, card)) return deck;
-  if (Boolean(card.foil) === Boolean(foil)) return deck;
+  return setCardsFoil(deck, [instanceId], foil);
+}
+
+/** Set foil on many instances (skips enabling when printing has no foil finish). */
+export function setCardsFoil(
+  deck: DeckDocument,
+  instanceIds: string[],
+  foil: boolean,
+): DeckDocument {
+  const idSet = new Set(instanceIds.filter(Boolean));
+  if (!idSet.size) return deck;
+  let changed = false;
+  const cards = deck.cards.map((c) => {
+    if (!idSet.has(c.instanceId)) return c;
+    if (foil && !cardSupportsFoilToggle(deck, c)) return c;
+    if (Boolean(c.foil) === Boolean(foil)) return c;
+    changed = true;
+    return { ...c, foil: Boolean(foil) };
+  });
+  if (!changed) return deck;
   return {
     ...deck,
-    cards: deck.cards.map((c) =>
-      c.instanceId === instanceId ? { ...c, foil: Boolean(foil) } : c,
-    ),
+    cards,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -184,15 +256,64 @@ export function setCardProxy(
   instanceId: string,
   proxy: boolean,
 ): DeckDocument {
-  const card = deck.cards.find((c) => c.instanceId === instanceId);
-  if (!card) return deck;
-  if (Boolean(card.proxy) === Boolean(proxy)) return deck;
+  return setCardsProxy(deck, [instanceId], proxy);
+}
+
+/** Set proxy on many instances; ensures Proxies category when enabling any. */
+export function setCardsProxy(
+  deck: DeckDocument,
+  instanceIds: string[],
+  proxy: boolean,
+): DeckDocument {
+  const idSet = new Set(instanceIds.filter(Boolean));
+  if (!idSet.size) return deck;
+  let changed = false;
+  const cards = deck.cards.map((c) => {
+    if (!idSet.has(c.instanceId)) return c;
+    if (Boolean(c.proxy) === Boolean(proxy)) return c;
+    changed = true;
+    return { ...c, proxy: Boolean(proxy) };
+  });
+  if (!changed) return deck;
   return {
     ...deck,
-    cards: deck.cards.map((c) =>
-      c.instanceId === instanceId ? { ...c, proxy: Boolean(proxy) } : c,
-    ),
+    cards,
     categories: proxy ? ensureProxiesCategoryDef(deck.categories || []) : deck.categories,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Remove many card instances from the deck. */
+export function removeCardsFromDeck(
+  deck: DeckDocument,
+  instanceIds: string[],
+): DeckDocument {
+  const idSet = new Set(instanceIds.filter(Boolean));
+  if (!idSet.size) return deck;
+  let next: DeckDocument = deck;
+  for (const id of idSet) {
+    next = removeCardFromDeck(next, id);
+  }
+  return next;
+}
+
+/** Move many cards to the same primary category (+ optional stack). */
+export function moveCardsCategory(
+  deck: DeckDocument,
+  instanceIds: string[],
+  primaryCategory: string,
+  stack: string | null = null,
+): DeckDocument {
+  const idSet = new Set(instanceIds.filter(Boolean));
+  if (!idSet.size) return deck;
+  let cards = deck.cards;
+  for (const id of idSet) {
+    cards = moveCardCategory(cards, id, primaryCategory, stack);
+  }
+  return {
+    ...deck,
+    cards,
+    categories: ensureCategoryDef(deck.categories || [], primaryCategory),
     updatedAt: new Date().toISOString(),
   };
 }

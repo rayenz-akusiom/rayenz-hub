@@ -1,4 +1,14 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import {
   addCardToDeck,
   addSecondaryCategory,
@@ -15,12 +25,14 @@ import {
   incompleteEntryCount,
   isCategoryBrowseView,
   moveCardCategory,
+  moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
-  removeCardFromDeck,
+  removeCardsFromDeck,
   removeSecondaryCategory,
   secondaryCategoriesOf,
-  setCardFoil,
-  setCardProxy,
+  setCardsFoil,
+  setCardsProxy,
+  upsertOracle,
   type BrowseView,
   type CardView,
   type CardLayout,
@@ -68,6 +80,25 @@ function draftFromEntry(entry: FormalSwapEntry): SwapEditDraft {
   };
 }
 
+function isToggleModifier(e?: MouseEvent | ReactKeyboardEvent): boolean {
+  if (!e) return false;
+  return Boolean(e.ctrlKey || e.metaKey);
+}
+
+function isShiftSelect(e?: MouseEvent | ReactKeyboardEvent): boolean {
+  if (!e) return false;
+  return Boolean(e.shiftKey) && !isToggleModifier(e);
+}
+
+function rangeIds(order: string[], fromId: string, toId: string): string[] {
+  const a = order.indexOf(fromId);
+  const b = order.indexOf(toId);
+  if (a < 0 || b < 0) return [toId];
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return order.slice(lo, hi + 1);
+}
+
 export function BrowseShell({
   deck,
   onChange,
@@ -82,7 +113,9 @@ export function BrowseShell({
   );
   const [layout, setLayout] = useState<CardLayout>(deck.cardLayoutDefault || 'stacked');
   const [cardSort, setCardSort] = useState<CardSortMode>(deck.cardSortDefault || 'name_asc');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
+  const [visibleOrder, setVisibleOrder] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [printingOpen, setPrintingOpen] = useState(false);
@@ -94,6 +127,8 @@ export function BrowseShell({
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
+  const visibleOrderRef = useRef(visibleOrder);
+  visibleOrderRef.current = visibleOrder;
 
   // Disable stack margin transitions before paint when --db-card-w changes
   // (avoids "fly in from above" while keeping hover expand animation).
@@ -118,24 +153,83 @@ export function BrowseShell({
     };
   }, [cardWidthPx]);
 
-  const selected = useMemo(
-    () => deck.cards.find((c) => c.instanceId === selectedId) || null,
-    [deck.cards, selectedId],
+  const selectedCards = useMemo(
+    () => deck.cards.filter((c) => selectedIds.has(c.instanceId)),
+    [deck.cards, selectedIds],
   );
+  const selectionCount = selectedCards.length;
+  const multi = selectionCount > 1;
+  const primarySelected = selectedCards[0] || null;
+
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
   const editingSwap = Boolean(draft);
 
   const deckRef = useRef(deck);
-  deckRef.current = deck;
   const draftRef = useRef(draft);
   draftRef.current = draft;
 
-  const onEnrichPatch = useCallback(
+  /** Apply a full document; keeps deckRef ahead of React props so rapid edits don't clobber each other. */
+  const commit = useCallback(
     (next: DeckDocument) => {
+      deckRef.current = next;
       onChange(next);
     },
     [onChange],
+  );
+
+  /** Merge a patch onto the latest known deck (avoids stale prop spreads). */
+  const commitPatch = useCallback(
+    (patch: Partial<DeckDocument>) => {
+      commit({
+        ...deckRef.current,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [commit],
+  );
+
+  // Adopt parent deck when switching decks or when parent has equal/newer data.
+  useEffect(() => {
+    const local = deckRef.current;
+    if (deck.deckId !== local.deckId) {
+      deckRef.current = deck;
+      setView(deck.browseViewDefault || defaultBrowseView(deck.format));
+      setLayout(deck.cardLayoutDefault || 'stacked');
+      setCardSort(deck.cardSortDefault || 'name_asc');
+      setSelectedIds(new Set());
+      setSelectionAnchorId(null);
+      return;
+    }
+    if (deck.updatedAt >= local.updatedAt) {
+      deckRef.current = deck;
+    }
+  }, [deck]);
+
+  const onEnrichPatch = useCallback(
+    (next: DeckDocument) => {
+      // Always merge enrich results onto our latest deck so concurrent target/prefs
+      // edits are not wiped if enrich started from a stale snapshot.
+      const latest = deckRef.current;
+      const nextById = new Map(next.cards.map((c) => [c.instanceId, c]));
+      const mergedCards = latest.cards.map((c) => {
+        const n = nextById.get(c.instanceId);
+        if (!n?.scryfallId || n.scryfallId === c.scryfallId) return c;
+        return { ...c, scryfallId: n.scryfallId };
+      });
+      let mergedOracle = { ...(latest.oracle || {}) };
+      for (const [key, entry] of Object.entries(next.oracle || {})) {
+        mergedOracle = upsertOracle(mergedOracle, key, entry);
+      }
+      commit({
+        ...latest,
+        cards: mergedCards,
+        oracle: mergedOracle,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [commit],
   );
 
   const isColourIdentityView =
@@ -158,37 +252,135 @@ export function BrowseShell({
     .filter(Boolean)
     .join(' · ');
 
-  function onSelectCard(card: CardView) {
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectionAnchorId(null);
     setContextMenu(null);
-    setSelectedId((prev) => (prev === card.instanceId ? null : card.instanceId));
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (moveOpen || printingOpen || addOpen || categoriesOpen || editingCategory || contextMenu) {
+        return;
+      }
+      if (selectedIds.size) clearSelection();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [
+    selectedIds.size,
+    clearSelection,
+    moveOpen,
+    printingOpen,
+    addOpen,
+    categoriesOpen,
+    editingCategory,
+    contextMenu,
+  ]);
+
+  // Drop selection entries that no longer exist on the deck.
+  useEffect(() => {
+    const live = new Set(deck.cards.map((c) => c.instanceId));
+    setSelectedIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (live.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [deck.cards]);
+
+  const onVisibleOrderChange = useCallback((ids: string[]) => {
+    setVisibleOrder((prev) => {
+      if (prev.length === ids.length && prev.every((id, i) => id === ids[i])) {
+        return prev;
+      }
+      return ids;
+    });
+  }, []);
+
+  function onSelectCard(card: CardView, e?: MouseEvent | ReactKeyboardEvent) {
+    setContextMenu(null);
+    const id = card.instanceId;
+
+    if (isShiftSelect(e) && selectionAnchorId) {
+      const range = rangeIds(visibleOrderRef.current, selectionAnchorId, id);
+      setSelectedIds(new Set(range));
+      return;
+    }
+
+    if (isToggleModifier(e)) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setSelectionAnchorId(id);
+      return;
+    }
+
+    setSelectedIds((prev) => {
+      if (prev.size === 1 && prev.has(id)) return new Set();
+      return new Set([id]);
+    });
+    setSelectionAnchorId(id);
   }
 
   function onCardContextMenu(card: CardView, e: MouseEvent) {
-    setSelectedId(card.instanceId);
+    setSelectedIds((prev) => {
+      if (prev.has(card.instanceId)) return prev;
+      if (prev.size > 1) {
+        const next = new Set(prev);
+        next.add(card.instanceId);
+        return next;
+      }
+      return new Set([card.instanceId]);
+    });
+    setSelectionAnchorId(card.instanceId);
     setContextMenu({ x: e.clientX, y: e.clientY, instanceId: card.instanceId });
   }
 
+  const selectionIdList = useMemo(() => [...selectedIds], [selectedIds]);
+
   function onToggleFoil() {
-    if (!selected) return;
-    onChange(setCardFoil(deck, selected.instanceId, !selected.foil));
+    if (!selectionCount) return;
+    const anyNonFoil = selectedCards.some((c) => !c.foil);
+    commit(setCardsFoil(deckRef.current, selectionIdList, anyNonFoil));
   }
 
   function onToggleProxy() {
-    if (!selected) return;
-    onChange(setCardProxy(deck, selected.instanceId, !selected.proxy));
+    if (!selectionCount) return;
+    const anyNonProxy = selectedCards.some((c) => !c.proxy);
+    commit(setCardsProxy(deckRef.current, selectionIdList, anyNonProxy));
+  }
+
+  function onMoveToDefault() {
+    if (!selectionCount) return;
+    commit(moveCardsToDefaultCategories(deckRef.current, selectionIdList));
+  }
+
+  function setViewAndPersist(next: BrowseView) {
+    setView(next);
+    if (deckRef.current.browseViewDefault !== next) {
+      commitPatch({ browseViewDefault: next });
+    }
   }
 
   function setLayoutAndPersist(next: CardLayout) {
     setLayout(next);
-    if (deck.cardLayoutDefault !== next) {
-      onChange({ ...deck, cardLayoutDefault: next, updatedAt: new Date().toISOString() });
+    if (deckRef.current.cardLayoutDefault !== next) {
+      commitPatch({ cardLayoutDefault: next });
     }
   }
 
   function setCardSortAndPersist(next: CardSortMode) {
     setCardSort(next);
-    if (deck.cardSortDefault !== next) {
-      onChange({ ...deck, cardSortDefault: next, updatedAt: new Date().toISOString() });
+    if (deckRef.current.cardSortDefault !== next) {
+      commitPatch({ cardSortDefault: next });
     }
   }
 
@@ -197,24 +389,21 @@ export function BrowseShell({
     category: string,
     opts?: { commanderSlot?: 0 | 1 },
   ) {
-    const card = deck.cards.find((c) => c.instanceId === instanceId);
+    const current = deckRef.current;
+    const card = current.cards.find((c) => c.instanceId === instanceId);
     if (!card) return;
 
     if (category === 'Commander' && opts?.commanderSlot != null) {
-      onChange({
-        ...deck,
-        cards: placeCardInCommanderSlot(deck.cards, instanceId, opts.commanderSlot),
-        updatedAt: new Date().toISOString(),
+      commitPatch({
+        cards: placeCardInCommanderSlot(current.cards, instanceId, opts.commanderSlot),
       });
       return;
     }
 
     if (card.primaryCategory === category) return;
-    onChange({
-      ...deck,
-      cards: moveCardCategory(deck.cards, instanceId, category, card.stack),
-      categories: ensureCategoryDef(deck.categories || [], category),
-      updatedAt: new Date().toISOString(),
+    commitPatch({
+      cards: moveCardCategory(current.cards, instanceId, category, card.stack),
+      categories: ensureCategoryDef(current.categories || [], category),
     });
   }
 
@@ -224,7 +413,8 @@ export function BrowseShell({
 
   function saveSwapEdit() {
     if (!draft) return;
-    const entries = [...deck.formalSwapEntries]
+    const current = deckRef.current;
+    const entries = [...current.formalSwapEntries]
       .sort((a, b) => a.sortIndex - b.sortIndex)
       .map((e, i) =>
         e.id === draft.entryId
@@ -238,24 +428,16 @@ export function BrowseShell({
             }
           : { ...e, sortIndex: i },
       );
-    onChange({
-      ...deck,
-      formalSwapEntries: entries,
-      updatedAt: new Date().toISOString(),
-    });
+    commitPatch({ formalSwapEntries: entries });
     clearSwapEdit();
   }
 
   function removeSwapEdit() {
     if (!draft) return;
-    const entries = deck.formalSwapEntries
+    const entries = deckRef.current.formalSwapEntries
       .filter((e) => e.id !== draft.entryId)
       .map((e, i) => ({ ...e, sortIndex: i }));
-    onChange({
-      ...deck,
-      formalSwapEntries: entries,
-      updatedAt: new Date().toISOString(),
-    });
+    commitPatch({ formalSwapEntries: entries });
     clearSwapEdit();
   }
 
@@ -264,11 +446,15 @@ export function BrowseShell({
     category: string,
     meta?: { proxy: boolean },
   ) {
-    const before = new Set(deck.cards.map((c) => c.instanceId));
-    const next = addCardToDeck(deck, printing, category, { proxy: meta?.proxy });
+    const current = deckRef.current;
+    const before = new Set(current.cards.map((c) => c.instanceId));
+    const next = addCardToDeck(current, printing, category, { proxy: meta?.proxy });
     const added = next.cards.find((c) => !before.has(c.instanceId));
-    onChange(next);
-    if (added) setSelectedId(added.instanceId);
+    commit(next);
+    if (added) {
+      setSelectedIds(new Set([added.instanceId]));
+      setSelectionAnchorId(added.instanceId);
+    }
     setAddOpen(false);
   }
 
@@ -290,50 +476,55 @@ export function BrowseShell({
     const before = new Set(currentDeck.cards.map((c) => c.instanceId));
     const next = addCardToDeck(currentDeck, printing, category, { proxy: meta?.proxy });
     const added = next.cards.find((c) => !before.has(c.instanceId));
-    onChange(next);
+    commit(next);
     if (added) {
       setDraft({ ...currentDraft, inInstanceId: added.instanceId });
     }
   }
 
   function onChangePrinting(printing: PrintingFields, meta?: { proxy: boolean }) {
-    if (!selectedId) return;
-    onChange(changeCardPrinting(deck, selectedId, printing, { proxy: meta?.proxy }));
+    if (!primarySelected || multi) return;
+    commit(
+      changeCardPrinting(deckRef.current, primarySelected.instanceId, printing, {
+        proxy: meta?.proxy,
+      }),
+    );
     setPrintingOpen(false);
   }
 
   function onRemoveSelected() {
-    if (!selected) return;
-    if (!window.confirm(`Remove “${selected.name}” from this deck?`)) return;
-    onChange(removeCardFromDeck(deck, selected.instanceId));
-    setSelectedId(null);
+    if (!selectionCount) return;
+    const label =
+      selectionCount === 1
+        ? `Remove “${selectedCards[0]!.name}” from this deck?`
+        : `Remove ${selectionCount} cards from this deck?`;
+    if (!window.confirm(label)) return;
+    commit(removeCardsFromDeck(deckRef.current, selectionIdList));
+    clearSelection();
     setMoveOpen(false);
     setPrintingOpen(false);
   }
 
   function onSetCover() {
-    if (!selected) return;
-    onChange({
-      ...deck,
-      coverInstanceId: selected.instanceId,
-      updatedAt: new Date().toISOString(),
-    });
+    if (!primarySelected || multi) return;
+    commitPatch({ coverInstanceId: primarySelected.instanceId });
   }
 
   function onClearCover() {
-    onChange({
-      ...deck,
-      coverInstanceId: null,
-      updatedAt: new Date().toISOString(),
-    });
+    commitPatch({ coverInstanceId: null });
   }
 
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
   } as CSSProperties;
 
-  const isCover = selected != null && deck.coverInstanceId === selected.instanceId;
-  const foilToggleEnabled = selected ? cardSupportsFoilToggle(deck, selected) : false;
+  const isCover =
+    !multi &&
+    primarySelected != null &&
+    deck.coverInstanceId === primarySelected.instanceId;
+  const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(deck, c));
+  const anyFoil = selectedCards.some((c) => c.foil);
+  const anyProxy = selectedCards.some((c) => c.proxy);
   const contextCard =
     contextMenu != null
       ? deck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
@@ -351,7 +542,7 @@ export function BrowseShell({
         </button>
         <ExportBar
           view={view}
-          onViewChange={setView}
+          onViewChange={setViewAndPersist}
           layout={layout}
           onLayoutChange={setLayoutAndPersist}
           cardSort={cardSort}
@@ -360,62 +551,87 @@ export function BrowseShell({
           onCardSizeChange={setCardSize}
           onOpenCategories={() => setCategoriesOpen(true)}
         />
-        <DeckActionsMenu deck={deck} onDeckChange={onChange} />
+        <DeckActionsMenu
+          deck={deck}
+          onDeckChange={(next) => {
+            // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
+            if (next.cards !== deck.cards || next.categories !== deck.categories) {
+              commit(next);
+            } else {
+              commitPatch({
+                lastArchidektSyncAt: next.lastArchidektSyncAt,
+              });
+            }
+          }}
+        />
       </header>
 
       <div className="db-body">
         <main className="db-main">
-          {selected ? (
+          {selectionCount ? (
             <div className="db-selection-bar">
+              <span className="db-selection-bar-count" aria-live="polite">
+                {selectionCount === 1 ? '1 selected' : `${selectionCount} selected`}
+              </span>
               <div className="db-selection-bar-actions">
                 <button
                   type="button"
-                  className={`db-btn db-foil-toggle${selected.foil ? ' is-foil' : ''}`}
-                  aria-pressed={selected.foil}
-                  aria-label={selected.foil ? 'Foil' : 'Not foil'}
+                  className={`db-btn db-foil-toggle${anyFoil ? ' is-foil' : ''}`}
+                  aria-pressed={anyFoil}
+                  aria-label={anyFoil ? 'Foil' : 'Not foil'}
                   title={
-                    foilToggleEnabled || selected.foil
-                      ? selected.foil
+                    foilToggleEnabled || anyFoil
+                      ? anyFoil
                         ? 'Foil — click to unmark'
                         : 'Mark as foil'
                       : 'This printing is not available in foil'
                   }
-                  disabled={!foilToggleEnabled && !selected.foil}
+                  disabled={!foilToggleEnabled && !anyFoil}
                   onClick={onToggleFoil}
                 >
-                  <FoilIcon filled={selected.foil} />
+                  <FoilIcon filled={anyFoil} />
                 </button>
                 <button
                   type="button"
-                  className={`db-btn db-proxy-toggle${selected.proxy ? ' is-proxy' : ''}`}
-                  aria-pressed={Boolean(selected.proxy)}
-                  aria-label={selected.proxy ? 'Proxy' : 'Not proxy'}
-                  title={selected.proxy ? 'Proxy — click to unmark' : 'Mark as proxy'}
+                  className={`db-btn db-proxy-toggle${anyProxy ? ' is-proxy' : ''}`}
+                  aria-pressed={anyProxy}
+                  aria-label={anyProxy ? 'Proxy' : 'Not proxy'}
+                  title={anyProxy ? 'Proxy — click to unmark' : 'Mark as proxy'}
                   onClick={onToggleProxy}
                 >
-                  <ProxyIcon filled={Boolean(selected.proxy)} />
+                  <ProxyIcon filled={anyProxy} />
                 </button>
-                {isCover ? (
-                  <button type="button" className="db-btn" onClick={onClearCover}>
-                    Clear cover
-                  </button>
-                ) : (
-                  <button type="button" className="db-btn" onClick={onSetCover}>
-                    Set as cover
-                  </button>
-                )}
+                {!multi ? (
+                  isCover ? (
+                    <button type="button" className="db-btn" onClick={onClearCover}>
+                      Clear cover
+                    </button>
+                  ) : (
+                    <button type="button" className="db-btn" onClick={onSetCover}>
+                      Set as cover
+                    </button>
+                  )
+                ) : null}
                 <button type="button" className="db-btn" onClick={() => setMoveOpen(true)}>
                   Move…
                 </button>
-                <button
-                  type="button"
-                  className="db-btn"
-                  onClick={() => setPrintingOpen(true)}
-                >
-                  Change printing…
+                <button type="button" className="db-btn" onClick={onMoveToDefault}>
+                  Move to default
                 </button>
+                {!multi ? (
+                  <button
+                    type="button"
+                    className="db-btn"
+                    onClick={() => setPrintingOpen(true)}
+                  >
+                    Change printing…
+                  </button>
+                ) : null}
                 <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelected}>
                   Remove
+                </button>
+                <button type="button" className="db-btn" onClick={clearSelection}>
+                  Clear
                 </button>
               </div>
             </div>
@@ -423,25 +639,27 @@ export function BrowseShell({
           {isColourIdentityView ? (
             <ColourIdentityBrowse
               deck={deck}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout={layout}
               cardSort={cardSort}
               separateLands={view === 'colour_identity_spells'}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onVisibleOrderChange={onVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
             />
           ) : (
             <CategoryBrowse
               deck={deck}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout={layout}
               cardSort={cardSort}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onVisibleOrderChange={onVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               browseView={isCategoryBrowseView(view) ? view : 'category'}
@@ -483,7 +701,15 @@ export function BrowseShell({
           >
             <SwapQueuePanel
               deck={deck}
-              onChange={onChange}
+              onChange={(next) => {
+                commitPatch({
+                  formalSwapEntries: next.formalSwapEntries,
+                  ...(next.cards !== deck.cards ? { cards: next.cards } : {}),
+                  ...(next.categories !== deck.categories
+                    ? { categories: next.categories }
+                    : {}),
+                });
+              }}
               draft={draft}
               onStartEdit={(entry) => {
                 setDraft(draftFromEntry(entry));
@@ -496,7 +722,7 @@ export function BrowseShell({
             />
             <CategoryBrowse
               deck={deck}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout="stacked"
               cardSort={cardSort}
@@ -520,13 +746,16 @@ export function BrowseShell({
         </aside>
       </div>
 
-      {moveOpen && selected ? (
+      {moveOpen && selectionCount ? (
         <MoveSheet
           deck={deck}
-          card={selected}
+          cards={selectedCards}
           onClose={() => setMoveOpen(false)}
           onApply={(next) => {
-            onChange(next);
+            commitPatch({
+              cards: next.cards,
+              categories: next.categories,
+            });
             setMoveOpen(false);
           }}
         />
@@ -540,15 +769,15 @@ export function BrowseShell({
         />
       ) : null}
 
-      {printingOpen && selected ? (
+      {printingOpen && primarySelected && !multi ? (
         <PrintingPickerModal
-          cardName={selected.name}
-          defaultScryfallId={selected.scryfallId}
-          selectedScryfallId={selected.scryfallId}
-          foilDefault={selected.foil}
-          proxyDefault={Boolean(selected.proxy)}
+          cardName={primarySelected.name}
+          defaultScryfallId={primarySelected.scryfallId}
+          selectedScryfallId={primarySelected.scryfallId}
+          foilDefault={primarySelected.foil}
+          proxyDefault={Boolean(primarySelected.proxy)}
           confirmLabel="Apply printing"
-          title={`Printing — ${cardDisplayName(selected)}`}
+          title={`Printing — ${cardDisplayName(primarySelected)}`}
           onClose={() => setPrintingOpen(false)}
           onConfirm={(printing, _category, meta) => onChangePrinting(printing, meta)}
         />
@@ -557,7 +786,12 @@ export function BrowseShell({
       {categoriesOpen ? (
         <CategorySettingsPanel
           deck={deck}
-          onChange={onChange}
+          onChange={(next) => {
+            commitPatch({
+              categories: next.categories,
+              cubeTargetSize: next.cubeTargetSize,
+            });
+          }}
           onClose={() => setCategoriesOpen(false)}
           initialFocus="order"
         />
@@ -567,7 +801,13 @@ export function BrowseShell({
         <CategoryEditDialog
           deck={deck}
           categoryName={editingCategory}
-          onChange={onChange}
+          onChange={(next) => {
+            commitPatch({
+              categories: next.categories,
+              // Only apply cards when rename rewrote memberships (same ref = no rename).
+              ...(next.cards !== deck.cards ? { cards: next.cards } : {}),
+            });
+          }}
           onClose={() => setEditingCategory(null)}
           onOpenReorder={() => setCategoriesOpen(true)}
         />
@@ -576,9 +816,14 @@ export function BrowseShell({
       {contextMenu && contextCard ? (
         <CardContextMenu
           state={contextMenu}
+          selectionCount={selectionCount}
           isCover={deck.coverInstanceId === contextCard.instanceId}
           foil={Boolean(contextCard.foil)}
-          foilEnabled={cardSupportsFoilToggle(deck, contextCard)}
+          foilEnabled={
+            multi
+              ? selectedCards.some((c) => cardSupportsFoilToggle(deck, c))
+              : cardSupportsFoilToggle(deck, contextCard)
+          }
           proxy={Boolean(contextCard.proxy)}
           secondaryCategories={secondaryCategoriesOf(contextCard)}
           categoryOptions={deckCategoryOptions(deck).filter(
@@ -587,36 +832,30 @@ export function BrowseShell({
               !(contextCard.categories || []).includes(c),
           )}
           onClose={() => setContextMenu(null)}
-          onToggleFoil={() => {
-            onChange(setCardFoil(deck, contextCard.instanceId, !contextCard.foil));
-          }}
-          onToggleProxy={() => {
-            onChange(setCardProxy(deck, contextCard.instanceId, !contextCard.proxy));
-          }}
+          onToggleFoil={onToggleFoil}
+          onToggleProxy={onToggleProxy}
           onSetCover={() => {
-            onChange({
-              ...deck,
-              coverInstanceId: contextCard.instanceId,
-              updatedAt: new Date().toISOString(),
-            });
+            commitPatch({ coverInstanceId: contextCard.instanceId });
           }}
           onClearCover={onClearCover}
           onMove={() => setMoveOpen(true)}
+          onMoveToDefault={onMoveToDefault}
           onChangePrinting={() => setPrintingOpen(true)}
           onRemove={onRemoveSelected}
           onRemoveSecondary={(category) => {
-            onChange({
-              ...deck,
-              cards: removeSecondaryCategory(deck.cards, contextCard.instanceId, category),
-              updatedAt: new Date().toISOString(),
+            commitPatch({
+              cards: removeSecondaryCategory(
+                deckRef.current.cards,
+                contextCard.instanceId,
+                category,
+              ),
             });
           }}
           onAddSecondary={(category) => {
-            onChange({
-              ...deck,
-              cards: addSecondaryCategory(deck.cards, contextCard.instanceId, category),
-              categories: ensureCategoryDef(deck.categories || [], category),
-              updatedAt: new Date().toISOString(),
+            const current = deckRef.current;
+            commitPatch({
+              cards: addSecondaryCategory(current.cards, contextCard.instanceId, category),
+              categories: ensureCategoryDef(current.categories || [], category),
             });
           }}
         />

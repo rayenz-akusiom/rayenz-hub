@@ -263,10 +263,22 @@ export function useScryfallEnrich(
         if (cancelled) return;
 
         if (changed) {
+          const latest = deckRef.current;
+          const enrichById = new Map(cards.map((c) => [c.instanceId, c]));
+          const mergedCards = latest.cards.map((c) => {
+            const enriched = enrichById.get(c.instanceId);
+            if (!enriched?.scryfallId || enriched.scryfallId === c.scryfallId) return c;
+            return { ...c, scryfallId: enriched.scryfallId };
+          });
+          // Upsert this run's oracle onto the latest deck so concurrent edits (targets, etc.) survive.
+          let mergedOracle = { ...(latest.oracle || {}) };
+          for (const [key, entry] of Object.entries(oracle)) {
+            mergedOracle = upsertOracle(mergedOracle, key, entry);
+          }
           onPatchRef.current({
-            ...deckRef.current,
-            cards,
-            oracle,
+            ...latest,
+            cards: mergedCards,
+            oracle: mergedOracle,
             updatedAt: new Date().toISOString(),
           });
         }

@@ -1410,6 +1410,12 @@ body,
   margin-bottom: 0.75rem;
 }
 
+.db-selection-bar-count {
+  font-size: 0.85rem;
+  color: var(--db-muted);
+  white-space: nowrap;
+}
+
 .db-foil-toggle,
 .db-proxy-toggle {
   display: inline-flex;

@@ -5,10 +5,12 @@ import {
   type CardView,
   type CategoryMembership,
 } from '@rayenz-hub/shared';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
+
+export type SelectCardHandler = (card: CardView, e?: ReactMouseEvent | ReactKeyboardEvent) => void;
 
 export function CardTile({
   card,
@@ -20,7 +22,7 @@ export function CardTile({
   membership = 'primary',
 }: {
   card: CardView;
-  onSelect?: (card: CardView) => void;
+  onSelect?: SelectCardHandler;
   selected?: boolean;
   draggable?: boolean;
   /** Accessible name when the tile is an action (e.g. swap Change). */
@@ -42,11 +44,11 @@ export function CardTile({
       role="button"
       tabIndex={0}
       className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}`}
-      onClick={() => onSelect?.(card)}
+      onClick={(e) => onSelect?.(card, e)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect?.(card);
+          onSelect?.(card, e);
         }
       }}
       onContextMenu={(e) => {
@@ -56,6 +58,7 @@ export function CardTile({
       }}
       title={displayName}
       aria-label={actionLabel || displayName}
+      aria-pressed={selected}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;

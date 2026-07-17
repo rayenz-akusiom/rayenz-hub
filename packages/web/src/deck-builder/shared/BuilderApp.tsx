@@ -245,6 +245,8 @@ export function BuilderApp({
   async function persist(next: DeckDocument) {
     const seq = ++persistSeq.current;
     if (activeRef.current?.deckId === next.deckId) {
+      // Keep ref in sync immediately so overlapping persists/reads see latest.
+      activeRef.current = next;
       setActive(next);
     }
     setApiWarning(null);
@@ -253,9 +255,19 @@ export function BuilderApp({
     if (apiError) setApiWarning(apiError);
     if (!parseBuilderRoute(window.location.hash, builderFormat)) return;
     if (activeRef.current && activeRef.current.deckId !== saved.deckId) return;
+    // Don't clobber a newer in-memory edit that landed while save was in flight.
+    if (
+      activeRef.current &&
+      activeRef.current.deckId === saved.deckId &&
+      activeRef.current.updatedAt > saved.updatedAt
+    ) {
+      await refreshLibrary({ applyRoute: false });
+      return;
+    }
+    activeRef.current = saved;
     setActive(saved);
     syncDeckHash(saved);
-    await refreshLibrary();
+    await refreshLibrary({ applyRoute: false });
   }
 
   async function removeDeck(deckId: string) {

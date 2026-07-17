@@ -360,7 +360,7 @@ describe('MoveSheet', () => {
     const user = userEvent.setup();
 
     render(
-      <MoveSheet deck={commanderDoc} card={card} onClose={onClose} onApply={onApply} />,
+      <MoveSheet deck={commanderDoc} cards={[card]} onClose={onClose} onApply={onApply} />,
     );
 
     expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
@@ -382,7 +382,7 @@ describe('MoveSheet', () => {
     const user = userEvent.setup();
 
     render(
-      <MoveSheet deck={commanderDoc} card={card} onClose={onClose} onApply={onApply} />,
+      <MoveSheet deck={commanderDoc} cards={[card]} onClose={onClose} onApply={onApply} />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));

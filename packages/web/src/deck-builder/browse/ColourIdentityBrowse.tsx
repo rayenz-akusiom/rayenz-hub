@@ -15,7 +15,12 @@ import {
   type DeckDocument,
 } from '@rayenz-hub/shared';
 import { loadDeckBuilderSettings } from '../../api/hub-api';
-import { CardGroup, DeckHeaderRow, type DropCardHandler } from './CategoryBrowse';
+import {
+  CardGroup,
+  DeckHeaderRow,
+  type DropCardHandler,
+  type SelectCardHandler,
+} from './CategoryBrowse';
 import { MasonryColumns } from './MasonryColumns';
 
 function mergeStyle(remote: DeckBuilderSettingsPayload | null): DeckBuilderSettingsPayload {
@@ -26,11 +31,13 @@ export function ColourIdentityBrowse({
   deck,
   onSelectCard,
   selectedId,
+  selectedIds,
   layout = 'stacked',
   cardSort = 'name_asc',
   separateLands = false,
   onDropCard,
   onCardContextMenu,
+  onVisibleOrderChange,
   deckMeta,
   deckMetaWarn,
 }: {
@@ -43,13 +50,15 @@ export function ColourIdentityBrowse({
         oracle?: DeckDocument['oracle'];
         name?: string;
       };
-  onSelectCard?: (card: CardView) => void;
+  onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
+  selectedIds?: ReadonlySet<string> | null;
   layout?: CardLayout;
   cardSort?: CardSortMode;
   separateLands?: boolean;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
+  onVisibleOrderChange?: (ids: string[]) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
 }) {
@@ -86,16 +95,41 @@ export function ColourIdentityBrowse({
   }, []);
 
   const { header, headerKeys, included, includedKeys } = partitionCategories(resolvedDeck);
-  const mainCards = includedKeys.flatMap((k) => included[k]);
-  const ciOptions = { style, separateLands };
-  const groups = groupByColourIdentity(mainCards, ciOptions);
-  const sectionOrder = colourIdentitySectionsFor(ciOptions);
+  const mainCards = useMemo(
+    () => includedKeys.flatMap((k) => included[k]),
+    [includedKeys, included],
+  );
+  const groups = useMemo(
+    () => groupByColourIdentity(mainCards, { style, separateLands }),
+    [mainCards, style, separateLands],
+  );
+  const sectionOrder = useMemo(
+    () => colourIdentitySectionsFor({ style, separateLands }),
+    [style, separateLands],
+  );
+
+  const visibleOrder = useMemo(() => {
+    const ciOpts = { style, separateLands };
+    const headerIds = headerKeys.flatMap((cat) =>
+      sortCardsInGroup(header[cat] || [], cardSort, ciOpts).map((c) => c.instanceId),
+    );
+    const bodyIds = sectionOrder.flatMap((section) => {
+      const list = groups[section];
+      if (!list?.length) return [];
+      return sortCardsInGroup(list, cardSort, ciOpts).map((c) => c.instanceId);
+    });
+    return [...headerIds, ...bodyIds];
+  }, [headerKeys, header, sectionOrder, groups, cardSort, style, separateLands]);
+
+  useEffect(() => {
+    onVisibleOrderChange?.(visibleOrder);
+  }, [onVisibleOrderChange, visibleOrder]);
 
   const sections = sectionOrder
     .map((section) => {
       const list = groups[section];
       if (!list?.length) return null;
-      const sorted = sortCardsInGroup(list, cardSort, ciOptions);
+      const sorted = sortCardsInGroup(list, cardSort, { style, separateLands });
       return (
         <section
           key={section}
@@ -108,6 +142,7 @@ export function ColourIdentityBrowse({
             cards={sorted}
             layout={layout}
             selectedId={selectedId}
+            selectedIds={selectedIds}
             onSelectCard={onSelectCard}
             draggable={Boolean(onDropCard)}
             onCardContextMenu={onCardContextMenu}
@@ -125,6 +160,7 @@ export function ColourIdentityBrowse({
         header={header}
         headerKeys={headerKeys}
         selectedId={selectedId}
+        selectedIds={selectedIds}
         onSelectCard={onSelectCard}
         onDropCard={onDropCard}
         onCardContextMenu={onCardContextMenu}

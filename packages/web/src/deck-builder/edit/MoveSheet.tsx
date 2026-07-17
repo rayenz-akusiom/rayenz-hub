@@ -1,16 +1,21 @@
-import { moveCardCategory, cardDisplayName, type CardView, type DeckDocument } from '@rayenz-hub/shared';
+import { moveCardsCategory, cardDisplayName, type CardView, type DeckDocument } from '@rayenz-hub/shared';
 
 export function MoveSheet({
   deck,
-  card,
+  cards,
   onClose,
   onApply,
 }: {
   deck: DeckDocument;
-  card: CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null };
+  /** One or more cards to move to the same category/stack. */
+  cards: Array<CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null }>;
   onClose: () => void;
   onApply: (next: DeckDocument) => void;
 }) {
+  const list = cards.filter(Boolean);
+  const primary = list[0];
+  if (!primary) return null;
+
   const categories = [
     ...new Set([
       ...deck.categories.map((c) => c.name),
@@ -18,15 +23,34 @@ export function MoveSheet({
     ]),
   ].sort();
 
+  const title =
+    list.length === 1
+      ? `Move ${cardDisplayName(primary as CardView)}`
+      : `Move ${list.length} cards`;
+
+  const defaultCategory =
+    list.length === 1
+      ? primary.primaryCategory
+      : list.every((c) => c.primaryCategory === primary.primaryCategory)
+        ? primary.primaryCategory
+        : categories[0] || primary.primaryCategory;
+
+  const defaultStack =
+    list.length === 1
+      ? primary.stack || ''
+      : list.every((c) => (c.stack || '') === (primary.stack || ''))
+        ? primary.stack || ''
+        : '';
+
   return (
     <div className="db-modal" role="dialog" aria-modal="true" aria-label="Move card">
       <div className="db-modal-card">
-        <h3>Move {cardDisplayName(card as CardView)}</h3>
+        <h3>{title}</h3>
         <label>
           Category
           <select
             className="db-select"
-            defaultValue={card.primaryCategory}
+            defaultValue={defaultCategory}
             id="db-move-cat"
           >
             {categories.map((c) => (
@@ -38,7 +62,7 @@ export function MoveSheet({
         </label>
         <label>
           Stack (optional)
-          <input className="db-input" id="db-move-stack" defaultValue={card.stack || ''} />
+          <input className="db-input" id="db-move-stack" defaultValue={defaultStack} />
         </label>
         <div className="db-modal-actions">
           <button type="button" className="db-btn" onClick={onClose}>
@@ -51,19 +75,14 @@ export function MoveSheet({
               const cat = (document.getElementById('db-move-cat') as HTMLSelectElement).value;
               const stackRaw = (document.getElementById('db-move-stack') as HTMLInputElement).value;
               const stack = stackRaw.trim() || null;
-              const cards = moveCardCategory(deck.cards, card.instanceId, cat, stack);
-              const categoriesNext = deck.categories.some((c) => c.name === cat)
-                ? deck.categories
-                : [
-                    ...deck.categories,
-                    { name: cat, includedInDeck: true, includedInPrice: true, target: null },
-                  ];
-              onApply({
-                ...deck,
-                cards,
-                categories: categoriesNext,
-                updatedAt: new Date().toISOString(),
-              });
+              onApply(
+                moveCardsCategory(
+                  deck,
+                  list.map((c) => c.instanceId),
+                  cat,
+                  stack,
+                ),
+              );
             }}
           >
             Apply

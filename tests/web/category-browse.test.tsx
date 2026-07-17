@@ -40,7 +40,7 @@ describe('CardGroup and DropSection', () => {
       <CardGroup cards={cards} layout="stacked" selectedId={null} onSelectCard={onSelect} />,
     );
     fireEvent.click(document.querySelector('.db-card-stack-peek')!);
-    expect(onSelect).toHaveBeenCalledWith(cards[0]);
+    expect(onSelect).toHaveBeenCalledWith(cards[0], expect.anything());
   });
 
   it('handles drag-over and drop into a section', () => {

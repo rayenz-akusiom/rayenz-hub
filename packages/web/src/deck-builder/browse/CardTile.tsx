@@ -30,13 +30,14 @@ export function CardTile({
   const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
+  const proxy = Boolean(card.proxy);
   const displayName = cardDisplayName(card);
 
   return (
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onClick={() => onSelect?.(card)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -64,6 +65,7 @@ export function CardTile({
         backSrc={backSrc}
         name={displayName}
         foil={foil}
+        proxy={proxy}
         quantity={qty}
         faceKey={card.instanceId}
         doubleFaced={doubleFaced}

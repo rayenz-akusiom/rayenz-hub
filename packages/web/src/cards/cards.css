@@ -88,6 +88,23 @@
   height: 0.95rem;
 }
 
+.db-badge-proxy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: linear-gradient(135deg, #6b7280, #d1d5db 45%, #4b5563);
+  color: #111827;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.db-badge-proxy-icon {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .db-badge-qty {
   font-size: 0.9rem;
   background: #0d1117;

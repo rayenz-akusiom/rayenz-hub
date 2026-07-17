@@ -319,9 +319,29 @@ describe('BrowseShell selection and context menu', () => {
     fireEvent.contextMenu(tile);
     expect(screen.getByRole('menu')).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Mark as foil|Unmark foil/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Mark as proxy|Unmark proxy/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Move…' })).toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: 'Move…' }));
     expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
+  });
+
+  it('toggles proxy from the selection bar', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const deck = foilDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+
+    await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
+    await user.click(screen.getByRole('button', { name: /Not proxy|Proxy/i }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.arrayContaining([
+          expect.objectContaining({ instanceId: card.instanceId, proxy: true }),
+        ]),
+      }),
+    );
   });
 });
 

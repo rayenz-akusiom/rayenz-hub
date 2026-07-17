@@ -69,9 +69,10 @@ function MiniCard({ card }: { card: CardView | null }) {
   const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
+  const proxy = Boolean(card.proxy);
   return (
     <div
-      className={`db-swap-mini${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
+      className={`db-swap-mini${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onDragStart={blockDrag}
     >
       <CardFace
@@ -79,6 +80,7 @@ function MiniCard({ card }: { card: CardView | null }) {
         backSrc={backSrc}
         name={cardDisplayName(card)}
         foil={foil}
+        proxy={proxy}
         quantity={qty}
         faceKey={card.instanceId}
         doubleFaced={doubleFaced}
@@ -265,7 +267,7 @@ function SwapEditChrome({
   deck: DeckDocument;
   draft: SwapEditDraft;
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
-  onConfirmIn: (printing: PrintingFields, category: string) => void;
+  onConfirmIn: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
   onClose: () => void;
   onSave: () => void;
   onRemove: () => void;
@@ -303,8 +305,8 @@ function SwapEditChrome({
           printingTitle={(name) => `Printing — ${name}`}
           defaultCategory={swapInDefaultCategory}
           onClose={() => setPhase('edit')}
-          onAdd={(printing, category) => {
-            onConfirmIn(printing, category);
+          onAdd={(printing, category, meta) => {
+            onConfirmIn(printing, category, meta);
             setPhase('edit');
           }}
         />
@@ -375,7 +377,7 @@ export function SwapQueuePanel({
   draft: SwapEditDraft | null;
   onStartEdit: (entry: FormalSwapEntry) => void;
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
-  onConfirmIn: (printing: PrintingFields, category: string) => void;
+  onConfirmIn: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onRemoveEdit: () => void;

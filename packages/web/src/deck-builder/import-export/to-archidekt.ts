@@ -1,6 +1,8 @@
 import {
   applyFormalSwapsToCards,
   canonicalizeSwapCategory,
+  PROXIES_CATEGORY,
+  type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
 
@@ -10,6 +12,44 @@ function categoryHeader(name: string, includedInDeck: boolean, includedInPrice: 
   if (!includedInPrice) flags.push('noPrice');
   const suffix = flags.length ? `{${flags.join('}{')}}` : '';
   return `[${name}${suffix}]`;
+}
+
+function categoryWithFlags(
+  name: string,
+  meta: { includedInDeck: boolean; includedInPrice: boolean } | undefined,
+): string {
+  const includedInDeck = meta ? meta.includedInDeck !== false : true;
+  const includedInPrice =
+    meta != null
+      ? meta.includedInPrice !== false
+      : name !== PROXIES_CATEGORY;
+  const flags: string[] = [];
+  if (!includedInDeck) flags.push('noDeck');
+  if (!includedInPrice) flags.push('noPrice');
+  const suffix = flags.length ? `{${flags.join('}{')}}` : '';
+  return `${name}${suffix}`;
+}
+
+function formatCardLine(
+  card: CardInstance,
+  catMeta: Map<string, { includedInDeck: boolean; includedInPrice: boolean }>,
+): string {
+  const qty = card.quantity || 1;
+  const printing =
+    card.setCode && card.collectorNumber != null
+      ? ` (${card.setCode}) ${card.collectorNumber}`
+      : '';
+  let line = `${qty} ${card.name}${printing}`;
+  if (card.proxy) {
+    const primary = canonicalizeSwapCategory(card.primaryCategory || 'Main');
+    const primaryPart = categoryWithFlags(primary, catMeta.get(primary));
+    const proxyPart = categoryWithFlags(
+      PROXIES_CATEGORY,
+      catMeta.get(PROXIES_CATEGORY) ?? { includedInDeck: true, includedInPrice: false },
+    );
+    line += ` [${primaryPart},${proxyPart}]`;
+  }
+  return line;
 }
 
 /** Build Archidekt replace-deck import text from a Hub deck document. */
@@ -24,6 +64,9 @@ export function buildArchidektImportText(doc: DeckDocument): string {
       includedInPrice: prev?.includedInPrice !== false && c.includedInPrice !== false,
     });
   }
+  if (cards.some((c) => c.proxy) && !catMeta.has(PROXIES_CATEGORY)) {
+    catMeta.set(PROXIES_CATEGORY, { includedInDeck: true, includedInPrice: false });
+  }
   const byCat: Record<string, typeof cards> = {};
   for (const card of cards) {
     const key = canonicalizeSwapCategory(card.primaryCategory || 'Main');
@@ -34,7 +77,7 @@ export function buildArchidektImportText(doc: DeckDocument): string {
   const order = [
     ...doc.categories.map((c) => canonicalizeSwapCategory(c.name)),
     ...Object.keys(byCat).filter((k) => !catMeta.has(k)),
-  ];
+  ].filter((name) => name !== PROXIES_CATEGORY);
   const seen = new Set<string>();
   for (const cat of order) {
     if (seen.has(cat) || !byCat[cat]?.length) continue;
@@ -44,12 +87,7 @@ export function buildArchidektImportText(doc: DeckDocument): string {
       categoryHeader(cat, meta ? meta.includedInDeck : true, meta ? meta.includedInPrice : true),
     );
     for (const card of byCat[cat]) {
-      const qty = card.quantity || 1;
-      const printing =
-        card.setCode && card.collectorNumber != null
-          ? ` (${card.setCode}) ${card.collectorNumber}`
-          : '';
-      lines.push(`${qty} ${card.name}${printing}`);
+      lines.push(formatCardLine(card, catMeta));
     }
     lines.push('');
   }

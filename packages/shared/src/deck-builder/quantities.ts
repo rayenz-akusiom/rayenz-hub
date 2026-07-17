@@ -33,14 +33,20 @@ export function normalizeCardQuantities(
   nextId: (prefix: string) => string = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`,
 ): CardInstance[] {
   if (format !== 'commander') {
-    return cards.map((c) => ({ ...c, quantity: Number(c.quantity) || 1, foil: Boolean(c.foil) }));
+    return cards.map((c) => ({
+      ...c,
+      quantity: Number(c.quantity) || 1,
+      foil: Boolean(c.foil),
+      proxy: Boolean(c.proxy),
+    }));
   }
   const out: CardInstance[] = [];
   for (const card of cards) {
     const qty = Math.max(1, Number(card.quantity) || 1);
     const foil = Boolean(card.foil);
+    const proxy = Boolean(card.proxy);
     if (isBasicLand(card)) {
-      out.push({ ...card, quantity: qty, foil });
+      out.push({ ...card, quantity: qty, foil, proxy });
       continue;
     }
     for (let i = 0; i < qty; i++) {
@@ -49,6 +55,7 @@ export function normalizeCardQuantities(
         instanceId: i === 0 ? card.instanceId : nextId('c'),
         quantity: 1,
         foil,
+        proxy,
       });
     }
   }

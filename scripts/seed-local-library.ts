@@ -16,6 +16,9 @@ import {
   DeckDocumentSchema,
   detectDeckFormat,
   emptyCardOracle,
+  ensureCategoryDef,
+  ensureProxiesCategoryDef,
+  liftProxiesCategory,
   normalizeCardQuantities,
   normalizeColourIdentity,
   oracleKey,
@@ -283,7 +286,11 @@ function documentFromSnapshot(
         ).map(normalizeArchidektCategoryName),
       ),
     ];
-    const primary = normalizeArchidektCategoryName(String(raw.primary_category || cats[0] || 'Main'));
+    const primaryRaw = normalizeArchidektCategoryName(String(raw.primary_category || cats[0] || 'Main'));
+    const lifted = liftProxiesCategory({
+      primaryCategory: primaryRaw,
+      categories: cats,
+    });
     const scryfallId =
       (raw.scryfall_id as string) || (raw.scryfallId as string) || (raw.uid as string) || null;
     const name = String(raw.name || 'Unknown');
@@ -294,8 +301,8 @@ function documentFromSnapshot(
       instanceId: String(raw.id || raw.archidektCardId || `c-${idx}-${Date.now()}`),
       name,
       quantity: Number(raw.quantity) || 1,
-      primaryCategory: primary,
-      categories: cats,
+      primaryCategory: lifted.primaryCategory,
+      categories: lifted.categories,
       stack: (raw.stack as string) || null,
       setCode: (raw.set_code as string) || (raw.setCode as string) || null,
       collectorNumber:
@@ -307,6 +314,7 @@ function documentFromSnapshot(
       scryfallId,
       archidektCardId: raw.id != null ? Number(raw.id) : null,
       foil: parseFoil(raw),
+      proxy: lifted.proxy,
     };
 
     oracle = upsertOracle(oracle, oracleKey(card), {
@@ -322,6 +330,13 @@ function documentFromSnapshot(
 
     return card;
   });
+
+  if (rawCards.some((c) => c.proxy)) {
+    categories = ensureProxiesCategoryDef(categories);
+  }
+  for (const name of new Set(rawCards.map((c) => c.primaryCategory))) {
+    categories = ensureCategoryDef(categories, name);
+  }
 
   const cards = normalizeCardQuantities(rawCards, format, nextId);
   const formalSwapEntries = seedFormalSwapsFromCategories(cards, []);

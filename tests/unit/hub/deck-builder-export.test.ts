@@ -18,6 +18,22 @@ describe('export', () => {
     expect(text).toContain('Birds of Paradise');
   });
 
+  it('emits Proxies as secondary inline category for proxy cards', () => {
+    const doc = {
+      ...commander,
+      cards: commander.cards.map((c) =>
+        c.instanceId === 'c1' ? { ...c, proxy: true } : { ...c, proxy: false },
+      ),
+      categories: [
+        ...commander.categories,
+        { name: 'Proxies', includedInDeck: true, includedInPrice: false },
+      ],
+    };
+    const text = buildArchidektImportText(doc);
+    expect(text).toMatch(/1 Birds of Paradise \(m12\) 165 \[Creature,Proxies\{noPrice\}\]/);
+    expect(text).not.toMatch(/^\[Proxies/m);
+  });
+
   it('applyFormalSwaps clears stale membership for unreferenced cards', () => {
     const stale = commander.cards.map((c) =>
       c.instanceId === 'c2'

@@ -71,6 +71,8 @@ export const CardInstanceSchema = z.object({
   scryfallId: z.string().nullable().default(null),
   archidektCardId: z.number().nullable().default(null),
   foil: z.boolean().default(false),
+  /** Unofficial / proxy copy; Archidekt secondary category "Proxies". */
+  proxy: z.boolean().default(false),
 });
 export type CardInstance = z.infer<typeof CardInstanceSchema>;
 

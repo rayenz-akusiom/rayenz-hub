@@ -2,13 +2,15 @@ import { useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { CardImageFace } from '@rayenz-hub/shared';
 import { useCardFaceSession } from './CardFaceSession';
 import { FoilIcon } from './FoilIcon';
+import { ProxyIcon } from './ProxyIcon';
 
-/** Shared card image + foil/qty badges used by tiles, minis, and pickers. */
+/** Shared card image + foil/proxy/qty badges used by tiles, minis, and pickers. */
 export function CardFace({
   src,
   backSrc,
   name,
   foil = false,
+  proxy = false,
   quantity = 1,
   imgClassName = 'db-card-img',
   faceKey,
@@ -19,6 +21,7 @@ export function CardFace({
   backSrc?: string | null;
   name: string;
   foil?: boolean;
+  proxy?: boolean;
   quantity?: number;
   imgClassName?: string;
   /** Session key for remembering front/back across moves (instanceId or scryfall id). */
@@ -75,7 +78,7 @@ export function CardFace({
       <span className="db-card-fallback">{name}</span>
     );
 
-  const showBottomBadges = canFlip || foil;
+  const showBottomBadges = canFlip || foil || proxy;
 
   return (
     <>
@@ -115,6 +118,11 @@ export function CardFace({
                 />
                 <path fill="currentColor" d="M13 10.5 10.8 12.7V8.3Z" />
               </svg>
+            </span>
+          ) : null}
+          {proxy ? (
+            <span className="db-badge db-badge-proxy" title="Proxy" aria-label="Proxy">
+              <ProxyIcon filled />
             </span>
           ) : null}
           {foil ? (

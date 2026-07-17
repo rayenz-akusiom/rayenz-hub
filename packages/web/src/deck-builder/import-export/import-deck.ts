@@ -1,6 +1,9 @@
 import {
   detectDeckFormat,
   emptyCardOracle,
+  ensureCategoryDef,
+  ensureProxiesCategoryDef,
+  liftProxiesCategory,
   normalizeCardQuantities,
   normalizeColourIdentity,
   oracleKey,
@@ -10,6 +13,7 @@ import {
   upsertOracle,
   canonicalizeSwapCategory,
   isSwapQueueCategoryName,
+  PROXIES_CATEGORY,
   type CardInstance,
   type CategoryDef,
   type DeckDocument,
@@ -237,33 +241,43 @@ export function documentFromImportText(
 
   const now = new Date().toISOString();
 
-  const catNames = [...new Set(parsed.map((p) => p.category))];
+  const rawCards: CardInstance[] = parsed.map((row) => {
+    const lifted = liftProxiesCategory({
+      primaryCategory: row.category,
+      categories: [row.category],
+    });
+    return {
+      instanceId: nextId('c'),
+      name: row.name,
+      quantity: row.quantity,
+      primaryCategory: lifted.primaryCategory,
+      categories: lifted.categories,
+      stack: null,
+      setCode: null,
+      collectorNumber: null,
+      scryfallId: null,
+      archidektCardId: null,
+      foil: false,
+      proxy: lifted.proxy,
+    };
+  });
 
-  const categories: CategoryDef[] = catNames.map((name) => ({
+  const catNames = [
+    ...new Set([
+      ...parsed.map((p) => p.category).filter((name) => name !== PROXIES_CATEGORY),
+      ...rawCards.map((c) => c.primaryCategory),
+    ]),
+  ];
 
+  let categories: CategoryDef[] = catNames.map((name) => ({
     name,
-
     includedInDeck: !isSwapQueueCategoryName(name) && name !== 'Maybeboard',
-
-    includedInPrice: !isSwapQueueCategoryName(name),
-
+    includedInPrice: !isSwapQueueCategoryName(name) && name !== 'Maybeboard',
   }));
 
-  const rawCards: CardInstance[] = parsed.map((row) => ({
-    instanceId: nextId('c'),
-    name: row.name,
-    quantity: row.quantity,
-    primaryCategory: row.category,
-    categories: [row.category],
-    stack: null,
-    setCode: null,
-    collectorNumber: null,
-    scryfallId: null,
-    archidektCardId: null,
-    foil: false,
-  }));
-
-  let oracle: DeckDocument['oracle'] = {};
+  if (rawCards.some((c) => c.proxy)) {
+    categories = ensureProxiesCategoryDef(categories);
+  }  let oracle: DeckDocument['oracle'] = {};
   for (const card of rawCards) {
     oracle = upsertOracle(
       oracle,
@@ -383,9 +397,13 @@ export function documentFromArchidektSnapshot(
       ),
     ];
 
-    const primary = normalizeArchidektCategoryName(
+    const primaryRaw = normalizeArchidektCategoryName(
       String(raw.primary_category || cats[0] || 'Main'),
     );
+    const lifted = liftProxiesCategory({
+      primaryCategory: primaryRaw,
+      categories: cats,
+    });
 
     const ci = normalizeColourIdentity(raw.color_identity ?? raw.colourIdentity ?? raw.colorIdentity);
 
@@ -402,8 +420,8 @@ export function documentFromArchidektSnapshot(
       instanceId: String(raw.id || raw.archidektCardId || `c-${idx}-${Date.now()}`),
       name,
       quantity: Number(raw.quantity) || 1,
-      primaryCategory: primary,
-      categories: cats,
+      primaryCategory: lifted.primaryCategory,
+      categories: lifted.categories,
       stack: (raw.stack as string) || null,
       setCode: (raw.set_code as string) || (raw.setCode as string) || null,
       collectorNumber:
@@ -415,6 +433,7 @@ export function documentFromArchidektSnapshot(
       scryfallId,
       archidektCardId: raw.id != null ? Number(raw.id) : null,
       foil: parseFoil(raw),
+      proxy: lifted.proxy,
     };
 
     oracle = upsertOracle(oracle, oracleKey(card), {
@@ -430,6 +449,13 @@ export function documentFromArchidektSnapshot(
 
     return card;
   });
+
+  if (rawCards.some((c) => c.proxy)) {
+    categories = ensureProxiesCategoryDef(categories);
+  }
+  for (const name of new Set(rawCards.map((c) => c.primaryCategory))) {
+    categories = ensureCategoryDef(categories, name);
+  }
 
 
 

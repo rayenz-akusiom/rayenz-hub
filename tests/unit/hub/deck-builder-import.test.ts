@@ -373,6 +373,53 @@ describe('import', () => {
     expect(doc.categories.find((c) => c.name === 'Instant')?.includedInDeck).toBe(false);
   });
 
+  it('documentFromArchidektSnapshot lifts Proxies into proxy flag', () => {
+    const doc = documentFromArchidektSnapshot({
+      id: 7,
+      name: 'Proxy Deck',
+      cards: [
+        {
+          id: 1,
+          name: 'Plateau',
+          quantity: 1,
+          primary_category: 'Land',
+          categories: ['Land', 'Proxies'],
+        },
+        {
+          id: 2,
+          name: 'Only Proxy',
+          quantity: 1,
+          primary_category: 'Proxies',
+          categories: ['Proxies'],
+        },
+      ],
+      categories: [
+        { name: 'Land', includedInDeck: true, includedInPrice: true },
+        { name: 'Proxies', includedInDeck: true, includedInPrice: false },
+      ],
+    });
+    const plateau = doc.cards.find((c) => c.name === 'Plateau')!;
+    expect(plateau.proxy).toBe(true);
+    expect(plateau.primaryCategory).toBe('Land');
+    expect(plateau.categories).toEqual(['Land']);
+    const only = doc.cards.find((c) => c.name === 'Only Proxy')!;
+    expect(only.proxy).toBe(true);
+    expect(only.primaryCategory).toBe('Other');
+    expect(only.categories).not.toContain('Proxies');
+    expect(doc.categories.find((c) => c.name === 'Other')).toBeTruthy();
+    expect(doc.categories.find((c) => c.name === 'Proxies')?.includedInPrice).toBe(false);
+  });
+
+  it('documentFromImportText treats Proxies header as proxy flag', () => {
+    const doc = documentFromImportText('[Proxies]\n1 Sol Ring\n[Land]\n1 Forest');
+    const ring = doc.cards.find((c) => c.name === 'Sol Ring')!;
+    expect(ring.proxy).toBe(true);
+    expect(ring.primaryCategory).toBe('Other');
+    expect(doc.categories.some((c) => c.name === 'Other')).toBe(true);
+    expect(doc.cards.find((c) => c.name === 'Forest')!.proxy).toBe(false);
+    expect(doc.categories.some((c) => c.name === 'Proxies')).toBe(true);
+  });
+
   it('documentFromArchidektSnapshot inherits name, swaps, and category_settings fallback', () => {
     const existing = {
       ...commander,

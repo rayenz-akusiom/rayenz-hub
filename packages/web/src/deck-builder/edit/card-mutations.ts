@@ -26,8 +26,9 @@ export function applyAddCard(
   deck: DeckDocument,
   printing: PrintingFields,
   category: string,
+  opts?: { proxy?: boolean },
 ): DeckDocument {
-  return addCardToDeck(deck, printing, category);
+  return addCardToDeck(deck, printing, category, opts);
 }
 
 export function applyRemoveCard(deck: DeckDocument, instanceId: string): DeckDocument {
@@ -38,8 +39,9 @@ export function applyChangePrinting(
   deck: DeckDocument,
   instanceId: string,
   printing: PrintingFields,
+  opts?: { proxy?: boolean },
 ): DeckDocument {
-  return changeCardPrinting(deck, instanceId, printing);
+  return changeCardPrinting(deck, instanceId, printing, opts);
 }
 
 export type { CardInstance, PrintingFields };

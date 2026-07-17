@@ -16,6 +16,7 @@ export function PrintingPickerModal({
   cardName,
   defaultScryfallId = null,
   foilDefault = false,
+  proxyDefault = false,
   selectedScryfallId = null,
   categoryOptions,
   defaultCategory,
@@ -29,13 +30,18 @@ export function PrintingPickerModal({
   cardName: string;
   defaultScryfallId?: string | null;
   foilDefault?: boolean;
+  proxyDefault?: boolean;
   selectedScryfallId?: string | null;
   /** When set, shows a category select (add flow). */
   categoryOptions?: string[];
   defaultCategory?: string;
   confirmLabel?: string;
   title?: string;
-  onConfirm: (printing: PrintingFields, category?: string) => void;
+  onConfirm: (
+    printing: PrintingFields,
+    category?: string,
+    meta?: { proxy: boolean },
+  ) => void;
   onClose: () => void;
   onBack?: () => void;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
@@ -46,6 +52,7 @@ export function PrintingPickerModal({
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ScryfallCard | null>(null);
   const [foil, setFoil] = useState(foilDefault);
+  const [proxy, setProxy] = useState(proxyDefault);
   const [category, setCategory] = useState(
     defaultCategory || categoryOptions?.[0] || 'Maybeboard',
   );
@@ -85,7 +92,7 @@ export function PrintingPickerModal({
     const printing = mapScryfallCardToPrinting(picked, {
       foil: foil && printingSupportsFoil(picked),
     });
-    onConfirm(printing, categoryOptions ? category : undefined);
+    onConfirm(printing, categoryOptions ? category : undefined, { proxy });
   }
 
   const card = (
@@ -94,6 +101,14 @@ export function PrintingPickerModal({
         <h3>{title || `Printing — ${cardName}`}</h3>
         <div className="db-picker-header-controls">
           <CardSizePicker />
+          <label className="db-check">
+            <input
+              type="checkbox"
+              checked={proxy}
+              onChange={(e) => setProxy(e.target.checked)}
+            />
+            Proxy
+          </label>
           {anyFoil ? (
             <label className="db-check">
               <input
@@ -156,6 +171,7 @@ export function PrintingPickerModal({
                       backSrc={backSrc}
                       name={label}
                       foil={showFoil}
+                      proxy={proxy}
                       faceKey={p.id}
                       doubleFaced={doubleFaced}
                     />

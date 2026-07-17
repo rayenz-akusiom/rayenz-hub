@@ -11,6 +11,7 @@ import {
   placeCardInCommanderSlot,
   removeCardFromDeck,
   setCardFoil,
+  setCardProxy,
   totalCardQuantity,
   type BrowseView,
   type CardView,
@@ -35,6 +36,7 @@ import { useCardSize } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
+import { ProxyIcon } from '../../cards/ProxyIcon';
 
 function BookIcon() {
   return (
@@ -146,6 +148,11 @@ export function BrowseShell({
     onChange(setCardFoil(deck, selected.instanceId, !selected.foil));
   }
 
+  function onToggleProxy() {
+    if (!selected) return;
+    onChange(setCardProxy(deck, selected.instanceId, !selected.proxy));
+  }
+
   function setLayoutAndPersist(next: CardLayout) {
     setLayout(next);
     if (deck.cardLayoutDefault !== next) {
@@ -226,26 +233,36 @@ export function BrowseShell({
     clearSwapEdit();
   }
 
-  function onAddCard(printing: PrintingFields, category: string) {
+  function onAddCard(
+    printing: PrintingFields,
+    category: string,
+    meta?: { proxy: boolean },
+  ) {
     const before = new Set(deck.cards.map((c) => c.instanceId));
-    const next = addCardToDeck(deck, printing, category);
+    const next = addCardToDeck(deck, printing, category, { proxy: meta?.proxy });
     const added = next.cards.find((c) => !before.has(c.instanceId));
     onChange(next);
     if (added) setSelectedId(added.instanceId);
     setAddOpen(false);
   }
 
-  function onConfirmSwapIn(printing: PrintingFields, category: string) {
+  function onConfirmSwapIn(
+    printing: PrintingFields,
+    category: string,
+    meta?: { proxy: boolean },
+  ) {
     const currentDraft = draftRef.current;
     if (!currentDraft) return;
     const currentDeck = deckRef.current;
-    const existing = findMatchingPrintingInstance(currentDeck, printing);
+    const existing = findMatchingPrintingInstance(currentDeck, printing, {
+      proxy: meta?.proxy,
+    });
     if (existing) {
       setDraft({ ...currentDraft, inInstanceId: existing.instanceId });
       return;
     }
     const before = new Set(currentDeck.cards.map((c) => c.instanceId));
-    const next = addCardToDeck(currentDeck, printing, category);
+    const next = addCardToDeck(currentDeck, printing, category, { proxy: meta?.proxy });
     const added = next.cards.find((c) => !before.has(c.instanceId));
     onChange(next);
     if (added) {
@@ -253,9 +270,9 @@ export function BrowseShell({
     }
   }
 
-  function onChangePrinting(printing: PrintingFields) {
+  function onChangePrinting(printing: PrintingFields, meta?: { proxy: boolean }) {
     if (!selectedId) return;
-    onChange(changeCardPrinting(deck, selectedId, printing));
+    onChange(changeCardPrinting(deck, selectedId, printing, { proxy: meta?.proxy }));
     setPrintingOpen(false);
   }
 
@@ -355,6 +372,16 @@ export function BrowseShell({
                   onClick={onToggleFoil}
                 >
                   <FoilIcon filled={selected.foil} />
+                </button>
+                <button
+                  type="button"
+                  className={`db-btn db-proxy-toggle${selected.proxy ? ' is-proxy' : ''}`}
+                  aria-pressed={Boolean(selected.proxy)}
+                  aria-label={selected.proxy ? 'Proxy' : 'Not proxy'}
+                  title={selected.proxy ? 'Proxy — click to unmark' : 'Mark as proxy'}
+                  onClick={onToggleProxy}
+                >
+                  <ProxyIcon filled={Boolean(selected.proxy)} />
                 </button>
                 {isCover ? (
                   <button type="button" className="db-btn" onClick={onClearCover}>
@@ -500,10 +527,11 @@ export function BrowseShell({
           defaultScryfallId={selected.scryfallId}
           selectedScryfallId={selected.scryfallId}
           foilDefault={selected.foil}
+          proxyDefault={Boolean(selected.proxy)}
           confirmLabel="Apply printing"
           title={`Printing — ${cardDisplayName(selected)}`}
           onClose={() => setPrintingOpen(false)}
-          onConfirm={(printing) => onChangePrinting(printing)}
+          onConfirm={(printing, _category, meta) => onChangePrinting(printing, meta)}
         />
       ) : null}
 
@@ -513,9 +541,13 @@ export function BrowseShell({
           isCover={deck.coverInstanceId === contextCard.instanceId}
           foil={Boolean(contextCard.foil)}
           foilEnabled={cardSupportsFoilToggle(deck, contextCard)}
+          proxy={Boolean(contextCard.proxy)}
           onClose={() => setContextMenu(null)}
           onToggleFoil={() => {
             onChange(setCardFoil(deck, contextCard.instanceId, !contextCard.foil));
+          }}
+          onToggleProxy={() => {
+            onChange(setCardProxy(deck, contextCard.instanceId, !contextCard.proxy));
           }}
           onSetCover={() => {
             onChange({

@@ -42,14 +42,38 @@ describe('findMatchingPrintingInstance', () => {
     const withSf: DeckDocument = {
       ...deck,
       cards: deck.cards.map((c, i) =>
-        i === 0 ? ({ ...c, scryfallId: 'sf-match', foil: true } as CardInstance) : c,
+        i === 0 ? ({ ...c, scryfallId: 'sf-match', foil: true, proxy: false } as CardInstance) : c,
       ),
     };
     const found = findMatchingPrintingInstance(
       withSf,
       printing({ name: withSf.cards[0]!.name, scryfallId: 'sf-match', foil: true }),
+      { proxy: false },
     );
     expect(found?.instanceId).toBe(withSf.cards[0]!.instanceId);
+  });
+
+  it('does not match when proxy flag differs', () => {
+    const withSf: DeckDocument = {
+      ...deck,
+      cards: deck.cards.map((c, i) =>
+        i === 0 ? ({ ...c, scryfallId: 'sf-match', foil: false, proxy: true } as CardInstance) : c,
+      ),
+    };
+    expect(
+      findMatchingPrintingInstance(
+        withSf,
+        printing({ name: withSf.cards[0]!.name, scryfallId: 'sf-match', foil: false }),
+        { proxy: false },
+      ),
+    ).toBeNull();
+    expect(
+      findMatchingPrintingInstance(
+        withSf,
+        printing({ name: withSf.cards[0]!.name, scryfallId: 'sf-match', foil: false }),
+        { proxy: true },
+      )?.instanceId,
+    ).toBe(withSf.cards[0]!.instanceId);
   });
 
   it('falls back to set + collector + foil + name', () => {

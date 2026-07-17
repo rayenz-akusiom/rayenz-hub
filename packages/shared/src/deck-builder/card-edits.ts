@@ -44,20 +44,50 @@ export function deckCategoryOptions(deck: Pick<DeckDocument, 'categories' | 'car
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
-function ensureCategoryDef(
+export const PROXIES_CATEGORY = 'Proxies';
+
+/** Ensure a named category exists on the deck (Maybeboard aside; Proxies no price). */
+export function ensureCategoryDef(
   categories: CategoryDef[],
   name: string,
 ): CategoryDef[] {
   if (categories.some((c) => c.name === name)) return categories;
   const aside = name === 'Maybeboard';
+  const proxies = name === PROXIES_CATEGORY;
   return [
     ...categories,
     {
       name,
       includedInDeck: !aside,
-      includedInPrice: !aside,
+      includedInPrice: aside || proxies ? false : true,
     },
   ];
+}
+
+/** Ensure deck-level Proxies category exists (Archidekt: typically excluded from price). */
+export function ensureProxiesCategoryDef(categories: CategoryDef[]): CategoryDef[] {
+  return ensureCategoryDef(categories, PROXIES_CATEGORY);
+}
+
+/**
+ * Lift Archidekt "Proxies" off categories into the first-class proxy flag.
+ * If primary was solely Proxies, fall back to the next category or Other.
+ */
+export function liftProxiesCategory(input: {
+  primaryCategory: string;
+  categories: string[];
+}): { proxy: boolean; primaryCategory: string; categories: string[] } {
+  const cats = [...new Set((input.categories || []).map((c) => String(c || '').trim()).filter(Boolean))];
+  const proxy = cats.includes(PROXIES_CATEGORY) || input.primaryCategory === PROXIES_CATEGORY;
+  const without = cats.filter((c) => c !== PROXIES_CATEGORY);
+  let primary = input.primaryCategory === PROXIES_CATEGORY ? '' : input.primaryCategory;
+  if (!primary || primary === PROXIES_CATEGORY) {
+    primary = without[0] || 'Other';
+  }
+  if (!without.includes(primary)) {
+    without.unshift(primary);
+  }
+  return { proxy, primaryCategory: primary, categories: [...new Set(without)] };
 }
 
 function scrubSwapRefs(
@@ -122,6 +152,25 @@ export function cardSupportsFoilToggle(
   return Boolean(oracle?.finishes?.includes('foil'));
 }
 
+/** Toggle proxy on a card instance; ensures Proxies category def when enabling. */
+export function setCardProxy(
+  deck: DeckDocument,
+  instanceId: string,
+  proxy: boolean,
+): DeckDocument {
+  const card = deck.cards.find((c) => c.instanceId === instanceId);
+  if (!card) return deck;
+  if (Boolean(card.proxy) === Boolean(proxy)) return deck;
+  return {
+    ...deck,
+    cards: deck.cards.map((c) =>
+      c.instanceId === instanceId ? { ...c, proxy: Boolean(proxy) } : c,
+    ),
+    categories: proxy ? ensureProxiesCategoryDef(deck.categories || []) : deck.categories,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function addCardToDeck(
   deck: DeckDocument,
   printing: PrintingFields,
@@ -130,11 +179,13 @@ export function addCardToDeck(
     quantity?: number;
     stack?: string | null;
     nextId?: (prefix: string) => string;
+    proxy?: boolean;
   },
 ): DeckDocument {
   const nextId = opts?.nextId || defaultNextId;
   const primaryCategory = String(category || '').trim() || defaultAddCategory(deck);
   const quantity = Math.max(1, Number(opts?.quantity) || 1);
+  const proxy = Boolean(opts?.proxy);
   const instance: CardInstance = {
     instanceId: nextId('c'),
     name: printing.name,
@@ -147,14 +198,17 @@ export function addCardToDeck(
     scryfallId: printing.scryfallId,
     archidektCardId: null,
     foil: printing.foil,
+    proxy,
   };
   const cards = normalizeCardQuantities([...deck.cards, instance], deck.format, nextId);
   const key = oracleKey(instance);
+  let categories = ensureCategoryDef(deck.categories || [], primaryCategory);
+  if (proxy) categories = ensureProxiesCategoryDef(categories);
   return {
     ...deck,
     cards,
     oracle: upsertOracle(deck.oracle, key, oracleFromPrinting(printing)),
-    categories: ensureCategoryDef(deck.categories || [], primaryCategory),
+    categories,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -176,18 +230,25 @@ export function changeCardPrinting(
   deck: DeckDocument,
   instanceId: string,
   printing: PrintingFields,
+  opts?: { proxy?: boolean },
 ): DeckDocument {
-  const cards = deck.cards.map((c) =>
-    c.instanceId === instanceId ? applyPrintingToCard(c, printing) : c,
-  );
+  const cards = deck.cards.map((c) => {
+    if (c.instanceId !== instanceId) return c;
+    const next = applyPrintingToCard(c, printing);
+    if (opts?.proxy === undefined) return next;
+    return { ...next, proxy: Boolean(opts.proxy) };
+  });
   const changed = cards.find((c) => c.instanceId === instanceId);
   const oracle = changed
     ? upsertOracle(deck.oracle, oracleKey(changed), oracleFromPrinting(printing))
     : deck.oracle;
+  let categories = deck.categories || [];
+  if (opts?.proxy) categories = ensureProxiesCategoryDef(categories);
   return {
     ...deck,
     cards,
     oracle,
+    categories,
     updatedAt: new Date().toISOString(),
   };
 }

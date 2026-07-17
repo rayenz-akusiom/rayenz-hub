@@ -11,6 +11,7 @@ import {
   cardSupportsFoilToggle,
   mapScryfallCardToPrinting,
   setCardFoil,
+  setCardProxy,
   type DeckDocument,
 } from '../../../packages/shared/src/index.ts';
 
@@ -38,20 +39,30 @@ describe('card mutations', () => {
       color_identity: ['R'],
       finishes: ['nonfoil'],
     });
-    const added = applyAddCard(commander, printing, 'Maybeboard');
+    const added = applyAddCard(commander, printing, 'Maybeboard', { proxy: true });
     const newCard = added.cards.find((c) => c.name === 'Lightning Bolt');
     expect(newCard).toBeTruthy();
+    expect(newCard!.proxy).toBe(true);
+    expect(added.categories.some((c) => c.name === 'Proxies' && c.includedInPrice === false)).toBe(
+      true,
+    );
 
-    const changed = applyChangePrinting(added, newCard.instanceId, {
-      ...printing,
-      scryfallId: 'sf-2',
-      setCode: 'm10',
-      collectorNumber: '146',
-    });
-    expect(changed.cards.find((c) => c.instanceId === newCard.instanceId).setCode).toBe('m10');
+    const changed = applyChangePrinting(
+      added,
+      newCard!.instanceId,
+      {
+        ...printing,
+        scryfallId: 'sf-2',
+        setCode: 'm10',
+        collectorNumber: '146',
+      },
+      { proxy: false },
+    );
+    expect(changed.cards.find((c) => c.instanceId === newCard!.instanceId)!.setCode).toBe('m10');
+    expect(changed.cards.find((c) => c.instanceId === newCard!.instanceId)!.proxy).toBe(false);
 
-    const removed = applyRemoveCard(changed, newCard.instanceId);
-    expect(removed.cards.find((c) => c.instanceId === newCard.instanceId)).toBeUndefined();
+    const removed = applyRemoveCard(changed, newCard!.instanceId);
+    expect(removed.cards.find((c) => c.instanceId === newCard!.instanceId)).toBeUndefined();
   });
 });
 
@@ -113,5 +124,21 @@ describe('setCardFoil', () => {
     };
     expect(cardSupportsFoilToggle(doc, card)).toBe(false);
     expect(setCardFoil(doc, card.instanceId, true).cards[0]!.foil).toBe(false);
+  });
+});
+
+describe('setCardProxy', () => {
+  it('toggles proxy and ensures Proxies category def', () => {
+    const base = commander as DeckDocument;
+    const card = { ...base.cards[0]!, proxy: false };
+    const doc: DeckDocument = { ...base, cards: [card, ...base.cards.slice(1)] };
+    const on = setCardProxy(doc, card.instanceId, true);
+    expect(on.cards[0]!.proxy).toBe(true);
+    expect(on.categories.find((c) => c.name === 'Proxies')).toMatchObject({
+      includedInDeck: true,
+      includedInPrice: false,
+    });
+    const off = setCardProxy(on, card.instanceId, false);
+    expect(off.cards[0]!.proxy).toBe(false);
   });
 });

@@ -27,7 +27,7 @@ export function ScryfallSearchModal({
 }: {
   deck: DeckDocument;
   onClose: () => void;
-  onAdd: (printing: PrintingFields, category: string) => void;
+  onAdd: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
   title?: string;
   confirmLabel?: string;
   /** Title for the nested printing step; defaults to `Add — {name}` / confirm-based. */
@@ -109,8 +109,8 @@ export function ScryfallSearchModal({
         title={printingTitle ? printingTitle(pending.name) : `Add — ${pending.name}`}
         onBack={() => setPending(null)}
         onClose={onClose}
-        onConfirm={(printing, category) => {
-          onAdd(printing, category || defaultCat);
+        onConfirm={(printing, category, meta) => {
+          onAdd(printing, category || defaultCat, meta);
         }}
       />
     );

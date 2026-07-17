@@ -71,15 +71,20 @@ export function openOutCardPicker(
   return true;
 }
 
-/** Prefer existing deck instance that already matches this printing. */
+/** Prefer existing deck instance that already matches this printing (+ foil/proxy). */
 export function findMatchingPrintingInstance(
   deck: DeckDocument,
   printing: PrintingFields,
+  opts?: { proxy?: boolean },
 ): CardInstance | null {
+  const wantProxy = Boolean(opts?.proxy);
   const sid = printing.scryfallId || null;
   if (sid) {
     const byId = deck.cards.find(
-      (c) => c.scryfallId === sid && Boolean(c.foil) === Boolean(printing.foil),
+      (c) =>
+        c.scryfallId === sid &&
+        Boolean(c.foil) === Boolean(printing.foil) &&
+        Boolean(c.proxy) === wantProxy,
     );
     if (byId) return byId;
   }
@@ -92,6 +97,7 @@ export function findMatchingPrintingInstance(
         String(c.setCode || '').toLowerCase() === set &&
         String(c.collectorNumber || '') === num &&
         Boolean(c.foil) === Boolean(printing.foil) &&
+        Boolean(c.proxy) === wantProxy &&
         c.name === printing.name,
     ) || null
   );

@@ -1,8 +1,86 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import type { CardImageFace } from '@rayenz-hub/shared';
 import { useCardFaceSession } from './CardFaceSession';
 import { FoilIcon } from './FoilIcon';
 import { ProxyIcon } from './ProxyIcon';
+
+type ImgStatus = 'loading' | 'loaded' | 'error';
+
+function statusForSrc(src: string | null | undefined): ImgStatus {
+  return src ? 'loading' : 'error';
+}
+
+function useImageStatus(src: string | null | undefined) {
+  const [status, setStatus] = useState<ImgStatus>(() => statusForSrc(src));
+
+  useEffect(() => {
+    setStatus(statusForSrc(src));
+  }, [src]);
+
+  const onLoad = useCallback(() => setStatus('loaded'), []);
+  const onError = useCallback(() => setStatus('error'), []);
+
+  const imgRef = useCallback(
+    (el: HTMLImageElement | null) => {
+      if (!el || !src) return;
+      if (!el.complete) return;
+      if (el.naturalWidth > 0) setStatus('loaded');
+      else setStatus('error');
+    },
+    [src],
+  );
+
+  return { status, onLoad, onError, imgRef };
+}
+
+function CardMedia({
+  src,
+  name,
+  alt,
+  imgClassName,
+  faceClassName,
+}: {
+  src?: string | null;
+  name: string;
+  alt: string;
+  imgClassName: string;
+  faceClassName?: string;
+}) {
+  const { status, onLoad, onError, imgRef } = useImageStatus(src);
+  const faceMod = faceClassName ? ` ${faceClassName}` : '';
+
+  if (!src || status === 'error') {
+    return <span className={`db-card-fallback${faceMod}`}>{name}</span>;
+  }
+
+  const loading = status === 'loading';
+
+  return (
+    <span className={`db-card-media${faceMod}`}>
+      {loading ? (
+        <span className="db-card-skeleton db-skeleton-pulse" aria-hidden="true">
+          <span className="db-card-skeleton-name">{name}</span>
+        </span>
+      ) : null}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className={`${imgClassName}${loading ? ' is-loading' : ''}`}
+        draggable={false}
+        onLoad={onLoad}
+        onError={onError}
+      />
+    </span>
+  );
+}
 
 /** Shared card image + foil/proxy/qty badges used by tiles, minis, and pickers. */
 export function CardFace({
@@ -56,26 +134,24 @@ export function CardFace({
     src && canFlip ? (
       <span className={`db-card-flipper${showingBack ? ' is-back' : ''}`}>
         <span className="db-card-flip-inner">
-          <img
+          <CardMedia
             src={src}
+            name={name}
             alt={name}
-            loading="lazy"
-            className={`${imgClassName} db-card-flip-face db-card-flip-face-front`}
-            draggable={false}
+            imgClassName={imgClassName}
+            faceClassName="db-card-flip-face db-card-flip-face-front"
           />
-          <img
-            src={backSrc!}
+          <CardMedia
+            src={backSrc}
+            name={name}
             alt={`${name} (back)`}
-            loading="lazy"
-            className={`${imgClassName} db-card-flip-face db-card-flip-face-back`}
-            draggable={false}
+            imgClassName={imgClassName}
+            faceClassName="db-card-flip-face db-card-flip-face-back"
           />
         </span>
       </span>
-    ) : src ? (
-      <img src={src} alt={name} loading="lazy" className={imgClassName} draggable={false} />
     ) : (
-      <span className="db-card-fallback">{name}</span>
+      <CardMedia src={src} name={name} alt={name} imgClassName={imgClassName} />
     );
 
   const showBottomBadges = canFlip || foil || proxy;

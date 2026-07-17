@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CardFace } from '../../packages/web/src/cards/CardFace';
 import {
@@ -54,6 +54,29 @@ describe('CardFace', () => {
       'src',
       'https://example.com/card.jpg',
     );
+  });
+
+  it('shows name skeleton while image is loading', () => {
+    render(<CardFace src="https://example.com/card.jpg" name="Lightning Bolt" />);
+    const skeletonName = screen.getByText('Lightning Bolt');
+    expect(skeletonName).toHaveClass('db-card-skeleton-name');
+    expect(screen.getByRole('img', { name: 'Lightning Bolt' })).toHaveClass('is-loading');
+  });
+
+  it('reveals image after load', () => {
+    render(<CardFace src="https://example.com/card.jpg" name="Lightning Bolt" />);
+    const img = screen.getByRole('img', { name: 'Lightning Bolt' });
+    fireEvent.load(img);
+    expect(img).not.toHaveClass('is-loading');
+    expect(document.querySelector('.db-card-skeleton')).not.toBeInTheDocument();
+  });
+
+  it('shows name fallback when image errors', () => {
+    render(<CardFace src="https://example.com/missing.jpg" name="Broken Card" />);
+    const img = screen.getByRole('img', { name: 'Broken Card' });
+    fireEvent.error(img);
+    expect(screen.queryByRole('img', { name: 'Broken Card' })).not.toBeInTheDocument();
+    expect(screen.getByText('Broken Card')).toHaveClass('db-card-fallback');
   });
 
   it('shows name fallback when no image src', () => {

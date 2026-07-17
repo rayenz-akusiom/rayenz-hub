@@ -142,6 +142,15 @@
   transform: rotateY(180deg);
 }
 
+.db-card-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--db-card-aspect);
+  border-radius: var(--db-card-radius);
+  overflow: hidden;
+}
+
 .db-card-img {
   display: block;
   width: 100%;
@@ -149,6 +158,63 @@
   aspect-ratio: var(--db-card-aspect);
   object-fit: cover;
   border-radius: var(--db-card-radius);
+  transition: opacity 0.15s ease;
+}
+
+.db-card-media .db-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.db-card-img.is-loading {
+  opacity: 0;
+}
+
+.db-card-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: linear-gradient(145deg, #e8eef4, #d5dde6);
+  border-radius: var(--db-card-radius);
+}
+
+.db-card-skeleton-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  color: #4a5568;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.db-skeleton-pulse {
+  animation: db-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes db-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-skeleton-pulse {
+    animation: none;
+  }
+
+  .db-card-img {
+    transition: none;
+  }
 }
 
 .db-card-fallback {
@@ -245,7 +311,9 @@
 }
 
 .hub-picker-dialog--react .hub-picker-option-image .db-card-img,
-.hub-picker-dialog--react .hub-picker-option-image .db-card-fallback {
+.hub-picker-dialog--react .hub-picker-option-image .db-card-media,
+.hub-picker-dialog--react .hub-picker-option-image .db-card-fallback,
+.hub-picker-dialog--react .hub-picker-option-image .db-card-skeleton {
   border-radius: var(--db-card-radius);
 }
 

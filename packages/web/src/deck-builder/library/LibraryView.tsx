@@ -1,4 +1,10 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
 import { deckBuilderHash, HUB_USER_SLUG } from '../../hub/routes';
 import { toKebabCase } from '../../lib/string-utils';
@@ -56,6 +62,48 @@ function PartnerTie({ illegal }: { illegal?: boolean }) {
   );
 }
 
+type CoverImgStatus = 'loading' | 'loaded' | 'error';
+
+function LibraryCoverImage({ src, label }: { src: string; label: string }) {
+  const [status, setStatus] = useState<CoverImgStatus>('loading');
+
+  useEffect(() => {
+    setStatus('loading');
+  }, [src]);
+
+  const imgRef = useCallback((el: HTMLImageElement | null) => {
+    if (!el) return;
+    if (!el.complete) return;
+    if (el.naturalWidth > 0) setStatus('loaded');
+    else setStatus('error');
+  }, []);
+
+  if (status === 'error') {
+    return <span className="db-library-tile-fallback">{label}</span>;
+  }
+
+  const loading = status === 'loading';
+
+  return (
+    <span className="db-library-cover-media">
+      {loading ? (
+        <span className="db-card-skeleton db-skeleton-pulse" aria-hidden="true">
+          <span className="db-card-skeleton-name">{label}</span>
+        </span>
+      ) : null}
+      <img
+        ref={imgRef}
+        src={src}
+        alt=""
+        loading="lazy"
+        className={loading ? 'is-loading' : undefined}
+        onLoad={() => setStatus('loaded')}
+        onError={() => setStatus('error')}
+      />
+    </span>
+  );
+}
+
 function LibraryCoverArt({ deck }: { deck: DeckSummary }) {
   const dual = Boolean(deck.coverImageUrl && deck.coverImageUrlSecondary);
   const illegal = deck.coverPartnerStatus === 'illegal';
@@ -71,7 +119,7 @@ function LibraryCoverArt({ deck }: { deck: DeckSummary }) {
   if (!dual) {
     return (
       <span className="db-library-tile-art" aria-hidden="true">
-        <img src={deck.coverImageUrl} alt="" loading="lazy" />
+        <LibraryCoverImage src={deck.coverImageUrl} label={deck.name} />
       </span>
     );
   }
@@ -82,11 +130,11 @@ function LibraryCoverArt({ deck }: { deck: DeckSummary }) {
       aria-hidden="true"
     >
       <span className="db-library-tile-face">
-        <img src={deck.coverImageUrl} alt="" loading="lazy" />
+        <LibraryCoverImage src={deck.coverImageUrl} label={deck.name} />
       </span>
       <PartnerTie illegal={illegal} />
       <span className="db-library-tile-face">
-        <img src={deck.coverImageUrlSecondary!} alt="" loading="lazy" />
+        <LibraryCoverImage src={deck.coverImageUrlSecondary!} label={deck.name} />
       </span>
     </span>
   );

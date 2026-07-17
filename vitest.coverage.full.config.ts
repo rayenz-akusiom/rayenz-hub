@@ -5,6 +5,10 @@ import { defineConfig } from 'vitest/config';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Full packages/web coverage report (no threshold). Use to find gaps outside the gate.
+ * See AGENTS.md → Testing & coverage.
+ */
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -13,13 +17,16 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
+    environmentMatchGlobs: [['tests/web/**', 'jsdom']],
     setupFiles: ['./tests/web/setup.ts'],
-    include: ['tests/web/**/*.test.tsx'],
+    include: ['tests/unit/**/*.test.{js,ts,tsx}', 'tests/web/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
-      reportsDirectory: './coverage/web-react',
+      reportsDirectory: './coverage/web-full',
+      clean: true,
       reporter: ['text', 'text-summary', 'html', 'json-summary'],
+      all: true,
       include: ['packages/web/src/**/*.{ts,tsx}'],
       exclude: [
         'packages/web/src/**/*.d.ts',
@@ -28,5 +35,6 @@ export default defineConfig({
         'packages/web/src/**/index.ts',
       ],
     },
+    fileParallelism: false,
   },
 });

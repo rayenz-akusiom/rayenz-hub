@@ -463,7 +463,7 @@ localStorage.clear();
       vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
          if (firstAttempt) {
             firstAttempt = false;
-            throw new DOMException('QuotaExceededError');
+            throw new DOMException('QuotaExceededError', 'QuotaExceededError');
          }
          originalSetItem(key, value);
       });

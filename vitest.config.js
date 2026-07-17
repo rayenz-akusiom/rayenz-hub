@@ -19,5 +19,17 @@ export default defineConfig({
       ],
       include: ['tests/unit/**/*.test.{js,ts,tsx}', 'tests/api/**/*.test.ts'],
       exclude: ['tests/api/deployed.contract.test.ts'],
+      coverage: {
+         provider: 'v8',
+         reportsDirectory: './coverage/unit',
+         reporter: ['text', 'text-summary', 'html', 'json-summary'],
+         include: ['packages/web/src/**/*.{ts,tsx}', 'packages/api/src/**/*.{ts,js}'],
+         exclude: [
+            'packages/web/src/**/*.d.ts',
+            'packages/web/src/**/main.tsx',
+            'packages/web/src/**/types.ts',
+            'packages/web/src/**/index.ts',
+         ],
+      },
    },
 });

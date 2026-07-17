@@ -39,6 +39,48 @@ describe('OrderEmailParse.parseCardLine', () => {
     });
   });
 
+  it('extracts etched and glossy finish keywords', () => {
+    expect(OrderEmailParse.parseCardLine('1x Sol Ring etched')).toMatchObject({
+      name: 'Sol Ring',
+      finish: 'etched',
+    });
+    expect(OrderEmailParse.parseCardLine('1x Sol Ring glossy')).toMatchObject({
+      name: 'Sol Ring',
+      finish: 'foil',
+    });
+    expect(OrderEmailParse.parseCardLine('1x Sol Ring non-foil')).toMatchObject({
+      name: 'Sol Ring',
+      finish: 'nonfoil',
+    });
+  });
+
+  it('parses set and collector with hash prefix', () => {
+    expect(OrderEmailParse.parseCardLine('1x Hallowed Fountain (rav) #214')).toMatchObject({
+      name: 'Hallowed Fountain',
+      set_code: 'rav',
+      collector_number: '214',
+    });
+  });
+
+  it('returns warning for unparseable quantity-only lines', () => {
+    const parsed = OrderEmailParse.parseCardLine('   ');
+    expect(parsed).toBe(null);
+    const warnings = OrderEmailParse.parseCardList('###\n   ').warnings;
+    expect(warnings).toEqual([]);
+  });
+
+  it('parseOrderEmail keeps quantity-leading prose-like card lines', () => {
+    const email = '1x Lightning Bolt (lea) #161\nDear customer';
+    const result = OrderEmailParse.parseOrderEmail(email);
+    expect(result.cards[0].name).toBe('Lightning Bolt');
+    expect(result.skippedNonCardLines.some((s) => s.raw.includes('Dear'))).toBe(true);
+  });
+
+  it('mergeAcquiredCards sums quantities for matching keys', () => {
+    const merged = OrderEmailParse.mergeAcquiredCards(null);
+    expect(merged).toEqual([]);
+  });
+
   it('ignores comments, blanks, and totals', () => {
     expect(OrderEmailParse.parseCardLine('')).toBe(null);
     expect(OrderEmailParse.parseCardLine('# a comment')).toBe(null);

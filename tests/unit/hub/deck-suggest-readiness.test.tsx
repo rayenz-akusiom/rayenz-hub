@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getGenerateReadiness } from '../../../packages/web/src/deck-suggest/readiness.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getGenerateReadiness, rulesDebugEnabled } from '../../../packages/web/src/deck-suggest/readiness.ts';
 import { DeckSuggestSetup } from '../../../packages/web/src/deck-suggest/DeckSuggestSetup.tsx';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
@@ -97,6 +97,36 @@ describe('getGenerateReadiness', () => {
     expect(result.ok).toBe(false);
     expect(result.missing).toContain('set');
     expect(result.missing).not.toContain('decks');
+  });
+
+  it('shows cached label when set pool came from cache', () => {
+    const scope = readyState().setScope as Record<string, unknown>;
+    scope.fromCache = true;
+    const result = getGenerateReadiness(readyState({ setScope: scope }));
+    expect(result.items.find((i) => i.id === 'set')!.label).toContain('cached');
+  });
+
+  it('reads set codes from settings when ui input is absent', () => {
+    const result = getGenerateReadiness(
+      readyState({
+        ui: {},
+        settings: { setCodes: 'MSH' },
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('rulesDebugEnabled', () => {
+  it('returns false when default hostname lookup throws', () => {
+    const original = window.location;
+    vi.stubGlobal('location', undefined);
+    expect(rulesDebugEnabled({ rulesDebug: true })).toBe(false);
+    vi.stubGlobal('location', original);
+  });
+
+  it('returns false when rulesDebug setting is off', () => {
+    expect(rulesDebugEnabled({ rulesDebug: false }, () => true)).toBe(false);
   });
 });
 

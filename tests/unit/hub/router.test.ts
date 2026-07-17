@@ -18,12 +18,23 @@ describe('hub routes', () => {
     expect(pathFromHash('#/nope')).toBe('/dailies');
   });
 
+  it('adds a leading slash when hash path omits it', () => {
+    expect(normalizeHash('#deck-builder')).toBe('#/deck-builder');
+    expect(pathFromHash('#deck-suggest')).toBe('/deck-suggest');
+  });
+
+  it('maps unknown settings subpaths to settings dailies', () => {
+    expect(pathFromHash('#/settings')).toBe('/settings');
+    expect(pathFromHash('#/settings/unknown-tab')).toBe('/settings/dailies');
+  });
+
   it('detects settings paths', () => {
     expect(isSettingsPath('/settings')).toBe(true);
     expect(isSettingsPath('/settings/dailies')).toBe(true);
     expect(isSettingsPath('/dailies')).toBe(false);
     expect(isLegacyPath('/deck-review')).toBe(false);
     expect(isLegacyPath('/dailies')).toBe(false);
+    expect(isLegacyPath('/unknown')).toBe(false);
   });
 });
 

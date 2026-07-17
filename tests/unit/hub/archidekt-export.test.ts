@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArchidektExport } from '../../../packages/web/src/mtg/archidekt-export.ts';
+
+afterEach(() => {
+  delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
+  vi.restoreAllMocks();
+});
 
 describe('ArchidektExport.parseImportLine', () => {
   it('round-trips a simple import line', () => {
@@ -246,5 +251,333 @@ describe('ArchidektExport.parseDeckId', () => {
 
   it('returns null when there is no deck id', () => {
     expect(ArchidektExport.parseDeckId('https://example.com')).toBe(null);
+    expect(ArchidektExport.parseDeckId(null)).toBe(null);
+  });
+});
+
+describe('ArchidektExport.parseImportLine errors', () => {
+  it('throws on an invalid import line', () => {
+    expect(() => ArchidektExport.parseImportLine('not a card line')).toThrow(/Invalid import line/);
+  });
+
+  it('parses set-only printing without collector number', () => {
+    const card = ArchidektExport.parseImportLine('1x Sol Ring (cmm) [Ramp]');
+    expect(card).toMatchObject({ name: 'Sol Ring', set_code: 'cmm', collector_number: '' });
+  });
+
+  it('strips category flags when parsing brackets', () => {
+    const card = ArchidektExport.parseImportLine('1x Forest [Land,Proxies{noPrice}{noDeck}]');
+    expect(card!.categories).toEqual(['Land', 'Proxies']);
+  });
+});
+
+describe('ArchidektExport.parseImportText errors', () => {
+  it('throws when no valid lines remain', () => {
+    expect(() => ArchidektExport.parseImportText('# only comments\n\n')).toThrow(/Paste at least one/);
+  });
+});
+
+describe('ArchidektExport.buildCategorySettings', () => {
+  it('skips categories without names', () => {
+    expect(
+      ArchidektExport.buildCategorySettings({
+        categories: [null as unknown as { name?: string }, {}, { name: 'Ramp' }],
+      }),
+    ).toEqual({ Ramp: { includedInDeck: true, includedInPrice: true } });
+  });
+
+  it('respects includedInDeck and includedInPrice false', () => {
+    expect(
+      ArchidektExport.buildCategorySettings({
+        categories: [{ name: 'Proxies', includedInDeck: false, includedInPrice: false }],
+      }),
+    ).toEqual({ Proxies: { includedInDeck: false, includedInPrice: false } });
+  });
+});
+
+describe('ArchidektExport.normalizeCategories', () => {
+  it('uses primaryFallback when the list is empty', () => {
+    expect(ArchidektExport.normalizeCategories([], 'Ramp')).toEqual(['Ramp']);
+  });
+
+  it('dedupes entries and skips falsy categories', () => {
+    expect(ArchidektExport.normalizeCategories(['Ramp', '', 'Ramp', 'Land'], null)).toEqual(['Ramp', 'Land']);
+  });
+});
+
+describe('ArchidektExport.formatCategoryBracket defaults', () => {
+  it('marks borrowed (out) as noDeck/noPrice', () => {
+    expect(ArchidektExport.formatCategoryBracket('borrowed (out)', 'Card', null)).toBe(
+      ' [borrowed (out){noDeck}{noPrice}]',
+    );
+  });
+
+  it('marks Maybeboard as noDeck/noPrice', () => {
+    expect(ArchidektExport.formatCategoryBracket('Maybeboard', 'Card', null)).toBe(
+      ' [Maybeboard{noDeck}{noPrice}]',
+    );
+  });
+
+  it('matches category settings case-insensitively', () => {
+    const settings = { ramp: { includedInDeck: false, includedInPrice: true } };
+    expect(ArchidektExport.formatCategoryBracket('Ramp', 'Card', settings)).toBe(' [Ramp{noDeck}]');
+  });
+
+  it('applies only includedInPrice false when deck is included', () => {
+    const settings = { Ramp: { includedInPrice: false, includedInDeck: true } };
+    expect(ArchidektExport.formatCategoryBracket('Ramp', 'Card', settings)).toBe(' [Ramp{noPrice}]');
+  });
+});
+
+describe('ArchidektExport.formatCategoriesBracket empty', () => {
+  it('returns empty when there are no categories', () => {
+    expect(ArchidektExport.formatCategoriesBracket([], 'Card', null)).toBe('');
+  });
+});
+
+describe('ArchidektExport.cardKey', () => {
+  it('joins name, set code, and collector number', () => {
+    expect(ArchidektExport.cardKey('Sol Ring', 'CMM', '1')).toBe('Sol Ring|cmm|1');
+    expect(ArchidektExport.cardKey('Sol Ring', null, null)).toBe('Sol Ring||');
+  });
+});
+
+describe('ArchidektExport.buildMainDeckPool', () => {
+  it('excludes New Set In/Out and unnamed cards', () => {
+    const pool = ArchidektExport.buildMainDeckPool({
+      cards: [
+        { name: 'In', primary_category: 'New Set In' },
+        { name: 'Out', primary_category: 'New Set Out' },
+        { primary_category: 'Ramp' },
+        { name: 'Keeper', primary_category: 'Ramp', quantity: 2 },
+      ],
+    });
+    expect(pool).toHaveLength(1);
+    expect(pool[0]).toMatchObject({ name: 'Keeper', quantity: 2 });
+  });
+
+  it('clones categories from the categories array when present', () => {
+    const pool = ArchidektExport.buildMainDeckPool({
+      cards: [{ name: 'Plateau', categories: ['Land', 'Proxies'], quantity: 1 }],
+    });
+    expect(pool[0].categories).toEqual(['Land', 'Proxies']);
+  });
+});
+
+describe('ArchidektExport.addToLineMap', () => {
+  it('ignores zero or negative quantity', () => {
+    const map: Record<string, unknown> = {};
+    ArchidektExport.addToLineMap(map, { name: 'X' }, ['Ramp'], 0);
+    ArchidektExport.addToLineMap(map, { name: 'Y' }, ['Ramp'], -1);
+    expect(Object.keys(map)).toHaveLength(0);
+  });
+
+  it('merges duplicate keys by summing quantity', () => {
+    const map: Record<string, { quantity: number }> = {};
+    ArchidektExport.addToLineMap(map, { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' }, ['Ramp'], 1);
+    ArchidektExport.addToLineMap(map, { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' }, ['Ramp'], 2);
+    expect(Object.values(map)[0].quantity).toBe(3);
+  });
+});
+
+describe('ArchidektExport.lineMapToImportLines', () => {
+  it('skips rows with zero quantity', () => {
+    const map = {
+      k: {
+        name: 'Ghost',
+        set_code: null,
+        collector_number: null,
+        categories: ['Ramp'],
+        finish: null,
+        quantity: 0,
+      },
+    };
+    expect(ArchidektExport.lineMapToImportLines(map, null)).toEqual([]);
+  });
+});
+
+describe('ArchidektExport.buildTargetAcceptedSwaps', () => {
+  it('filters out decisions with swap_categories false', () => {
+    const swaps = [
+      { swap_categories: true, card_in: { name: 'Keep' } },
+      { swap_categories: false, card_in: { name: 'Drop' } },
+    ];
+    expect(ArchidektExport.buildTargetAcceptedSwaps(swaps)).toHaveLength(1);
+    expect(ArchidektExport.buildTargetAcceptedSwaps(swaps)[0].card_in!.name).toBe('Keep');
+  });
+});
+
+describe('ArchidektExport.buildImportTextForDeck', () => {
+  it('builds swap-only import lines for category swaps', () => {
+    const accepted = [
+      {
+        swap_categories: true,
+        quantity: 1,
+        card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' },
+        card_out: { name: 'Old', set_code: 'xyz', collector_number: '1', quantity: 1 },
+      },
+    ];
+    const text = ArchidektExport.buildImportTextForDeck(accepted, null);
+    expect(text).toContain('[New Set In{noDeck}{noPrice}]');
+    expect(text).toContain('[New Set Out]');
+  });
+
+  it('skips non-category swap decisions', () => {
+    const text = ArchidektExport.buildImportTextForDeck(
+      [{ swap_categories: false, card_in: { name: 'Ignored' } }],
+      null,
+    );
+    expect(text).toBe('');
+  });
+});
+
+describe('ArchidektExport.isReviewComplete', () => {
+  it('reports incomplete when a decision lacks status', () => {
+    expect(
+      ArchidektExport.isReviewComplete([{ id: 'a' }], 'id', () => ({ status: undefined })),
+    ).toEqual({ complete: false, reviewed: 0, total: 1 });
+  });
+
+  it('reports incomplete when getDecisionFn returns null', () => {
+    expect(ArchidektExport.isReviewComplete([{ id: 'a' }], 'id', () => null)).toEqual({
+      complete: false,
+      reviewed: 0,
+      total: 1,
+    });
+  });
+});
+
+describe('ArchidektExport.buildDeckApplyEntry', () => {
+  it('returns null when import text would be empty', () => {
+    expect(ArchidektExport.buildDeckApplyEntry({ deck_id: 'x' }, [])).toBe(null);
+  });
+});
+
+describe('ArchidektExport.buildApplyManifest', () => {
+  it('filters out decks that produce no import text', () => {
+    const manifest = ArchidektExport.buildApplyManifest({ set_code: 'MSH' }, [{ deck_id: 'empty' }], {});
+    expect(manifest.decks).toEqual([]);
+    expect(manifest.set_code).toBe('MSH');
+  });
+});
+
+describe('ArchidektExport.buildFullDeckImport deduct paths', () => {
+  it('deducts by name only when the cut lacks printing info', () => {
+    const deck = {
+      deck_snapshot: {
+        cards: [{ name: 'Old Card', primary_category: 'Ramp', quantity: 1 }],
+      },
+    };
+    const accepted = [
+      {
+        swap_categories: true,
+        card_in: { name: 'New Card' },
+        card_out: { name: 'Old Card' },
+      },
+    ];
+    const text = ArchidektExport.buildFullDeckImport(deck, accepted);
+    expect(text).not.toMatch(/Old Card \[Ramp\]/);
+    expect(text).toContain('Old Card [New Set Out]');
+    expect(text).toContain('New Card');
+  });
+
+  it('emits unmatched cuts in New Set Out when not in the pool', () => {
+    const deck = {
+      deck_snapshot: {
+        cards: [{ name: 'Keeper', primary_category: 'Ramp', quantity: 1 }],
+      },
+    };
+    const accepted = [
+      {
+        swap_categories: true,
+        card_in: { name: 'Incoming' },
+        card_out: { name: 'Ghost', set_code: 'xyz', collector_number: '99' },
+      },
+    ];
+    const text = ArchidektExport.buildFullDeckImport(deck, accepted);
+    expect(text).toContain('Ghost');
+    expect(text).toContain('[New Set Out]');
+  });
+
+  it('skips decisions without swap_categories', () => {
+    const deck = {
+      deck_snapshot: {
+        cards: [{ name: 'Keeper', primary_category: 'Ramp', quantity: 1 }],
+      },
+    };
+    const text = ArchidektExport.buildFullDeckImport(deck, [
+      { swap_categories: false, card_in: { name: 'Ignored' } },
+    ]);
+    expect(text).not.toContain('Ignored');
+    expect(text).toContain('Keeper');
+  });
+
+  it('returns empty when snapshot cards is not an array', () => {
+    expect(ArchidektExport.buildFullDeckImport({ deck_snapshot: { cards: null as unknown as [] } }, [])).toBe('');
+  });
+});
+
+describe('ArchidektExport bridge helpers', () => {
+  it('stageDeckApply throws when deck id or import text is missing', () => {
+    expect(() => ArchidektExport.stageDeckApply(0, 'text')).toThrow(/Missing deck id/);
+    expect(() => ArchidektExport.stageDeckApply(123, '')).toThrow(/Missing deck id/);
+  });
+
+  it('stageDeckApply throws when the bridge is unavailable', () => {
+    expect(() => ArchidektExport.stageDeckApply(123, '1x Card')).toThrow(/Bridge userscript/);
+  });
+
+  it('stageDeckApply delegates to the bridge when present', () => {
+    const stageApply = vi.fn();
+    (window as Window & { RayenzArchidektBridge?: { stageApply?: typeof stageApply } }).RayenzArchidektBridge = {
+      stageApply,
+    };
+    ArchidektExport.stageDeckApply(123, '1x Card');
+    expect(stageApply).toHaveBeenCalledWith(123, '1x Card');
+  });
+
+  it('getStagedDeckApply returns null without a bridge', () => {
+    expect(ArchidektExport.getStagedDeckApply(123)).toBe(null);
+  });
+
+  it('getStagedDeckApply delegates to the bridge when present', () => {
+    (window as Window & { RayenzArchidektBridge?: { getStagedApply?: () => string } }).RayenzArchidektBridge = {
+      getStagedApply: () => 'staged',
+    };
+    expect(ArchidektExport.getStagedDeckApply(123)).toBe('staged');
+  });
+
+  it('clearStagedDeckApply no-ops without a bridge', () => {
+    expect(() => ArchidektExport.clearStagedDeckApply(123)).not.toThrow();
+  });
+
+  it('clearStagedDeckApply delegates to the bridge when present', () => {
+    const clearStagedApply = vi.fn();
+    (window as Window & { RayenzArchidektBridge?: { clearStagedApply?: typeof clearStagedApply } }).RayenzArchidektBridge =
+      { clearStagedApply };
+    ArchidektExport.clearStagedDeckApply(123);
+    expect(clearStagedApply).toHaveBeenCalledWith(123);
+  });
+});
+
+describe('ArchidektExport.copyText', () => {
+  it('uses navigator.clipboard when available', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    await ArchidektExport.copyText('hello');
+    expect(writeText).toHaveBeenCalledWith('hello');
+  });
+
+  it('falls back to execCommand when clipboard is unavailable', async () => {
+    vi.stubGlobal('navigator', {});
+    const execCommand = vi.fn().mockReturnValue(true);
+    vi.stubGlobal('document', {
+      ...document,
+      execCommand,
+      createElement: document.createElement.bind(document),
+      body: document.body,
+    });
+    await ArchidektExport.copyText('fallback');
+    expect(execCommand).toHaveBeenCalledWith('copy');
   });
 });

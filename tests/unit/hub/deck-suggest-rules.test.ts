@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   Data,
   RuleGuards,
+  buildSwapQueueAnalysis,
   runRulesForDeck,
   Tagger,
 } from '../../../packages/web/src/deck-suggest/index.ts';
@@ -25,6 +26,23 @@ beforeEach(() => {
 
 afterEach(() => {
   resetHubModules();
+});
+
+describe('deck-suggest rules analysis', () => {
+  it('buildSwapQueueAnalysis handles single Out queue name', () => {
+    const deck = {
+      deck_id: 'd1',
+      deck_snapshot: {
+        cards: [
+          { name: 'In Card', primary_category: 'New Set In' },
+          { name: 'Only Out', primary_category: 'New Set Out' },
+        ],
+      },
+    };
+    const analysis = buildSwapQueueAnalysis(deck);
+    expect(analysis?.new_set_out).toBe('Only Out');
+    expect(analysis?.unpaired_out).toBe(null);
+  });
 });
 
 describe('deck-suggest rules (baird)', () => {

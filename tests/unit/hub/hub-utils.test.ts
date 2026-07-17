@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HubUtils } from '../../../packages/web/src/lib/hub-utils.ts';
 import { REPO_ROOT, resetHubModules } from '../helpers/hubHarness.ts';
 
@@ -109,6 +109,72 @@ describe('HubUtils.mountAppProgress', () => {
     const controller = HubUtils.mountAppProgress(document.getElementById('host'));
     expect(controller).toBeTruthy();
     expect(document.querySelector('.hub-progress-bar')).toBeTruthy();
+  });
+});
+
+describe('HubUtils.resolveHubUrl', () => {
+  it('resolves paths against hub document root', () => {
+    expect(HubUtils.resolveHubUrl('apps/foo/foo.css')).toMatch(/apps\/foo\/foo\.css$/);
+  });
+});
+
+describe('HubUtils.suggestionsExportFilename', () => {
+  it('builds filename from meta set_code and generated_at', () => {
+    expect(
+      HubUtils.suggestionsExportFilename({
+        meta: { set_code: 'msh', generated_at: '2026-06-30' },
+      }),
+    ).toBe('MSH-2026-06-30-rules.json');
+  });
+
+  it('uses defaults when meta is missing', () => {
+    const name = HubUtils.suggestionsExportFilename({});
+    expect(name).toMatch(/^SET-\d{4}-\d{2}-\d{2}-rules\.json$/);
+  });
+});
+
+describe('HubUtils.downloadSuggestionsJson', () => {
+  it('creates a blob download and returns filename', () => {
+    const click = vi.fn();
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    const anchor = document.createElement('a');
+    anchor.click = click;
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor);
+
+    const filename = HubUtils.downloadSuggestionsJson({
+      meta: { set_code: 'MSH', generated_at: '2026-06-30' },
+      decks: [],
+    });
+    expect(filename).toBe('MSH-2026-06-30-rules.json');
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+});
+
+describe('HubUtils.handoffSnapshotSummary', () => {
+  it('reports allReady when every reviewable deck has a snapshot', () => {
+    const summary = HubUtils.handoffSnapshotSummary({
+      decks: [
+        { suggestions: [{ id: 's1' }], deck_snapshot: { cards: [{ name: 'A' }] } },
+        { suggestions: [{ id: 's2' }], deck_snapshot: { cards: [{ name: 'B' }] } },
+      ],
+    });
+    expect(summary.allReady).toBe(true);
+    expect(summary.missingSnapshots).toBe(0);
+  });
+
+  it('handles empty or null data', () => {
+    expect(HubUtils.handoffSnapshotSummary(null as never)).toEqual({
+      reviewable: 0,
+      withSnapshots: 0,
+      missingSnapshots: 0,
+      allReady: false,
+    });
   });
 });
 

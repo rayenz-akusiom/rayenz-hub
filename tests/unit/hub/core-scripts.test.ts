@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   hubDocumentRootFromEntry,
   scriptUrlFromEntry,
@@ -26,5 +26,34 @@ describe('hub core script URLs', () => {
 
   it('falls back to origin root when no entry script is present', () => {
     expect(hubDocumentRootFromEntry(undefined)).toBe(`${window.location.origin}/`);
+  });
+});
+
+describe('hubDocumentRootFromEntry BASE_URL branches', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  async function rootWithoutEntry(baseUrl: string) {
+    vi.stubEnv('BASE_URL', baseUrl);
+    vi.resetModules();
+    const mod = await import('../../../packages/web/src/hub/core-scripts.ts');
+    return mod.hubDocumentRootFromEntry(undefined);
+  }
+
+  it('resolves absolute BASE_URL with trailing slash', async () => {
+    const root = await rootWithoutEntry('/rayenz-hub/');
+    expect(root).toBe(`${window.location.origin}/rayenz-hub/`);
+  });
+
+  it('normalizes absolute BASE_URL missing trailing slash', async () => {
+    const root = await rootWithoutEntry('/rayenz-hub');
+    expect(root).toBe(`${window.location.origin}/rayenz-hub/`);
+  });
+
+  it('falls back to origin root for relative BASE_URL', async () => {
+    const root = await rootWithoutEntry('./');
+    expect(root).toBe(`${window.location.origin}/`);
   });
 });

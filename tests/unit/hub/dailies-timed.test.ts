@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import * as DailiesTimed from '../../../packages/web/src/dailies/timed.ts';
 import { installDailiesGlobals } from './installDailiesGlobals.ts';
 
 describe('dailies timed cards', () => {
@@ -31,5 +32,37 @@ localStorage.clear();
       vi.setSystemTime(new Date('2026-07-04T15:10:00'));
       expect(window.DailiesTimed.isMagmaPoolWindowActive(settings)).toBe(false);
       vi.useRealTimers();
+   });
+
+   it('seasonal events activate during configured windows', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-04T14:30:00-07:00'));
+      expect(DailiesTimed.isAltadorCupActive(DailiesTimed.getNstDate())).toBe(true);
+      vi.setSystemTime(new Date('2026-10-31T00:30:00-07:00'));
+      expect(DailiesTimed.isVonRooActive(DailiesTimed.getNstDate())).toBe(true);
+      vi.useRealTimers();
+   });
+
+   it('getActiveCards includes seasonal override and handleCardClick dismisses freebies', () => {
+      const original = { ...DailiesTimed.SEASONAL_OVERRIDE };
+      DailiesTimed.SEASONAL_OVERRIDE.enabled = true;
+      DailiesTimed.SEASONAL_OVERRIDE.mode = 'all';
+      const cards = DailiesTimed.getActiveCards({});
+      expect(cards.some((c) => c.id === 'altador-cup')).toBe(true);
+      DailiesTimed.handleCardClick({ dismissOnClick: 'month' } as never);
+      expect(DailiesTimed.isFreebiesDismissed()).toBe(true);
+      DailiesTimed.SEASONAL_OVERRIDE.enabled = original.enabled;
+      DailiesTimed.SEASONAL_OVERRIDE.mode = original.mode;
+   });
+
+   it('msUntil helpers return positive delays', () => {
+      expect(DailiesTimed.msUntilNextNstMidnight()).toBeGreaterThan(0);
+      expect(DailiesTimed.msUntilNextNstHour()).toBeGreaterThan(0);
+      expect(DailiesTimed.msUntilNextLocalMinute()).toBeGreaterThan(0);
+      expect(DailiesTimed.monthKey(new Date(2026, 6, 4))).toBe('2026-07');
+   });
+
+   it('parseLocalTime defaults invalid values to zero', () => {
+      expect(DailiesTimed.parseLocalTime('bad')).toEqual({ hours: 0, minutes: 0 });
    });
 });

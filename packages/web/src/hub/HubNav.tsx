@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import type { HubPath } from './routes';
-import { isSettingsPath } from './routes';
 
 type NavItem = {
   path: HubPath;
@@ -165,7 +164,7 @@ export function HubNav({
         <ul className="hub-nav-list">
           <NavLink
             item={settingsItem}
-            path={isSettingsPath(path) ? path : '/settings'}
+            path={path}
             onNavigate={onClose}
           />
         </ul>

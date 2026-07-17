@@ -66,4 +66,36 @@ describe('HubProgress', () => {
     const bar = document.querySelector('.hub-progress-bar') as HTMLElement;
     expect(bar.classList.contains('hub-progress-error')).toBe(true);
   });
+
+  it('start with indeterminate applies indeterminate variant', () => {
+    const controller = HubProgress.mount(document.getElementById('progress-host')!);
+    controller.start({ label: 'Waiting…', indeterminate: true });
+    const bar = document.querySelector('.hub-progress-bar') as HTMLElement;
+    expect(bar.classList.contains('hub-progress-indeterminate')).toBe(true);
+  });
+
+  it('update without prior start auto-starts and shows count label', () => {
+    const controller = HubProgress.mount(document.getElementById('progress-host')!);
+    controller.update({ current: 1, total: 3 });
+    expect(controller.isActive()).toBe(true);
+    expect(document.querySelector('.hub-progress-bar-label')!.textContent).toBe('1/3…');
+  });
+
+  it('finish uses default labels when label omitted', () => {
+    const controller = HubProgress.mount(document.getElementById('progress-host')!);
+    controller.finish({});
+    expect(document.querySelector('.hub-progress-bar-label')!.textContent).toBe('Complete');
+    controller.start({});
+    controller.finish({ variant: 'error' });
+    expect(document.querySelector('.hub-progress-bar-label')!.textContent).toBe('Failed');
+  });
+
+  it('dismiss button hides bar', () => {
+    const controller = HubProgress.mount(document.getElementById('progress-host')!);
+    controller.start({ label: 'Working…' });
+    const dismiss = document.querySelector('.hub-progress-dismiss') as HTMLButtonElement;
+    dismiss.click();
+    expect((document.querySelector('.hub-progress-bar') as HTMLElement).hidden).toBe(true);
+    expect(controller.isActive()).toBe(false);
+  });
 });

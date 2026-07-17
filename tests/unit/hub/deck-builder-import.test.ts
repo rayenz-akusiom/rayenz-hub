@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { documentFromImportText, documentFromArchidektSnapshot, deckNameFromArchidektUrl } from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
+import {
+  documentFromImportText,
+  documentFromArchidektSnapshot,
+  deckNameFromArchidektUrl,
+  parseImportText,
+  typeLineFromArchidektCard,
+  normalizeArchidektCategoryName,
+} from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
 
 import { deckSize, totalCardQuantity } from '../../../packages/shared/src/deck-builder/browse.ts';
 
@@ -233,6 +240,133 @@ describe('import', () => {
   });
 
 
+
+  it('parseImportText handles categories, quantities, and bare lines', () => {
+    const parsed = parseImportText('[Creature{tag}]\n2 Sol Ring\n3 Forest\nMana Crypt');
+    expect(parsed[0]).toMatchObject({ category: 'Creature', quantity: 2, name: 'Sol Ring' });
+    expect(parsed[1]).toMatchObject({ category: 'Creature', quantity: 3, name: 'Forest' });
+    expect(parsed[2]).toMatchObject({ category: 'Creature', quantity: 1, name: 'Mana Crypt' });
+    expect(parseImportText('')).toEqual([]);
+    expect(parseImportText('2x Sol Ring')[0]).toMatchObject({ quantity: 1, name: '2x Sol Ring' });
+  });
+
+  it('typeLineFromArchidektCard resolves nested oracle shapes', () => {
+    expect(typeLineFromArchidektCard({ type_line: 'Artifact' })).toBe('Artifact');
+    expect(typeLineFromArchidektCard({ typeLine: '  ' })).toBe(null);
+    expect(typeLineFromArchidektCard({ oracleCard: { type_line: 'Land' } })).toBe('Land');
+    expect(typeLineFromArchidektCard({ oracle_card: { typeLine: 'Creature' } })).toBe('Creature');
+    expect(
+      typeLineFromArchidektCard({ card: { oracle_card: { type_line: 'Instant' } } }),
+    ).toBe('Instant');
+    expect(typeLineFromArchidektCard({ card: { typeLine: 'Sorcery' } })).toBe('Sorcery');
+    expect(typeLineFromArchidektCard({})).toBe(null);
+  });
+
+  it('normalizeArchidektCategoryName only aliases Lieutenant', () => {
+    expect(normalizeArchidektCategoryName('Lieutenant')).toBe('Lieutenants');
+    expect(normalizeArchidektCategoryName('  Ramp  ')).toBe('Ramp');
+  });
+
+  it('deckNameFromArchidektUrl returns null for missing or invalid URLs', () => {
+    expect(deckNameFromArchidektUrl(null)).toBe(null);
+    expect(deckNameFromArchidektUrl('https://example.com/decks/1/foo')).toBe(null);
+  });
+
+  it('documentFromImportText marks Maybeboard and swap categories', () => {
+    const doc = documentFromImportText('[Maybeboard]\n1 Side Card\n[New Set In]\n1 In', {
+      deckId: 'deck-1',
+      formatHint: 'commander',
+    });
+    expect(doc.deckId).toBe('deck-1');
+    expect(doc.format).toBe('commander');
+    expect(doc.categories.find((c) => c.name === 'Maybeboard')?.includedInDeck).toBe(false);
+    expect(doc.categories.find((c) => c.name === 'New Set In')?.includedInDeck).toBe(false);
+    expect(doc.categories.find((c) => c.name === 'New Set In')?.includedInPrice).toBe(false);
+  });
+
+  it('documentFromArchidektSnapshot maps foil, uid, and dedupes categories', () => {
+    const doc = documentFromArchidektSnapshot({
+      id: 99,
+      deck_name: 'Snapshot Deck',
+      cards: [
+        {
+          id: 1,
+          name: 'Foil Bolt',
+          quantity: 2,
+          primary_category: 'Instant',
+          categories: ['Instant'],
+          modifier: 'Foil',
+          uid: 'sf-uid-1',
+          colorIdentity: ['R'],
+        },
+        {
+          id: 2,
+          name: 'Unknown',
+          quantity: 0,
+          primary_category: 'Land',
+        },
+      ],
+      categories: [
+        { name: 'Instant', includedInDeck: true, includedInPrice: true },
+        { name: 'Instant', includedInDeck: false, includedInPrice: true },
+      ],
+    });
+    expect(doc.archidektId).toBe(99);
+    expect(doc.name).toBe('Snapshot Deck');
+    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.foil).toBe(true);
+    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.scryfallId).toBe('sf-uid-1');
+    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.colourIdentity).toEqual(['R']);
+    expect(doc.cards.find((c) => c.name === 'Unknown')?.quantity).toBe(1);
+    expect(doc.categories.filter((c) => c.name === 'Instant')).toHaveLength(1);
+    expect(doc.categories.find((c) => c.name === 'Instant')?.includedInDeck).toBe(false);
+  });
+
+  it('documentFromArchidektSnapshot inherits name, swaps, and category_settings fallback', () => {
+    const existing = {
+      ...commander,
+      archidektUrl: 'https://archidekt.com/decks/1/existing_slug',
+      name: 'Existing Name',
+      deckId: 'keep-id',
+      cardLayoutDefault: 'grid' as const,
+      browseViewDefault: 'colour' as const,
+    };
+    const fromSettings = documentFromArchidektSnapshot({
+      deck_id: 1,
+      cards: [{ id: 1, name: 'Sol Ring', primary_category: 'Artifact', categories: ['Artifact'] }],
+      category_settings: { Artifact: { includedInDeck: true, includedInPrice: false } },
+    });
+    expect(fromSettings.categories[0].includedInPrice).toBe(false);
+
+    const inherited = documentFromArchidektSnapshot(
+      { cards: [{ id: 1, name: 'Sol Ring', primary_category: 'Artifact', categories: ['Artifact'] }] },
+      existing,
+      { nameOverride: '  Override Name  ' },
+    );
+    expect(inherited.name).toBe('Override Name');
+    expect(inherited.deckId).toBe('keep-id');
+    expect(inherited.cardLayoutDefault).toBe('grid');
+    expect(inherited.browseViewDefault).toBe('colour');
+
+    const fromUrl = documentFromArchidektSnapshot({ url: 'https://archidekt.com/decks/2/my_deck' }, existing);
+    expect(fromUrl.name).toBe('My Deck');
+  });
+
+  it('documentFromArchidektSnapshot seeds swaps when existing has none', () => {
+    const snap = {
+      deck_id: 1,
+      name: 'Swaps',
+      cards: [
+        { id: 1, name: 'In Card', primary_category: 'New Set In', categories: ['New Set In'] },
+        { id: 2, name: 'Out Card', primary_category: 'New Set Out', categories: ['New Set Out'] },
+      ],
+      categories: [
+        { name: 'New Set In', includedInDeck: false, includedInPrice: false },
+        { name: 'New Set Out', includedInDeck: false, includedInPrice: false },
+      ],
+    };
+    const doc = documentFromArchidektSnapshot(snap);
+    expect(doc.formalSwapEntries.length).toBeGreaterThan(0);
+  });
 
   it('refresh keep-swaps vs clear-swaps', () => {
 

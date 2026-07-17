@@ -31,10 +31,17 @@ export function ColourIdentityBrowse({
   separateLands = false,
   onDropCard,
   onCardContextMenu,
+  deckMeta,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle'>
-    | { cards: CardView[]; categories: CategoryDef[]; format?: DeckDocument['format']; oracle?: DeckDocument['oracle'] };
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
+    | {
+        cards: CardView[];
+        categories: CategoryDef[];
+        format?: DeckDocument['format'];
+        oracle?: DeckDocument['oracle'];
+        name?: string;
+      };
   onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
@@ -42,6 +49,7 @@ export function ColourIdentityBrowse({
   separateLands?: boolean;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
+  deckMeta?: string;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -107,6 +115,8 @@ export function ColourIdentityBrowse({
     })
     .filter(Boolean);
 
+  const deckName = 'name' in resolvedDeck && typeof resolvedDeck.name === 'string' ? resolvedDeck.name : undefined;
+
   return (
     <div className="db-browse">
       <DeckHeaderRow
@@ -118,6 +128,8 @@ export function ColourIdentityBrowse({
         onCardContextMenu={onCardContextMenu}
         format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
         cardSort={cardSort}
+        deckName={deckName}
+        deckMeta={deckMeta}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

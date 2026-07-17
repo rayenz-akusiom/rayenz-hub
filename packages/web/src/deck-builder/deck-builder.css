@@ -41,9 +41,8 @@ body,
 .db-header {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 0.75rem;
 }
 
@@ -629,6 +628,18 @@ body,
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
+.db-deck-leaders-identity {
+  margin-bottom: 0.75rem;
+}
+
+.db-deck-leaders-identity .db-header-title {
+  color: var(--db-leaders-accent);
+}
+
+.db-deck-leaders-identity .db-meta {
+  color: var(--db-muted);
+}
+
 .db-deck-leaders .db-header-cat-title {
   color: var(--db-leaders-accent);
 }
@@ -1024,20 +1035,58 @@ body,
   border-radius: var(--db-card-radius);
 }
 
-.db-export-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
 .db-toolbar-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   margin-left: auto;
+}
+
+.db-add-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  aspect-ratio: var(--db-card-aspect);
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid rgba(31, 111, 235, 0.45);
+  border-radius: calc(3.25rem * 0.055);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--db-accent);
+  box-shadow:
+    0 4px 16px rgba(26, 31, 36, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.db-add-fab:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(31, 111, 235, 0.7);
+  transform: translateY(-1px);
+}
+
+.db-add-fab:focus-visible {
+  outline: 2px solid var(--db-accent);
+  outline-offset: 3px;
+}
+
+.db-add-fab-plus {
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1;
+  margin-top: -0.1em;
 }
 
 .db-menu {
@@ -1292,9 +1341,9 @@ body,
 }
 
 .db-shell.is-swap-picking .db-header,
-.db-shell.is-swap-picking .db-export-bar,
 .db-shell.is-swap-picking .db-swaps,
-.db-shell.is-swap-picking .db-profile {
+.db-shell.is-swap-picking .db-profile,
+.db-shell.is-swap-picking .db-add-fab {
   pointer-events: none;
 }
 
@@ -1392,6 +1441,7 @@ body,
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
+  margin-left: auto;
 }
 
 .db-library-sort {

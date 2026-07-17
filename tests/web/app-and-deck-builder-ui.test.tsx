@@ -111,27 +111,6 @@ describe('ExportBar', () => {
     expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
   });
 
-  it('shows Add card button when handler is provided', async () => {
-    const user = userEvent.setup();
-    const onAddCard = vi.fn();
-    render(
-      <ExportBar
-        onAddCard={onAddCard}
-        view="category"
-        onViewChange={() => {}}
-        layout="grid"
-        onLayoutChange={() => {}}
-        cardSort="name_asc"
-        onCardSortChange={() => {}}
-        cardSize="S"
-        onCardSizeChange={() => {}}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Add card…' }));
-    expect(onAddCard).toHaveBeenCalled();
-  });
-
   it('changes browse view via menu', async () => {
     const user = userEvent.setup();
     const onViewChange = vi.fn();

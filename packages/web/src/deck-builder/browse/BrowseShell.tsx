@@ -12,7 +12,6 @@ import {
   removeCardFromDeck,
   setCardFoil,
   setCardProxy,
-  totalCardQuantity,
   type BrowseView,
   type CardView,
   type CardLayout,
@@ -33,7 +32,6 @@ import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
 import { useCardSize } from '../card-size';
-import { FormatBadge } from '../ui/FormatBadge';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
@@ -113,7 +111,6 @@ export function BrowseShell({
   );
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
-  const total = totalCardQuantity(deck.cards);
   const editingSwap = Boolean(draft);
 
   const deckRef = useRef(deck);
@@ -132,6 +129,14 @@ export function BrowseShell({
     view === 'colour_identity' || view === 'colour_identity_spells';
   // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
+
+  const deckMeta = [
+    `${size} cards`,
+    incomplete ? `${incomplete} incomplete swaps` : null,
+    enriching ? 'Enriching…' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   function onSelectCard(card: CardView) {
     setContextMenu(null);
@@ -322,34 +327,19 @@ export function BrowseShell({
       <header className="db-header">
         <button type="button" className="db-btn db-library-back" onClick={onBack} aria-label="Library" title="Library">
           <BookIcon />
-          <span>Library</span>
         </button>
-        <div className="db-header-main">
-          <h2 className="db-header-title">
-            <FormatBadge format={deck.format} />
-            <span>{deck.name}</span>
-          </h2>
-          <p className="db-meta">
-            {size} cards
-            {total !== size ? ` · ${total} total` : ''}
-            {incomplete ? ` · ${incomplete} incomplete swaps` : ''}
-            {enriching ? ' · Enriching…' : ''}
-          </p>
-        </div>
+        <ExportBar
+          view={view}
+          onViewChange={setView}
+          layout={layout}
+          onLayoutChange={setLayoutAndPersist}
+          cardSort={cardSort}
+          onCardSortChange={setCardSortAndPersist}
+          cardSize={cardSize}
+          onCardSizeChange={setCardSize}
+        />
         <DeckActionsMenu deck={deck} onDeckChange={onChange} />
       </header>
-
-      <ExportBar
-        onAddCard={() => setAddOpen(true)}
-        view={view}
-        onViewChange={setView}
-        layout={layout}
-        onLayoutChange={setLayoutAndPersist}
-        cardSort={cardSort}
-        onCardSortChange={setCardSortAndPersist}
-        cardSize={cardSize}
-        onCardSizeChange={setCardSize}
-      />
 
       <div className="db-body">
         <main className="db-main">
@@ -418,6 +408,7 @@ export function BrowseShell({
               separateLands={view === 'colour_identity_spells'}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              deckMeta={deckMeta}
             />
           ) : (
             <CategoryBrowse
@@ -429,6 +420,7 @@ export function BrowseShell({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               mode="main"
+              deckMeta={deckMeta}
             />
           )}
         </main>
@@ -562,6 +554,18 @@ export function BrowseShell({
           onRemove={onRemoveSelected}
         />
       ) : null}
+
+      <button
+        type="button"
+        className="db-add-fab"
+        aria-label="Add card"
+        title="Add card"
+        onClick={() => setAddOpen(true)}
+      >
+        <span className="db-add-fab-plus" aria-hidden="true">
+          +
+        </span>
+      </button>
     </div>
   );
 }

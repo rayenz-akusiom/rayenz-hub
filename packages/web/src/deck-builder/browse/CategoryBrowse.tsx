@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   pickCommanderPair,
   partitionCategories,
@@ -12,6 +12,7 @@ import {
   type DeckDocument,
   type DeckFormat,
 } from '@rayenz-hub/shared';
+import { FormatBadge } from '../ui/FormatBadge';
 import { CardTile, DRAG_MIME } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
 
@@ -318,6 +319,8 @@ export function DeckHeaderRow({
   onCardContextMenu,
   format,
   cardSort = 'name_asc',
+  deckName,
+  deckMeta,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -327,51 +330,49 @@ export function DeckHeaderRow({
   onCardContextMenu?: CardContextMenuHandler;
   format?: DeckFormat | null;
   cardSort?: CardSortMode;
+  deckName?: string;
+  deckMeta?: string;
 }) {
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
   const dragging = useDeckBuilderDragging();
   const showLieutenants = lieutenants.length > 0 || dragging;
+  const badgeFormat: DeckFormat = format === 'commander' || format === 'cube' ? format : 'other';
 
+  let slots: ReactNode = null;
   if (format === 'commander') {
-    return (
-      <div className="db-deck-leaders" aria-label="Deck leaders">
-        <div className="db-header-row">
-          <div className="db-header-slot is-commander">
-            <CommanderSlots
-              commanders={commanders}
+    slots = (
+      <div className="db-header-row">
+        <div className="db-header-slot is-commander">
+          <CommanderSlots
+            commanders={commanders}
+            selectedId={selectedId}
+            onSelectCard={onSelectCard}
+            onDropCard={onDropCard}
+            onCardContextMenu={onCardContextMenu}
+            dragging={dragging}
+          />
+        </div>
+        {showLieutenants ? (
+          <div className="db-header-slot is-lieutenants">
+            <div className="db-header-divider" aria-hidden="true" />
+            <DropSection
+              category="Lieutenants"
+              cards={lieutenants}
+              layout="grid"
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
-              dragging={dragging}
+              variant="header"
+              cardSort={cardSort}
             />
           </div>
-          {showLieutenants ? (
-            <div className="db-header-slot is-lieutenants">
-              <div className="db-header-divider" aria-hidden="true" />
-              <DropSection
-                category="Lieutenants"
-                cards={lieutenants}
-                layout="grid"
-                selectedId={selectedId}
-                onSelectCard={onSelectCard}
-                onDropCard={onDropCard}
-                onCardContextMenu={onCardContextMenu}
-                variant="header"
-                cardSort={cardSort}
-              />
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </div>
     );
-  }
-
-  if (!headerKeys.length) return null;
-
-  return (
-    <div className="db-deck-leaders" aria-label="Deck leaders">
+  } else if (headerKeys.length) {
+    slots = (
       <div className="db-header-row">
         {headerKeys.map((cat, idx) => (
           <div
@@ -393,6 +394,23 @@ export function DeckHeaderRow({
           </div>
         ))}
       </div>
+    );
+  }
+
+  if (!deckName && !slots) return null;
+
+  return (
+    <div className="db-deck-leaders" aria-label="Deck leaders">
+      {deckName ? (
+        <div className="db-deck-leaders-identity">
+          <h2 className="db-header-title">
+            <FormatBadge format={badgeFormat} />
+            <span>{deckName}</span>
+          </h2>
+          {deckMeta ? <p className="db-meta">{deckMeta}</p> : null}
+        </div>
+      ) : null}
+      {slots}
     </div>
   );
 }
@@ -407,10 +425,17 @@ export function CategoryBrowse({
   onCardContextMenu,
   mode = 'main',
   includeSwapCategories = false,
+  deckMeta,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle'>
-    | { cards: CardView[]; categories: CategoryDef[]; format?: DeckFormat; oracle?: DeckDocument['oracle'] };
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
+    | {
+        cards: CardView[];
+        categories: CategoryDef[];
+        format?: DeckFormat;
+        oracle?: DeckDocument['oracle'];
+        name?: string;
+      };
   onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
@@ -419,6 +444,7 @@ export function CategoryBrowse({
   onCardContextMenu?: CardContextMenuHandler;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
+  deckMeta?: string;
 }) {
   const resolved = useMemo(
     () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
@@ -429,6 +455,7 @@ export function CategoryBrowse({
     [deck, resolved, includeSwapCategories],
   );
   const format = 'format' in deck ? deck.format : undefined;
+  const deckName = 'name' in deck && typeof deck.name === 'string' ? deck.name : undefined;
 
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;
@@ -478,6 +505,8 @@ export function CategoryBrowse({
         onCardContextMenu={onCardContextMenu}
         format={format}
         cardSort={cardSort}
+        deckName={deckName}
+        deckMeta={deckMeta}
       />
       {layout === 'grid' ? (
         includedSections

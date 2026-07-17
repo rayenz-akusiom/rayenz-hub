@@ -231,12 +231,10 @@ describe('ExportBar', () => {
   it('changes browse view and layout via menus', async () => {
     const onViewChange = vi.fn();
     const onLayoutChange = vi.fn();
-    const onAddCard = vi.fn();
     const user = userEvent.setup();
 
     render(
       <ExportBar
-        onAddCard={onAddCard}
         view="category"
         onViewChange={onViewChange}
         layout="stacked"
@@ -247,9 +245,6 @@ describe('ExportBar', () => {
         onCardSizeChange={vi.fn()}
       />,
     );
-
-    await user.click(screen.getByRole('button', { name: 'Add card…' }));
-    expect(onAddCard).toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /Browse/i }));
     await user.click(screen.getByRole('menuitem', { name: 'Colour identity' }));
@@ -292,6 +287,18 @@ describe('BrowseShell selection and context menu', () => {
       },
     };
   }
+
+  it('shows deck title in leaders band and opens add-card FAB', async () => {
+    const user = userEvent.setup();
+    render(<BrowseShell deck={foilDeck()} onChange={noop} onBack={noop} />);
+
+    expect(screen.getByText(foilDeck().name)).toBeInTheDocument();
+    expect(document.querySelector('.db-deck-leaders-identity')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add card…' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add card' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 
   it('shows foil toggle without card name and opens context menu actions', async () => {
     const user = userEvent.setup();

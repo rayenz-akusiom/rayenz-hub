@@ -78,9 +78,13 @@ describe('DeckHeaderRow', () => {
         header={{ Commander: commanders, Lieutenants: [] }}
         headerKeys={['Commander']}
         onDropCard={vi.fn()}
+        deckName={commanderDoc.name}
+        deckMeta="3 cards"
       />,
     );
-    expect(screen.getByLabelText(/Commanders?/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Commanders')).toBeInTheDocument();
+    expect(screen.getByText(commanderDoc.name)).toBeInTheDocument();
+    expect(screen.getByText('3 cards')).toBeInTheDocument();
   });
 
   it('makes lieutenant tiles draggable when onDropCard is provided', () => {
@@ -124,6 +128,21 @@ describe('DeckHeaderRow', () => {
       />,
     );
     expect(screen.getByText(/Signature/)).toBeInTheDocument();
+  });
+
+  it('renders title-only leaders band when there are no header keys', () => {
+    render(
+      <DeckHeaderRow
+        format="other"
+        header={{}}
+        headerKeys={[]}
+        deckName="Untitled Cube"
+        deckMeta="0 cards"
+      />,
+    );
+    expect(screen.getByLabelText('Deck leaders')).toBeInTheDocument();
+    expect(screen.getByText('Untitled Cube')).toBeInTheDocument();
+    expect(screen.getByText('0 cards')).toBeInTheDocument();
   });
 });
 

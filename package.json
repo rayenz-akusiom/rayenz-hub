@@ -15,6 +15,7 @@
     "test:web:coverage": "vitest run --config vitest.web.config.ts --coverage",
     "dev:web": "npm run dev -w @rayenz-hub/web",
     "build:web": "npm run build -w @rayenz-hub/web",
+    "publish:hub": "npm run build:web && node scripts/publish-hub-hint.mjs",
     "test:unit:watch": "vitest tests/unit",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",

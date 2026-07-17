@@ -54,8 +54,59 @@ function hubStaticPlugin(): Plugin {
   };
 }
 
+/** GitHub Pages: .nojekyll + 404.html that redirects to the project root.
+ *  Do not copy index.html as 404 — relative ./assets/ breaks when the browser
+ *  URL is still /repo/apps/.../ (GitHub serves 404.html without changing the path).
+ */
+function pagesFallbackPlugin(): Plugin {
+  const legacyAppsMap = {
+    dailies: '#/dailies',
+    'neopets-more': '#/neopets-more',
+    'deck-builder': '#/deck-builder',
+    'deck-suggest': '#/deck-suggest',
+    'deck-review': '#/deck-review',
+    'order-reconcile': '#/order-reconcile',
+    settings: '#/settings/dailies',
+  };
+
+  return {
+    name: 'pages-fallback',
+    closeBundle() {
+      fs.writeFileSync(path.join(hubRoot, '.nojekyll'), '');
+      const mapJson = JSON.stringify(legacyAppsMap);
+      const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting…</title>
+    <script>
+      (function () {
+        var map = ${mapJson};
+        var path = location.pathname;
+        var m = path.match(/\\/apps\\/([^/]+)\\/?$/);
+        var segs = path.split('/').filter(Boolean);
+        var root = segs.length ? '/' + segs[0] + '/' : '/';
+        var hash = location.hash || '';
+        if (m) {
+          hash = map[m[1]] || '#/dailies';
+        }
+        location.replace(root + location.search + hash);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to Hub…</p>
+  </body>
+</html>
+`;
+      fs.writeFileSync(path.join(hubRoot, '404.html'), html);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), hubStaticPlugin()],
+  plugins: [react(), hubStaticPlugin(), pagesFallbackPlugin()],
   base: './',
   resolve: {
     alias: {

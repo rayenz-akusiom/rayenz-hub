@@ -9,8 +9,10 @@ import {
   defaultBrowseView,
   defaultCubeCategoryDefs,
   canonicalizeCategoryName,
+  cubeCategoryBand,
   groupByAllCategories,
   groupByCategory,
+  groupKeysByCubeCategoryBand,
   moveCardCategory,
   orderedCategoryKeys,
   deckSize,
@@ -344,5 +346,37 @@ describe('category targets', () => {
     expect(canonicalizeCategoryName('Colorless')).toBe('Colourless');
     expect(canonicalizeCategoryName('colourless')).toBe('Colourless');
     expect(canonicalizeCategoryName('Colourless')).toBe('Colourless');
+  });
+
+  it('groups cube category keys into divider bands (Colourless with mono)', () => {
+    expect(cubeCategoryBand('Colourless')).toBe('mono_colourless');
+    expect(cubeCategoryBand('Azorius')).toBe('dual');
+    expect(cubeCategoryBand('Bant')).toBe('tri');
+    expect(cubeCategoryBand('White-less')).toBe('quad');
+    expect(cubeCategoryBand('Prismatic')).toBe('prismatic');
+    expect(cubeCategoryBand('Lands')).toBe('lands');
+    expect(cubeCategoryBand('Ramp')).toBe('other');
+
+    const groups = groupKeysByCubeCategoryBand([
+      'White',
+      'Colourless',
+      'Azorius',
+      'Simic',
+      'Bant',
+      'Abzan',
+      'Prismatic',
+      'Lands',
+      'Proxies',
+    ]);
+    expect(groups.map((g) => g.band)).toEqual([
+      'mono_colourless',
+      'dual',
+      'tri',
+      'prismatic',
+      'lands',
+      'other',
+    ]);
+    expect(groups[0]!.keys).toEqual(['White', 'Colourless']);
+    expect(groups[1]!.keys).toEqual(['Azorius', 'Simic']);
   });
 });

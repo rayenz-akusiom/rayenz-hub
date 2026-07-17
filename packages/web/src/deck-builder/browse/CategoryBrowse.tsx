@@ -7,6 +7,7 @@ import {
   cardDisplayName,
   categoryTarget,
   primaryCategoryCount,
+  groupKeysByCubeCategoryBand,
   type BrowseView,
   type CardLayout,
   type CardSortMode,
@@ -621,7 +622,7 @@ export function CategoryBrowse({
     );
   }
 
-  const includedSections = includedKeys.map((cat) => (
+  const includedSection = (cat: string) => (
     <DropSection
       key={cat}
       category={cat}
@@ -639,7 +640,29 @@ export function CategoryBrowse({
       primaryCount={primaryCategoryCount(resolved, cat)}
       warnTarget={warnTargets}
     />
-  ));
+  );
+
+  const body =
+    keySort === 'cube_ci' ? (
+      <div className="db-cube-bands">
+        {groupKeysByCubeCategoryBand(includedKeys).map((group, index) => (
+          <div key={group.band} className="db-cube-band">
+            {index > 0 ? (
+              <div className="db-cube-band-divider" role="separator" aria-hidden="true" />
+            ) : null}
+            {layout === 'grid' ? (
+              <div className="db-cube-band-grid">{group.keys.map(includedSection)}</div>
+            ) : (
+              <MasonryColumns>{group.keys.map(includedSection)}</MasonryColumns>
+            )}
+          </div>
+        ))}
+      </div>
+    ) : layout === 'grid' ? (
+      includedKeys.map(includedSection)
+    ) : (
+      <MasonryColumns>{includedKeys.map(includedSection)}</MasonryColumns>
+    );
 
   return (
     <div className="db-browse">
@@ -658,11 +681,7 @@ export function CategoryBrowse({
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
       />
-      {layout === 'grid' ? (
-        includedSections
-      ) : (
-        <MasonryColumns>{includedSections}</MasonryColumns>
-      )}
+      {body}
     </div>
   );
 }

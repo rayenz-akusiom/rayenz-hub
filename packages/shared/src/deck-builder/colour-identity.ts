@@ -1,5 +1,6 @@
 import type { ThreeColourNamingStyle } from '../schemas/deck-builder-settings.js';
 import { DEFAULT_DECK_BUILDER_SETTINGS } from '../schemas/deck-builder-settings.js';
+import { canonicalizeCategoryName } from './category-names.js';
 import { isBasicLand } from './quantities.js';
 
 /** Card shape needed for CI bucketing (resolved CardView works). */
@@ -222,6 +223,82 @@ export function defaultCubeCategoryDefs(
       target: null,
     })),
   ];
+}
+
+/**
+ * Major bands for cube Categories browse dividers.
+ * Mono + Colourless stay together; dual / tri / quad / Prismatic / Lands are separated.
+ */
+export type CubeCategoryBandId =
+  | 'mono_colourless'
+  | 'dual'
+  | 'tri'
+  | 'quad'
+  | 'prismatic'
+  | 'lands'
+  | 'other';
+
+export const CUBE_CATEGORY_BAND_ORDER: readonly CubeCategoryBandId[] = [
+  'mono_colourless',
+  'dual',
+  'tri',
+  'quad',
+  'prismatic',
+  'lands',
+  'other',
+] as const;
+
+function cubeCategoryBandSets(options?: ColourIdentityOptionsInput): {
+  mono: ReadonlySet<string>;
+  dual: ReadonlySet<string>;
+  tri: ReadonlySet<string>;
+  quad: ReadonlySet<string>;
+} {
+  const { style } = resolveColourIdentityOptions(options);
+  const ally = style.allyThreeColourNames === 'capenna' ? CAPENNA_ORDER : SHARD_ORDER;
+  const enemy = style.enemyThreeColourNames === 'ikoria' ? IKORIA_ORDER : WEDGE_ORDER;
+  return {
+    mono: new Set(['White', 'Blue', 'Black', 'Red', 'Green', 'Colourless']),
+    dual: new Set(GUILD_ORDER),
+    tri: new Set([...ally, ...enemy]),
+    quad: new Set(FOUR_ORDER),
+  };
+}
+
+/** Which divider band a cube category column belongs to. */
+export function cubeCategoryBand(
+  name: string,
+  options?: ColourIdentityOptionsInput,
+): CubeCategoryBandId {
+  const key = canonicalizeCategoryName(name);
+  if (key === 'Lands') return 'lands';
+  if (key === 'Prismatic') return 'prismatic';
+  const sets = cubeCategoryBandSets(options);
+  if (sets.mono.has(key)) return 'mono_colourless';
+  if (sets.dual.has(key)) return 'dual';
+  if (sets.tri.has(key)) return 'tri';
+  if (sets.quad.has(key)) return 'quad';
+  return 'other';
+}
+
+/**
+ * Group already-ordered category keys into cube bands (empty bands omitted).
+ * Preserves relative key order within each band.
+ */
+export function groupKeysByCubeCategoryBand(
+  keys: string[],
+  options?: ColourIdentityOptionsInput,
+): { band: CubeCategoryBandId; keys: string[] }[] {
+  const buckets = new Map<CubeCategoryBandId, string[]>();
+  for (const id of CUBE_CATEGORY_BAND_ORDER) buckets.set(id, []);
+  for (const key of keys) {
+    const band = cubeCategoryBand(key, options);
+    buckets.get(band)!.push(key);
+  }
+  return CUBE_CATEGORY_BAND_ORDER.map((band) => ({
+    band,
+    keys: buckets.get(band) || [],
+  })).filter((g) => g.keys.length > 0);
 }
 
 /** Default section list (shards + wedges). Prefer `colourIdentitySectionsFor` when style is known. */

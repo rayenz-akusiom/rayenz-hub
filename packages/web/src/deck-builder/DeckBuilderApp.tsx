@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
+import {
+  deckBuilderHash,
+  HUB_USER_SLUG,
+  normalizeHash,
+  parseDeckBuilderRoute,
+} from '../hub/routes';
+import { navigateHub } from '../lib/hub-storage';
+import { toKebabCase } from '../lib/string-utils';
 import { LibraryView } from './library/LibraryView';
 import { AddDeckDialog } from './library/AddDeckDialog';
 import { BrowseShell } from './browse/BrowseShell';
@@ -31,6 +39,15 @@ async function deleteDualMode(deckId: string): Promise<{ apiError?: string }> {
   return {};
 }
 
+function syncDeckHash(doc: DeckDocument | null): void {
+  const next = doc
+    ? deckBuilderHash(HUB_USER_SLUG, toKebabCase(doc.name))
+    : deckBuilderHash();
+  if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
+    navigateHub(next);
+  }
+}
+
 export function DeckBuilderApp() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [active, setActive] = useState<DeckDocument | null>(null);
@@ -39,6 +56,60 @@ export function DeckBuilderApp() {
   const [error, setError] = useState<string | null>(null);
   const [apiWarning, setApiWarning] = useState<string | null>(null);
   const persistSeq = useRef(0);
+  const decksRef = useRef<DeckSummary[]>([]);
+  const activeRef = useRef<DeckDocument | null>(null);
+  const applyingRouteRef = useRef(false);
+
+  useEffect(() => {
+    decksRef.current = decks;
+  }, [decks]);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  const openDeck = useCallback(async (deckId: string, opts?: { syncHash?: boolean }) => {
+    setError(null);
+    const doc = await store.getDeck(deckId);
+    if (!doc) {
+      setError('Deck not found in local store');
+      return;
+    }
+    setActive(doc);
+    if (opts?.syncHash !== false) syncDeckHash(doc);
+  }, []);
+
+  const applyRouteFromHash = useCallback(
+    async (list: DeckSummary[]) => {
+      const route = parseDeckBuilderRoute(window.location.hash);
+      if (!route) {
+        if (activeRef.current) setActive(null);
+        return;
+      }
+      if (route.userSlug !== HUB_USER_SLUG) {
+        setError(`Unknown user “${route.userSlug}”`);
+        setActive(null);
+        return;
+      }
+      const match = list.find((d) => toKebabCase(d.name) === route.deckSlug);
+      if (!match) {
+        setError('Deck not found');
+        setActive(null);
+        return;
+      }
+      if (activeRef.current?.deckId === match.deckId) {
+        setError(null);
+        return;
+      }
+      applyingRouteRef.current = true;
+      try {
+        await openDeck(match.deckId, { syncHash: false });
+      } finally {
+        applyingRouteRef.current = false;
+      }
+    },
+    [openDeck],
+  );
 
   const refreshLibrary = useCallback(async () => {
     setLoading(true);
@@ -74,26 +145,26 @@ export function DeckBuilderApp() {
         }
       }
       setDecks(list);
+      await applyRouteFromHash(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyRouteFromHash]);
 
   useEffect(() => {
     void refreshLibrary();
   }, [refreshLibrary]);
 
-  async function openDeck(deckId: string) {
-    setError(null);
-    const doc = await store.getDeck(deckId);
-    if (!doc) {
-      setError('Deck not found in local store');
-      return;
+  useEffect(() => {
+    function onHashChange() {
+      if (applyingRouteRef.current) return;
+      void applyRouteFromHash(decksRef.current);
     }
-    setActive(doc);
-  }
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [applyRouteFromHash]);
 
   async function persist(next: DeckDocument) {
     const seq = ++persistSeq.current;
@@ -102,6 +173,7 @@ export function DeckBuilderApp() {
     const { saved, apiError } = await saveDualMode(next);
     if (seq !== persistSeq.current) return;
     setActive(saved);
+    syncDeckHash(saved);
     if (apiError) setApiWarning(apiError);
     await refreshLibrary();
   }
@@ -109,7 +181,10 @@ export function DeckBuilderApp() {
   async function removeDeck(deckId: string) {
     setApiWarning(null);
     const { apiError } = await deleteDualMode(deckId);
-    if (active?.deckId === deckId) setActive(null);
+    if (active?.deckId === deckId) {
+      setActive(null);
+      syncDeckHash(null);
+    }
     if (apiError) setApiWarning(apiError);
     await refreshLibrary();
   }
@@ -122,6 +197,7 @@ export function DeckBuilderApp() {
           deck={active}
           onBack={() => {
             setActive(null);
+            syncDeckHash(null);
             void refreshLibrary();
           }}
           onChange={(next) => {
@@ -148,7 +224,9 @@ export function DeckBuilderApp() {
           onClose={() => setAddOpen(false)}
           onSave={async (doc) => {
             await persist(doc);
-            setActive(await store.getDeck(doc.deckId));
+            const saved = await store.getDeck(doc.deckId);
+            setActive(saved);
+            if (saved) syncDeckHash(saved);
           }}
         />
       ) : null}

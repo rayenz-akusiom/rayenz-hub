@@ -1,5 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
+import { deckBuilderHash, HUB_USER_SLUG } from '../../hub/routes';
+import { toKebabCase } from '../../lib/string-utils';
 import { CARD_SIZE_PX } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
 
@@ -114,6 +116,7 @@ function LibrarySection({
         {decks.map((d) => {
           const updated = `Updated ${new Date(d.updatedAt).toLocaleString()}`;
           const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
+          const href = deckBuilderHash(HUB_USER_SLUG, toKebabCase(d.name));
           return (
             <li
               key={d.deckId}
@@ -121,22 +124,25 @@ function LibrarySection({
                 d.coverPartnerStatus === 'illegal' ? ' is-illegal-pair' : ''
               }`}
             >
-              <button
-                type="button"
+              <a
+                href={href}
                 className="db-library-tile-open"
                 title={
                   d.coverPartnerStatus === 'illegal'
                     ? `${updated} — These commanders can’t partner`
                     : updated
                 }
-                onClick={() => onOpen(d.deckId)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpen(d.deckId);
+                }}
               >
                 <LibraryCoverArt deck={d} />
                 <span className="db-library-tile-caption">
                   <FormatBadge format={d.format} />
                   <span className="db-library-tile-name">{d.name}</span>
                 </span>
-              </button>
+              </a>
               <button
                 type="button"
                 className="db-library-tile-delete"

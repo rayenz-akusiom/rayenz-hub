@@ -28,9 +28,11 @@ function setLastRoute(route: string): void {
 export function useHubRoute() {
   const [path, setPath] = useState<HubPath>(() => pathFromHash(window.location.hash));
 
-  const applyPath = useCallback((nextPath: HubPath) => {
+  const applyHash = useCallback((hash: string) => {
+    const normalized = normalizeHash(hash);
+    const nextPath = pathFromHash(normalized);
     setPath(nextPath);
-    setLastRoute(`#${nextPath}`);
+    setLastRoute(normalized);
     if (nextPath === '/dailies') {
       document.body.setAttribute('data-neopets-dailies', 'rayenz');
     } else {
@@ -40,28 +42,27 @@ export function useHubRoute() {
 
   const navigate = useCallback((hash: string) => {
     const normalized = normalizeHash(hash);
-    const nextPath = pathFromHash(normalized);
     if (window.location.hash !== normalized) {
       window.location.hash = normalized;
     } else {
-      applyPath(nextPath);
+      applyHash(normalized);
     }
-  }, [applyPath]);
+  }, [applyHash]);
 
   useEffect(() => {
     function onHashChange() {
-      applyPath(pathFromHash(window.location.hash));
+      applyHash(window.location.hash);
     }
 
     if (!window.location.hash) {
       window.location.replace(normalizeHash(getLastRoute()));
     } else {
-      applyPath(pathFromHash(window.location.hash));
+      applyHash(window.location.hash);
     }
 
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, [applyPath]);
+  }, [applyHash]);
 
   useEffect(() => {
     const api = {

@@ -1,7 +1,9 @@
 import {
   cardHasBackFace,
   cardImageUrl,
+  resolveDeckCards,
   type CardInstance,
+  type CardView,
   type DeckDocument,
   type PrintingFields,
 } from '@rayenz-hub/shared';
@@ -24,7 +26,7 @@ function hubCardPicker(): HubCardPickerApi | undefined {
   return (window as Window & { HubCardPicker?: HubCardPickerApi }).HubCardPicker;
 }
 
-function printingLine(card: CardInstance): string {
+function printingLine(card: CardView): string {
   const set = card.setCode ? String(card.setCode).toUpperCase() : '';
   const num = card.collectorNumber || '';
   if (set && num) return `${set} #${num}`;
@@ -32,7 +34,7 @@ function printingLine(card: CardInstance): string {
   return '';
 }
 
-export function buildOutPickerItems(cards: CardInstance[]): CardPickerItem[] {
+export function buildOutPickerItems(cards: CardView[]): CardPickerItem[] {
   return cards.map((card) => {
     const doubleFaced = cardHasBackFace(card.layout);
     return {
@@ -58,7 +60,7 @@ export function openOutCardPicker(
   picker.open({
     title: 'Select Out card',
     groupByCategory: true,
-    items: buildOutPickerItems(deck.cards),
+    items: buildOutPickerItems(resolveDeckCards(deck)),
     selectedValue: selectedInstanceId,
     onPick: (value) => {
       const id = String(value || '');

@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  isHeaderLeaderCategory,
-  normalizeColourIdentity,
-  parsePartnerWithName,
+  cardOracleFromScryfall,
+  collectionIdentifierForCard,
+  fetchCardsCollection,
+  getOracle,
+  needsOracleEnrich,
+  oracleKey,
+  provisionalLayoutFromCard,
+  upsertOracle,
   type CardInstance,
+  type CardOracle,
   type DeckDocument,
+  type ScryfallCard,
+  type ScryfallCollectionIdentifier,
 } from '@rayenz-hub/shared';
-
-const CACHE_DB = 'rayenz-deck-builder-oracle';
-const CACHE_STORE = 'scryfall-oracle-v2';
-const REQUEST_GAP_MS = 120;
-const RATE_LIMIT_BACKOFF_MS = 2000;
 
 export type ScryfallOracleCache = {
   colourIdentity: ('W' | 'U' | 'B' | 'R' | 'G')[];
@@ -19,104 +22,39 @@ export type ScryfallOracleCache = {
   layout: string | null;
   keywords: string[];
   partnerWith: string | null;
+  oracleText?: string | null;
+  imageUrl?: string | null;
 };
 
-type FetchOracleResult =
-  | { ok: true; data: ScryfallOracleCache }
-  | { ok: false; rateLimited?: boolean };
-
-type EnrichCardFields = Pick<
-  CardInstance,
-  | 'colourIdentity'
-  | 'typeLine'
-  | 'layout'
-  | 'scryfallId'
-  | 'keywords'
-  | 'partnerWith'
-  | 'primaryCategory'
->;
-
-function cacheKey(card: CardInstance): string {
-  if (card.setCode && card.collectorNumber != null && card.collectorNumber !== '') {
-    return `print:${String(card.setCode).toLowerCase()}:${card.collectorNumber}`;
-  }
-  return `name:${card.name.toLowerCase()}`;
-}
-
-function openCacheDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
-  return new Promise((resolve) => {
-    try {
-      const req = indexedDB.open(CACHE_DB, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(CACHE_STORE)) {
-          db.createObjectStore(CACHE_STORE);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function cacheGet(key: string): Promise<ScryfallOracleCache | null> {
-  const db = await openCacheDb();
-  if (!db) return null;
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(CACHE_STORE, 'readonly');
-      const req = tx.objectStore(CACHE_STORE).get(key);
-      req.onsuccess = () => resolve((req.result as ScryfallOracleCache) || null);
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function cachePut(key: string, value: ScryfallOracleCache): Promise<void> {
-  if (!value.typeLine) return;
-  const db = await openCacheDb();
-  if (!db) return;
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(CACHE_STORE, 'readwrite');
-      tx.objectStore(CACHE_STORE).put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-    } catch {
-      resolve();
-    }
-  });
-}
-
+/** @deprecated Prefer needsOracleEnrich(doc, card) */
 export function needsEnrich(
-  card: Pick<
-    CardInstance,
-    'colourIdentity' | 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'
-  >,
+  card: Pick<CardInstance, 'primaryCategory'> & {
+    colourIdentity?: string[];
+    typeLine?: string | null;
+    keywords?: string[] | null;
+  },
 ): boolean {
   const missingCi = !(card.colourIdentity && card.colourIdentity.length);
   const missingType = !card.typeLine;
-  const missingLayout = card.layout == null;
   const missingLeaderKeywords =
-    isHeaderLeaderCategory(card.primaryCategory) && card.keywords == null;
-  return missingCi || missingType || missingLayout || missingLeaderKeywords;
+    card.primaryCategory === 'Commander' || card.primaryCategory === 'Lieutenants'
+      ? card.keywords == null
+      : false;
+  return missingCi || missingType || missingLeaderKeywords;
 }
 
-/** Cache is usable only when it can supply fields the card still needs. */
+/** @deprecated Oracle lives on the deck document now. */
 export function isUsableOracleCache(
   cached: ScryfallOracleCache | null,
-  card: Pick<CardInstance, 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'>,
+  card: Pick<CardInstance, 'primaryCategory'> & {
+    typeLine?: string | null;
+    keywords?: string[] | null;
+  },
 ): cached is ScryfallOracleCache {
   if (!cached) return false;
   if (!card.typeLine && !cached.typeLine) return false;
-  if (card.layout == null && !cached.layout) return false;
   if (
-    isHeaderLeaderCategory(card.primaryCategory) &&
+    (card.primaryCategory === 'Commander' || card.primaryCategory === 'Lieutenants') &&
     card.keywords == null &&
     !Array.isArray(cached.keywords)
   ) {
@@ -125,65 +63,35 @@ export function isUsableOracleCache(
   return true;
 }
 
-/** Attempt-once key: deck + cards that still need enrich (not updatedAt). */
 export function enrichAttemptSignature(
   deckId: string,
-  cards: Pick<
-    CardInstance,
-    'instanceId' | 'colourIdentity' | 'typeLine' | 'layout' | 'keywords' | 'primaryCategory'
-  >[],
+  cards: CardInstance[],
+  oracle: Record<string, CardOracle> | undefined,
 ): string {
+  const doc = { oracle: oracle || {} };
   const missing = cards
-    .filter(needsEnrich)
+    .filter((c) => needsOracleEnrich(doc, c))
     .map((c) => c.instanceId)
     .sort();
   return `${deckId}:${missing.join(',')}`;
 }
 
-/** Merge oracle data onto a card; returns null if nothing material improves. */
+/** @deprecated Prefer cardOracleFromScryfall + upsertOracle */
 export function materialOraclePatch(
-  card: EnrichCardFields,
+  card: {
+    colourIdentity?: string[];
+    typeLine?: string | null;
+    layout?: string | null;
+    scryfallId?: string | null;
+    keywords?: string[] | null;
+    partnerWith?: string | null;
+  },
   oracle: ScryfallOracleCache,
 ): Partial<CardInstance> | null {
-  const nextType = card.typeLine || oracle.typeLine || null;
-  const nextCi =
-    card.colourIdentity?.length ? card.colourIdentity : oracle.colourIdentity;
   const nextId = card.scryfallId || oracle.scryfallId || null;
-  const nextLayout = card.layout ?? oracle.layout ?? null;
-
-  const typeImproved = !card.typeLine && Boolean(nextType);
-  const ciImproved = !(card.colourIdentity && card.colourIdentity.length) && nextCi.length > 0;
   const idImproved = !card.scryfallId && Boolean(nextId);
-  const layoutImproved = card.layout == null && Boolean(nextLayout);
-  const keywordsImproved = card.keywords == null && Array.isArray(oracle.keywords);
-  const partnerWithImproved =
-    !keywordsImproved && card.partnerWith == null && oracle.partnerWith != null;
-
-  if (
-    !typeImproved &&
-    !ciImproved &&
-    !idImproved &&
-    !layoutImproved &&
-    !keywordsImproved &&
-    !partnerWithImproved
-  ) {
-    return null;
-  }
-  // Still need a type line and oracle did not provide one — do not patch/cache.
-  if (!card.typeLine && !nextType) return null;
-
-  const patch: Partial<CardInstance> = {};
-  if (typeImproved) patch.typeLine = nextType;
-  if (ciImproved) patch.colourIdentity = nextCi;
-  if (idImproved) patch.scryfallId = nextId;
-  if (layoutImproved) patch.layout = nextLayout;
-  if (keywordsImproved) {
-    patch.keywords = oracle.keywords;
-    patch.partnerWith = oracle.partnerWith;
-  } else if (partnerWithImproved) {
-    patch.partnerWith = oracle.partnerWith;
-  }
-  return patch;
+  if (!idImproved) return null;
+  return { scryfallId: nextId };
 }
 
 export function parseOracleJson(data: {
@@ -194,59 +102,57 @@ export function parseOracleJson(data: {
   keywords?: string[];
   oracle_text?: string;
 }): ScryfallOracleCache {
-  const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
+  const o = cardOracleFromScryfall(data);
   return {
-    scryfallId: data.id || null,
-    typeLine: data.type_line || null,
-    colourIdentity: normalizeColourIdentity(data.color_identity || []),
-    layout: data.layout || 'normal',
-    keywords,
-    partnerWith: parsePartnerWithName(data.oracle_text),
+    scryfallId: o.scryfallId,
+    typeLine: o.typeLine,
+    colourIdentity: o.colourIdentity,
+    layout: o.layout,
+    keywords: o.keywords || [],
+    partnerWith: o.partnerWith,
+    oracleText: o.oracleText,
+    imageUrl: o.imageUrl,
   };
 }
 
-async function fetchOracleResponse(url: string): Promise<FetchOracleResult> {
-  try {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (res.status === 429) return { ok: false, rateLimited: true };
-    if (!res.ok) return { ok: false };
-    const data = (await res.json()) as {
-      id?: string;
-      type_line?: string;
-      color_identity?: string[];
-      layout?: string;
-      keywords?: string[];
-      oracle_text?: string;
-    };
-    return { ok: true, data: parseOracleJson(data) };
-  } catch {
-    return { ok: false };
+function identifierMatchKey(id: ScryfallCollectionIdentifier): string {
+  if ('id' in id) return `id:${id.id.toLowerCase()}`;
+  if ('set' in id) {
+    return `print:${id.set.toLowerCase()}:${id.collector_number}`;
   }
+  return `name:${id.name.toLowerCase()}`;
 }
 
-async function fetchBySetCollector(
-  setCode: string,
-  collectorNumber: string,
-): Promise<FetchOracleResult> {
-  const set = encodeURIComponent(setCode.toLowerCase());
-  const cn = encodeURIComponent(collectorNumber);
-  return fetchOracleResponse(`https://api.scryfall.com/cards/${set}/${cn}`);
+function cardMatchKeys(card: CardInstance): string[] {
+  const keys: string[] = [];
+  if (card.scryfallId) keys.push(`id:${String(card.scryfallId).toLowerCase()}`);
+  if (card.setCode && card.collectorNumber != null && card.collectorNumber !== '') {
+    keys.push(`print:${String(card.setCode).toLowerCase()}:${card.collectorNumber}`);
+  }
+  keys.push(`name:${card.name.toLowerCase()}`);
+  return keys;
 }
 
-async function fetchNamed(name: string): Promise<FetchOracleResult> {
-  return fetchOracleResponse(
-    `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`,
-  );
+function indexCollectionResults(cards: ScryfallCard[]): Map<string, ScryfallCard> {
+  const map = new Map<string, ScryfallCard>();
+  for (const c of cards) {
+    map.set(`id:${c.id.toLowerCase()}`, c);
+    if (c.set && c.collector_number) {
+      map.set(`print:${c.set.toLowerCase()}:${c.collector_number}`, c);
+    }
+    map.set(`name:${c.name.toLowerCase()}`, c);
+  }
+  return map;
 }
 
 /**
- * Enrich cards missing colour identity / type line / layout / leader keywords via Scryfall.
- * Calls onPatch when cards were updated.
+ * Fill deck.oracle for cards missing CI/type/leader keywords via Scryfall collection.
+ * Calls onPatch with an updated DeckDocument (oracle + optional scryfallId on cards).
  */
 export function useScryfallEnrich(
   deck: DeckDocument,
   enabled: boolean,
-  onPatch: (cards: CardInstance[]) => void,
+  onPatch: (next: DeckDocument) => void,
 ): { enriching: boolean } {
   const [enriching, setEnriching] = useState(false);
   const ranFor = useRef<string | null>(null);
@@ -258,76 +164,110 @@ export function useScryfallEnrich(
   useEffect(() => {
     if (!enabled) return;
 
-    const signature = enrichAttemptSignature(deck.deckId, deck.cards);
+    const signature = enrichAttemptSignature(deck.deckId, deck.cards, deck.oracle);
     if (ranFor.current === signature) return;
 
-    const missing = deck.cards.filter(needsEnrich);
-    if (!missing.length) {
+    const needsNetwork = deck.cards.filter((c) => needsOracleEnrich(deck, c));
+    const needsLocalLayout = deck.cards.filter((c) => {
+      const o = getOracle(deck, c);
+      return !o?.layout;
+    });
+
+    if (!needsNetwork.length && !needsLocalLayout.length) {
       ranFor.current = signature;
       return;
     }
 
-    // Attempt once for this missing set; cleared on cancel so Strict Mode can retry.
     ranFor.current = signature;
 
     let cancelled = false;
     let settled = false;
+    const abort = new AbortController();
+
     (async () => {
       setEnriching(true);
-      const updates = new Map<string, Partial<CardInstance>>();
-      let rateLimitedAt = -1;
+      let oracle = { ...(deck.oracle || {}) };
+      let cards = deck.cards;
+      let rateLimited = false;
+      let changed = false;
 
       try {
-        for (let i = 0; i < missing.length; i++) {
-          const card = missing[i];
+        for (const card of needsLocalLayout) {
           if (cancelled) return;
-          const key = cacheKey(card);
-          const cached = await cacheGet(key);
-          if (isUsableOracleCache(cached, card)) {
-            const patch = materialOraclePatch(card, cached);
-            if (patch) updates.set(card.instanceId, patch);
-            continue;
+          const key = oracleKey(card);
+          const existing = oracle[key];
+          const typeLine = existing?.typeLine ?? null;
+          oracle = upsertOracle(oracle, key, {
+            layout: provisionalLayoutFromCard(card.name, typeLine),
+            typeLine,
+            scryfallId: card.scryfallId || existing?.scryfallId || null,
+          });
+          changed = true;
+        }
+
+        if (needsNetwork.length && !cancelled) {
+          const identifiers: ScryfallCollectionIdentifier[] = [];
+          const seenIds = new Set<string>();
+          for (const card of needsNetwork) {
+            const id = collectionIdentifierForCard(card);
+            if (!id) continue;
+            const mk = identifierMatchKey(id);
+            if (seenIds.has(mk)) continue;
+            seenIds.add(mk);
+            identifiers.push(id);
           }
 
-          let result: FetchOracleResult = { ok: false };
-          if (card.setCode && card.collectorNumber) {
-            result = await fetchBySetCollector(
-              String(card.setCode),
-              String(card.collectorNumber),
-            );
-          }
-          if (!result.ok && !result.rateLimited) {
-            result = await fetchNamed(card.name);
-          }
-          if (result.ok) {
-            const patch = materialOraclePatch(card, result.data);
-            if (patch) {
-              await cachePut(key, result.data);
-              updates.set(card.instanceId, patch);
+          if (identifiers.length) {
+            let result;
+            try {
+              result = await fetchCardsCollection(identifiers, {
+                signal: abort.signal,
+              });
+            } catch (err) {
+              if (cancelled || abort.signal.aborted) return;
+              throw err;
             }
-          } else if (result.rateLimited) {
-            rateLimitedAt = i;
-            await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
-            break;
-          }
+            if (cancelled) return;
+            rateLimited = Boolean(result.rateLimited);
 
-          await new Promise((r) => setTimeout(r, REQUEST_GAP_MS));
+            const byKey = indexCollectionResults(result.data);
+            for (const card of needsNetwork) {
+              let found: ScryfallCard | undefined;
+              for (const mk of cardMatchKeys(card)) {
+                found = byKey.get(mk);
+                if (found) break;
+              }
+              if (!found) continue;
+              const entry = cardOracleFromScryfall(found);
+              const key = oracleKey({
+                ...card,
+                scryfallId: card.scryfallId || entry.scryfallId,
+              });
+              oracle = upsertOracle(oracle, key, entry);
+              if (!card.scryfallId && entry.scryfallId) {
+                cards = cards.map((c) =>
+                  c.instanceId === card.instanceId
+                    ? { ...c, scryfallId: entry.scryfallId }
+                    : c,
+                );
+              }
+              changed = true;
+            }
+          }
         }
 
         if (cancelled) return;
 
-        if (updates.size) {
-          const current = deckRef.current;
-          const nextCards = current.cards.map((c) => {
-            const patch = updates.get(c.instanceId);
-            return patch ? { ...c, ...patch } : c;
+        if (changed) {
+          onPatchRef.current({
+            ...deckRef.current,
+            cards,
+            oracle,
+            updatedAt: new Date().toISOString(),
           });
-          onPatchRef.current(nextCards);
         }
 
-        // Lock only after a full pass (not rate-limit abort). Partial patches change
-        // the signature so a follow-up effect can continue; zero-progress 429 can retry.
-        if (rateLimitedAt < 0) {
+        if (!rateLimited) {
           ranFor.current = signature;
         } else if (ranFor.current === signature) {
           ranFor.current = null;
@@ -340,13 +280,12 @@ export function useScryfallEnrich(
 
     return () => {
       cancelled = true;
-      // React Strict Mode (and deck identity churn) aborts the in-flight pass —
-      // clear the one-shot guard so the remount can retry the same missing set.
+      abort.abort();
       if (!settled && ranFor.current === signature) {
         ranFor.current = null;
       }
     };
-  }, [deck.deckId, deck.cards, enabled]);
+  }, [deck.deckId, deck.cards, deck.oracle, enabled]);
 
   return { enriching };
 }

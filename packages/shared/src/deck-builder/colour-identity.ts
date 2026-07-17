@@ -1,7 +1,13 @@
-import type { CardInstance } from '../schemas/deck-builder.js';
 import type { ThreeColourNamingStyle } from '../schemas/deck-builder-settings.js';
 import { DEFAULT_DECK_BUILDER_SETTINGS } from '../schemas/deck-builder-settings.js';
 import { isBasicLand } from './quantities.js';
+
+/** Card shape needed for CI bucketing (resolved CardView works). */
+export type ColourIdentityCard = {
+  name: string;
+  typeLine?: string | null;
+  colourIdentity?: string[];
+};
 
 const WUBRG_ORDER = ['W', 'U', 'B', 'R', 'G'] as const;
 
@@ -150,7 +156,7 @@ function resolveColourIdentityOptions(options?: ColourIdentityOptionsInput): {
   };
 }
 
-function isLandCard(card: Pick<CardInstance, 'name' | 'typeLine'>): boolean {
+function isLandCard(card: ColourIdentityCard): boolean {
   return /\bLand\b/i.test(card.typeLine || '') || isBasicLand(card);
 }
 
@@ -197,9 +203,7 @@ function basicLandColours(name: string | null | undefined): string[] | null {
   return BASIC_LAND_CI[key];
 }
 
-function resolveColours(
-  card: Pick<CardInstance, 'name' | 'typeLine' | 'colourIdentity'>,
-): string[] {
+function resolveColours(card: ColourIdentityCard): string[] {
   const fromCard = sortWubrg([...(card.colourIdentity || [])]);
   if (fromCard.length) return fromCard;
   if (isBasicLand(card)) {
@@ -222,7 +226,7 @@ function threeColourLabel(key: string, style: ThreeColourNamingStyle): string | 
 }
 
 export function colourIdentitySection(
-  card: Pick<CardInstance, 'name' | 'typeLine' | 'colourIdentity'>,
+  card: ColourIdentityCard,
   options?: ColourIdentityOptionsInput,
 ): string {
   const { style, separateLands } = resolveColourIdentityOptions(options);
@@ -238,15 +242,12 @@ export function colourIdentitySection(
   return 'Colorless';
 }
 
-export function groupByColourIdentity(
-  cards: CardInstance[],
+export function groupByColourIdentity<T extends ColourIdentityCard>(
+  cards: T[],
   options?: ColourIdentityOptionsInput,
-): Record<string, CardInstance[]> {
+): Record<string, T[]> {
   const sections = colourIdentitySectionsFor(options);
-  const groups = Object.fromEntries(sections.map((s) => [s, [] as CardInstance[]])) as Record<
-    string,
-    CardInstance[]
-  >;
+  const groups = Object.fromEntries(sections.map((s) => [s, [] as T[]])) as Record<string, T[]>;
   for (const card of cards) {
     const section = colourIdentitySection(card, options);
     if (!groups[section]) groups[section] = [];

@@ -5,6 +5,9 @@ import {
   isSettingsPath,
   isLegacyPath,
   redirectLegacyAppsPath,
+  parseDeckBuilderRoute,
+  deckBuilderHash,
+  HUB_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
 
 describe('hub routes', () => {
@@ -18,6 +21,30 @@ describe('hub routes', () => {
     expect(pathFromHash('#/deck-review')).toBe('/deck-review');
     expect(pathFromHash('#/settings/dailies')).toBe('/settings/dailies');
     expect(pathFromHash('#/deck-builder')).toBe('/deck-builder');
+  });
+
+  it('maps deck-builder deep links to /deck-builder HubPath', () => {
+    expect(pathFromHash('#/deck-builder/default/fixture-commander')).toBe('/deck-builder');
+    expect(pathFromHash('#/deck-builder/default/foo-bar')).toBe('/deck-builder');
+  });
+
+  it('parses deck-builder user/deck slug routes', () => {
+    expect(parseDeckBuilderRoute('#/deck-builder')).toBeNull();
+    expect(parseDeckBuilderRoute('#/deck-builder/')).toBeNull();
+    expect(parseDeckBuilderRoute('#/deck-builder/default')).toBeNull();
+    expect(parseDeckBuilderRoute('#/deck-builder/default/fixture-commander')).toEqual({
+      userSlug: 'default',
+      deckSlug: 'fixture-commander',
+    });
+    expect(parseDeckBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
+  });
+
+  it('builds deck-builder hashes', () => {
+    expect(deckBuilderHash()).toBe('#/deck-builder');
+    expect(deckBuilderHash(HUB_USER_SLUG, 'fixture-commander')).toBe(
+      '#/deck-builder/default/fixture-commander',
+    );
+    expect(HUB_USER_SLUG).toBe('default');
   });
 
   it('falls back unknown paths to dailies', () => {

@@ -27,9 +27,9 @@ describe('HubUtils.escapeHtml', () => {
 });
 
 describe('HubUtils scryfall image builders', () => {
-  it('builds an image url from a scryfall id', () => {
+  it('builds a CDN image url from a scryfall id', () => {
     expect(HubUtils.scryfallImageFromId('abc-123')).toBe(
-      'https://api.scryfall.com/cards/abc-123?format=image&version=normal',
+      'https://cards.scryfall.io/normal/front/a/b/abc-123.jpg',
     );
     expect(HubUtils.scryfallImageFromId('')).toBe('');
   });

@@ -1,23 +1,18 @@
 import {
-
   detectDeckFormat,
-
+  emptyCardOracle,
   normalizeCardQuantities,
-
   normalizeColourIdentity,
-
+  oracleKey,
+  provisionalLayoutFromCard,
+  scryfallImageFromId,
   seedFormalSwapsFromCategories,
-
+  upsertOracle,
   canonicalizeSwapCategory,
-
   isSwapQueueCategoryName,
-
   type CardInstance,
-
   type CategoryDef,
-
   type DeckDocument,
-
 } from '@rayenz-hub/shared';
 
 
@@ -255,79 +250,53 @@ export function documentFromImportText(
   }));
 
   const rawCards: CardInstance[] = parsed.map((row) => ({
-
     instanceId: nextId('c'),
-
     name: row.name,
-
     quantity: row.quantity,
-
     primaryCategory: row.category,
-
     categories: [row.category],
-
     stack: null,
-
     setCode: null,
-
     collectorNumber: null,
-
     scryfallId: null,
-
-    colourIdentity: [],
-
-    typeLine: null,
-
-    layout: null,
-
     archidektCardId: null,
-
     foil: false,
-
   }));
 
+  let oracle: DeckDocument['oracle'] = {};
+  for (const card of rawCards) {
+    oracle = upsertOracle(
+      oracle,
+      oracleKey(card),
+      emptyCardOracle({
+        layout: provisionalLayoutFromCard(card.name, null),
+      }),
+    );
+  }
+
   const name = opts.name || 'Imported deck';
-
   const format = detectDeckFormat({ name, format: opts.formatHint });
-
   const cards = normalizeCardQuantities(rawCards, format, nextId);
-
   const formalSwapEntries = seedFormalSwapsFromCategories(cards, []);
 
   return {
-
     schemaVersion: 1,
-
     deckId: opts.deckId || nextId('deck'),
-
     name,
-
     format,
-
     archidektId: null,
-
     archidektUrl: null,
-
     categories,
-
     cards,
-
+    oracle,
     formalSwapEntries,
-
     coverInstanceId: null,
-
     browseViewDefault: null,
-
     cardLayoutDefault: 'stacked',
-
     createdAt: now,
-
     updatedAt: now,
-
     lastArchidektSyncAt: null,
-
     lastArchidektImportAt: now,
-
   };
 
 }
@@ -398,8 +367,9 @@ export function documentFromArchidektSnapshot(
 
 
 
-  const rawCards: CardInstance[] = (snapshot.cards || []).map((raw, idx) => {
+  let oracle: DeckDocument['oracle'] = {};
 
+  const rawCards: CardInstance[] = (snapshot.cards || []).map((raw, idx) => {
     const cats = [
       ...new Set(
         (
@@ -419,57 +389,45 @@ export function documentFromArchidektSnapshot(
     const ci = normalizeColourIdentity(raw.color_identity ?? raw.colourIdentity ?? raw.colorIdentity);
 
     const scryfallId =
-
       (raw.scryfall_id as string) ||
-
       (raw.scryfallId as string) ||
-
       (raw.uid as string) ||
-
       null;
 
-    return {
+    const name = String(raw.name || 'Unknown');
+    const typeLine = typeLineFromArchidektCard(raw);
 
+    const card: CardInstance = {
       instanceId: String(raw.id || raw.archidektCardId || `c-${idx}-${Date.now()}`),
-
-      name: String(raw.name || 'Unknown'),
-
+      name,
       quantity: Number(raw.quantity) || 1,
-
       primaryCategory: primary,
-
       categories: cats,
-
       stack: (raw.stack as string) || null,
-
       setCode: (raw.set_code as string) || (raw.setCode as string) || null,
-
       collectorNumber:
-
         raw.collector_number != null
-
           ? String(raw.collector_number)
-
           : raw.collectorNumber != null
-
             ? String(raw.collectorNumber)
-
             : null,
-
       scryfallId,
-
-      colourIdentity: ci,
-
-      typeLine: typeLineFromArchidektCard(raw),
-
-      layout: null,
-
       archidektCardId: raw.id != null ? Number(raw.id) : null,
-
       foil: parseFoil(raw),
-
     };
 
+    oracle = upsertOracle(oracle, oracleKey(card), {
+      scryfallId,
+      colourIdentity: ci,
+      typeLine,
+      layout: provisionalLayoutFromCard(name, typeLine),
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      imageUrl: scryfallId ? scryfallImageFromId(scryfallId) : null,
+    });
+
+    return card;
   });
 
 
@@ -505,6 +463,8 @@ export function documentFromArchidektSnapshot(
     categories,
 
     cards,
+
+    oracle,
 
     formalSwapEntries,
 

@@ -5,7 +5,8 @@ import {
   defaultAddCategory,
   incompleteEntryCount,
   isSwapQueueCategory,
-  type CardInstance,
+  resolveDeckCards,
+  type CardView,
   type DeckDocument,
   type FormalSwapEntry,
   type PrintingFields,
@@ -54,7 +55,7 @@ function SwapArrow({ className }: { className?: string }) {
   );
 }
 
-function MiniCard({ card }: { card: CardInstance | null }) {
+function MiniCard({ card }: { card: CardView | null }) {
   if (!card) {
     return (
       <div className="db-swap-mini is-empty">
@@ -90,8 +91,8 @@ function SwapPairFaces({
   inCard,
   variant,
 }: {
-  outCard: CardInstance | null;
-  inCard: CardInstance | null;
+  outCard: CardView | null;
+  inCard: CardView | null;
   variant: 'preview' | 'popout';
 }) {
   return (
@@ -123,8 +124,8 @@ function SwapPairButton({
   onStartEdit,
 }: {
   entry: FormalSwapEntry;
-  outCard: CardInstance | null;
-  inCard: CardInstance | null;
+  outCard: CardView | null;
+  inCard: CardView | null;
   incompleteEntry: boolean;
   isEditing: boolean;
   cardWidthPx: number;
@@ -208,7 +209,7 @@ function SwapEditSlot({
   role,
   onChange,
 }: {
-  card: CardInstance | null;
+  card: CardView | null;
   role: 'out' | 'in';
   onChange: () => void;
 }) {
@@ -271,7 +272,7 @@ function SwapEditChrome({
   const [phase, setPhase] = useState<'edit' | 'in-search'>('edit');
   useModalScrollLock(true);
 
-  const byId = new Map(deck.cards.map((c) => [c.instanceId, c]));
+  const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
   const inCard = draft.inInstanceId ? byId.get(draft.inInstanceId) || null : null;
   const outCard = draft.outInstanceId ? byId.get(draft.outInstanceId) || null : null;
 
@@ -381,7 +382,7 @@ export function SwapQueuePanel({
   const { widthPx: cardWidthPx } = useCardSize();
   const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const incomplete = incompleteEntryCount(entries);
-  const byId = new Map(deck.cards.map((c) => [c.instanceId, c]));
+  const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
 
   function updateEntries(next: FormalSwapEntry[]) {
     onChange({

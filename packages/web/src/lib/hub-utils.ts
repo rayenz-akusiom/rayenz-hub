@@ -36,10 +36,13 @@ export function sleep(ms: number): Promise<void> {
 }
 
 export function scryfallImageFromId(scryfallId: string | null | undefined): string {
-  if (!scryfallId) {
+  const id = String(scryfallId || '').trim();
+  if (!id || id.length < 2) {
     return '';
   }
-  return 'https://api.scryfall.com/cards/' + scryfallId + '?format=image&version=normal';
+  // Direct CDN — not rate-limited (unlike api.scryfall.com image redirects).
+  // Path: /normal/front/{id[0]}/{id[1]}/{id}.jpg
+  return `https://cards.scryfall.io/normal/front/${id[0]}/${id[1]}/${id}.jpg`;
 }
 
 export function scryfallImageFromPrinting(setCode: string | null | undefined, collectorNumber: string | null | undefined): string {

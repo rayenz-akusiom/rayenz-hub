@@ -2,22 +2,31 @@ import { describe, it, expect } from 'vitest';
 import {
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
+  DeckDocumentSchema,
   pickCoverPartnerStatus,
   pickDeckCoverCards,
   type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
 
+type LegacyCard = CardInstance & {
+  colourIdentity?: ('W' | 'U' | 'B' | 'R' | 'G')[];
+  typeLine?: string | null;
+  layout?: string | null;
+  keywords?: string[] | null;
+  partnerWith?: string | null;
+};
+
 function card(
-  over: Partial<CardInstance> & Pick<CardInstance, 'name' | 'instanceId' | 'primaryCategory'>,
-): CardInstance {
+  over: Partial<LegacyCard> & Pick<LegacyCard, 'name' | 'instanceId' | 'primaryCategory'>,
+): LegacyCard {
+  const scryfallId = over.scryfallId ?? `${over.instanceId}-scryfall-id`;
   return {
     quantity: 1,
     categories: [over.primaryCategory],
     stack: null,
     setCode: 'c16',
     collectorNumber: '1',
-    scryfallId: over.instanceId,
     colourIdentity: ['G'],
     typeLine: 'Legendary Creature',
     layout: 'normal',
@@ -26,11 +35,12 @@ function card(
     archidektCardId: null,
     foil: false,
     ...over,
+    scryfallId,
   };
 }
 
-function doc(cards: CardInstance[], format: DeckDocument['format'] = 'commander'): DeckDocument {
-  return {
+function doc(cards: LegacyCard[], format: DeckDocument['format'] = 'commander'): DeckDocument {
+  return DeckDocumentSchema.parse({
     schemaVersion: 1,
     deckId: 'd1',
     name: 'Test',
@@ -39,6 +49,7 @@ function doc(cards: CardInstance[], format: DeckDocument['format'] = 'commander'
     archidektUrl: null,
     categories: [],
     cards,
+    oracle: {},
     formalSwapEntries: [],
     coverInstanceId: null,
     browseViewDefault: null,
@@ -47,7 +58,7 @@ function doc(cards: CardInstance[], format: DeckDocument['format'] = 'commander'
     updatedAt: '2020-01-01T00:00:00.000Z',
     lastArchidektSyncAt: null,
     lastArchidektImportAt: null,
-  };
+  });
 }
 
 describe('deck cover partners', () => {
@@ -69,8 +80,8 @@ describe('deck cover partners', () => {
     ]);
     const covers = pickDeckCoverCards(d);
     expect(covers.map((c) => c.name)).toEqual(['A', 'B']);
-    expect(deckCoverImageUrl(d)).toContain('a');
-    expect(deckCoverImageUrlSecondary(d)).toContain('b');
+    expect(deckCoverImageUrl(d)).toContain('a-scryfall-id');
+    expect(deckCoverImageUrlSecondary(d)).toContain('b-scryfall-id');
     expect(pickCoverPartnerStatus(d)).toBe('legal');
   });
 
@@ -127,7 +138,7 @@ describe('deck cover partners', () => {
   });
 
   it('uses coverInstanceId override as a single cover face', () => {
-    const d = {
+    const d = DeckDocumentSchema.parse({
       ...doc([
         card({
           instanceId: 'a',
@@ -144,15 +155,15 @@ describe('deck cover partners', () => {
         card({ instanceId: 'c', name: 'Sol Ring', primaryCategory: 'Ramp' }),
       ]),
       coverInstanceId: 'c',
-    };
+    });
     expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['Sol Ring']);
-    expect(deckCoverImageUrl(d)).toContain('c');
+    expect(deckCoverImageUrl(d)).toContain('c-scryfall-id');
     expect(deckCoverImageUrlSecondary(d)).toBeNull();
     expect(pickCoverPartnerStatus(d)).toBeNull();
   });
 
   it('falls back to heuristic when coverInstanceId is missing from the deck', () => {
-    const d = {
+    const d = DeckDocumentSchema.parse({
       ...doc([
         card({
           instanceId: 'a',
@@ -168,7 +179,7 @@ describe('deck cover partners', () => {
         }),
       ]),
       coverInstanceId: 'gone',
-    };
+    });
     expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['A', 'B']);
     expect(pickCoverPartnerStatus(d)).toBe('legal');
   });

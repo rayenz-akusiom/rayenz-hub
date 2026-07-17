@@ -10,6 +10,7 @@ import {
 } from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
 
 import { deckSize, totalCardQuantity } from '../../../packages/shared/src/deck-builder/browse.ts';
+import { oracleKey } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
 
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 
@@ -22,6 +23,8 @@ describe('import', () => {
     const doc = documentFromImportText('[Creature]\n1 Sol Ring\n1 Forest', { name: 'Paste' });
 
     expect(doc.cards).toHaveLength(2);
+    expect(doc.oracle).toBeDefined();
+    expect(Object.keys(doc.oracle || {})).toHaveLength(2);
 
     expect(doc.name).toBe('Paste');
 
@@ -204,8 +207,42 @@ describe('import', () => {
         White: { includedInDeck: true, includedInPrice: true },
       },
     });
-    expect(doc.cards[0].typeLine).toBe('Land — Plains Island');
-    expect(doc.cards[0].colourIdentity).toEqual(['W', 'U']);
+    expect(doc.cards[0].typeLine).toBeUndefined();
+    const hallowed = doc.cards[0];
+    const oracle = doc.oracle?.[oracleKey(hallowed)];
+    expect(oracle?.typeLine).toBe('Land — Plains Island');
+    expect(oracle?.colourIdentity).toEqual(['W', 'U']);
+  });
+
+  it('defaults layout to normal, or transform for dual-faced names', () => {
+    const doc = documentFromArchidektSnapshot({
+      deck_id: 42,
+      name: 'Cube',
+      cards: [
+        {
+          id: 1,
+          name: 'Lightning Bolt',
+          quantity: 1,
+          primary_category: 'Red',
+          categories: ['Red'],
+          color_identity: ['R'],
+          type_line: 'Instant',
+        },
+        {
+          id: 2,
+          name: 'Delver of Secrets // Insectile Aberration',
+          quantity: 1,
+          primary_category: 'Blue',
+          categories: ['Blue'],
+          color_identity: ['U'],
+          type_line: 'Creature — Human Wizard // Creature — Human Insect',
+        },
+      ],
+    });
+    const bolt = doc.cards.find((c) => c.name === 'Lightning Bolt')!;
+    const delver = doc.cards.find((c) => c.name.startsWith('Delver of Secrets'))!;
+    expect(doc.oracle?.[oracleKey(bolt)]?.layout).toBe('normal');
+    expect(doc.oracle?.[oracleKey(delver)]?.layout).toBe('transform');
   });
 
 
@@ -326,9 +363,11 @@ describe('import', () => {
     });
     expect(doc.archidektId).toBe(99);
     expect(doc.name).toBe('Snapshot Deck');
-    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.foil).toBe(true);
-    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.scryfallId).toBe('sf-uid-1');
-    expect(doc.cards.find((c) => c.name === 'Foil Bolt')?.colourIdentity).toEqual(['R']);
+    const foilBolt = doc.cards.find((c) => c.name === 'Foil Bolt')!;
+    expect(foilBolt.foil).toBe(true);
+    expect(foilBolt.scryfallId).toBe('sf-uid-1');
+    expect(foilBolt.colourIdentity).toBeUndefined();
+    expect(doc.oracle?.[oracleKey(foilBolt)]?.colourIdentity).toEqual(['R']);
     expect(doc.cards.find((c) => c.name === 'Unknown')?.quantity).toBe(1);
     expect(doc.categories.filter((c) => c.name === 'Instant')).toHaveLength(1);
     expect(doc.categories.find((c) => c.name === 'Instant')?.includedInDeck).toBe(false);

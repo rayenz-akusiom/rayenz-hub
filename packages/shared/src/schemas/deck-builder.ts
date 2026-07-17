@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { migrateDeckDocument } from '../deck-builder/card-oracle.js';
 import {
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
@@ -22,6 +23,24 @@ export const CategoryDefSchema = z.object({
 });
 export type CategoryDef = z.infer<typeof CategoryDefSchema>;
 
+export const ColourLetterSchema = z.enum(['W', 'U', 'B', 'R', 'G']);
+
+/** Enriched Scryfall fields keyed separately from the lean card list. */
+export const CardOracleSchema = z.object({
+  scryfallId: z.string().nullable().default(null),
+  colourIdentity: z.array(ColourLetterSchema).default([]),
+  typeLine: z.string().nullable().default(null),
+  layout: z.string().nullable().default(null),
+  keywords: z.array(z.string()).nullable().default(null),
+  partnerWith: z.string().nullable().default(null),
+  oracleText: z.string().nullable().default(null),
+  /** CDN URL (cards.scryfall.io) — never image bytes. */
+  imageUrl: z.string().nullable().default(null),
+  updatedAt: z.string().nullable().default(null),
+});
+export type CardOracle = z.infer<typeof CardOracleSchema>;
+
+/** Lean list identity — oracle fields live on DeckDocument.oracle. */
 export const CardInstanceSchema = z.object({
   instanceId: z.string().min(1),
   name: z.string().min(1),
@@ -32,14 +51,6 @@ export const CardInstanceSchema = z.object({
   setCode: z.string().nullable().default(null),
   collectorNumber: z.string().nullable().default(null),
   scryfallId: z.string().nullable().default(null),
-  colourIdentity: z.array(z.enum(['W', 'U', 'B', 'R', 'G'])).default([]),
-  typeLine: z.string().nullable().default(null),
-  /** Scryfall layout (e.g. transform, modal_dfc); used to detect dual-faced cards. */
-  layout: z.string().nullable().default(null),
-  /** Scryfall keywords; null until enriched (leaders need this for partner checks). */
-  keywords: z.array(z.string()).nullable().default(null),
-  /** Parsed "Partner with [Name]" target; null if none / not yet known. */
-  partnerWith: z.string().nullable().default(null),
   archidektCardId: z.number().nullable().default(null),
   foil: z.boolean().default(false),
 });
@@ -55,7 +66,7 @@ export const FormalSwapEntrySchema = z.object({
 });
 export type FormalSwapEntry = z.infer<typeof FormalSwapEntrySchema>;
 
-export const DeckDocumentSchema = z.object({
+const DeckDocumentObjectSchema = z.object({
   schemaVersion: z.literal(1).or(z.number().int().positive()),
   deckId: z.string().min(1),
   name: z.string().min(1),
@@ -64,6 +75,8 @@ export const DeckDocumentSchema = z.object({
   archidektUrl: z.string().nullable().default(null),
   categories: z.array(CategoryDefSchema).default([]),
   cards: z.array(CardInstanceSchema).default([]),
+  /** Print-keyed oracle cache (id: / print: / name:). */
+  oracle: z.record(z.string(), CardOracleSchema).default({}),
   formalSwapEntries: z.array(FormalSwapEntrySchema).default([]),
   /** When set and present in cards, library cover uses this instance instead of the heuristic. */
   coverInstanceId: z.string().nullable().default(null),
@@ -74,7 +87,13 @@ export const DeckDocumentSchema = z.object({
   lastArchidektSyncAt: z.string().nullable().default(null),
   lastArchidektImportAt: z.string().nullable().default(null),
 });
-export type DeckDocument = z.infer<typeof DeckDocumentSchema>;
+
+/** Parses deck docs; migrates legacy on-card enrich fields into `oracle`. */
+export const DeckDocumentSchema = z.preprocess(
+  (raw) => (raw && typeof raw === 'object' ? migrateDeckDocument(raw as Record<string, unknown>) : raw),
+  DeckDocumentObjectSchema,
+);
+export type DeckDocument = z.infer<typeof DeckDocumentObjectSchema>;
 
 export const DeckSummarySchema = z.object({
   deckId: z.string(),

@@ -10,7 +10,7 @@ import {
   removeCardFromDeck,
   totalCardQuantity,
   type BrowseView,
-  type CardInstance,
+  type CardView,
   type CardLayout,
   type DeckDocument,
   type FormalSwapEntry,
@@ -112,23 +112,18 @@ export function BrowseShell({
   draftRef.current = draft;
 
   const onEnrichPatch = useCallback(
-    (cards: CardInstance[]) => {
-      const current = deckRef.current;
-      onChange({
-        ...current,
-        cards,
-        updatedAt: new Date().toISOString(),
-      });
+    (next: DeckDocument) => {
+      onChange(next);
     },
     [onChange],
   );
 
   const isColourIdentityView =
     view === 'colour_identity' || view === 'colour_identity_spells';
-  // Always enrich so layout (DFC flip) and CI/type data are available in every browse view.
+  // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
-  function onSelectCard(card: CardInstance) {
+  function onSelectCard(card: CardView) {
     setSelectedId((prev) => (prev === card.instanceId ? null : card.instanceId));
   }
 

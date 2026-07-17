@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   pickCommanderPair,
   partitionCategories,
-  type CardInstance,
+  resolveDeckCards,
   type CardLayout,
+  type CardView,
   type CategoryDef,
   type DeckDocument,
   type DeckFormat,
@@ -69,10 +70,10 @@ export function CardGroup({
   onSelectCard,
   draggable,
 }: {
-  cards: CardInstance[];
+  cards: CardView[];
   layout: CardLayout;
   selectedId?: string | null;
-  onSelectCard?: (card: CardInstance) => void;
+  onSelectCard?: (card: CardView) => void;
   draggable?: boolean;
 }) {
   if (layout === 'stacked') {
@@ -124,10 +125,10 @@ export function DropSection({
   variant = 'section',
 }: {
   category: string;
-  cards: CardInstance[];
+  cards: CardView[];
   layout: CardLayout;
   selectedId?: string | null;
-  onSelectCard?: (card: CardInstance) => void;
+  onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   variant?: 'section' | 'header' | 'column';
 }) {
@@ -177,9 +178,9 @@ function CommanderSlot({
   draggable,
 }: {
   slot: 0 | 1;
-  card: CardInstance | null;
+  card: CardView | null;
   selectedId?: string | null;
-  onSelectCard?: (card: CardInstance) => void;
+  onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   draggable?: boolean;
 }) {
@@ -225,9 +226,9 @@ function CommanderSlots({
   onDropCard,
   dragging,
 }: {
-  commanders: CardInstance[];
+  commanders: CardView[];
   selectedId?: string | null;
-  onSelectCard?: (card: CardInstance) => void;
+  onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   dragging: boolean;
 }) {
@@ -289,10 +290,10 @@ export function DeckHeaderRow({
   onDropCard,
   format,
 }: {
-  header: Record<string, CardInstance[]>;
+  header: Record<string, CardView[]>;
   headerKeys: string[];
   selectedId?: string | null;
-  onSelectCard?: (card: CardInstance) => void;
+  onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   format?: DeckFormat | null;
 }) {
@@ -370,17 +371,23 @@ export function CategoryBrowse({
   includeSwapCategories = false,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format'>
-    | { cards: CardInstance[]; categories: CategoryDef[]; format?: DeckFormat };
-  onSelectCard?: (card: CardInstance) => void;
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle'>
+    | { cards: CardView[]; categories: CategoryDef[]; format?: DeckFormat; oracle?: DeckDocument['oracle'] };
+  onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
   onDropCard?: DropCardHandler;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
 }) {
-  const { header, included, excluded, headerKeys, includedKeys, excludedKeys } =
-    partitionCategories(deck, { includeSwapCategories });
+  const resolved = useMemo(
+    () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
+    [deck.cards, deck.oracle],
+  );
+  const { header, included, excluded, headerKeys, includedKeys, excludedKeys } = useMemo(
+    () => partitionCategories({ ...deck, cards: resolved }, { includeSwapCategories }),
+    [deck, resolved, includeSwapCategories],
+  );
   const format = 'format' in deck ? deck.format : undefined;
 
   if (mode === 'aside') {

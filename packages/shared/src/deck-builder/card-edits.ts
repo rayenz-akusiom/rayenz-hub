@@ -1,13 +1,20 @@
 import type {
   CardInstance,
+  CardOracle,
   CategoryDef,
   DeckDocument,
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
 import { isSwapQueueCategory } from './browse.js';
+import {
+  emptyCardOracle,
+  oracleKey,
+  upsertOracle,
+} from './card-oracle.js';
 import { normalizeCardQuantities } from './quantities.js';
 import type { PrintingFields } from './scryfall-api.js';
 import { applyPrintingToCard } from './scryfall-api.js';
+import { scryfallImageFromId } from './scryfall-images.js';
 
 function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -68,6 +75,20 @@ function scrubSwapRefs(
   });
 }
 
+export function oracleFromPrinting(printing: PrintingFields): CardOracle {
+  return emptyCardOracle({
+    scryfallId: printing.scryfallId || null,
+    colourIdentity: printing.colourIdentity || [],
+    typeLine: printing.typeLine,
+    layout: printing.layout ?? 'normal',
+    keywords: null,
+    partnerWith: null,
+    oracleText: null,
+    imageUrl: printing.scryfallId ? scryfallImageFromId(printing.scryfallId) : null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export function addCardToDeck(
   deck: DeckDocument,
   printing: PrintingFields,
@@ -91,16 +112,15 @@ export function addCardToDeck(
     setCode: printing.setCode || null,
     collectorNumber: printing.collectorNumber || null,
     scryfallId: printing.scryfallId,
-    colourIdentity: printing.colourIdentity,
-    typeLine: printing.typeLine,
-    layout: printing.layout ?? null,
     archidektCardId: null,
     foil: printing.foil,
   };
   const cards = normalizeCardQuantities([...deck.cards, instance], deck.format, nextId);
+  const key = oracleKey(instance);
   return {
     ...deck,
     cards,
+    oracle: upsertOracle(deck.oracle, key, oracleFromPrinting(printing)),
     categories: ensureCategoryDef(deck.categories || [], primaryCategory),
     updatedAt: new Date().toISOString(),
   };
@@ -124,11 +144,17 @@ export function changeCardPrinting(
   instanceId: string,
   printing: PrintingFields,
 ): DeckDocument {
+  const cards = deck.cards.map((c) =>
+    c.instanceId === instanceId ? applyPrintingToCard(c, printing) : c,
+  );
+  const changed = cards.find((c) => c.instanceId === instanceId);
+  const oracle = changed
+    ? upsertOracle(deck.oracle, oracleKey(changed), oracleFromPrinting(printing))
+    : deck.oracle;
   return {
     ...deck,
-    cards: deck.cards.map((c) =>
-      c.instanceId === instanceId ? applyPrintingToCard(c, printing) : c,
-    ),
+    cards,
+    oracle,
     updatedAt: new Date().toISOString(),
   };
 }

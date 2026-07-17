@@ -15,7 +15,26 @@ export type ScryfallCard = {
   color_identity?: string[];
   finishes?: string[];
   layout?: string;
+  keywords?: string[];
+  oracle_text?: string;
 };
+
+/** Identifier shapes accepted by POST /cards/collection (max 75 per request). */
+export type ScryfallCollectionIdentifier =
+  | { id: string }
+  | { name: string }
+  | { set: string; collector_number: string };
+
+export type ScryfallCollectionResult = {
+  data: ScryfallCard[];
+  not_found: ScryfallCollectionIdentifier[];
+  rateLimited?: boolean;
+};
+
+const COLLECTION_CHUNK_SIZE = 75;
+/** Collection endpoint hard limit is 2/sec. */
+const COLLECTION_DELAY_MS = 500;
+const COLLECTION_429_BACKOFF_MS = 2000;
 
 export type ScryfallSearchPage = {
   data: ScryfallCard[];
@@ -95,6 +114,8 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
       : undefined,
     finishes: Array.isArray(c.finishes) ? (c.finishes as string[]) : undefined,
     layout: typeof c.layout === 'string' ? c.layout : undefined,
+    keywords: Array.isArray(c.keywords) ? (c.keywords as string[]) : undefined,
+    oracle_text: typeof c.oracle_text === 'string' ? c.oracle_text : undefined,
   };
 }
 
@@ -123,6 +144,84 @@ export function mapScryfallCardToPrinting(
 
 export function printingSupportsFoil(card: ScryfallCard): boolean {
   return (card.finishes || []).includes('foil');
+}
+
+/** Build a collection identifier preferring id, then set+cn, then name. */
+export function collectionIdentifierForCard(card: {
+  scryfallId?: string | null;
+  setCode?: string | null;
+  collectorNumber?: string | null;
+  name: string;
+}): ScryfallCollectionIdentifier | null {
+  if (card.scryfallId) return { id: String(card.scryfallId) };
+  if (card.setCode && card.collectorNumber != null && card.collectorNumber !== '') {
+    return {
+      set: String(card.setCode).toLowerCase(),
+      collector_number: String(card.collectorNumber),
+    };
+  }
+  const name = String(card.name || '').trim();
+  if (!name) return null;
+  return { name };
+}
+
+/**
+ * POST /cards/collection in chunks of ≤75. Waits between chunks; on 429 backs off and stops.
+ */
+export async function fetchCardsCollection(
+  identifiers: ScryfallCollectionIdentifier[],
+  opts?: {
+    fetchImpl?: typeof fetch;
+    delayMs?: number;
+    backoffMs?: number;
+    chunkSize?: number;
+    signal?: AbortSignal;
+  },
+): Promise<ScryfallCollectionResult> {
+  const fetchImpl = opts?.fetchImpl || fetch;
+  const delayMs = opts?.delayMs ?? COLLECTION_DELAY_MS;
+  const backoffMs = opts?.backoffMs ?? COLLECTION_429_BACKOFF_MS;
+  const chunkSize = opts?.chunkSize ?? COLLECTION_CHUNK_SIZE;
+  const data: ScryfallCard[] = [];
+  const not_found: ScryfallCollectionIdentifier[] = [];
+
+  for (let i = 0; i < identifiers.length; i += chunkSize) {
+    if (opts?.signal?.aborted) break;
+    if (i > 0) await sleep(delayMs);
+
+    const chunk = identifiers.slice(i, i + chunkSize);
+    const res = await fetchImpl(`${SCYFALL_API}/cards/collection`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ identifiers: chunk }),
+      signal: opts?.signal,
+    });
+
+    if (res.status === 429) {
+      await sleep(backoffMs);
+      return { data, not_found, rateLimited: true };
+    }
+    if (!res.ok) {
+      throw await parseError(res, 'Scryfall collection lookup failed.');
+    }
+
+    const json = (await res.json()) as {
+      data?: unknown[];
+      not_found?: ScryfallCollectionIdentifier[];
+    };
+    for (const raw of json.data || []) {
+      const card = asScryfallCard(raw);
+      if (card) data.push(card);
+    }
+    if (Array.isArray(json.not_found)) {
+      not_found.push(...json.not_found);
+    }
+  }
+
+  return { data, not_found };
 }
 
 export async function searchCards(
@@ -229,7 +328,7 @@ export async function fetchPrintings(
   return prints;
 }
 
-/** Apply printing fields onto an existing instance (identity preserved). */
+/** Apply printing identity onto an existing lean instance. */
 export function applyPrintingToCard(
   card: CardInstance,
   printing: PrintingFields,
@@ -240,11 +339,6 @@ export function applyPrintingToCard(
     scryfallId: printing.scryfallId,
     setCode: printing.setCode || null,
     collectorNumber: printing.collectorNumber || null,
-    typeLine: printing.typeLine,
-    colourIdentity: printing.colourIdentity.length
-      ? printing.colourIdentity
-      : card.colourIdentity,
-    layout: printing.layout ?? card.layout ?? null,
     foil: printing.foil,
   };
 }

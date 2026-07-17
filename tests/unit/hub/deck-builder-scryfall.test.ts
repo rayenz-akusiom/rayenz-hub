@@ -6,9 +6,13 @@ import {
   buildSearchUrl,
   changeCardPrinting,
   clearScryfallPrintCache,
+  collectionIdentifierForCard,
   defaultAddCategory,
+  fetchCardsCollection,
   fetchPrintings,
+  getOracle,
   mapScryfallCardToPrinting,
+  oracleKey,
   removeCardFromDeck,
   searchCards,
 } from '../../../packages/shared/src/index.ts';
@@ -126,6 +130,81 @@ describe('searchCards / fetchPrintings', () => {
   });
 });
 
+describe('collectionIdentifierForCard / fetchCardsCollection', () => {
+  it('prefers id, then set+cn, then name', () => {
+    expect(
+      collectionIdentifierForCard({
+        scryfallId: 'sf-1',
+        setCode: 'cmm',
+        collectorNumber: '1',
+        name: 'Sol Ring',
+      }),
+    ).toEqual({ id: 'sf-1' });
+    expect(
+      collectionIdentifierForCard({
+        scryfallId: null,
+        setCode: 'CMM',
+        collectorNumber: '1',
+        name: 'Sol Ring',
+      }),
+    ).toEqual({ set: 'cmm', collector_number: '1' });
+    expect(
+      collectionIdentifierForCard({
+        scryfallId: null,
+        setCode: null,
+        collectorNumber: null,
+        name: 'Sol Ring',
+      }),
+    ).toEqual({ name: 'Sol Ring' });
+  });
+
+  it('batches identifiers into chunks of 75', async () => {
+    const ids = Array.from({ length: 80 }, (_, i) => ({ name: `Card ${i}` }));
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body || '{}')) as {
+        identifiers: { name: string }[];
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: body.identifiers.map((id) => ({
+            id: `sf-${id.name}`,
+            name: id.name,
+            set: 'lea',
+            collector_number: '1',
+          })),
+          not_found: [],
+        }),
+      };
+    });
+
+    const result = await fetchCardsCollection(ids, {
+      fetchImpl,
+      delayMs: 0,
+      chunkSize: 75,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.data).toHaveLength(80);
+    expect(result.rateLimited).toBeFalsy();
+  });
+
+  it('stops and marks rateLimited on 429', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({}),
+    }));
+
+    const result = await fetchCardsCollection([{ name: 'Sol Ring' }], {
+      fetchImpl,
+      backoffMs: 0,
+    });
+    expect(result.data).toEqual([]);
+    expect(result.rateLimited).toBe(true);
+  });
+});
+
 describe('card edits', () => {
   it('defaultAddCategory prefers Maybeboard then aside then Other', () => {
     expect(defaultAddCategory(commander)).toBe('Other');
@@ -195,7 +274,8 @@ describe('card edits', () => {
     expect(card.setCode).toBe('mh3');
     expect(card.collectorNumber).toBe('42');
     expect(card.name).toBe('Sol Ring');
-    expect(card.layout).toBe('modal_dfc');
+    expect(getOracle(next, card!)?.layout).toBe('modal_dfc');
+    expect(oracleKey(card!)).toBe('id:sf-new');
   });
 
   it('applyPrintingToCard preserves instance identity', () => {

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DECK_BUILDER_SETTINGS_EVENT,
   DEFAULT_DECK_BUILDER_SETTINGS,
   colourIdentitySectionsFor,
   groupByColourIdentity,
   partitionCategories,
-  type CardInstance,
+  resolveDeckCards,
   type CardLayout,
+  type CardView,
   type CategoryDef,
   type DeckBuilderSettingsPayload,
   type DeckDocument,
@@ -27,14 +28,22 @@ export function ColourIdentityBrowse({
   separateLands = false,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format'>
-    | { cards: CardInstance[]; categories: CategoryDef[]; format?: DeckDocument['format'] };
-  onSelectCard?: (card: CardInstance) => void;
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle'>
+    | { cards: CardView[]; categories: CategoryDef[]; format?: DeckDocument['format']; oracle?: DeckDocument['oracle'] };
+  onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
   separateLands?: boolean;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
+  const resolvedCards = useMemo(
+    () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle || {} }),
+    [deck.cards, deck.oracle],
+  );
+  const resolvedDeck = useMemo(
+    () => ({ ...deck, cards: resolvedCards }),
+    [deck, resolvedCards],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +67,7 @@ export function ColourIdentityBrowse({
     };
   }, []);
 
-  const { header, headerKeys, included, includedKeys } = partitionCategories(deck);
+  const { header, headerKeys, included, includedKeys } = partitionCategories(resolvedDeck);
   const mainCards = includedKeys.flatMap((k) => included[k]);
   const ciOptions = { style, separateLands };
   const groups = groupByColourIdentity(mainCards, ciOptions);
@@ -94,7 +103,7 @@ export function ColourIdentityBrowse({
         headerKeys={headerKeys}
         selectedId={selectedId}
         onSelectCard={onSelectCard}
-        format={'format' in deck ? deck.format : undefined}
+        format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

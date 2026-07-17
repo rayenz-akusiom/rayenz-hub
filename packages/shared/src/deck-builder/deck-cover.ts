@@ -1,17 +1,18 @@
-import type { CardInstance, DeckDocument } from '../schemas/deck-builder.js';
+import type { DeckDocument } from '../schemas/deck-builder.js';
 import { cardImageUrl } from './scryfall-images.js';
 import { pickCommanderPair } from './partner.js';
+import { resolveDeckCards, type CardView } from './card-oracle.js';
 
-type CoverDoc = Pick<DeckDocument, 'format' | 'cards' | 'coverInstanceId'>;
+type CoverDoc = Pick<DeckDocument, 'format' | 'cards' | 'coverInstanceId' | 'oracle'>;
 
-function resolveCoverOverride(doc: CoverDoc): CardInstance | null {
+function resolveCoverOverride(doc: CoverDoc): CardView | null {
   const id = doc.coverInstanceId;
   if (!id) return null;
-  return (doc.cards || []).find((c) => c.instanceId === id) ?? null;
+  return resolveDeckCards(doc).find((c) => c.instanceId === id) ?? null;
 }
 
 /** Commander face for commander decks; first card for cubes (and other fallbacks). */
-export function pickDeckCoverCard(doc: CoverDoc): CardInstance | null {
+export function pickDeckCoverCard(doc: CoverDoc): CardView | null {
   const cards = pickDeckCoverCards(doc);
   return cards[0] ?? null;
 }
@@ -21,11 +22,11 @@ export function pickDeckCoverCard(doc: CoverDoc): CardInstance | null {
  * Lieutenants never appear as cover partners. Cubes / other: single first card.
  * When `coverInstanceId` is set and the instance exists, returns that card only.
  */
-export function pickDeckCoverCards(doc: CoverDoc): CardInstance[] {
+export function pickDeckCoverCards(doc: CoverDoc): CardView[] {
   const override = resolveCoverOverride(doc);
   if (override) return [override];
 
-  const cards = doc.cards || [];
+  const cards = resolveDeckCards(doc);
   if (doc.format === 'commander') {
     const pair = pickCommanderPair(cards);
     if (
@@ -33,9 +34,9 @@ export function pickDeckCoverCards(doc: CoverDoc): CardInstance[] {
       pair.status === 'illegal' ||
       pair.status === 'unknown'
     ) {
-      return [pair.a, pair.b];
+      return [pair.a as CardView, pair.b as CardView];
     }
-    if (pair.status === 'single') return [pair.a];
+    if (pair.status === 'single') return [pair.a as CardView];
     const commander = cards.find((c) => c.primaryCategory === 'Commander');
     if (commander) return [commander];
   }
@@ -57,7 +58,7 @@ export function deckCoverImageUrlSecondary(doc: CoverDoc): string | null {
 export function pickCoverPartnerStatus(doc: CoverDoc): 'legal' | 'illegal' | null {
   if (resolveCoverOverride(doc)) return null;
   if (doc.format !== 'commander') return null;
-  const pair = pickCommanderPair(doc.cards || []);
+  const pair = pickCommanderPair(resolveDeckCards(doc));
   if (pair.status === 'legal' || pair.status === 'illegal') return pair.status;
   return null;
 }

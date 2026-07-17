@@ -7,6 +7,8 @@ import {
   parseOracleJson,
   type ScryfallOracleCache,
 } from '../../../packages/web/src/deck-builder/scryfall/useScryfallEnrich.ts';
+import type { CardInstance, CardOracle } from '@rayenz-hub/shared';
+import { oracleKey } from '@rayenz-hub/shared';
 
 const baseCache = (over: Partial<ScryfallOracleCache> = {}): ScryfallOracleCache => ({
   colourIdentity: ['W'],
@@ -15,6 +17,34 @@ const baseCache = (over: Partial<ScryfallOracleCache> = {}): ScryfallOracleCache
   layout: 'normal',
   keywords: [],
   partnerWith: null,
+  ...over,
+});
+
+const leanCard = (
+  over: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'primaryCategory'>,
+): CardInstance => ({
+  name: 'Card',
+  quantity: 1,
+  categories: [over.primaryCategory],
+  stack: null,
+  setCode: null,
+  collectorNumber: null,
+  scryfallId: null,
+  archidektCardId: null,
+  foil: false,
+  ...over,
+});
+
+const completeOracle = (over: Partial<CardOracle> = {}): CardOracle => ({
+  scryfallId: null,
+  colourIdentity: ['W', 'U'],
+  typeLine: 'Instant',
+  layout: 'normal',
+  keywords: [],
+  partnerWith: null,
+  oracleText: null,
+  imageUrl: null,
+  updatedAt: null,
   ...over,
 });
 
@@ -28,7 +58,7 @@ describe('isUsableOracleCache', () => {
     ).toBe(false);
   });
 
-  it('rejects cache missing layout when the card needs layout', () => {
+  it('accepts cache with typeLine when the card needs it even if layout is null', () => {
     expect(
       isUsableOracleCache(baseCache({ layout: null }), {
         typeLine: 'Instant',
@@ -36,7 +66,7 @@ describe('isUsableOracleCache', () => {
         keywords: null,
         primaryCategory: 'Other',
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('accepts cache with typeLine when the card needs it', () => {
@@ -97,174 +127,80 @@ describe('isUsableOracleCache', () => {
 
 describe('enrichAttemptSignature', () => {
   it('is stable for the same missing instance ids', () => {
-    const cards = [
-      {
-        instanceId: 'b',
-        colourIdentity: ['W', 'U'] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: null,
-        layout: null,
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-      {
-        instanceId: 'a',
-        colourIdentity: [] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: null,
-        layout: null,
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-    ];
-    expect(enrichAttemptSignature('deck-1', cards)).toBe(
-      enrichAttemptSignature('deck-1', [...cards].reverse()),
+    const cardA = leanCard({
+      instanceId: 'b',
+      name: 'Needs type',
+      primaryCategory: 'Other',
+    });
+    const cardB = leanCard({
+      instanceId: 'a',
+      name: 'Complete',
+      primaryCategory: 'Other',
+    });
+    const cards = [cardA, cardB];
+    const oracle: Record<string, CardOracle> = {
+      [oracleKey(cardA)]: completeOracle({ typeLine: null }),
+      [oracleKey(cardB)]: completeOracle(),
+    };
+    expect(enrichAttemptSignature('deck-1', cards, oracle)).toBe(
+      enrichAttemptSignature('deck-1', [...cards].reverse(), oracle),
     );
-    expect(enrichAttemptSignature('deck-1', cards)).toBe('deck-1:a,b');
+    expect(enrichAttemptSignature('deck-1', cards, oracle)).toBe('deck-1:b');
   });
 
   it('changes when a card no longer needs enrich', () => {
-    const before = [
-      {
-        instanceId: 'a',
-        colourIdentity: ['W', 'U'] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: null,
-        layout: null,
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-      {
-        instanceId: 'b',
-        colourIdentity: ['G'] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: 'Creature',
-        layout: 'normal',
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-    ];
-    const after = [
-      {
-        instanceId: 'a',
-        colourIdentity: ['W', 'U'] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: 'Land — Plains Island',
-        layout: 'normal',
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-      {
-        instanceId: 'b',
-        colourIdentity: ['G'] as ('W' | 'U' | 'B' | 'R' | 'G')[],
-        typeLine: 'Creature',
-        layout: 'normal',
-        keywords: null,
-        primaryCategory: 'Other',
-      },
-    ];
-    expect(enrichAttemptSignature('deck-1', before)).toBe('deck-1:a');
-    expect(enrichAttemptSignature('deck-1', after)).toBe('deck-1:');
-    expect(enrichAttemptSignature('deck-1', before)).not.toBe(
-      enrichAttemptSignature('deck-1', after),
+    const cardA = leanCard({ instanceId: 'a', name: 'A', primaryCategory: 'Other' });
+    const cardB = leanCard({ instanceId: 'b', name: 'B', primaryCategory: 'Other' });
+    const cards = [cardA, cardB];
+    const beforeOracle: Record<string, CardOracle> = {
+      [oracleKey(cardA)]: completeOracle({ typeLine: null }),
+      [oracleKey(cardB)]: completeOracle({ colourIdentity: ['G'], typeLine: 'Creature' }),
+    };
+    const afterOracle: Record<string, CardOracle> = {
+      [oracleKey(cardA)]: completeOracle({ typeLine: 'Land — Plains Island' }),
+      [oracleKey(cardB)]: completeOracle({ colourIdentity: ['G'], typeLine: 'Creature' }),
+    };
+    expect(enrichAttemptSignature('deck-1', cards, beforeOracle)).toBe('deck-1:a');
+    expect(enrichAttemptSignature('deck-1', cards, afterOracle)).toBe('deck-1:');
+    expect(enrichAttemptSignature('deck-1', cards, beforeOracle)).not.toBe(
+      enrichAttemptSignature('deck-1', cards, afterOracle),
     );
   });
 });
 
 describe('materialOraclePatch', () => {
-  it('returns null when oracle has no typeLine and the card still needs one', () => {
+  it('returns null when scryfallId is already set on the card', () => {
     expect(
       materialOraclePatch(
         {
-          colourIdentity: ['W', 'U'],
-          typeLine: null,
-          scryfallId: null,
-          layout: null,
-          keywords: null,
-          partnerWith: null,
+          scryfallId: 'existing',
           primaryCategory: 'Other',
         },
-        baseCache({ colourIdentity: ['W', 'U'], typeLine: null }),
+        baseCache({ scryfallId: 'x' }),
       ),
     ).toBeNull();
   });
 
-  it('patches typeLine when newly available', () => {
+  it('patches scryfallId when newly available from cache', () => {
     expect(
       materialOraclePatch(
         {
-          colourIdentity: ['W', 'U'],
-          typeLine: null,
           scryfallId: null,
-          layout: null,
-          keywords: null,
-          partnerWith: null,
           primaryCategory: 'Other',
         },
-        baseCache({
-          colourIdentity: ['W', 'U'],
-          typeLine: 'Land — Plains Island',
-        }),
+        baseCache({ scryfallId: 'x' }),
       ),
-    ).toEqual({
-      typeLine: 'Land — Plains Island',
-      scryfallId: 'x',
-      layout: 'normal',
-      keywords: [],
-      partnerWith: null,
-    });
+    ).toEqual({ scryfallId: 'x' });
   });
 
-  it('patches layout when missing', () => {
+  it('returns null when cache has no scryfallId to add', () => {
     expect(
       materialOraclePatch(
         {
-          colourIdentity: ['W'],
-          typeLine: 'Instant',
-          scryfallId: 'x',
-          layout: null,
-          keywords: [],
-          partnerWith: null,
+          scryfallId: null,
           primaryCategory: 'Other',
         },
-        baseCache({ layout: 'transform' }),
-      ),
-    ).toEqual({ layout: 'transform' });
-  });
-
-  it('patches keywords and partnerWith for leaders', () => {
-    expect(
-      materialOraclePatch(
-        {
-          colourIdentity: ['G'],
-          typeLine: 'Legendary Creature',
-          scryfallId: 'x',
-          layout: 'normal',
-          keywords: null,
-          partnerWith: null,
-          primaryCategory: 'Commander',
-        },
-        baseCache({
-          typeLine: 'Legendary Creature',
-          colourIdentity: ['G'],
-          keywords: ['Partner with'],
-          partnerWith: 'Alena, Kessig Trapper',
-        }),
-      ),
-    ).toEqual({
-      keywords: ['Partner with'],
-      partnerWith: 'Alena, Kessig Trapper',
-    });
-  });
-
-  it('returns null when nothing improves', () => {
-    expect(
-      materialOraclePatch(
-        {
-          colourIdentity: ['W'],
-          typeLine: 'Instant',
-          scryfallId: 'x',
-          layout: 'normal',
-          keywords: [],
-          partnerWith: null,
-          primaryCategory: 'Other',
-        },
-        baseCache(),
+        baseCache({ scryfallId: null }),
       ),
     ).toBeNull();
   });
@@ -283,7 +219,7 @@ describe('needsEnrich', () => {
     ).toBe(true);
   });
 
-  it('is true when layout is missing', () => {
+  it('is false when only layout is missing (layout is not an enrich trigger)', () => {
     expect(
       needsEnrich({
         colourIdentity: ['W'],
@@ -292,10 +228,10 @@ describe('needsEnrich', () => {
         keywords: null,
         primaryCategory: 'Other',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('is false when CI, typeLine, and layout are present for non-leaders', () => {
+  it('is false when CI and typeLine are present for non-leaders', () => {
     expect(
       needsEnrich({
         colourIdentity: ['W'],
@@ -351,6 +287,9 @@ describe('parseOracleJson', () => {
       layout: 'normal',
       keywords: ['Partner with'],
       partnerWith: 'Alena, Kessig Trapper',
+      oracleText:
+        'Partner with Alena, Kessig Trapper (When this creature enters, target player may put Alena into their hand from their library, then shuffle.)\nReach',
+      imageUrl: 'https://cards.scryfall.io/normal/front/a/b/abc.jpg',
     });
   });
 });

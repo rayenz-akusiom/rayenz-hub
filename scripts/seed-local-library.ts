@@ -15,9 +15,14 @@ import { homedir } from 'node:os';
 import {
   DeckDocumentSchema,
   detectDeckFormat,
+  emptyCardOracle,
   normalizeCardQuantities,
   normalizeColourIdentity,
+  oracleKey,
+  provisionalLayoutFromCard,
+  scryfallImageFromId,
   seedFormalSwapsFromCategories,
+  upsertOracle,
   type CardInstance,
   type CategoryDef,
   type DeckDocument,
@@ -264,6 +269,8 @@ function documentFromSnapshot(
     categories = categoriesFromSettings(snapshot.category_settings);
   }
 
+  let oracle: DeckDocument['oracle'] = {};
+
   const rawCards: CardInstance[] = (snapshot.cards || []).map((raw, idx) => {
     const cats = [
       ...new Set(
@@ -279,9 +286,13 @@ function documentFromSnapshot(
     const primary = normalizeArchidektCategoryName(String(raw.primary_category || cats[0] || 'Main'));
     const scryfallId =
       (raw.scryfall_id as string) || (raw.scryfallId as string) || (raw.uid as string) || null;
-    return {
+    const name = String(raw.name || 'Unknown');
+    const typeLine = typeLineFromArchidektCard(raw);
+    const ci = normalizeColourIdentity(raw.color_identity ?? raw.colourIdentity ?? raw.colorIdentity);
+
+    const card: CardInstance = {
       instanceId: String(raw.id || raw.archidektCardId || `c-${idx}-${Date.now()}`),
-      name: String(raw.name || 'Unknown'),
+      name,
       quantity: Number(raw.quantity) || 1,
       primaryCategory: primary,
       categories: cats,
@@ -294,14 +305,22 @@ function documentFromSnapshot(
             ? String(raw.collectorNumber)
             : null,
       scryfallId,
-      colourIdentity: normalizeColourIdentity(raw.color_identity ?? raw.colourIdentity ?? raw.colorIdentity),
-      typeLine: typeLineFromArchidektCard(raw),
-      layout: null,
-      keywords: null,
-      partnerWith: null,
       archidektCardId: raw.id != null ? Number(raw.id) : null,
       foil: parseFoil(raw),
     };
+
+    oracle = upsertOracle(oracle, oracleKey(card), {
+      scryfallId,
+      colourIdentity: ci,
+      typeLine,
+      layout: provisionalLayoutFromCard(name, typeLine),
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      imageUrl: scryfallId ? scryfallImageFromId(scryfallId) : null,
+    });
+
+    return card;
   });
 
   const cards = normalizeCardQuantities(rawCards, format, nextId);
@@ -316,6 +335,7 @@ function documentFromSnapshot(
     archidektUrl: snapshot.url || null,
     categories,
     cards,
+    oracle,
     formalSwapEntries,
     browseViewDefault: null,
     cardLayoutDefault: 'stacked',

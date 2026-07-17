@@ -18,6 +18,7 @@ export * from './deck-builder/quantities';
 export * from './deck-builder/color-identity-map';
 export * from './deck-builder/scryfall-api';
 export * from './deck-builder/card-edits';
+export * from './deck-builder/card-oracle';
 export * from './mtg/option-key';
 export * from './mtg/swap-queue';
 export * from './mtg/cut-candidates';

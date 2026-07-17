@@ -3,6 +3,7 @@ import {
   normalizeColourIdentity,
   mapColourIdentityToken,
 } from '../../../packages/shared/src/deck-builder/color-identity-map.ts';
+import { oracleKey, resolveCardView } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
 import { partitionCategories } from '../../../packages/shared/src/deck-builder/browse.ts';
 import { colourIdentitySection } from '../../../packages/shared/src/deck-builder/colour-identity.ts';
 import { FormalSwapEntrySchema } from '../../../packages/shared/src/schemas/deck-builder.ts';
@@ -32,8 +33,10 @@ describe('colour identity mapping', () => {
         },
       ],
     });
-    expect(doc.cards[0].colourIdentity).toEqual(['G']);
-    expect(colourIdentitySection(doc.cards[0])).toBe('Green');
+    expect(doc.oracle[oracleKey(doc.cards[0])].colourIdentity).toEqual(['G']);
+    expect(colourIdentitySection(resolveCardView(doc.cards[0], doc.oracle[oracleKey(doc.cards[0])]))).toBe(
+      'Green',
+    );
   });
 
   it('puts basic lands in their colour when CI is present or inferred', () => {
@@ -151,4 +154,4 @@ describe('inTargetCategory', () => {
     expect(empty.inTargetCategory).toBeNull();
   });
 });
-
+

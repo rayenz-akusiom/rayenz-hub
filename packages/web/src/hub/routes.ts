@@ -13,6 +13,14 @@ export type HubPath =
 
 export const DEFAULT_PATH: HubPath = '/dailies';
 
+/** Hub user segment in deck deep links (`#/deck-builder/{user}/{deck}`). */
+export const HUB_USER_SLUG = 'default';
+
+export type DeckBuilderRoute = {
+  userSlug: string;
+  deckSlug: string;
+};
+
 export const KNOWN_PATHS = new Set<string>([
   '/dailies',
   '/neopets-more',
@@ -75,10 +83,37 @@ export function pathFromHash(hash?: string | null): HubPath {
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;
   }
+  if (path === '/deck-builder' || path.startsWith('/deck-builder/')) {
+    return '/deck-builder';
+  }
   if (path === '/settings' || path.startsWith('/settings/')) {
     return '/settings/dailies';
   }
   return DEFAULT_PATH;
+}
+
+/**
+ * Parse `#/deck-builder/:user/:deck` deep links.
+ * Returns null for library (`#/deck-builder`) or malformed nested paths.
+ */
+export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | null {
+  const normalized = normalizeHash(hash ?? (typeof window !== 'undefined' ? window.location.hash : ''));
+  const path = normalized.slice(1);
+  if (!path.startsWith('/deck-builder/')) return null;
+  const rest = path.slice('/deck-builder/'.length);
+  const parts = rest.split('/').filter(Boolean);
+  if (parts.length !== 2) return null;
+  const [userSlug, deckSlug] = parts;
+  if (!userSlug || !deckSlug) return null;
+  return { userSlug, deckSlug };
+}
+
+/** Build `#/deck-builder` or `#/deck-builder/:user/:deck`. */
+export function deckBuilderHash(userSlug?: string | null, deckSlug?: string | null): string {
+  if (userSlug && deckSlug) {
+    return `#/deck-builder/${userSlug}/${deckSlug}`;
+  }
+  return '#/deck-builder';
 }
 
 export function isSettingsPath(path: string): boolean {

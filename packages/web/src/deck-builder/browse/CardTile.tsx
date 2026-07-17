@@ -1,4 +1,4 @@
-import { cardHasBackFace, cardImageUrl, type CardInstance } from '@rayenz-hub/shared';
+import { cardHasBackFace, cardImageUrl, type CardView } from '@rayenz-hub/shared';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
@@ -10,8 +10,8 @@ export function CardTile({
   draggable = false,
   actionLabel,
 }: {
-  card: CardInstance;
-  onSelect?: (card: CardInstance) => void;
+  card: CardView;
+  onSelect?: (card: CardView) => void;
   selected?: boolean;
   draggable?: boolean;
   /** Accessible name when the tile is an action (e.g. swap Change). */

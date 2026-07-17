@@ -1,15 +1,23 @@
-import type { CardInstance } from '../schemas/deck-builder.js';
-
 /** Categories that appear in the deck header (not all are commanders). */
 export const HEADER_LEADER_CATEGORIES = ['Commander', 'Lieutenants'] as const;
+
+/** Minimal card shape for partner checks (lean card + oracle fields). */
+export type PartnerCard = {
+  instanceId?: string;
+  name: string;
+  primaryCategory?: string;
+  keywords?: string[] | null;
+  partnerWith?: string | null;
+  typeLine?: string | null;
+};
 
 export type CommanderPairStatus = 'legal' | 'illegal' | 'unknown' | 'single' | 'none' | 'many';
 
 export type CommanderPairResult =
   | { status: 'none'; a?: undefined; b?: undefined }
-  | { status: 'single'; a: CardInstance; b?: undefined }
+  | { status: 'single'; a: PartnerCard; b?: undefined }
   | { status: 'many'; a?: undefined; b?: undefined }
-  | { status: 'legal' | 'illegal' | 'unknown'; a: CardInstance; b: CardInstance };
+  | { status: 'legal' | 'illegal' | 'unknown'; a: PartnerCard; b: PartnerCard };
 
 /** Parse "Partner with Name" from oracle text. */
 export function parsePartnerWithName(oracleText: string | null | undefined): string | null {
@@ -33,11 +41,13 @@ export function isLeaderCategory(name: string | null | undefined): boolean {
   return isHeaderLeaderCategory(name);
 }
 
-export function collectCommanders(cards: CardInstance[]): CardInstance[] {
+export function collectCommanders<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+): T[] {
   return (cards || []).filter((c) => isCommanderCategory(c.primaryCategory));
 }
 
-function hasKeyword(card: Pick<CardInstance, 'keywords'>, keyword: string): boolean {
+function hasKeyword(card: Pick<PartnerCard, 'keywords'>, keyword: string): boolean {
   const list = card.keywords || [];
   return list.some((k) => k.toLowerCase() === keyword.toLowerCase());
 }
@@ -47,15 +57,15 @@ function namesMatch(a: string, b: string): boolean {
 }
 
 /** Classic Partner (not Partner with). */
-function hasClassicPartner(card: Pick<CardInstance, 'keywords'>): boolean {
+function hasClassicPartner(card: Pick<PartnerCard, 'keywords'>): boolean {
   return hasKeyword(card, 'Partner') && !hasKeyword(card, 'Partner with');
 }
 
-function isBackground(card: Pick<CardInstance, 'typeLine'>): boolean {
+function isBackground(card: Pick<PartnerCard, 'typeLine'>): boolean {
   return /\bBackground\b/i.test(card.typeLine || '');
 }
 
-function isTimeLordDoctor(card: Pick<CardInstance, 'typeLine'>): boolean {
+function isTimeLordDoctor(card: Pick<PartnerCard, 'typeLine'>): boolean {
   return /Time Lord Doctor/i.test(card.typeLine || '');
 }
 
@@ -63,8 +73,8 @@ function isTimeLordDoctor(card: Pick<CardInstance, 'typeLine'>): boolean {
  * Whether two cards form a legal dual-commander pair under partner-family rules.
  */
 export function canPartner(
-  a: Pick<CardInstance, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
-  b: Pick<CardInstance, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
+  a: Pick<PartnerCard, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
+  b: Pick<PartnerCard, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
 ): boolean {
   if (hasClassicPartner(a) && hasClassicPartner(b)) return true;
 
@@ -88,7 +98,9 @@ export function canPartner(
  * Partner pairing among Commander-category cards only.
  * Lieutenants are never part of a commander pair.
  */
-export function pickCommanderPair(cards: CardInstance[]): CommanderPairResult {
+export function pickCommanderPair<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+): CommanderPairResult {
   const commanders = collectCommanders(cards);
   if (commanders.length === 0) return { status: 'none' };
   if (commanders.length === 1) return { status: 'single', a: commanders[0] };
@@ -106,7 +118,9 @@ export function pickCommanderPair(cards: CardInstance[]): CommanderPairResult {
 }
 
 /** @deprecated Use pickCommanderPair */
-export function pickLeaderPair(cards: CardInstance[]): CommanderPairResult {
+export function pickLeaderPair<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+): CommanderPairResult {
   return pickCommanderPair(cards);
 }
 

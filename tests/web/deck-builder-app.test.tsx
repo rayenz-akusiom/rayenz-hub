@@ -88,7 +88,7 @@ function headerAddDeckButton() {
 
 function deckOpenButton(deckName: string) {
   const tile = screen.getByText(deckName, { selector: '.db-library-tile-name' }).closest('li')!;
-  return within(tile).getAllByRole('button')[0]!;
+  return within(tile).getByRole('link');
 }
 
 function defaultMocks() {
@@ -111,11 +111,13 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   apiConfigured.value = false;
+  window.location.hash = '';
 });
 
 describe('DeckBuilderApp', () => {
   beforeEach(() => {
     defaultMocks();
+    window.location.hash = '#/deck-builder';
   });
 
   it('shows loading then empty library state', async () => {
@@ -187,6 +189,50 @@ describe('DeckBuilderApp', () => {
     expect(screen.getByText('Swap queue')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/deck-builder/default/fixture-commander');
+  });
+
+  it('opens a deck from a deep-link hash on load', async () => {
+    window.location.hash = '#/deck-builder/default/fixture-commander';
+    render(<DeckBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    expect(getDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+  });
+
+  it('shows an error for an unknown deck slug deep link', async () => {
+    window.location.hash = '#/deck-builder/default/missing-deck';
+    render(<DeckBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Deck not found')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+  });
+
+  it('shows an error for an unknown user slug deep link', async () => {
+    window.location.hash = '#/deck-builder/other-user/fixture-commander';
+    render(<DeckBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Unknown user “other-user”')).toBeInTheDocument();
+    });
+  });
+
+  it('library tiles expose copyable deep-link hrefs', async () => {
+    render(<DeckBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+    });
+
+    expect(deckOpenButton('Fixture Commander')).toHaveAttribute(
+      'href',
+      '#/deck-builder/default/fixture-commander',
+    );
   });
 
   it('shows profile panel behind the Profile tab', async () => {
@@ -222,11 +268,13 @@ describe('DeckBuilderApp', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
     });
+    expect(window.location.hash).toBe('#/deck-builder/default/fixture-commander');
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
     });
+    expect(window.location.hash).toBe('#/deck-builder');
   });
 
   it('shows deck-not-found error when getDeck returns null', async () => {

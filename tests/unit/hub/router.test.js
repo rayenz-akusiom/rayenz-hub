@@ -1,58 +1,44 @@
-import { describe, expect, it } from 'vitest';
-import { buildHubDom, loadHubModule, resetDom } from '../helpers/hubHarness.js';
-import { setupHub } from '../helpers/hubHarness.js';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { pathFromHash, normalizeHash, isSettingsPath, isLegacyPath } from '../../../packages/web/src/hub/routes.ts';
 
-function flushPromises() {
-   return new Promise((resolve) => {
-      setTimeout(resolve, 0);
-   });
-}
+describe('hub routes', () => {
+  it('normalizes empty hash to dailies', () => {
+    expect(normalizeHash('')).toBe('#/dailies');
+    expect(normalizeHash('#')).toBe('#/dailies');
+    expect(pathFromHash('')).toBe('/dailies');
+  });
 
-describe('hub router', () => {
-   it('defaults empty hash to the dailies route', async () => {
-      const hub = await setupHub();
-      expect(hub.getRoutePath()).toBe('/dailies');
-      expect(document.querySelector('#app-root iframe.hub-web-frame')).toBeTruthy();
-   });
+  it('parses known paths', () => {
+    expect(pathFromHash('#/deck-review')).toBe('/deck-review');
+    expect(pathFromHash('#/settings/dailies')).toBe('/settings/dailies');
+    expect(pathFromHash('#/deck-builder')).toBe('/deck-builder');
+  });
 
-   it('navigates to deck review and back', async () => {
-      const hub = await setupHub();
-      await hub.navigate('#/deck-review');
-      expect(hub.getRoutePath()).toBe('/deck-review');
-      expect(document.querySelector('.deck-review-stub')).toBeTruthy();
+  it('falls back unknown paths to dailies', () => {
+    expect(pathFromHash('#/nope')).toBe('/dailies');
+  });
 
-      await hub.navigate('#/dailies');
-      expect(hub.getRoutePath()).toBe('/dailies');
-      expect(document.querySelector('#app-root iframe.hub-web-frame')).toBeTruthy();
-   });
+  it('detects settings paths', () => {
+    expect(isSettingsPath('/settings')).toBe(true);
+    expect(isSettingsPath('/settings/dailies')).toBe(true);
+    expect(isSettingsPath('/dailies')).toBe(false);
+    expect(isLegacyPath('/deck-review')).toBe(false);
+    expect(isLegacyPath('/dailies')).toBe(false);
+  });
+});
 
-   it('loads deck review once when navigate sets hash programmatically', async () => {
-      resetDom();
-      buildHubDom();
-      loadHubModule('shared/storage.js');
-      loadHubModule('shared/router.js');
+describe('hub hash navigation (DOM)', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    localStorage.clear();
+  });
 
-      let reviewLoads = 0;
-      HubRouter.registerRoute('/deck-suggest', async (root) => {
-         root.innerHTML = '<div class="deck-suggest-stub"></div>';
-      });
-      HubRouter.registerRoute('/deck-review', async (root) => {
-         reviewLoads += 1;
-         root.innerHTML = '<div class="deck-review-stub"></div>';
-      });
-      HubRouter.registerRoute('/dailies', async (root) => {
-         root.innerHTML = '<div class="dailies-stub"></div>';
-      });
+  afterEach(() => {
+    window.location.hash = '';
+  });
 
-      window.location.hash = '#/deck-suggest';
-      HubRouter.init();
-      await flushPromises();
-
-      reviewLoads = 0;
-      await HubRouter.navigate('#/deck-review');
-      await flushPromises();
-
-      expect(reviewLoads).toBe(1);
-      expect(document.querySelector('.deck-review-stub')).toBeTruthy();
-   });
+  it('pathFromHash reads window location hash', () => {
+    window.location.hash = '#/order-reconcile';
+    expect(pathFromHash()).toBe('/order-reconcile');
+  });
 });

@@ -28,6 +28,39 @@ function nextId(prefix: string): string {
 
 }
 
+/** Resolve oracle type line from Archidekt / bridge snapshot shapes (not deck categories). */
+export function typeLineFromArchidektCard(raw: Record<string, unknown>): string | null {
+  const asString = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const top = asString(raw.type_line) || asString(raw.typeLine);
+  if (top) return top;
+
+  const oracleCard = raw.oracleCard as Record<string, unknown> | undefined;
+  const fromOracle =
+    asString(oracleCard?.typeLine) ||
+    asString(oracleCard?.type_line) ||
+    asString((raw.oracle_card as Record<string, unknown> | undefined)?.type_line) ||
+    asString((raw.oracle_card as Record<string, unknown> | undefined)?.typeLine);
+  if (fromOracle) return fromOracle;
+
+  const nestedCard = raw.card as Record<string, unknown> | undefined;
+  const nestedOracle = nestedCard?.oracleCard as Record<string, unknown> | undefined;
+  const nestedOracleSnake = nestedCard?.oracle_card as Record<string, unknown> | undefined;
+  return (
+    asString(nestedOracle?.typeLine) ||
+    asString(nestedOracle?.type_line) ||
+    asString(nestedOracleSnake?.type_line) ||
+    asString(nestedOracleSnake?.typeLine) ||
+    asString(nestedCard?.type_line) ||
+    asString(nestedCard?.typeLine) ||
+    null
+  );
+}
+
 
 
 function parseFoil(raw: Record<string, unknown>): boolean {
@@ -153,23 +186,41 @@ export function parseImportText(text: string): { name: string; quantity: number;
 
 
 function categoriesFromSettings(
-
   settings: Record<string, { includedInDeck?: boolean; includedInPrice?: boolean }> | undefined,
-
 ): CategoryDef[] {
-
   if (!settings || typeof settings !== 'object') return [];
+  return dedupeCategoryDefs(
+    Object.entries(settings).map(([name, v]) => ({
+      name: normalizeArchidektCategoryName(name),
+      includedInDeck: v?.includedInDeck !== false,
+      includedInPrice: v?.includedInPrice !== false,
+    })),
+  );
+}
 
-  return Object.entries(settings).map(([name, v]) => ({
+/** Archidekt singular → Hub plural header category. */
+export function normalizeArchidektCategoryName(name: string): string {
+  const trimmed = String(name || '').trim();
+  if (trimmed === 'Lieutenant') return 'Lieutenants';
+  return trimmed;
+}
 
-    name,
-
-    includedInDeck: v?.includedInDeck !== false,
-
-    includedInPrice: v?.includedInPrice !== false,
-
-  }));
-
+function dedupeCategoryDefs(categories: CategoryDef[]): CategoryDef[] {
+  const byName = new Map<string, CategoryDef>();
+  for (const c of categories) {
+    const name = normalizeArchidektCategoryName(c.name);
+    const prev = byName.get(name);
+    if (!prev) {
+      byName.set(name, { ...c, name });
+      continue;
+    }
+    byName.set(name, {
+      name,
+      includedInDeck: prev.includedInDeck !== false && c.includedInDeck !== false,
+      includedInPrice: prev.includedInPrice !== false && c.includedInPrice !== false,
+    });
+  }
+  return [...byName.values()];
 }
 
 
@@ -221,6 +272,8 @@ export function documentFromImportText(
     colourIdentity: [],
 
     typeLine: null,
+
+    layout: null,
 
     archidektCardId: null,
 
@@ -316,15 +369,13 @@ export function documentFromArchidektSnapshot(
 
 
 
-  let categories: CategoryDef[] = (snapshot.categories || []).map((c) => ({
-
-    name: c.name,
-
-    includedInDeck: c.includedInDeck !== false,
-
-    includedInPrice: c.includedInPrice !== false,
-
-  }));
+  let categories: CategoryDef[] = dedupeCategoryDefs(
+    (snapshot.categories || []).map((c) => ({
+      name: normalizeArchidektCategoryName(c.name),
+      includedInDeck: c.includedInDeck !== false,
+      includedInPrice: c.includedInPrice !== false,
+    })),
+  );
 
   if (!categories.length) {
 
@@ -342,17 +393,21 @@ export function documentFromArchidektSnapshot(
 
   const rawCards: CardInstance[] = (snapshot.cards || []).map((raw, idx) => {
 
-    const cats = Array.isArray(raw.categories)
+    const cats = [
+      ...new Set(
+        (
+          Array.isArray(raw.categories)
+            ? (raw.categories as string[])
+            : raw.primary_category
+              ? [String(raw.primary_category)]
+              : ['Main']
+        ).map(normalizeArchidektCategoryName),
+      ),
+    ];
 
-      ? (raw.categories as string[])
-
-      : raw.primary_category
-
-        ? [String(raw.primary_category)]
-
-        : ['Main'];
-
-    const primary = String(raw.primary_category || cats[0] || 'Main');
+    const primary = normalizeArchidektCategoryName(
+      String(raw.primary_category || cats[0] || 'Main'),
+    );
 
     const ci = normalizeColourIdentity(raw.color_identity ?? raw.colourIdentity ?? raw.colorIdentity);
 
@@ -398,7 +453,9 @@ export function documentFromArchidektSnapshot(
 
       colourIdentity: ci,
 
-      typeLine: (raw.type_line as string) || (raw.typeLine as string) || null,
+      typeLine: typeLineFromArchidektCard(raw),
+
+      layout: null,
 
       archidektCardId: raw.id != null ? Number(raw.id) : null,
 

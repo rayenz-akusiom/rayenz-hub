@@ -1,0 +1,226 @@
+/* Shared card face / size / picker chrome — used by deck-builder + HubCardPicker bridge. */
+
+:root {
+  --db-card-w: 213px;
+  --db-card-overlap: calc(var(--db-card-w) * 0.197);
+  --db-card-ratio: calc(85 / 61);
+  --db-card-aspect: 61 / 85;
+  --db-card-radius: calc(var(--db-card-w) * 0.055);
+}
+
+.db-card-badges {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.db-card-badges-corner {
+  left: 0.35rem;
+  bottom: 0.35rem;
+}
+
+.db-card-badges-foil {
+  left: 0.35rem;
+  bottom: 0.35rem;
+}
+
+.db-card-badges-qty {
+  right: 0.35rem;
+  top: 0.35rem;
+  align-items: flex-end;
+}
+
+.db-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.db-badge-flip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: rgba(13, 17, 23, 0.88);
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.db-badge-flip:hover,
+.db-badge-flip:focus-visible {
+  background: #1a2332;
+  outline: none;
+}
+
+.db-badge-flip-icon {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.db-badge-foil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: linear-gradient(135deg, #c9a227, #f0e6a8 40%, #9a7b1a);
+  color: #1a1508;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.db-badge-foil-icon {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.db-badge-qty {
+  font-size: 0.9rem;
+  background: #0d1117;
+  color: #fff;
+  border: 2px solid #fff;
+  min-width: 1.75rem;
+  text-align: center;
+}
+
+.db-card-flipper {
+  display: block;
+  width: 100%;
+  perspective: 900px;
+}
+
+.db-card-flip-inner {
+  display: grid;
+  width: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.45s ease;
+}
+
+.db-card-flipper.is-back .db-card-flip-inner {
+  transform: rotateY(180deg);
+}
+
+.db-card-flip-face {
+  grid-area: 1 / 1;
+  width: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.db-card-flip-face-back {
+  transform: rotateY(180deg);
+}
+
+.db-card-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--db-card-aspect);
+  object-fit: cover;
+  border-radius: var(--db-card-radius);
+}
+
+.db-card-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: var(--db-card-aspect);
+  padding: 0.5rem;
+  border-radius: var(--db-card-radius);
+  background: #2d3748;
+  color: #fff;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.db-card-size-group {
+  display: flex;
+  gap: 4px;
+}
+
+.db-card-size-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  color: #4a5568;
+}
+
+.db-card-size-btn:hover {
+  border-color: #2b6cb0;
+  background: #ebf8ff;
+  color: #2c5282;
+}
+
+.db-card-size-btn.is-active {
+  border-color: #2b6cb0;
+  background: #bee3f8;
+  color: #2c5282;
+}
+
+.db-card-size-btn svg {
+  display: block;
+}
+
+/* React CardPicker overlay (replaces <dialog> HubCardPicker) */
+.hub-picker-dialog--react {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  max-width: none;
+  width: 100%;
+  max-height: none;
+  height: 100%;
+  box-shadow: none;
+}
+
+.hub-picker-dialog--react .hub-picker-dialog-inner {
+  max-width: min(920px, calc(100vw - 24px));
+  width: 100%;
+  max-height: calc(100vh - 24px);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  background: #fff;
+  overflow: hidden;
+}
+
+.hub-picker-dialog--react .hub-picker-option-image {
+  position: relative;
+  border-radius: var(--db-card-radius);
+}
+
+.hub-picker-dialog--react .hub-picker-option-image .db-card-img,
+.hub-picker-dialog--react .hub-picker-option-image .db-card-fallback {
+  border-radius: var(--db-card-radius);
+}
+
+.hub-picker-group {
+  display: contents;
+}

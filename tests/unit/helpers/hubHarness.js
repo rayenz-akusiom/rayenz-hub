@@ -39,6 +39,10 @@ const MODULE_GLOBALS = [
 // when `globalName` is omitted (best-effort) — prefer passing it explicitly.
 export function loadHubModule(relPaths, globalName) {
    const list = Array.isArray(relPaths) ? relPaths : [relPaths];
+   // HubUtils binds StringUtils.escapeHtml at load time.
+   if (list.some((p) => p.includes('hub-utils.js')) && !window.StringUtils) {
+      runInWindow(readHubFile('shared/string-utils.js'));
+   }
    list.forEach((relPath) => runInWindow(readHubFile(relPath)));
    return globalName ? window[globalName] : undefined;
 }
@@ -54,6 +58,7 @@ export function resetHubModules() {
    MODULE_GLOBALS.forEach((name) => {
       delete window[name];
    });
+   delete window.StringUtils;
 }
 
 export function resetDom() {
@@ -88,12 +93,6 @@ export function buildHubDom() {
 export function mockFetch() {
    return vi.fn(async (url) => {
       const requestUrl = String(url);
-      if (requestUrl.includes('dailies.html') || requestUrl.includes('web/dailies')) {
-         return {
-            ok: true,
-            text: () => Promise.resolve('<div id="root"></div>'),
-         };
-      }
       if (requestUrl.includes('latest.json')) {
          return {
             ok: false,
@@ -108,69 +107,9 @@ export function mockFetch() {
    });
 }
 
-function flushPromises() {
-   return new Promise((resolve) => {
-      setTimeout(resolve, 0);
-   });
-}
-
 export function loadHubScripts() {
    runInWindow(readHubFile('shared/storage.js'));
    runInWindow(readHubFile('shared/string-utils.js'));
    runInWindow(readHubFile('shared/hub-utils.js'));
    runInWindow(readHubFile('shared/hub-progress.js'));
-   runInWindow(readHubFile('shared/router.js'));
-   runInWindow(readHubFile('apps/dailies/load.js'));
-   window.__dailiesScriptLoaded = true;
-   window.__dailiesModulesLoaded = true;
-}
-
-export async function setupHub(options = {}) {
-   resetDom();
-   buildHubDom();
-   global.fetch = mockFetch();
-   window.location.hash = options.initialHash || '';
-
-   loadHubScripts();
-
-   window.HubRouter.registerRoute('/dailies', window.loadDailiesApp);
-   window.HubRouter.registerRoute('/deck-review', options.deckReviewLoader || (async (root) => {
-      root.innerHTML = '<div class="deck-review-stub">Deck Review</div>';
-   }));
-
-   window.HubRouter.init();
-   await flushPromises();
-
-   if (options.initialHash !== '#/deck-review') {
-      await waitForDailiesReady();
-   }
-
-   return {
-      navigate: async (hash) => {
-         const normalized = hash.startsWith('#') ? hash : '#' + hash;
-         if (window.location.hash !== normalized) {
-            window.location.hash = normalized;
-         }
-         else {
-            await window.HubRouter.navigate(normalized, { force: true });
-         }
-         await flushPromises();
-         if (normalized === '#/dailies') {
-            await waitForDailiesReady();
-         }
-      },
-      getLinkTiles: () => Array.from(document.querySelectorAll('#app-root .daily-tile')),
-      getRoutePath: () => window.HubRouter.getRoutePath(),
-   };
-}
-
-async function waitForDailiesReady(attempts = 50) {
-   for (let i = 0; i < attempts; i++) {
-      const frame = document.querySelector('#app-root iframe.hub-web-frame');
-      if (frame && /web\/dailies/i.test(frame.getAttribute('src') || '')) {
-         return frame;
-      }
-      await flushPromises();
-   }
-   throw new Error('Timed out waiting for dailies iframe');
 }

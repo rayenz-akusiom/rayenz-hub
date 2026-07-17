@@ -27,7 +27,7 @@ Use when evaluating any workflow:
 
 ## Phase 1 — Neopets / Dailies (complete)
 
-Phase 1 data refactors are done. **Dailies UI/domain now live in React/TypeScript** under `packages/web` (iframe at `web/dailies/`), with schemas in `packages/shared`.
+Phase 1 data refactors are done. **Dailies UI/domain live in React/TypeScript** under `packages/web` (SPA route `#/dailies`), with schemas in `packages/shared`.
 
 ### 1.1 ItemDB wishlist picker — v2 cache (done)
 
@@ -61,10 +61,10 @@ Phase 1 data refactors are done. **Dailies UI/domain now live in React/TypeScrip
 
 ### 1.4 React migration (done)
 
-- [x] Vite MPA: `web/settings` + `web/dailies`
+- [x] Vite SPA entry (`packages/web` → `rayenz-hub/index.html`)
 - [x] Domain ports under `packages/web/src/dailies/`
 - [x] React `DailiesApp` (wishlists, alerts, sidebar, grid, automations)
-- [x] Vanilla `apps/dailies/dailies-*.js` removed; `load.js` is iframe-only
+- [x] Vanilla `apps/dailies/` loaders removed
 
 ### 1.5 Out of scope historically
 
@@ -99,10 +99,23 @@ Phase 1 complete. Full audit: `.cursor/plans/similar_refactor_audit_36111004.pla
 
 ---
 
+## Phase 3 — Hub React SPA (done 2026-07-16)
+
+- [x] Single Vite SPA (`HubShell` + hash router) builds into `rayenz-hub/`
+- [x] Dailies, Settings, Deck Builder, Neopets More mount in-tree (no iframes)
+- [x] Shared card kit (`packages/web/src/cards/`) + React `HubCardPicker` bridge
+- [x] Deck Review / Deck Suggest / Order Reconcile React route hosts (`VanillaMtgApp`) with shared CardPicker; domain UI still vanilla JS under `rayenz-hub/apps/` pending full JSX rewrite
+- [x] Vanilla hub `router.js` + iframe loaders removed
+
+**Follow-up:** Rewrite DR / DS / OR render layers to JSX; port `HubStorage` / `HubApiClient` fully to TypeScript.
+
+---
+
 ## Completed
 
 | Date | Item |
 |------|------|
+| 2026-07-16 | Hub React SPA: shell, card kit, Neopets More; MTG apps React-hosted |
 | 2026-07-12 | MTG P2 mtg-6: shared `suggestions-bundle.js` for export/load normalization |
 | 2026-07-12 | MTG P2 mtg-5: Deck Suggest precomputed set pool index + deck rule context |
 | 2026-07-12 | MTG P1 mtg-4: Order Reconcile precomputed assignment index (`buildAssignmentIndex`) |

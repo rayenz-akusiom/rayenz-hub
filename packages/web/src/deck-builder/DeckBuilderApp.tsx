@@ -52,7 +52,10 @@ export function DeckBuilderApp() {
           for (const r of remote) {
             const local = byId.get(r.deckId);
             if (!local || r.updatedAt >= local.updatedAt) {
-              byId.set(r.deckId, r);
+              byId.set(r.deckId, {
+                ...r,
+                coverImageUrl: r.coverImageUrl || local?.coverImageUrl || null,
+              });
               const full = await deckApi.apiGetDeck(r.deckId);
               if (full) {
                 const merged = store.mergeDeckDocuments(await store.getDeck(r.deckId), full);

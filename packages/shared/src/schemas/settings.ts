@@ -6,7 +6,7 @@ export const SettingsUpsertSchema = z.object({
 });
 
 export const SettingsResponseSchema = z.object({
-  domain: z.enum(['dailies', 'order-reconcile', 'deck-suggest']),
+  domain: z.enum(['dailies', 'order-reconcile', 'deck-suggest', 'deck-builder']),
   formatVersion: z.number(),
   payload: z.record(z.unknown()),
   updatedAt: z.string(),

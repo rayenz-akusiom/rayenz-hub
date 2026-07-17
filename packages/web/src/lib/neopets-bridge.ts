@@ -1,6 +1,5 @@
 /**
- * Userscript bridges live on the top hub window. Settings/Dailies run in
- * same-origin iframes and reach them via parent.
+ * Userscript bridges live on the hub window (SPA top-level).
  */
 
 export type NeopetsBridgeResponse = {
@@ -20,13 +19,6 @@ type BridgeHost = Window & {
 };
 
 function host(): BridgeHost {
-  try {
-    if (window.parent && window.parent !== window) {
-      return window.parent as BridgeHost;
-    }
-  } catch {
-    /* cross-origin */
-  }
   return window as BridgeHost;
 }
 

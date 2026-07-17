@@ -128,14 +128,14 @@ export function DailiesSettingsPage() {
     }
     setPetLookupStatus('Looking up pet image…');
     try {
-      const parent = window.parent as Window & {
+      const bridge = window as Window & {
         __neopetsFetch?: (url: string) => Promise<string | { text: string }>;
       };
-      if (typeof parent.__neopetsFetch !== 'function') {
+      if (typeof bridge.__neopetsFetch !== 'function') {
         setPetLookupStatus('Pet name saved. Image slug needs the userscript bridge (optional).');
         return;
       }
-      const response = await parent.__neopetsFetch(
+      const response = await bridge.__neopetsFetch(
         `https://www.neopets.com/petlookup.phtml?pet=${encodeURIComponent(normalized)}`,
       );
       const html = typeof response === 'string' ? response : response.text;

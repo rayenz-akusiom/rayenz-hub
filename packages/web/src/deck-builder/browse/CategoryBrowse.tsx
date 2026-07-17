@@ -130,21 +130,26 @@ export function DeckHeaderRow({
 }) {
   if (!headerKeys.length) return null;
   return (
-    <div className="db-header-row" aria-label="Deck headers">
-      {headerKeys.map((cat, idx) => (
-        <div key={cat} className="db-header-slot">
-          {idx > 0 ? <div className="db-header-divider" aria-hidden="true" /> : null}
-          <DropSection
-            category={cat}
-            cards={header[cat]}
-            layout="grid"
-            selectedId={selectedId}
-            onSelectCard={onSelectCard}
-            onDropCard={onDropCard}
-            variant="header"
-          />
-        </div>
-      ))}
+    <div className="db-deck-leaders" aria-label="Deck leaders">
+      <div className="db-header-row">
+        {headerKeys.map((cat, idx) => (
+          <div
+            key={cat}
+            className={`db-header-slot${cat === 'Lieutenants' ? ' is-lieutenants' : ' is-commander'}`}
+          >
+            {idx > 0 ? <div className="db-header-divider" aria-hidden="true" /> : null}
+            <DropSection
+              category={cat}
+              cards={header[cat]}
+              layout="grid"
+              selectedId={selectedId}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              variant="header"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

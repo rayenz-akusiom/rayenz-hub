@@ -194,20 +194,16 @@ localStorage.removeItem('rayenz-hub-api-key');
 
 
 
-## 5. React web apps (settings + dailies)
+## 5. React Hub SPA
 
 ```powershell
-npm run dev:web      # Vite dev server — packages/web
-npm run build:web    # Build MPA to rayenz-hub/web/{settings,dailies,deck-builder}/ for Hub iframes
+npm run dev:web      # Vite dev server — packages/web (serves SPA + rayenz-hub static assets)
+npm run build:web    # Build SPA into rayenz-hub/ (index.html + assets/); emptyOutDir is false
 ```
 
-Hub routes:
+The Hub is a single React SPA (`packages/web`). Hash routes (`#/dailies`, `#/deck-builder`, `#/settings…`, etc.) render in-tree. Deck Review / Suggest / Order Reconcile mount via React hosts that load remaining vanilla app scripts from `rayenz-hub/apps/` and use the shared React CardPicker.
 
-- `#/settings…` → iframe `web/settings/index.html`
-- `#/dailies` → iframe `web/dailies/index.html`
-- `#/deck-builder` → iframe `web/deck-builder/index.html`
-
-Deploy the static Hub only after `npm run build:web` so iframes exist on gh-pages.
+**Always run `npm run build:web` before `deploy:hub`** so `rayenz-hub/index.html` points at the current SPA bundle.
 
 ---
 

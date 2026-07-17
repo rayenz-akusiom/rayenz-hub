@@ -1,22 +1,29 @@
 ---
-description: Prefer card images over names in deck-builder card UIs
-globs: packages/web/src/deck-builder/**/*.{tsx,ts,css}
+description: Prefer card images over names in MTG card UIs; use shared card kit
+globs: packages/web/src/{deck-builder,cards,order-reconcile,deck-review,deck-suggest}/**/*.{tsx,ts,css}
 alwaysApply: false
 ---
 
-# Deck builder: card images over names
+# MTG card images + unified treatment
 
 Where possible, use **Scryfall card images** for pickers, queues, selection, and swap UIs — not card-name lists.
 
+## Shared kit (`packages/web/src/cards/`)
+
+- `CardFace` — image + foil gem + qty badge (same radius via `--db-card-radius`)
+- `CardSizePicker` / `useCardSize` — S/M/L, key `rayenzHubPickerCardSize`
+- `CardPicker` / `installHubCardPickerBridge` — React replacement for `HubCardPicker`
+
 ## Prefer
 
-- `CardTile`, swap `MiniCard`, or equivalent image tiles via `cardImageUrl`
+- `CardFace`, `CardTile`, swap `MiniCard`, or `CardPicker` image grids via `cardImageUrl` / Scryfall URLs
 - Names as `alt` text, image-load fallbacks, or tooltips only
 
 ## Avoid
 
 - Name-only `<select>` / text lists for choosing cards when an image affordance can work
-- Introducing name-primary edit flows that diverge from the visual swap queue
+- Parallel card chrome (different radius, foil badge, or size control) outside the shared kit
+- Loading vanilla `shared/card-picker.js` alongside the React bridge
 
 ## Exception
 

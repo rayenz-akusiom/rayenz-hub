@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import {
+  cardHasBackFace,
   defaultAddCategory,
   deckCategoryOptions,
   scryfallCardImageUrl,
+  scryfallImageFromId,
   searchCards,
   searchCardsNextPage,
   type DeckDocument,
@@ -142,6 +144,8 @@ export function ScryfallSearchModal({
           <div className="db-picker-grid" role="listbox" aria-label="Search results">
             {results.map((card) => {
               const src = scryfallCardImageUrl(card);
+              const doubleFaced = cardHasBackFace(card.layout);
+              const backSrc = doubleFaced ? scryfallImageFromId(card.id, 'back') : null;
               return (
                 <button
                   key={card.id}
@@ -152,7 +156,13 @@ export function ScryfallSearchModal({
                   onClick={() => setPending(card)}
                 >
                   <span className="db-picker-option-face">
-                    <CardFace src={src} name={card.name} />
+                    <CardFace
+                      src={src}
+                      backSrc={backSrc}
+                      name={card.name}
+                      faceKey={card.id}
+                      doubleFaced={doubleFaced}
+                    />
                   </span>
                   <span className="db-picker-option-meta">{card.name}</span>
                 </button>

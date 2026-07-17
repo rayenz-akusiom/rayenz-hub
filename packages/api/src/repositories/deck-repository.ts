@@ -1,6 +1,7 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import {
   DeckDocumentSchema,
+  deckCoverImageUrl,
   deckSk,
   resolveUserId,
   userPk,
@@ -38,6 +39,7 @@ export class DeckRepository {
       format: (item.format as DeckSummary['format']) || 'other',
       updatedAt: String(item.updatedAt ?? ''),
       archidektId: item.archidektId != null ? Number(item.archidektId) : null,
+      coverImageUrl: item.coverImageUrl != null ? String(item.coverImageUrl) : null,
     }));
   }
 
@@ -89,6 +91,7 @@ export class DeckRepository {
           schemaVersion: doc.schemaVersion,
           updatedAt: doc.updatedAt,
           createdAt: doc.createdAt,
+          coverImageUrl: deckCoverImageUrl(doc),
         },
       }),
     );

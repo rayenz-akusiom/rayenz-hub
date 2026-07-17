@@ -128,6 +128,68 @@ describe('import', () => {
 
   });
 
+  it('aliases Archidekt Lieutenant category to Lieutenants', () => {
+    const doc = documentFromArchidektSnapshot({
+      deck_id: 1,
+      deck_name: 'Partner Deck',
+      cards: [
+        {
+          id: 1,
+          name: 'Commander A',
+          quantity: 1,
+          primary_category: 'Commander',
+          categories: ['Commander'],
+        },
+        {
+          id: 2,
+          name: 'Partner B',
+          quantity: 1,
+          primary_category: 'Lieutenant',
+          categories: ['Lieutenant'],
+        },
+      ],
+      category_settings: {
+        Commander: { includedInDeck: true, includedInPrice: true },
+        Lieutenant: { includedInDeck: true, includedInPrice: true },
+      },
+    });
+    const partner = doc.cards.find((c) => c.name === 'Partner B');
+    expect(partner?.primaryCategory).toBe('Lieutenants');
+    expect(partner?.categories).toEqual(['Lieutenants']);
+    expect(doc.categories.find((c) => c.name === 'Lieutenant')).toBeUndefined();
+    expect(doc.categories.find((c) => c.name === 'Lieutenants')).toMatchObject({
+      name: 'Lieutenants',
+      includedInDeck: true,
+    });
+  });
+
+  it('imports typeLine from nested card.oracleCard', () => {
+    const doc = documentFromArchidektSnapshot({
+      deck_id: 42,
+      name: 'Cube',
+      cards: [
+        {
+          id: 1,
+          name: 'Hallowed Fountain',
+          quantity: 1,
+          primary_category: 'White',
+          categories: ['White'],
+          color_identity: ['W', 'U'],
+          card: {
+            oracleCard: {
+              typeLine: 'Land — Plains Island',
+            },
+          },
+        },
+      ],
+      category_settings: {
+        White: { includedInDeck: true, includedInPrice: true },
+      },
+    });
+    expect(doc.cards[0].typeLine).toBe('Land — Plains Island');
+    expect(doc.cards[0].colourIdentity).toEqual(['W', 'U']);
+  });
+
 
 
   it('derives deck name from Archidekt URL slug when deck_name absent', () => {

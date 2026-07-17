@@ -332,6 +332,7 @@ export function DailiesApp() {
   const [petSlug, setPetSlug] = useState(() => getMainPetSlug());
   const [petEditOpen, setPetEditOpen] = useState(false);
   const [petEditValue, setPetEditValue] = useState('');
+  const [petEditPos, setPetEditPos] = useState<{ top: number; left: number } | null>(null);
   const [alerts, setAlerts] = useState(() => getActiveCards(settings));
   const [wishlistTargets, setWishlistTargets] = useState<ListTarget[]>([]);
   const [wish, setWish] = useState(() => loadWishingWellState().wish || '');
@@ -436,7 +437,21 @@ export function DailiesApp() {
     setPetName(name);
     setPetSlug(slug || '');
     setPetEditOpen(false);
+    setPetEditPos(null);
     setSettings(loadSettings());
+  }
+
+  function openPetEdit(anchor: HTMLElement, initialValue: string) {
+    const rect = anchor.getBoundingClientRect();
+    const popoverWidth = 240;
+    const left = Math.min(
+      Math.max(8, rect.left),
+      Math.max(8, window.innerWidth - popoverWidth - 8),
+    );
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 160);
+    setPetEditValue(initialValue);
+    setPetEditPos({ top, left });
+    setPetEditOpen(true);
   }
 
   const quickLinks = (groups[1] || []).filter((l) => l.id !== 'main-pet');
@@ -477,10 +492,7 @@ export function DailiesApp() {
                 className="pet-edit-btn"
                 aria-label="Edit main pet"
                 title="Edit main pet"
-                onClick={() => {
-                  setPetEditValue(petName);
-                  setPetEditOpen(true);
-                }}
+                onClick={(e) => openPetEdit(e.currentTarget, petName)}
               >
                 ✎
               </button>
@@ -527,8 +539,13 @@ export function DailiesApp() {
         </div>
       </div>
 
-      {petEditOpen ? (
-        <div className="pet-edit-popover" role="dialog" aria-label="Edit main pet">
+      {petEditOpen && petEditPos ? (
+        <div
+          className="pet-edit-popover"
+          role="dialog"
+          aria-label="Edit main pet"
+          style={{ top: petEditPos.top, left: petEditPos.left }}
+        >
           <form onSubmit={savePet}>
             <label className="pet-edit-popover-label" htmlFor="pet-edit-input">
               Pet name
@@ -541,6 +558,7 @@ export function DailiesApp() {
               autoComplete="off"
               spellCheck={false}
               placeholder="Your_Pet_Name"
+              autoFocus
             />
             <div className="pet-edit-popover-actions">
               <button type="submit" className="pet-edit-popover-save">
@@ -549,7 +567,10 @@ export function DailiesApp() {
               <button
                 type="button"
                 className="pet-edit-popover-cancel"
-                onClick={() => setPetEditOpen(false)}
+                onClick={() => {
+                  setPetEditOpen(false);
+                  setPetEditPos(null);
+                }}
               >
                 Cancel
               </button>
@@ -706,10 +727,29 @@ export function DailiesApp() {
                   <img src={petFullBodyUrl(petName, petSlug)} alt="" referrerPolicy="no-referrer" />
                 </a>
                 <span className="main-pet-label">{petName}</span>
+                <button
+                  type="button"
+                  className="pet-edit-btn"
+                  aria-label="Edit main pet"
+                  title="Edit main pet"
+                  onClick={(e) => openPetEdit(e.currentTarget, petName)}
+                >
+                  ✎
+                </button>
               </div>
             ) : (
               <div className="daily-tile sidebar-tile pet-edit-host pet-tile--empty">
-                <span className="pet-tile-placeholder">No main pet</span>
+                <span className="pet-tile-placeholder" aria-hidden="true" />
+                <span className="pet-tile-nameplate">No main pet</span>
+                <button
+                  type="button"
+                  className="pet-edit-btn"
+                  aria-label="Set main pet"
+                  title="Set main pet"
+                  onClick={(e) => openPetEdit(e.currentTarget, '')}
+                >
+                  ✎
+                </button>
               </div>
             )}
           </div>

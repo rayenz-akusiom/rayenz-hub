@@ -93,6 +93,7 @@ export function addCardToDeck(
     scryfallId: printing.scryfallId,
     colourIdentity: printing.colourIdentity,
     typeLine: printing.typeLine,
+    layout: printing.layout ?? null,
     archidektCardId: null,
     foil: printing.foil,
   };

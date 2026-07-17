@@ -1,4 +1,4 @@
-import { cardImageUrl, type CardInstance } from '@rayenz-hub/shared';
+import { cardHasBackFace, cardImageUrl, type CardInstance } from '@rayenz-hub/shared';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
@@ -15,6 +15,8 @@ export function CardTile({
   draggable?: boolean;
 }) {
   const src = cardImageUrl(card);
+  const doubleFaced = cardHasBackFace(card.layout);
+  const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
 
@@ -32,7 +34,15 @@ export function CardTile({
         e.dataTransfer.effectAllowed = 'move';
       }}
     >
-      <CardFace src={src} name={card.name} foil={foil} quantity={qty} />
+      <CardFace
+        src={src}
+        backSrc={backSrc}
+        name={card.name}
+        foil={foil}
+        quantity={qty}
+        faceKey={card.instanceId}
+        doubleFaced={doubleFaced}
+      />
     </button>
   );
 }

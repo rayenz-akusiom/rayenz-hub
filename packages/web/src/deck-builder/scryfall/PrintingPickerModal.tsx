@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
+  cardHasBackFace,
   fetchPrintings,
   mapScryfallCardToPrinting,
   printingSupportsFoil,
   scryfallCardImageUrl,
+  scryfallImageFromId,
   type PrintingFields,
   type ScryfallCard,
 } from '@rayenz-hub/shared';
@@ -130,6 +132,8 @@ export function PrintingPickerModal({
           <div className="db-picker-grid" role="listbox" aria-label="Printings">
             {prints.map((p) => {
               const src = scryfallCardImageUrl(p);
+              const doubleFaced = cardHasBackFace(p.layout);
+              const backSrc = doubleFaced ? scryfallImageFromId(p.id, 'back') : null;
               const selected = picked?.id === p.id;
               const label = `${String(p.set || '').toUpperCase()} #${p.collector_number}`;
               const showFoil = foil && printingSupportsFoil(p);
@@ -144,7 +148,14 @@ export function PrintingPickerModal({
                   onClick={() => setPicked(p)}
                 >
                   <span className="db-picker-option-face">
-                    <CardFace src={src} name={label} foil={showFoil} />
+                    <CardFace
+                      src={src}
+                      backSrc={backSrc}
+                      name={label}
+                      foil={showFoil}
+                      faceKey={p.id}
+                      doubleFaced={doubleFaced}
+                    />
                   </span>
                   <span className="db-picker-option-meta">{label}</span>
                 </button>

@@ -1,9 +1,10 @@
-export type SettingsDomain = 'DAILIES' | 'ORDER_RECONCILE' | 'DECK_SUGGEST';
+export type SettingsDomain = 'DAILIES' | 'ORDER_RECONCILE' | 'DECK_SUGGEST' | 'DECK_BUILDER';
 
 const REST_TO_SETTINGS_DOMAIN: Record<string, SettingsDomain> = {
   dailies: 'DAILIES',
   'order-reconcile': 'ORDER_RECONCILE',
   'deck-suggest': 'DECK_SUGGEST',
+  'deck-builder': 'DECK_BUILDER',
 };
 
 export function userPk(userId: string): string {

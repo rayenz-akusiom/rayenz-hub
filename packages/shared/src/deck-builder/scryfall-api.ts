@@ -14,6 +14,7 @@ export type ScryfallCard = {
   type_line?: string;
   color_identity?: string[];
   finishes?: string[];
+  layout?: string;
 };
 
 export type ScryfallSearchPage = {
@@ -30,6 +31,7 @@ export type PrintingFields = {
   collectorNumber: string;
   typeLine: string | null;
   colourIdentity: ColourLetter[];
+  layout: string | null;
   foil: boolean;
 };
 
@@ -92,6 +94,7 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
       ? (c.color_identity as string[])
       : undefined,
     finishes: Array.isArray(c.finishes) ? (c.finishes as string[]) : undefined,
+    layout: typeof c.layout === 'string' ? c.layout : undefined,
   };
 }
 
@@ -113,6 +116,7 @@ export function mapScryfallCardToPrinting(
     collectorNumber: card.collector_number || '',
     typeLine: card.type_line || null,
     colourIdentity: normalizeColourIdentity(card.color_identity || []),
+    layout: card.layout || null,
     foil,
   };
 }
@@ -240,6 +244,7 @@ export function applyPrintingToCard(
     colourIdentity: printing.colourIdentity.length
       ? printing.colourIdentity
       : card.colourIdentity,
+    layout: printing.layout ?? card.layout ?? null,
     foil: printing.foil,
   };
 }

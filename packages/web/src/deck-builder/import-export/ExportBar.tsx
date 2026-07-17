@@ -1,39 +1,36 @@
-import { useState } from 'react';
-import type { DeckDocument } from '@rayenz-hub/shared';
-import { buildArchidektImportText } from './to-archidekt';
-import { canStageApply, getParentArchidektBridge } from './archidekt-bridge';
-import { RefreshDialog } from './RefreshDialog';
+import type { BrowseView, CardLayout } from '@rayenz-hub/shared';
+import { CardSizePicker } from '../CardSizePicker';
+import type { CardSizeKey } from '../card-size';
+import { DbMenu, DbMenuItem } from '../ui/DbMenu';
+
+const VIEW_LABELS: Record<BrowseView, string> = {
+  category: 'Categories',
+  colour_identity: 'Colour identity',
+  colour_identity_spells: 'Colour identity (Spells)',
+};
+
+const LAYOUT_LABELS: Record<CardLayout, string> = {
+  stacked: 'Stacked',
+  grid: 'Grid',
+};
 
 export function ExportBar({
-  deck,
-  onDeckChange,
   onAddCard,
+  view,
+  onViewChange,
+  layout,
+  onLayoutChange,
+  cardSize,
+  onCardSizeChange,
 }: {
-  deck: DeckDocument;
-  onDeckChange: (next: DeckDocument) => void;
   onAddCard?: () => void;
+  view: BrowseView;
+  onViewChange: (next: BrowseView) => void;
+  layout: CardLayout;
+  onLayoutChange: (next: CardLayout) => void;
+  cardSize: CardSizeKey;
+  onCardSizeChange: (next: CardSizeKey) => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [refreshOpen, setRefreshOpen] = useState(false);
-  const text = buildArchidektImportText(deck);
-
-  async function copy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  function apply() {
-    const bridge = getParentArchidektBridge();
-    const id = deck.archidektId || deck.deckId;
-    bridge?.stageApply?.(id, text);
-    onDeckChange({
-      ...deck,
-      lastArchidektSyncAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
   return (
     <div className="db-export-bar">
       {onAddCard ? (
@@ -41,25 +38,34 @@ export function ExportBar({
           Add card…
         </button>
       ) : null}
-      <button type="button" className="db-btn" onClick={copy}>
-        {copied ? 'Copied' : 'Copy Archidekt import'}
-      </button>
-      <button type="button" className="db-btn is-active" onClick={apply} disabled={!canStageApply()}>
-        Apply via bridge
-      </button>
-      <button type="button" className="db-btn" onClick={() => setRefreshOpen(true)}>
-        Refresh from Archidekt…
-      </button>
-      {refreshOpen ? (
-        <RefreshDialog
-          deck={deck}
-          onClose={() => setRefreshOpen(false)}
-          onApplied={(next) => {
-            onDeckChange(next);
-            setRefreshOpen(false);
-          }}
-        />
-      ) : null}
+      <div className="db-toolbar-controls">
+        <DbMenu label="Browse" value={VIEW_LABELS[view]}>
+          <DbMenuItem active={view === 'category'} onSelect={() => onViewChange('category')}>
+            Categories
+          </DbMenuItem>
+          <DbMenuItem
+            active={view === 'colour_identity'}
+            onSelect={() => onViewChange('colour_identity')}
+          >
+            Colour identity
+          </DbMenuItem>
+          <DbMenuItem
+            active={view === 'colour_identity_spells'}
+            onSelect={() => onViewChange('colour_identity_spells')}
+          >
+            Colour identity (Spells)
+          </DbMenuItem>
+        </DbMenu>
+        <DbMenu label="Layout" value={LAYOUT_LABELS[layout]}>
+          <DbMenuItem active={layout === 'stacked'} onSelect={() => onLayoutChange('stacked')}>
+            Stacked
+          </DbMenuItem>
+          <DbMenuItem active={layout === 'grid'} onSelect={() => onLayoutChange('grid')}>
+            Grid
+          </DbMenuItem>
+        </DbMenu>
+        <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
+      </div>
     </div>
   );
 }

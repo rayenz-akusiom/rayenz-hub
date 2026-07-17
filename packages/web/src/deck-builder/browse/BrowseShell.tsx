@@ -24,11 +24,23 @@ import {
 } from '../swaps/SwapQueuePanel';
 import { MoveSheet } from '../edit/MoveSheet';
 import { ExportBar } from '../import-export/ExportBar';
+import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
-import { CardSizePicker } from '../CardSizePicker';
 import { useCardSize } from '../card-size';
+import { FormatBadge } from '../ui/FormatBadge';
+
+function BookIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M3.5 2.5h5.25c.55 0 1 .45 1 1v10.25c0-.41-.34-.75-.75-.75H3.5c-.55 0-1-.45-1-1v-8.5c0-.55.45-1 1-1zm6.25 0H15c.55 0 1 .45 1 1v8.5c0 .55-.45 1-1 1H9.75c.41 0 .75.34.75.75V3.5c0-.55-.45-1-1-1zM3.5 14.5h5.5c.83 0 1.5.45 1.5 1H3.5c-.55 0-1-.45-1-1s.45-1 1-1zm9.5 0h1.5c.55 0 1 .45 1 1s-.45 1-1 1h-3c0-.55.67-1 1.5-1z"
+      />
+    </svg>
+  );
+}
 
 function draftFromEntry(entry: FormalSwapEntry): SwapEditDraft {
   return {
@@ -95,18 +107,25 @@ export function BrowseShell({
   const total = totalCardQuantity(deck.cards);
   const editingSwap = Boolean(draft);
 
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
+
   const onEnrichPatch = useCallback(
     (cards: CardInstance[]) => {
+      const current = deckRef.current;
       onChange({
-        ...deck,
+        ...current,
         cards,
         updatedAt: new Date().toISOString(),
       });
     },
-    [deck, onChange],
+    [onChange],
   );
 
-  const { enriching } = useScryfallEnrich(deck, view === 'colour_identity', onEnrichPatch);
+  const isColourIdentityView =
+    view === 'colour_identity' || view === 'colour_identity_spells';
+  // Always enrich so layout (DFC flip) and CI/type data are available in every browse view.
+  const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
   function onSelectCard(card: CardInstance) {
     if (draft && picking) {
@@ -212,59 +231,33 @@ export function BrowseShell({
   return (
     <div ref={shellRef} className="db-shell" style={shellStyle}>
       <header className="db-header">
-        <button type="button" className="db-btn" onClick={onBack}>
-          Library
+        <button type="button" className="db-btn db-library-back" onClick={onBack} aria-label="Library" title="Library">
+          <BookIcon />
+          <span>Library</span>
         </button>
         <div className="db-header-main">
-          <h2>{deck.name}</h2>
+          <h2 className="db-header-title">
+            <FormatBadge format={deck.format} />
+            <span>{deck.name}</span>
+          </h2>
           <p className="db-meta">
-            {deck.format} · {size} cards
+            {size} cards
             {total !== size ? ` · ${total} total` : ''}
             {incomplete ? ` · ${incomplete} incomplete swaps` : ''}
-            {enriching ? ' · Enriching CI…' : ''}
+            {enriching ? ' · Enriching…' : ''}
           </p>
         </div>
-        <div className="db-view-toggles">
-          <div className="db-view-toggle" role="group" aria-label="Browse view">
-            <button
-              type="button"
-              className={view === 'category' ? 'db-btn is-active' : 'db-btn'}
-              onClick={() => setView('category')}
-            >
-              Categories
-            </button>
-            <button
-              type="button"
-              className={view === 'colour_identity' ? 'db-btn is-active' : 'db-btn'}
-              onClick={() => setView('colour_identity')}
-            >
-              Colour identity
-            </button>
-          </div>
-          <div className="db-view-toggle" role="group" aria-label="Card layout">
-            <button
-              type="button"
-              className={layout === 'stacked' ? 'db-btn is-active' : 'db-btn'}
-              onClick={() => setLayoutAndPersist('stacked')}
-            >
-              Stacked
-            </button>
-            <button
-              type="button"
-              className={layout === 'grid' ? 'db-btn is-active' : 'db-btn'}
-              onClick={() => setLayoutAndPersist('grid')}
-            >
-              Grid
-            </button>
-          </div>
-          <CardSizePicker size={cardSize} onChange={setCardSize} />
-        </div>
+        <DeckActionsMenu deck={deck} onDeckChange={onChange} />
       </header>
 
       <ExportBar
-        deck={deck}
-        onDeckChange={onChange}
         onAddCard={picking ? undefined : () => setAddOpen(true)}
+        view={view}
+        onViewChange={setView}
+        layout={layout}
+        onLayoutChange={setLayoutAndPersist}
+        cardSize={cardSize}
+        onCardSizeChange={setCardSize}
       />
 
       <div className="db-body">
@@ -296,12 +289,13 @@ export function BrowseShell({
               </div>
             </div>
           ) : null}
-          {view === 'colour_identity' ? (
+          {isColourIdentityView ? (
             <ColourIdentityBrowse
               deck={deck}
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               layout={layout}
+              separateLands={view === 'colour_identity_spells'}
             />
           ) : (
             <CategoryBrowse

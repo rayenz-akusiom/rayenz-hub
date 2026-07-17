@@ -56,8 +56,17 @@ describe('mapScryfallCardToPrinting', () => {
       collectorNumber: '1',
       typeLine: 'Artifact',
       colourIdentity: [],
+      layout: null,
       foil: true,
     });
+  });
+
+  it('maps layout onto printing fields', () => {
+    const printing = mapScryfallCardToPrinting({
+      ...sampleCard,
+      layout: 'transform',
+    });
+    expect(printing.layout).toBe('transform');
   });
 
   it('ignores foil when finish is unavailable', () => {
@@ -178,6 +187,7 @@ describe('card edits', () => {
       id: 'sf-new',
       set: 'mh3',
       collector_number: '42',
+      layout: 'modal_dfc',
     });
     const next = changeCardPrinting(commander, 'c1', printing);
     const card = next.cards.find((c) => c.instanceId === 'c1');
@@ -185,6 +195,7 @@ describe('card edits', () => {
     expect(card.setCode).toBe('mh3');
     expect(card.collectorNumber).toBe('42');
     expect(card.name).toBe('Sol Ring');
+    expect(card.layout).toBe('modal_dfc');
   });
 
   it('applyPrintingToCard preserves instance identity', () => {

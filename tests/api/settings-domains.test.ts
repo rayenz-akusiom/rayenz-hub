@@ -5,7 +5,9 @@ import { MemoryDocClient } from './helpers/memory-dynamo.ts';
 import { TEST_AUTH_HEADERS, createTestServices } from './helpers/test-services.ts';
 
 describe('settings domains', () => {
-  it.each(['order-reconcile', 'deck-suggest'] as const)('round-trips %s settings', async (domain) => {
+  it.each(['order-reconcile', 'deck-suggest', 'deck-builder'] as const)(
+    'round-trips %s settings',
+    async (domain) => {
     const memory = new MemoryDocClient();
     const services = createTestServices({
       settingsRepository: new SettingsRepository(memory, 'HubTable'),

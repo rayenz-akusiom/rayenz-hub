@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { deckCoverImageUrl } from '../deck-builder/deck-cover.js';
 
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
-export const BrowseViewSchema = z.enum(['category', 'colour_identity']);
+export const BrowseViewSchema = z.enum(['category', 'colour_identity', 'colour_identity_spells']);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
 
 export const CardLayoutSchema = z.enum(['stacked', 'grid']);
@@ -28,6 +29,8 @@ export const CardInstanceSchema = z.object({
   scryfallId: z.string().nullable().default(null),
   colourIdentity: z.array(z.enum(['W', 'U', 'B', 'R', 'G'])).default([]),
   typeLine: z.string().nullable().default(null),
+  /** Scryfall layout (e.g. transform, modal_dfc); used to detect dual-faced cards. */
+  layout: z.string().nullable().default(null),
   archidektCardId: z.number().nullable().default(null),
   foil: z.boolean().default(false),
 });
@@ -68,6 +71,8 @@ export const DeckSummarySchema = z.object({
   format: DeckFormatSchema,
   updatedAt: z.string(),
   archidektId: z.number().nullable().default(null),
+  /** Scryfall image URL for library cover (commander, or first card for cubes). */
+  coverImageUrl: z.string().nullable().optional().default(null),
 });
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
 
@@ -78,5 +83,6 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     format: doc.format,
     updatedAt: doc.updatedAt,
     archidektId: doc.archidektId ?? null,
+    coverImageUrl: deckCoverImageUrl(doc),
   };
 }

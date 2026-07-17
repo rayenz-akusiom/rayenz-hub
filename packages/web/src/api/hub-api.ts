@@ -1,9 +1,12 @@
 import {
   DailiesSettingsPayloadSchema,
+  DeckBuilderSettingsPayloadSchema,
   DeckSuggestSettingsPayloadSchema,
+  DECK_BUILDER_SETTINGS_EVENT,
   OrderReconcileSettingsPayloadSchema,
   SettingsResponseSchema,
   type DailiesSettingsPayload,
+  type DeckBuilderSettingsPayload,
   type DeckSuggestSettingsPayload,
   type OrderReconcileSettingsPayload,
 } from '@rayenz-hub/shared';
@@ -270,6 +273,72 @@ export async function persistOrderReconcileSettings(
   writeLocalOrderReconcile(body);
   if (getHubApiConfig().enabled) {
     await saveDomainPayload('order-reconcile', body);
+    return 'api';
+  }
+  return 'local';
+}
+
+function readLocalDeckBuilder(): DeckBuilderSettingsPayload | null {
+  const raw = getHubStorage()?.loadDeckBuilderSettings?.();
+  if (!raw) {
+    try {
+      const ls = localStorage.getItem('rayenz-deck-builder-settings');
+      if (!ls) return null;
+      const parsed = DeckBuilderSettingsPayloadSchema.safeParse(JSON.parse(ls));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  }
+  const parsed = DeckBuilderSettingsPayloadSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function writeLocalDeckBuilder(payload: DeckBuilderSettingsPayload): void {
+  const storage = getHubStorage();
+  if (storage?.saveDeckBuilderSettings) {
+    storage.saveDeckBuilderSettings(payload as Record<string, unknown>);
+  } else {
+    try {
+      localStorage.setItem('rayenz-deck-builder-settings', JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export async function loadDeckBuilderSettings(): Promise<{
+  settings: DeckBuilderSettingsPayload | null;
+  source: 'api' | 'local' | 'none';
+}> {
+  const cfg = getHubApiConfig();
+  if (cfg.enabled) {
+    try {
+      const remote = await fetchDomainPayload('deck-builder', DeckBuilderSettingsPayloadSchema);
+      if (remote) {
+        writeLocalDeckBuilder(remote);
+        return { settings: remote, source: 'api' };
+      }
+    } catch {
+      /* local fallback */
+    }
+  }
+  const local = readLocalDeckBuilder();
+  return { settings: local, source: local ? 'local' : 'none' };
+}
+
+export async function persistDeckBuilderSettings(
+  payload: DeckBuilderSettingsPayload,
+): Promise<'api' | 'local'> {
+  const body = DeckBuilderSettingsPayloadSchema.parse(payload);
+  writeLocalDeckBuilder(body);
+  try {
+    window.dispatchEvent(new CustomEvent(DECK_BUILDER_SETTINGS_EVENT, { detail: body }));
+  } catch {
+    /* ignore */
+  }
+  if (getHubApiConfig().enabled) {
+    await saveDomainPayload('deck-builder', body);
     return 'api';
   }
   return 'local';

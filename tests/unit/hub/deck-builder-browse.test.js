@@ -69,7 +69,7 @@ describe('browse grouping', () => {
 
   it('CI sections for cube lands', () => {
     const land = cube.cards.find((c) => c.instanceId === 'u2');
-    expect(colourIdentitySection(land)).toBe('Lands');
+    expect(colourIdentitySection(land)).toBe('Azorius');
   });
 
   it('omits New Set In/Out from partition by default', () => {

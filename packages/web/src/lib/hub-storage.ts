@@ -1,9 +1,8 @@
 /**
- * Access HubStorage / DailiesSettings on the parent hub window (iframe),
- * falling back to same-window APIs / localStorage for tests and stand-alone.
+ * Hub storage / router access (same-window SPA; parent walk kept for tests).
  */
 
-type HubParent = Window & {
+type HubHost = Window & {
   HubStorage?: {
     loadDailiesSettings: () => Record<string, unknown>;
     saveDailiesSettings: (settings: Record<string, unknown>) => void;
@@ -11,6 +10,8 @@ type HubParent = Window & {
     saveDeckSuggestSettings: (settings: Record<string, unknown>) => void;
     loadOrderReconcileSettings: () => Record<string, unknown>;
     saveOrderReconcileSettings: (settings: Record<string, unknown>) => void;
+    loadDeckBuilderSettings?: () => Record<string, unknown>;
+    saveDeckBuilderSettings?: (settings: Record<string, unknown>) => void;
   };
   DailiesSettings?: {
     getMainPet: () => string;
@@ -23,15 +24,8 @@ type HubParent = Window & {
   };
 };
 
-function host(): HubParent {
-  try {
-    if (window.parent && window.parent !== window) {
-      return window.parent as HubParent;
-    }
-  } catch {
-    /* cross-origin */
-  }
-  return window as HubParent;
+function host(): HubHost {
+  return window as HubHost;
 }
 
 export function getHubStorage() {
@@ -43,29 +37,16 @@ export function getDailiesSettingsApi() {
 }
 
 export function navigateHub(hash: string) {
+  const normalized = hash.startsWith('#') ? hash : `#${hash}`;
   const h = host();
   if (h.HubRouter?.navigate) {
-    h.HubRouter.navigate(hash);
+    h.HubRouter.navigate(normalized);
     return;
   }
-  try {
-    if (window.top) {
-      window.top.location.hash = hash;
-    }
-  } catch {
-    window.location.hash = hash;
-  }
+  window.location.hash = normalized;
 }
 
+/** @deprecated Prefer navigateHub — kept for call-site compatibility. */
 export function setParentHash(path: string) {
-  const hash = path.startsWith('#') ? path : `#${path}`;
-  try {
-    if (window.top && window.top !== window) {
-      window.top.location.hash = hash;
-      return;
-    }
-  } catch {
-    /* ignore */
-  }
-  window.location.hash = hash;
+  navigateHub(path);
 }

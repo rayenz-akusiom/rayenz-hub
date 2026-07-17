@@ -62,7 +62,32 @@ function upsertSummary(doc: DeckDocument): void {
 }
 
 export async function listDecks(): Promise<DeckSummary[]> {
-  return readLibraryIndex();
+  return ensureLibraryCovers(readLibraryIndex());
+}
+
+/** Rebuild coverImageUrl for summaries missing it (pre-cover library index). */
+async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummary[]> {
+  let changed = false;
+  const next: DeckSummary[] = [];
+  for (const s of summaries) {
+    if (s.coverImageUrl) {
+      next.push(s);
+      continue;
+    }
+    const doc = await getDeck(s.deckId);
+    if (!doc) {
+      next.push(s);
+      continue;
+    }
+    const summary = toDeckSummary(doc);
+    next.push(summary);
+    changed = true;
+  }
+  if (changed) {
+    next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name));
+    writeLibraryIndex(next);
+  }
+  return next;
 }
 
 export async function getDeck(deckId: string): Promise<DeckDocument | null> {

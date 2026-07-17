@@ -66,6 +66,7 @@ function withLayouts(doc: DeckDocument): DeckDocument {
   return {
     ...doc,
     cardLayoutDefault: doc.cardLayoutDefault ?? 'stacked',
+    cardSortDefault: doc.cardSortDefault ?? 'name_asc',
     cards: doc.cards.map((c) => ({
       ...c,
       layout: c.layout ?? 'normal',

@@ -1,4 +1,5 @@
 import {
+  cardDisplayName,
   cardHasBackFace,
   cardImageUrl,
   resolveDeckCards,
@@ -45,7 +46,7 @@ export function buildOutPickerItems(cards: CardView[]): CardPickerItem[] {
       layout: card.layout || undefined,
       faceKey: card.instanceId,
       category: card.primaryCategory || undefined,
-      lines: [card.name, printingLine(card)].filter(Boolean),
+      lines: [cardDisplayName(card), printingLine(card)].filter(Boolean),
     };
   });
 }

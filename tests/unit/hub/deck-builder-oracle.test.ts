@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cardDisplayName,
   cardImageUrl,
   DeckDocumentSchema,
   migrateDeckDocument,
@@ -123,13 +124,39 @@ describe('resolveCardView', () => {
       keywords: null,
       partnerWith: null,
       oracleText: null,
+      printedName: null,
+      flavorName: null,
+      manaValue: 1,
       imageUrl: 'https://cdn.example/ring.jpg',
       updatedAt: null,
     });
     expect(view.typeLine).toBe('Artifact');
     expect(view.colourIdentity).toEqual([]);
     expect(view.imageUrl).toBe('https://cdn.example/ring.jpg');
+    expect(view.manaValue).toBe(1);
     expect(view.instanceId).toBe('c1');
+  });
+});
+
+describe('cardDisplayName', () => {
+  it('prefers flavorName, then printedName, then canonical name', () => {
+    expect(
+      cardDisplayName({
+        name: 'Mysterious Egg',
+        printedName: '不思議な卵',
+        flavorName: "Mothra's Great Cocoon",
+      }),
+    ).toBe("Mothra's Great Cocoon");
+    expect(
+      cardDisplayName({
+        name: 'Arvinox, the Mind Flail',
+        printedName: 'Mind Flayer, the Shadow',
+        flavorName: null,
+      }),
+    ).toBe('Mind Flayer, the Shadow');
+    expect(cardDisplayName({ name: 'Sol Ring', printedName: null, flavorName: null })).toBe(
+      'Sol Ring',
+    );
   });
 });
 
@@ -172,11 +199,49 @@ describe('needsOracleEnrich', () => {
           keywords: null,
           partnerWith: null,
           oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
           imageUrl: null,
           updatedAt: null,
         },
       },
     };
     expect(needsOracleEnrich(doc, card)).toBe(false);
+  });
+
+  it('is true when manaValue is missing (backfill printed names / CMC)', () => {
+    const card = {
+      instanceId: 'c1',
+      name: 'Bolt',
+      quantity: 1,
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      stack: null,
+      setCode: null,
+      collectorNumber: null,
+      scryfallId: null,
+      archidektCardId: null,
+      foil: false,
+    };
+    const doc = {
+      oracle: {
+        [oracleKey(card)]: {
+          scryfallId: null,
+          colourIdentity: ['R'],
+          typeLine: 'Instant',
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: null,
+          imageUrl: null,
+          updatedAt: null,
+        },
+      },
+    };
+    expect(needsOracleEnrich(doc, card)).toBe(true);
   });
 });

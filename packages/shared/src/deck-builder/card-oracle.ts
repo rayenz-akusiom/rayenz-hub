@@ -15,6 +15,9 @@ export type CardView = CardInstance & {
   keywords: string[] | null;
   partnerWith: string | null;
   oracleText: string | null;
+  printedName: string | null;
+  flavorName: string | null;
+  manaValue: number | null;
   imageUrl: string | null;
 };
 
@@ -41,6 +44,9 @@ export function emptyCardOracle(over: Partial<CardOracle> = {}): CardOracle {
     keywords: null,
     partnerWith: null,
     oracleText: null,
+    printedName: null,
+    flavorName: null,
+    manaValue: null,
     imageUrl: null,
     updatedAt: null,
     ...over,
@@ -68,8 +74,20 @@ export function resolveCardView(
     keywords: o.keywords ?? null,
     partnerWith: o.partnerWith ?? null,
     oracleText: o.oracleText ?? null,
+    printedName: o.printedName ?? null,
+    flavorName: o.flavorName ?? null,
+    manaValue: o.manaValue ?? null,
     imageUrl: o.imageUrl ?? null,
   };
+}
+
+/** Face name for display/sort: flavor → printed → canonical. */
+export function cardDisplayName(
+  card: Pick<CardView, 'name' | 'printedName' | 'flavorName'> | Pick<CardInstance, 'name'>,
+): string {
+  const flavor = 'flavorName' in card ? card.flavorName : null;
+  const printed = 'printedName' in card ? card.printedName : null;
+  return String(flavor || printed || card.name || '').trim() || String(card.name || '');
 }
 
 export function resolveDeckCards(doc: Pick<DeckDocument, 'cards' | 'oracle'>): CardView[] {
@@ -85,6 +103,7 @@ export function oracleSatisfiesCard(
   if (!oracle) return false;
   if (!(oracle.colourIdentity && oracle.colourIdentity.length)) return false;
   if (!oracle.typeLine) return false;
+  if (oracle.manaValue == null) return false;
   if (isHeaderLeaderCategory(card.primaryCategory) && oracle.keywords == null) return false;
   return true;
 }
@@ -155,6 +174,9 @@ function mergeOraclePreferExisting(
     keywords: base.keywords ?? incoming.keywords ?? null,
     partnerWith: base.partnerWith ?? incoming.partnerWith ?? null,
     oracleText: base.oracleText ?? incoming.oracleText ?? null,
+    printedName: base.printedName ?? incoming.printedName ?? null,
+    flavorName: base.flavorName ?? incoming.flavorName ?? null,
+    manaValue: base.manaValue ?? incoming.manaValue ?? null,
     imageUrl:
       base.imageUrl ||
       incoming.imageUrl ||
@@ -228,6 +250,9 @@ export function cardOracleFromScryfall(data: {
   layout?: string;
   keywords?: string[];
   oracle_text?: string;
+  printed_name?: string;
+  flavor_name?: string;
+  cmc?: number;
 }): CardOracle {
   const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
   const scryfallId = data.id || null;
@@ -239,6 +264,9 @@ export function cardOracleFromScryfall(data: {
     keywords,
     partnerWith: parsePartnerWithName(data.oracle_text),
     oracleText: data.oracle_text || null,
+    printedName: data.printed_name?.trim() || null,
+    flavorName: data.flavor_name?.trim() || null,
+    manaValue: typeof data.cmc === 'number' && Number.isFinite(data.cmc) ? data.cmc : null,
     imageUrl: scryfallId ? scryfallImageFromId(scryfallId) : null,
     updatedAt: new Date().toISOString(),
   });

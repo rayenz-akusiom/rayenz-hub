@@ -160,9 +160,9 @@ describe('LibraryView', () => {
     );
 
     const tile = screen.getByText('Partners', { selector: '.db-library-tile-name' }).closest('li')!;
-    const openBtn = within(tile).getAllByRole('button')[0]!;
-    expect(openBtn).toHaveAttribute('title', expect.stringMatching(/partner/i));
-    await user.click(openBtn);
+    const openLink = within(tile).getByRole('link');
+    expect(openLink).toHaveAttribute('title', expect.stringMatching(/partner/i));
+    await user.click(openLink);
     expect(onOpen).toHaveBeenCalledWith('p1');
 
     await user.click(screen.getByRole('button', { name: 'Delete Partners' }));
@@ -224,6 +224,8 @@ describe('ExportBar', () => {
         onViewChange={onViewChange}
         layout="stacked"
         onLayoutChange={onLayoutChange}
+        cardSort="name_asc"
+        onCardSortChange={vi.fn()}
         cardSize="M"
         onCardSizeChange={vi.fn()}
       />,

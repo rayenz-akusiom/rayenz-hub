@@ -98,6 +98,8 @@ describe('ExportBar', () => {
         onViewChange={() => {}}
         layout="stacked"
         onLayoutChange={() => {}}
+        cardSort="name_asc"
+        onCardSortChange={() => {}}
         cardSize="M"
         onCardSizeChange={() => {}}
       />,
@@ -105,6 +107,7 @@ describe('ExportBar', () => {
 
     expect(screen.getByRole('button', { name: /Browse Categories/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Layout Stacked/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sort A–Z/i })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
   });
 
@@ -118,6 +121,8 @@ describe('ExportBar', () => {
         onViewChange={() => {}}
         layout="grid"
         onLayoutChange={() => {}}
+        cardSort="name_asc"
+        onCardSortChange={() => {}}
         cardSize="S"
         onCardSizeChange={() => {}}
       />,
@@ -136,6 +141,8 @@ describe('ExportBar', () => {
         onViewChange={onViewChange}
         layout="stacked"
         onLayoutChange={() => {}}
+        cardSort="name_asc"
+        onCardSortChange={() => {}}
         cardSize="M"
         onCardSizeChange={() => {}}
       />,

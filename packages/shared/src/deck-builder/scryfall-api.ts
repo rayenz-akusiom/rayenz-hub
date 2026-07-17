@@ -17,6 +17,9 @@ export type ScryfallCard = {
   layout?: string;
   keywords?: string[];
   oracle_text?: string;
+  printed_name?: string;
+  flavor_name?: string;
+  cmc?: number;
 };
 
 /** Identifier shapes accepted by POST /cards/collection (max 75 per request). */
@@ -52,6 +55,9 @@ export type PrintingFields = {
   colourIdentity: ColourLetter[];
   layout: string | null;
   foil: boolean;
+  printedName: string | null;
+  flavorName: string | null;
+  manaValue: number | null;
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};
@@ -116,6 +122,9 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
     layout: typeof c.layout === 'string' ? c.layout : undefined,
     keywords: Array.isArray(c.keywords) ? (c.keywords as string[]) : undefined,
     oracle_text: typeof c.oracle_text === 'string' ? c.oracle_text : undefined,
+    printed_name: typeof c.printed_name === 'string' ? c.printed_name : undefined,
+    flavor_name: typeof c.flavor_name === 'string' ? c.flavor_name : undefined,
+    cmc: typeof c.cmc === 'number' && Number.isFinite(c.cmc) ? c.cmc : undefined,
   };
 }
 
@@ -139,6 +148,9 @@ export function mapScryfallCardToPrinting(
     colourIdentity: normalizeColourIdentity(card.color_identity || []),
     layout: card.layout || null,
     foil,
+    printedName: card.printed_name?.trim() || null,
+    flavorName: card.flavor_name?.trim() || null,
+    manaValue: typeof card.cmc === 'number' && Number.isFinite(card.cmc) ? card.cmc : null,
   };
 }
 

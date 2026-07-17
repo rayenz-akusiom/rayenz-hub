@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from 'react-dom';
 import {
   categoryIncluded,
+  cardDisplayName,
   defaultAddCategory,
   incompleteEntryCount,
   isSwapQueueCategory,
@@ -76,7 +77,7 @@ function MiniCard({ card }: { card: CardView | null }) {
       <CardFace
         src={src}
         backSrc={backSrc}
-        name={card.name}
+        name={cardDisplayName(card)}
         foil={foil}
         quantity={qty}
         faceKey={card.instanceId}

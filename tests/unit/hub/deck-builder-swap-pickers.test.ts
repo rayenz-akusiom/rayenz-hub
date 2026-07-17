@@ -32,6 +32,9 @@ describe('findMatchingPrintingInstance', () => {
     colourIdentity: over.colourIdentity ?? ['G'],
     layout: over.layout ?? null,
     foil: over.foil ?? false,
+    printedName: over.printedName ?? null,
+    flavorName: over.flavorName ?? null,
+    manaValue: over.manaValue ?? null,
     name: over.name,
   });
 

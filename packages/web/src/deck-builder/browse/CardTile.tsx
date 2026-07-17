@@ -1,4 +1,9 @@
-import { cardHasBackFace, cardImageUrl, type CardView } from '@rayenz-hub/shared';
+import {
+  cardDisplayName,
+  cardHasBackFace,
+  cardImageUrl,
+  type CardView,
+} from '@rayenz-hub/shared';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
@@ -22,13 +27,14 @@ export function CardTile({
   const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
+  const displayName = cardDisplayName(card);
 
   return (
     <button
       type="button"
       className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onClick={() => onSelect?.(card)}
-      title={card.name}
+      title={displayName}
       aria-label={actionLabel || undefined}
       draggable={draggable}
       onDragStart={(e) => {
@@ -41,7 +47,7 @@ export function CardTile({
       <CardFace
         src={src}
         backSrc={backSrc}
-        name={card.name}
+        name={displayName}
         foil={foil}
         quantity={qty}
         faceKey={card.instanceId}

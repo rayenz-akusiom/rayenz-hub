@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   addCardToDeck,
+  cardDisplayName,
   changeCardPrinting,
   deckSize,
   defaultBrowseView,
@@ -12,6 +13,7 @@ import {
   type BrowseView,
   type CardView,
   type CardLayout,
+  type CardSortMode,
   type DeckDocument,
   type FormalSwapEntry,
   type PrintingFields,
@@ -64,6 +66,7 @@ export function BrowseShell({
     deck.browseViewDefault || defaultBrowseView(deck.format),
   );
   const [layout, setLayout] = useState<CardLayout>(deck.cardLayoutDefault || 'stacked');
+  const [cardSort, setCardSort] = useState<CardSortMode>(deck.cardSortDefault || 'name_asc');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -131,6 +134,13 @@ export function BrowseShell({
     setLayout(next);
     if (deck.cardLayoutDefault !== next) {
       onChange({ ...deck, cardLayoutDefault: next, updatedAt: new Date().toISOString() });
+    }
+  }
+
+  function setCardSortAndPersist(next: CardSortMode) {
+    setCardSort(next);
+    if (deck.cardSortDefault !== next) {
+      onChange({ ...deck, cardSortDefault: next, updatedAt: new Date().toISOString() });
     }
   }
 
@@ -297,6 +307,8 @@ export function BrowseShell({
         onViewChange={setView}
         layout={layout}
         onLayoutChange={setLayoutAndPersist}
+        cardSort={cardSort}
+        onCardSortChange={setCardSortAndPersist}
         cardSize={cardSize}
         onCardSizeChange={setCardSize}
       />
@@ -305,7 +317,7 @@ export function BrowseShell({
         <main className="db-main">
           {selected ? (
             <div className="db-selection-bar">
-              <span>{selected.name}</span>
+              <span>{cardDisplayName(selected)}</span>
               <div className="db-selection-bar-actions">
                 {isCover ? (
                   <button type="button" className="db-btn" onClick={onClearCover}>
@@ -338,6 +350,7 @@ export function BrowseShell({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               layout={layout}
+              cardSort={cardSort}
               separateLands={view === 'colour_identity_spells'}
             />
           ) : (
@@ -346,6 +359,7 @@ export function BrowseShell({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               layout={layout}
+              cardSort={cardSort}
               onDropCard={onDropCard}
               mode="main"
             />
@@ -401,6 +415,7 @@ export function BrowseShell({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               layout="stacked"
+              cardSort={cardSort}
               onDropCard={onDropCard}
               mode="aside"
               includeSwapCategories={editingSwap}
@@ -445,7 +460,7 @@ export function BrowseShell({
           selectedScryfallId={selected.scryfallId}
           foilDefault={selected.foil}
           confirmLabel="Apply printing"
-          title={`Printing — ${selected.name}`}
+          title={`Printing — ${cardDisplayName(selected)}`}
           onClose={() => setPrintingOpen(false)}
           onConfirm={(printing) => onChangePrinting(printing)}
         />

@@ -1,4 +1,4 @@
-import { moveCardCategory, type CardInstance, type DeckDocument } from '@rayenz-hub/shared';
+import { moveCardCategory, cardDisplayName, type CardView, type DeckDocument } from '@rayenz-hub/shared';
 
 export function MoveSheet({
   deck,
@@ -7,7 +7,7 @@ export function MoveSheet({
   onApply,
 }: {
   deck: DeckDocument;
-  card: CardInstance;
+  card: CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null };
   onClose: () => void;
   onApply: (next: DeckDocument) => void;
 }) {
@@ -21,7 +21,7 @@ export function MoveSheet({
   return (
     <div className="db-modal" role="dialog" aria-modal="true" aria-label="Move card">
       <div className="db-modal-card">
-        <h3>Move {card.name}</h3>
+        <h3>Move {cardDisplayName(card as CardView)}</h3>
         <label>
           Category
           <select

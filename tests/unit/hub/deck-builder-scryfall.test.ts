@@ -62,7 +62,28 @@ describe('mapScryfallCardToPrinting', () => {
       colourIdentity: [],
       layout: null,
       foil: true,
+      printedName: null,
+      flavorName: null,
+      manaValue: null,
     });
+  });
+
+  it('maps printed_name, flavor_name, and cmc', () => {
+    const printing = mapScryfallCardToPrinting({
+      id: 'sf-arvinox',
+      name: 'Arvinox, the Mind Flail',
+      set: 'sld',
+      collector_number: '340',
+      type_line: 'Legendary Enchantment Creature — Horror',
+      color_identity: ['B'],
+      finishes: ['nonfoil', 'foil'],
+      printed_name: 'Mind Flayer, the Shadow',
+      cmc: 7,
+    });
+    expect(printing.name).toBe('Arvinox, the Mind Flail');
+    expect(printing.printedName).toBe('Mind Flayer, the Shadow');
+    expect(printing.flavorName).toBeNull();
+    expect(printing.manaValue).toBe(7);
   });
 
   it('maps layout onto printing fields', () => {

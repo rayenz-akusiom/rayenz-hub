@@ -3,11 +3,14 @@ import {
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
   DeckDocumentSchema,
+  oracleKey,
   pickCoverPartnerStatus,
   pickDeckCoverCards,
+  toDeckSummary,
   type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
+import { sortLibraryDecks } from '../../../packages/web/src/deck-builder/library/LibraryView.tsx';
 
 type LegacyCard = CardInstance & {
   colourIdentity?: ('W' | 'U' | 'B' | 'R' | 'G')[];
@@ -182,5 +185,105 @@ describe('deck cover partners', () => {
     });
     expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['A', 'B']);
     expect(pickCoverPartnerStatus(d)).toBe('legal');
+  });
+});
+
+describe('toDeckSummary coverCardName', () => {
+  it('uses printed face name for library cover sort', () => {
+    const commander = card({
+      instanceId: 'arv',
+      name: 'Arvinox, the Mind Flail',
+      primaryCategory: 'Commander',
+      keywords: [],
+      scryfallId: 'sld-340',
+    });
+    const d = DeckDocumentSchema.parse({
+      ...doc([commander]),
+      oracle: {
+        [oracleKey(commander)]: {
+          scryfallId: 'sld-340',
+          colourIdentity: ['B'],
+          typeLine: 'Legendary Enchantment Creature — Horror',
+          layout: 'normal',
+          keywords: [],
+          partnerWith: null,
+          oracleText: null,
+          printedName: 'Mind Flayer, the Shadow',
+          flavorName: null,
+          manaValue: 7,
+          imageUrl: null,
+          updatedAt: null,
+        },
+      },
+    });
+    expect(toDeckSummary(d).coverCardName).toBe('Mind Flayer, the Shadow');
+  });
+
+  it('orders library cover sort by printed name (Mind Flayer under M)', () => {
+    const arvinox = toDeckSummary(
+      DeckDocumentSchema.parse({
+        ...doc([
+          card({
+            instanceId: 'arv',
+            name: 'Arvinox, the Mind Flail',
+            primaryCategory: 'Commander',
+            keywords: [],
+            scryfallId: 'sld-340',
+          }),
+        ]),
+        deckId: 'arv-deck',
+        name: 'Arvinox Deck',
+        oracle: {
+          'id:sld-340': {
+            scryfallId: 'sld-340',
+            colourIdentity: ['B'],
+            typeLine: 'Legendary Enchantment Creature — Horror',
+            layout: 'normal',
+            keywords: [],
+            partnerWith: null,
+            oracleText: null,
+            printedName: 'Mind Flayer, the Shadow',
+            flavorName: null,
+            manaValue: 7,
+            imageUrl: null,
+            updatedAt: null,
+          },
+        },
+      }),
+    );
+    const bolt = toDeckSummary(
+      DeckDocumentSchema.parse({
+        ...doc([
+          card({
+            instanceId: 'bolt',
+            name: 'Lightning Bolt',
+            primaryCategory: 'Commander',
+            keywords: [],
+            scryfallId: 'bolt-id',
+          }),
+        ]),
+        deckId: 'bolt-deck',
+        name: 'Bolt Deck',
+        oracle: {
+          'id:bolt-id': {
+            scryfallId: 'bolt-id',
+            colourIdentity: ['R'],
+            typeLine: 'Instant',
+            layout: 'normal',
+            keywords: [],
+            partnerWith: null,
+            oracleText: null,
+            printedName: null,
+            flavorName: null,
+            manaValue: 1,
+            imageUrl: null,
+            updatedAt: null,
+          },
+        },
+      }),
+    );
+    const sorted = sortLibraryDecks([arvinox, bolt], 'cover');
+    expect(sorted.map((s) => s.deckId)).toEqual(['bolt-deck', 'arv-deck']);
+    expect(arvinox.coverCardName).toBe('Mind Flayer, the Shadow');
   });
 });

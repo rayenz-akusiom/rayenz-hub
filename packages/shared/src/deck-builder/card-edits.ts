@@ -84,6 +84,9 @@ export function oracleFromPrinting(printing: PrintingFields): CardOracle {
     keywords: null,
     partnerWith: null,
     oracleText: null,
+    printedName: printing.printedName ?? null,
+    flavorName: printing.flavorName ?? null,
+    manaValue: printing.manaValue ?? null,
     imageUrl: printing.scryfallId ? scryfallImageFromId(printing.scryfallId) : null,
     updatedAt: new Date().toISOString(),
   });

@@ -339,6 +339,7 @@ function documentFromSnapshot(
     formalSwapEntries,
     browseViewDefault: null,
     cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
     createdAt: now,
     updatedAt: now,
     lastArchidektSyncAt: null,

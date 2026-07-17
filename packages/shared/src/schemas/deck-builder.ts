@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { migrateDeckDocument } from '../deck-builder/card-oracle.js';
+import { cardDisplayName, migrateDeckDocument } from '../deck-builder/card-oracle.js';
 import {
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
@@ -15,6 +15,16 @@ export type BrowseView = z.infer<typeof BrowseViewSchema>;
 
 export const CardLayoutSchema = z.enum(['stacked', 'grid']);
 export type CardLayout = z.infer<typeof CardLayoutSchema>;
+
+/** Within-group card sort in browse (category / CI columns). */
+export const CardSortModeSchema = z.enum([
+  'name_asc',
+  'name_desc',
+  'colour_identity',
+  'mana_asc',
+  'mana_desc',
+]);
+export type CardSortMode = z.infer<typeof CardSortModeSchema>;
 
 export const CategoryDefSchema = z.object({
   name: z.string().min(1),
@@ -34,6 +44,12 @@ export const CardOracleSchema = z.object({
   keywords: z.array(z.string()).nullable().default(null),
   partnerWith: z.string().nullable().default(null),
   oracleText: z.string().nullable().default(null),
+  /** Face name when it differs from oracle name (e.g. UB / localized). */
+  printedName: z.string().nullable().default(null),
+  /** Just-for-fun face name (e.g. Godzilla series). */
+  flavorName: z.string().nullable().default(null),
+  /** Scryfall CMC; null means not yet enriched. */
+  manaValue: z.number().nullable().default(null),
   /** CDN URL (cards.scryfall.io) — never image bytes. */
   imageUrl: z.string().nullable().default(null),
   updatedAt: z.string().nullable().default(null),
@@ -82,6 +98,7 @@ const DeckDocumentObjectSchema = z.object({
   coverInstanceId: z.string().nullable().default(null),
   browseViewDefault: BrowseViewSchema.nullable().default(null),
   cardLayoutDefault: CardLayoutSchema.optional().default('stacked'),
+  cardSortDefault: CardSortModeSchema.optional().default('name_asc'),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastArchidektSyncAt: z.string().nullable().default(null),
@@ -113,6 +130,7 @@ export const DeckSummarySchema = z.object({
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
 
 export function toDeckSummary(doc: DeckDocument): DeckSummary {
+  const coverCard = pickDeckCoverCard(doc);
   return {
     deckId: doc.deckId,
     name: doc.name,
@@ -122,6 +140,6 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     coverImageUrl: deckCoverImageUrl(doc),
     coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
     coverPartnerStatus: doc.format === 'commander' ? pickCoverPartnerStatus(doc) : null,
-    coverCardName: pickDeckCoverCard(doc)?.name ?? null,
+    coverCardName: coverCard ? cardDisplayName(coverCard) : null,
   };
 }

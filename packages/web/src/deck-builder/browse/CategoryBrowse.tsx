@@ -3,7 +3,10 @@ import {
   pickCommanderPair,
   partitionCategories,
   resolveDeckCards,
+  sortCardsInGroup,
+  cardDisplayName,
   type CardLayout,
+  type CardSortMode,
   type CardView,
   type CategoryDef,
   type DeckDocument,
@@ -92,7 +95,7 @@ export function CardGroup({
               className="db-card-stack-peek"
               tabIndex={-1}
               aria-hidden="true"
-              title={card.name}
+              title={cardDisplayName(card)}
               onClick={() => onSelectCard?.(card)}
             />
           </div>
@@ -123,6 +126,7 @@ export function DropSection({
   onSelectCard,
   onDropCard,
   variant = 'section',
+  cardSort = 'name_asc',
 }: {
   category: string;
   cards: CardView[];
@@ -131,11 +135,13 @@ export function DropSection({
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   variant?: 'section' | 'header' | 'column';
+  cardSort?: CardSortMode;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
   const base =
     variant === 'header' ? 'db-header-cat' : variant === 'column' ? 'db-cat-column' : 'db-section';
+  const sorted = useMemo(() => sortCardsInGroup(cards, cardSort), [cards, cardSort]);
 
   return (
     <section
@@ -156,10 +162,10 @@ export function DropSection({
       }}
     >
       <h3 className={variant === 'header' ? 'db-header-cat-title' : 'db-section-title'}>
-        {category} <span className="db-count">({cards.length})</span>
+        {category} <span className="db-count">({sorted.length})</span>
       </h3>
       <CardGroup
-        cards={cards}
+        cards={sorted}
         layout={layout}
         selectedId={selectedId}
         onSelectCard={onSelectCard}
@@ -289,6 +295,7 @@ export function DeckHeaderRow({
   onSelectCard,
   onDropCard,
   format,
+  cardSort = 'name_asc',
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -296,6 +303,7 @@ export function DeckHeaderRow({
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
   format?: DeckFormat | null;
+  cardSort?: CardSortMode;
 }) {
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
@@ -326,6 +334,7 @@ export function DeckHeaderRow({
                 onSelectCard={onSelectCard}
                 onDropCard={onDropCard}
                 variant="header"
+                cardSort={cardSort}
               />
             </div>
           ) : null}
@@ -347,12 +356,13 @@ export function DeckHeaderRow({
             {idx > 0 ? <div className="db-header-divider" aria-hidden="true" /> : null}
             <DropSection
               category={cat}
-              cards={header[cat]}
+              cards={header[cat] || []}
               layout="grid"
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               variant="header"
+              cardSort={cardSort}
             />
           </div>
         ))}
@@ -366,6 +376,7 @@ export function CategoryBrowse({
   onSelectCard,
   selectedId,
   layout = 'stacked',
+  cardSort = 'name_asc',
   onDropCard,
   mode = 'main',
   includeSwapCategories = false,
@@ -376,6 +387,7 @@ export function CategoryBrowse({
   onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
+  cardSort?: CardSortMode;
   onDropCard?: DropCardHandler;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
@@ -404,6 +416,7 @@ export function CategoryBrowse({
             onSelectCard={onSelectCard}
             onDropCard={onDropCard}
             variant="column"
+            cardSort={cardSort}
           />
         ))}
       </div>
@@ -420,6 +433,7 @@ export function CategoryBrowse({
       onSelectCard={onSelectCard}
       onDropCard={onDropCard}
       variant={layout === 'grid' ? 'section' : 'column'}
+      cardSort={cardSort}
     />
   ));
 
@@ -432,6 +446,7 @@ export function CategoryBrowse({
         onSelectCard={onSelectCard}
         onDropCard={onDropCard}
         format={format}
+        cardSort={cardSort}
       />
       {layout === 'grid' ? (
         includedSections

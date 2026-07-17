@@ -65,17 +65,11 @@ export async function listDecks(): Promise<DeckSummary[]> {
   return ensureLibraryCovers(readLibraryIndex());
 }
 
-/** Rebuild cover fields for summaries missing them (pre-cover / pre-partner index). */
+/** Rebuild cover fields from deck docs (display names, partner tiles, images). */
 async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummary[]> {
   let changed = false;
   const next: DeckSummary[] = [];
   for (const s of summaries) {
-    const hasPartnerFields = 'coverImageUrlSecondary' in s && 'coverPartnerStatus' in s;
-    const hasCoverName = 'coverCardName' in s;
-    if (s.coverImageUrl && hasPartnerFields && hasCoverName) {
-      next.push(s);
-      continue;
-    }
     const doc = await getDeck(s.deckId);
     if (!doc) {
       next.push(s);
@@ -83,7 +77,18 @@ async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummar
     }
     const summary = toDeckSummary(doc);
     next.push(summary);
-    changed = true;
+    if (
+      summary.coverImageUrl !== s.coverImageUrl ||
+      summary.coverImageUrlSecondary !== s.coverImageUrlSecondary ||
+      summary.coverPartnerStatus !== s.coverPartnerStatus ||
+      summary.coverCardName !== s.coverCardName ||
+      summary.name !== s.name ||
+      summary.updatedAt !== s.updatedAt ||
+      summary.format !== s.format ||
+      summary.archidektId !== s.archidektId
+    ) {
+      changed = true;
+    }
   }
   if (changed) {
     next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name));

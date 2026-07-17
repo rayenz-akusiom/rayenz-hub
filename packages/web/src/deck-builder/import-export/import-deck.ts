@@ -293,6 +293,7 @@ export function documentFromImportText(
     coverInstanceId: null,
     browseViewDefault: null,
     cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
     createdAt: now,
     updatedAt: now,
     lastArchidektSyncAt: null,
@@ -473,6 +474,8 @@ export function documentFromArchidektSnapshot(
     browseViewDefault: existing?.browseViewDefault ?? null,
 
     cardLayoutDefault: existing?.cardLayoutDefault ?? 'stacked',
+
+    cardSortDefault: existing?.cardSortDefault ?? 'name_asc',
 
     createdAt: existing?.createdAt || now,
 

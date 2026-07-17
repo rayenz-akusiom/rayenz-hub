@@ -6,7 +6,9 @@ import {
   groupByColourIdentity,
   partitionCategories,
   resolveDeckCards,
+  sortCardsInGroup,
   type CardLayout,
+  type CardSortMode,
   type CardView,
   type CategoryDef,
   type DeckBuilderSettingsPayload,
@@ -25,6 +27,7 @@ export function ColourIdentityBrowse({
   onSelectCard,
   selectedId,
   layout = 'stacked',
+  cardSort = 'name_asc',
   separateLands = false,
 }: {
   deck:
@@ -33,6 +36,7 @@ export function ColourIdentityBrowse({
   onSelectCard?: (card: CardView) => void;
   selectedId?: string | null;
   layout?: CardLayout;
+  cardSort?: CardSortMode;
   separateLands?: boolean;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
@@ -77,16 +81,17 @@ export function ColourIdentityBrowse({
     .map((section) => {
       const list = groups[section];
       if (!list?.length) return null;
+      const sorted = sortCardsInGroup(list, cardSort, ciOptions);
       return (
         <section
           key={section}
           className={layout === 'stacked' ? 'db-cat-column' : 'db-section'}
         >
           <h3 className="db-section-title">
-            {section} <span className="db-count">({list.length})</span>
+            {section} <span className="db-count">({sorted.length})</span>
           </h3>
           <CardGroup
-            cards={list}
+            cards={sorted}
             layout={layout}
             selectedId={selectedId}
             onSelectCard={onSelectCard}
@@ -104,6 +109,7 @@ export function ColourIdentityBrowse({
         selectedId={selectedId}
         onSelectCard={onSelectCard}
         format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
+        cardSort={cardSort}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

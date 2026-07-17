@@ -722,6 +722,39 @@ localStorage.clear();
       expect(afterRefresh.item.name).toBe('Next');
    });
 
+   it('clearBlacklist clears one list and re-picks previously blacklisted items', () => {
+      window.DailiesItemdb.clearSessionSkips();
+      const listA = makeList('books', 'book-a');
+      const listB = makeList('stamps', 'stamp-a');
+      const infoA = [
+         { item_iid: 1, order: 0, isHidden: false },
+         { item_iid: 2, order: 1, isHidden: false },
+         { item_iid: 3, order: 2, isHidden: false }
+      ];
+      const itemdataA = [
+         { internal_id: 1, name: 'Cheap', specialType: 'trading', isNC: false, price: { value: 100 } },
+         { internal_id: 2, name: 'Mid', specialType: 'trading', isNC: false, price: { value: 300 } },
+         { internal_id: 3, name: 'Next', specialType: 'trading', isNC: false, price: { value: 500 } }
+      ];
+      const infoB = [{ item_iid: 10, order: 0, isHidden: false }];
+      const itemdataB = [
+         { internal_id: 10, name: 'Stamp', specialType: 'trading', isNC: false, price: { value: 50 } }
+      ];
+      seedCache(listA, infoA, itemdataA, NOW);
+      seedCache(listB, infoB, itemdataB, NOW);
+
+      window.DailiesItemdb.addToBlacklist(listA, 1);
+      window.DailiesItemdb.addToBlacklist(listA, 2);
+      window.DailiesItemdb.addToBlacklist(listB, 10);
+      expect(window.DailiesItemdb.getBlacklistIds(listA)).toEqual([1, 2]);
+      expect(window.DailiesItemdb.getBlacklistIds(listB)).toEqual([10]);
+
+      const target = window.DailiesItemdb.clearBlacklist(listA);
+      expect(window.DailiesItemdb.getBlacklistIds(listA)).toEqual([]);
+      expect(window.DailiesItemdb.getBlacklistIds(listB)).toEqual([10]);
+      expect(target.item.name).toBe('Cheap');
+   });
+
    it('session skip clears on clearSessionSkips', () => {
       const list = makeList('books', 'book-a');
       const info = [

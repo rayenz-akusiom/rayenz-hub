@@ -22,12 +22,12 @@ import {
   type ListTarget,
   type WishlistItem,
   addToBlacklist,
+  clearBlacklist,
   clearSessionSkips,
   formatCacheAgeMs,
-  getBlacklistedItemsForMenu,
+  getBlacklistIds,
   itemdbUrlForWishlistItem,
   loadListTargets,
-  removeFromBlacklist,
   skipCurrentItem,
 } from './itemdb';
 import { ALBUM_LINK_IDS, BOOK_SHOPS, getLinksByGroup, type DailyLink } from './links';
@@ -240,7 +240,7 @@ function WishlistCard({
     );
   }
 
-  const blacklisted = getBlacklistedItemsForMenu(list);
+  const hasBlacklist = getBlacklistIds(list).length > 0;
 
   return (
     <article
@@ -295,23 +295,17 @@ function WishlistCard({
               Blacklist &quot;{item.name}&quot;
             </button>
           ) : null}
-          {blacklisted.length > 0 ? (
-            <>
-              <div className="wishlist-context-menu-heading">Blacklisted</div>
-              {blacklisted.map((entry) => (
-                <button
-                  key={entry.itemIid}
-                  type="button"
-                  className="wishlist-context-menu-item"
-                  onClick={() => {
-                    onChanged(removeFromBlacklist(list, entry.itemIid));
-                    setMenu(null);
-                  }}
-                >
-                  Remove &quot;{entry.name}&quot;
-                </button>
-              ))}
-            </>
+          {hasBlacklist ? (
+            <button
+              type="button"
+              className="wishlist-context-menu-item"
+              onClick={() => {
+                onChanged(clearBlacklist(list));
+                setMenu(null);
+              }}
+            >
+              Clear blacklist
+            </button>
           ) : null}
           <button
             type="button"

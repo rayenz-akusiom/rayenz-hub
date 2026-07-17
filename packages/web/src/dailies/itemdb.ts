@@ -326,41 +326,16 @@ export function addToBlacklist(list: DailiesWishlist, itemIid: number): ListTarg
   return pickNextForList(list);
 }
 
-export function removeFromBlacklist(list: DailiesWishlist, itemIid: number): ListTarget {
-  if (!list || !list.id || itemIid == null) {
+export function clearBlacklist(list: DailiesWishlist): ListTarget {
+  if (!list || !list.id) {
     return pickNextForList(list);
   }
   const doc = loadBlacklist();
-  const ids = doc.byList[list.id];
-  if (!Array.isArray(ids)) {
-    return pickNextForList(list);
-  }
-  doc.byList[list.id] = ids.filter((id) => id !== itemIid);
-  if (!doc.byList[list.id].length) {
+  if (doc.byList[list.id]) {
     delete doc.byList[list.id];
+    saveBlacklist(doc);
   }
-  saveBlacklist(doc);
   return pickNextForList(list);
-}
-
-export function getBlacklistedItemsForMenu(list: DailiesWishlist): { itemIid: number; name: string }[] {
-  const ids = getBlacklistIds(list);
-  const cache = loadListCache(list);
-  const byId: Record<number, WishlistItem> = {};
-  if (cache && Array.isArray(cache.items)) {
-    for (const item of cache.items) {
-      if (item && item.itemIid != null) {
-        byId[item.itemIid] = item;
-      }
-    }
-  }
-  return ids.map((id) => {
-    const item = byId[id];
-    return {
-      itemIid: id,
-      name: item && item.name ? item.name : 'Item ' + id,
-    };
-  });
 }
 
 export function clearSessionSkips(): void {

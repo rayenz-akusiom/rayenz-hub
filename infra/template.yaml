@@ -27,9 +27,14 @@ Parameters:
     Type: String
     Default: ''
     Description: Leave empty for AWS; set to http://host.docker.internal:8000 for SAM local + DynamoDB Local
+  S3Endpoint:
+    Type: String
+    Default: ''
+    Description: Leave empty for AWS; set to http://host.docker.internal:9000 for SAM local + MinIO
 
 Conditions:
   UseLocalDynamo: !Not [!Equals [!Ref DynamoDbEndpoint, '']]
+  UseLocalS3: !Not [!Equals [!Ref S3Endpoint, '']]
   UseSsmApiKey: !Not [!Equals [!Ref HubApiKeySsmPath, '']]
 
 Resources:
@@ -77,6 +82,8 @@ Resources:
             - !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
+          # Empty string (not NoValue) so `sam local --env-vars` can override for MinIO
+          S3_ENDPOINT: !If [UseLocalS3, !Ref S3Endpoint, '']
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref HubTable

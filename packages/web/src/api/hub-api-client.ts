@@ -28,22 +28,54 @@ export function isApiConfigured(): boolean {
   return getHubApiConfig().enabled;
 }
 
+/** Reject SPA/HTML mistakes before JSON.parse (e.g. API URL set to Vite origin). */
+export function assertApiNotPageOrigin(apiUrl: string): void {
+  try {
+    if (typeof location !== 'undefined' && apiUrl === location.origin.replace(/\/$/, '')) {
+      throw new Error(
+        `rayenz-hub-api-url is set to this page's origin (${apiUrl}). Set it to the Hub API base (e.g. http://127.0.0.1:3000), not the Vite/web app.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('rayenz-hub-api-url')) {
+      throw err;
+    }
+    /* location unavailable (SSR/tests) */
+  }
+}
+
+export function parseHubApiJsonBody(text: string, fullUrl: string, configuredUrl: string): unknown {
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('<')) {
+    throw new Error(
+      `Hub API returned HTML instead of JSON from ${fullUrl}. rayenz-hub-api-url ("${configuredUrl}") is likely pointing at the web app — set it to the API base (e.g. http://127.0.0.1:3000).`,
+    );
+  }
+  if (!trimmed) {
+    return null;
+  }
+  return JSON.parse(text);
+}
+
 export async function clientApiFetch(path: string, options?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<unknown> {
   const cfg = getHubApiConfig();
   if (!cfg.enabled) {
     return Promise.reject(new Error('Hub API not configured'));
   }
+  assertApiNotPageOrigin(cfg.url);
   const opts = options || {};
   const headers = {
     ...(opts.headers || {}),
     Authorization: 'Bearer ' + cfg.key,
     'Content-Type': 'application/json',
   };
-  const res = await fetch(cfg.url + path, {
+  const fullUrl = cfg.url + path;
+  const res = await fetch(fullUrl, {
     method: opts.method || 'GET',
     headers,
     body: opts.body != null ? JSON.stringify(opts.body) : undefined,
   });
+  const peek = await res.text();
   if (res.status === 401) {
     throw new Error('Hub API unauthorized');
   }
@@ -51,10 +83,9 @@ export async function clientApiFetch(path: string, options?: { method?: string; 
     return null;
   }
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error('Hub API error ' + res.status + ': ' + text);
+    throw new Error('Hub API error ' + res.status + ': ' + peek);
   }
-  return res.json();
+  return parseHubApiJsonBody(peek, fullUrl, cfg.url);
 }
 
 export function pullSettings(domain: string): Promise<unknown> {

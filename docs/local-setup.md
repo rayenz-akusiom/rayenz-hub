@@ -70,18 +70,35 @@ Use when you want a real HTTP server at `http://127.0.0.1:3000` (manual curls, b
 
 ### Terminal 1 — DynamoDB Local
 
+**Preferred** — persistent volume (tables survive container restarts):
+
+```powershell
+cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
+npm run start:dynamodb:persist
+```
+
+**Ephemeral alternative** (in-memory; data lost on stop):
+
 ```powershell
 docker run -p 8000:8000 amazon/dynamodb-local
 ```
 
-**One-time after each DynamoDB Local restart** (in-memory; tables do not persist):
+**One-time table create** — run once for a new/empty volume, or after every ephemeral restart:
 
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run init:local-db
 ```
 
-Creates `HubTable` (PK/SK). Without this, settings/reviews return 500: `ResourceNotFoundException`.
+Creates `HubTable` (PK/SK). Without this, settings/reviews return 500: `ResourceNotFoundException`. With `start:dynamodb:persist`, you only need this again if you wipe the Docker volume `rayenz-hub-dynamodb`.
+
+If the container logs `unable to open database file` (SQLite), stop it, wipe the volume, and start again:
+
+```powershell
+docker volume rm rayenz-hub-dynamodb
+npm run start:dynamodb:persist
+npm run init:local-db
+```
 
 ### Terminal 2 — MinIO (S3)
 

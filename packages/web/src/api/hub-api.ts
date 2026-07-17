@@ -11,7 +11,13 @@ import {
   type OrderReconcileSettingsPayload,
 } from '@rayenz-hub/shared';
 import { getDailiesSettingsApi, getHubStorage } from '../lib/hub-storage';
-import { getHubApiConfig, isApiConfigured, HubApiClient } from './hub-api-client';
+import {
+  assertApiNotPageOrigin,
+  getHubApiConfig,
+  isApiConfigured,
+  HubApiClient,
+  parseHubApiJsonBody,
+} from './hub-api-client';
 
 export type { HubApiConfig } from './hub-api-client';
 export { getHubApiConfig, isApiConfigured, HubApiClient };
@@ -21,7 +27,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T |
   if (!cfg.enabled) {
     throw new Error('Hub API not configured. Set rayenz-hub-api-url and rayenz-hub-api-key in localStorage.');
   }
-  const res = await fetch(`${cfg.url}${path}`, {
+  assertApiNotPageOrigin(cfg.url);
+  const fullUrl = `${cfg.url}${path}`;
+  const res = await fetch(fullUrl, {
     ...init,
     headers: {
       Authorization: `Bearer ${cfg.key}`,
@@ -29,6 +37,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T |
       ...(init?.headers || {}),
     },
   });
+  const peek = await res.text();
   if (res.status === 404) {
     return null;
   }
@@ -36,13 +45,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T |
     throw new Error('Hub API unauthorized — check rayenz-hub-api-key.');
   }
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Hub API error ${res.status}: ${text}`);
+    throw new Error(`Hub API error ${res.status}: ${peek}`);
   }
   if (res.status === 204) {
     return null;
   }
-  return (await res.json()) as T;
+  return parseHubApiJsonBody(peek, fullUrl, cfg.url) as T;
 }
 
 async function fetchDomainPayload<T>(

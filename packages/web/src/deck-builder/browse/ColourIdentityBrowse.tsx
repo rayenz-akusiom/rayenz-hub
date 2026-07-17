@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   DECK_BUILDER_SETTINGS_EVENT,
   DEFAULT_DECK_BUILDER_SETTINGS,
@@ -15,7 +15,7 @@ import {
   type DeckDocument,
 } from '@rayenz-hub/shared';
 import { loadDeckBuilderSettings } from '../../api/hub-api';
-import { CardGroup, DeckHeaderRow } from './CategoryBrowse';
+import { CardGroup, DeckHeaderRow, type DropCardHandler } from './CategoryBrowse';
 import { MasonryColumns } from './MasonryColumns';
 
 function mergeStyle(remote: DeckBuilderSettingsPayload | null): DeckBuilderSettingsPayload {
@@ -29,6 +29,8 @@ export function ColourIdentityBrowse({
   layout = 'stacked',
   cardSort = 'name_asc',
   separateLands = false,
+  onDropCard,
+  onCardContextMenu,
 }: {
   deck:
     | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle'>
@@ -38,6 +40,8 @@ export function ColourIdentityBrowse({
   layout?: CardLayout;
   cardSort?: CardSortMode;
   separateLands?: boolean;
+  onDropCard?: DropCardHandler;
+  onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -95,6 +99,8 @@ export function ColourIdentityBrowse({
             layout={layout}
             selectedId={selectedId}
             onSelectCard={onSelectCard}
+            draggable={Boolean(onDropCard)}
+            onCardContextMenu={onCardContextMenu}
           />
         </section>
       );
@@ -108,6 +114,8 @@ export function ColourIdentityBrowse({
         headerKeys={headerKeys}
         selectedId={selectedId}
         onSelectCard={onSelectCard}
+        onDropCard={onDropCard}
+        onCardContextMenu={onCardContextMenu}
         format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
         cardSort={cardSort}
       />

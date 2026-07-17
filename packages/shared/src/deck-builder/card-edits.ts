@@ -8,6 +8,7 @@ import type {
 import { isSwapQueueCategory } from './browse.js';
 import {
   emptyCardOracle,
+  getOracle,
   oracleKey,
   upsertOracle,
 } from './card-oracle.js';
@@ -88,8 +89,37 @@ export function oracleFromPrinting(printing: PrintingFields): CardOracle {
     flavorName: printing.flavorName ?? null,
     manaValue: printing.manaValue ?? null,
     imageUrl: printing.scryfallId ? scryfallImageFromId(printing.scryfallId) : null,
+    finishes: printing.finishes?.length ? [...printing.finishes] : null,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/** Toggle foil on a card instance when the printing supports it. */
+export function setCardFoil(
+  deck: DeckDocument,
+  instanceId: string,
+  foil: boolean,
+): DeckDocument {
+  const card = deck.cards.find((c) => c.instanceId === instanceId);
+  if (!card) return deck;
+  if (foil && !cardSupportsFoilToggle(deck, card)) return deck;
+  if (Boolean(card.foil) === Boolean(foil)) return deck;
+  return {
+    ...deck,
+    cards: deck.cards.map((c) =>
+      c.instanceId === instanceId ? { ...c, foil: Boolean(foil) } : c,
+    ),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Whether foil can be enabled for this card given stored oracle finishes. */
+export function cardSupportsFoilToggle(
+  deck: Pick<DeckDocument, 'oracle'>,
+  card: Pick<CardInstance, 'scryfallId' | 'setCode' | 'collectorNumber' | 'name'>,
+): boolean {
+  const oracle = getOracle(deck, card);
+  return Boolean(oracle?.finishes?.includes('foil'));
 }
 
 export function addCardToDeck(

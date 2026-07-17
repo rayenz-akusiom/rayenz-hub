@@ -278,6 +278,84 @@ describe('DeckBuilderApp', () => {
     expect(window.location.hash).toBe('#/deck-builder');
   });
 
+  it('stays on library when an in-flight persist finishes after Library click', async () => {
+    const user = userEvent.setup();
+    let finishSave: (doc: DeckDocument) => void = () => {};
+    saveDeck.mockImplementation(
+      (doc) =>
+        new Promise<DeckDocument>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+
+    render(<DeckBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+    });
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Layout/i }));
+    await user.click(screen.getByRole('menuitem', { name: /Grid/i }));
+
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+    });
+    expect(window.location.hash).toBe('#/deck-builder');
+
+    finishSave({
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      updatedAt: new Date().toISOString(),
+    });
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/deck-builder');
+    expect(screen.queryByRole('button', { name: 'Library' })).not.toBeInTheDocument();
+  });
+
+  it('stays on library when browser back clears the deck hash during a pending save', async () => {
+    const user = userEvent.setup();
+    let finishSave: (doc: DeckDocument) => void = () => {};
+    saveDeck.mockImplementation(
+      (doc) =>
+        new Promise<DeckDocument>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+
+    render(<DeckBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+    });
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Layout/i }));
+    await user.click(screen.getByRole('menuitem', { name: /Grid/i }));
+
+    window.location.hash = '#/deck-builder';
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+    });
+
+    finishSave({
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      updatedAt: new Date().toISOString(),
+    });
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/deck-builder');
+  });
+
   it('shows deck-not-found error when getDeck returns null', async () => {
     getDeck.mockResolvedValue(null);
     const user = userEvent.setup();

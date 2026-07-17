@@ -1112,6 +1112,89 @@ body,
   margin-bottom: 0.75rem;
 }
 
+.db-foil-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.45rem;
+  color: #6b7280;
+}
+
+.db-foil-toggle .db-badge-foil-icon {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.db-foil-toggle.is-foil {
+  color: #1a1508;
+  background: linear-gradient(135deg, #c9a227, #f0e6a8 40%, #9a7b1a);
+  border-color: #9a7b1a;
+}
+
+.db-foil-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.db-card-context-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 11rem;
+  padding: 0.25rem;
+  background: var(--db-surface, #fff);
+  border: 1px solid var(--db-border, #c5cdd8);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 0.1rem;
+}
+
+.db-card-context-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-card-context-item:hover:not(:disabled),
+.db-card-context-item:focus-visible {
+  background: var(--db-accent-soft, #e8eef7);
+  outline: none;
+}
+
+.db-card-context-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.db-card-context-item.is-danger {
+  color: var(--db-danger, #b42318);
+}
+
+.db-card-context-foil {
+  display: inline-flex;
+  color: #6b7280;
+}
+
+.db-card-context-foil.is-foil {
+  color: #9a7b1a;
+}
+
+.db-card-context-foil .db-badge-foil-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .db-swaps-header {
   display: flex;
   justify-content: space-between;

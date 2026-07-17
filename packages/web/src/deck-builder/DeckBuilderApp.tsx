@@ -79,11 +79,19 @@ export function DeckBuilderApp() {
     if (opts?.syncHash !== false) syncDeckHash(doc);
   }, []);
 
+  /** Invalidate in-flight persist so a late save cannot reopen browse. */
+  function invalidatePersist() {
+    persistSeq.current += 1;
+  }
+
   const applyRouteFromHash = useCallback(
     async (list: DeckSummary[]) => {
       const route = parseDeckBuilderRoute(window.location.hash);
       if (!route) {
-        if (activeRef.current) setActive(null);
+        if (activeRef.current) {
+          invalidatePersist();
+          setActive(null);
+        }
         return;
       }
       if (route.userSlug !== HUB_USER_SLUG) {
@@ -116,7 +124,8 @@ export function DeckBuilderApp() {
     [openDeck],
   );
 
-  const refreshLibrary = useCallback(async () => {
+  const refreshLibrary = useCallback(async (opts?: { applyRoute?: boolean }) => {
+    const applyRoute = opts?.applyRoute !== false;
     setLoading(true);
     setError(null);
     try {
@@ -150,7 +159,7 @@ export function DeckBuilderApp() {
         }
       }
       setDecks(list);
-      await applyRouteFromHash(list);
+      if (applyRoute) await applyRouteFromHash(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -173,13 +182,19 @@ export function DeckBuilderApp() {
 
   async function persist(next: DeckDocument) {
     const seq = ++persistSeq.current;
-    setActive(next);
+    // Only mirror into browse state when we are already viewing this deck.
+    if (activeRef.current?.deckId === next.deckId) {
+      setActive(next);
+    }
     setApiWarning(null);
     const { saved, apiError } = await saveDualMode(next);
     if (seq !== persistSeq.current) return;
+    if (apiError) setApiWarning(apiError);
+    // User left for library while save was in flight — keep them there.
+    if (!parseDeckBuilderRoute(window.location.hash)) return;
+    if (activeRef.current && activeRef.current.deckId !== saved.deckId) return;
     setActive(saved);
     syncDeckHash(saved);
-    if (apiError) setApiWarning(apiError);
     await refreshLibrary();
   }
 
@@ -201,9 +216,10 @@ export function DeckBuilderApp() {
         <BrowseShell
           deck={active}
           onBack={() => {
+            invalidatePersist();
             setActive(null);
             syncDeckHash(null);
-            void refreshLibrary();
+            void refreshLibrary({ applyRoute: false });
           }}
           onChange={(next) => {
             void persist(next);

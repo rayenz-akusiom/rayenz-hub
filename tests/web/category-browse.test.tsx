@@ -83,6 +83,37 @@ describe('DeckHeaderRow', () => {
     expect(screen.getByLabelText(/Commanders?/i)).toBeInTheDocument();
   });
 
+  it('makes lieutenant tiles draggable when onDropCard is provided', () => {
+    const lt = {
+      ...cardAt(0),
+      instanceId: 'lt-1',
+      name: 'Test Lieutenant',
+      primaryCategory: 'Lieutenants',
+      categories: ['Lieutenants'],
+      layout: 'normal',
+      colourIdentity: [],
+      typeLine: 'Creature',
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      printedName: null,
+      flavorName: null,
+      manaValue: null,
+      imageUrl: null,
+      foil: false,
+    };
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [], Lieutenants: [lt] }}
+        headerKeys={['Commander', 'Lieutenants']}
+        onDropCard={vi.fn()}
+      />,
+    );
+    const tile = screen.getByRole('button', { name: /Test Lieutenant/i });
+    expect(tile).toHaveAttribute('draggable', 'true');
+  });
+
   it('renders generic header categories for non-commander formats', () => {
     render(
       <DeckHeaderRow

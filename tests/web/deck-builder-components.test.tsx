@@ -9,7 +9,24 @@ import { DbMenu, DbMenuItem } from '../../packages/web/src/deck-builder/ui/DbMen
 import { ExportBar } from '../../packages/web/src/deck-builder/import-export/ExportBar';
 import { MoveSheet } from '../../packages/web/src/deck-builder/edit/MoveSheet';
 import { SwapQueuePanel } from '../../packages/web/src/deck-builder/swaps/SwapQueuePanel';
+import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
+
+vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
+  useScryfallEnrich: () => ({ enriching: false }),
+}));
+
+vi.mock('../../packages/web/src/deck-suggest/data', () => ({
+  readProfileForDeck: vi.fn(async () => null),
+}));
+
+vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
+  ProfileSync: {
+    isConnected: vi.fn(async () => false),
+    connectProfilesDir: vi.fn(async () => {}),
+    readProfileYaml: vi.fn(async () => null),
+  },
+}));
 
 const commanderDoc = commanderFixture as DeckDocument;
 
@@ -241,6 +258,70 @@ describe('ExportBar', () => {
     await user.click(screen.getByRole('button', { name: /Layout/i }));
     await user.click(screen.getByRole('menuitem', { name: 'Grid' }));
     expect(onLayoutChange).toHaveBeenCalledWith('grid');
+  });
+});
+
+describe('BrowseShell selection and context menu', () => {
+  function foilDeck(): DeckDocument {
+    const card = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      scryfallId: 'foil-shell-id',
+      foil: false,
+      layout: 'normal',
+    };
+    return {
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      cards: [card, ...commanderDoc.cards.slice(1)],
+      oracle: {
+        'id:foil-shell-id': {
+          scryfallId: 'foil-shell-id',
+          colourIdentity: ['G'],
+          typeLine: 'Creature — Bird',
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+          imageUrl: null,
+          finishes: ['nonfoil', 'foil'],
+          updatedAt: null,
+        },
+      },
+    };
+  }
+
+  it('shows foil toggle without card name and opens context menu actions', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const deck = foilDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+
+    const tile = screen.getByRole('button', { name: new RegExp(card.name, 'i') });
+    await user.click(tile);
+
+    expect(screen.queryByText(card.name, { selector: '.db-selection-bar span' })).not.toBeInTheDocument();
+    const foilBtn = screen.getByRole('button', { name: /Not foil|Foil/i });
+    expect(foilBtn).toBeEnabled();
+    await user.click(foilBtn);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.arrayContaining([
+          expect.objectContaining({ instanceId: card.instanceId, foil: true }),
+        ]),
+      }),
+    );
+
+    fireEvent.contextMenu(tile);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Mark as foil|Unmark foil/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Move…' })).toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Move…' }));
+    expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
   });
 });
 

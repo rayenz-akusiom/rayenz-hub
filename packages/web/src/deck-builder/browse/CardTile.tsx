@@ -4,6 +4,7 @@ import {
   cardImageUrl,
   type CardView,
 } from '@rayenz-hub/shared';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
@@ -14,6 +15,7 @@ export function CardTile({
   selected,
   draggable = false,
   actionLabel,
+  onContextMenu,
 }: {
   card: CardView;
   onSelect?: (card: CardView) => void;
@@ -21,6 +23,7 @@ export function CardTile({
   draggable?: boolean;
   /** Accessible name when the tile is an action (e.g. swap Change). */
   actionLabel?: string;
+  onContextMenu?: (card: CardView, e: ReactMouseEvent) => void;
 }) {
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
@@ -30,12 +33,24 @@ export function CardTile({
   const displayName = cardDisplayName(card);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onClick={() => onSelect?.(card)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.(card);
+        }
+      }}
+      onContextMenu={(e) => {
+        if (!onContextMenu) return;
+        e.preventDefault();
+        onContextMenu(card, e);
+      }}
       title={displayName}
-      aria-label={actionLabel || undefined}
+      aria-label={actionLabel || displayName}
       draggable={draggable}
       onDragStart={(e) => {
         if (!draggable) return;
@@ -53,7 +68,7 @@ export function CardTile({
         faceKey={card.instanceId}
         doubleFaced={doubleFaced}
       />
-    </button>
+    </div>
   );
 }
 

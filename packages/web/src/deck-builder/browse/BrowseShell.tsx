@@ -1,7 +1,8 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   addCardToDeck,
   cardDisplayName,
+  cardSupportsFoilToggle,
   changeCardPrinting,
   deckSize,
   defaultBrowseView,
@@ -9,6 +10,7 @@ import {
   moveCardCategory,
   placeCardInCommanderSlot,
   removeCardFromDeck,
+  setCardFoil,
   totalCardQuantity,
   type BrowseView,
   type CardView,
@@ -23,6 +25,7 @@ import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { SwapQueuePanel, type SwapEditDraft } from '../swaps/SwapQueuePanel';
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
 import { MoveSheet } from '../edit/MoveSheet';
+import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
@@ -31,6 +34,7 @@ import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
 import { useCardSize } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
+import { FoilIcon } from '../../cards/FoilIcon';
 
 function BookIcon() {
   return (
@@ -73,6 +77,7 @@ export function BrowseShell({
   const [printingOpen, setPrintingOpen] = useState(false);
   const [draft, setDraft] = useState<SwapEditDraft | null>(null);
   const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
+  const [contextMenu, setContextMenu] = useState<CardContextMenuState | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
@@ -127,7 +132,18 @@ export function BrowseShell({
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
   function onSelectCard(card: CardView) {
+    setContextMenu(null);
     setSelectedId((prev) => (prev === card.instanceId ? null : card.instanceId));
+  }
+
+  function onCardContextMenu(card: CardView, e: MouseEvent) {
+    setSelectedId(card.instanceId);
+    setContextMenu({ x: e.clientX, y: e.clientY, instanceId: card.instanceId });
+  }
+
+  function onToggleFoil() {
+    if (!selected) return;
+    onChange(setCardFoil(deck, selected.instanceId, !selected.foil));
   }
 
   function setLayoutAndPersist(next: CardLayout) {
@@ -274,6 +290,11 @@ export function BrowseShell({
   } as CSSProperties;
 
   const isCover = selected != null && deck.coverInstanceId === selected.instanceId;
+  const foilToggleEnabled = selected ? cardSupportsFoilToggle(deck, selected) : false;
+  const contextCard =
+    contextMenu != null
+      ? deck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
+      : null;
 
   return (
     <div
@@ -317,8 +338,24 @@ export function BrowseShell({
         <main className="db-main">
           {selected ? (
             <div className="db-selection-bar">
-              <span>{cardDisplayName(selected)}</span>
               <div className="db-selection-bar-actions">
+                <button
+                  type="button"
+                  className={`db-btn db-foil-toggle${selected.foil ? ' is-foil' : ''}`}
+                  aria-pressed={selected.foil}
+                  aria-label={selected.foil ? 'Foil' : 'Not foil'}
+                  title={
+                    foilToggleEnabled || selected.foil
+                      ? selected.foil
+                        ? 'Foil — click to unmark'
+                        : 'Mark as foil'
+                      : 'This printing is not available in foil'
+                  }
+                  disabled={!foilToggleEnabled && !selected.foil}
+                  onClick={onToggleFoil}
+                >
+                  <FoilIcon filled={selected.foil} />
+                </button>
                 {isCover ? (
                   <button type="button" className="db-btn" onClick={onClearCover}>
                     Clear cover
@@ -352,6 +389,8 @@ export function BrowseShell({
               layout={layout}
               cardSort={cardSort}
               separateLands={view === 'colour_identity_spells'}
+              onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
             />
           ) : (
             <CategoryBrowse
@@ -361,6 +400,7 @@ export function BrowseShell({
               layout={layout}
               cardSort={cardSort}
               onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
               mode="main"
             />
           )}
@@ -417,6 +457,7 @@ export function BrowseShell({
               layout="stacked"
               cardSort={cardSort}
               onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
               mode="aside"
               includeSwapCategories={editingSwap}
             />
@@ -463,6 +504,30 @@ export function BrowseShell({
           title={`Printing — ${cardDisplayName(selected)}`}
           onClose={() => setPrintingOpen(false)}
           onConfirm={(printing) => onChangePrinting(printing)}
+        />
+      ) : null}
+
+      {contextMenu && contextCard ? (
+        <CardContextMenu
+          state={contextMenu}
+          isCover={deck.coverInstanceId === contextCard.instanceId}
+          foil={Boolean(contextCard.foil)}
+          foilEnabled={cardSupportsFoilToggle(deck, contextCard)}
+          onClose={() => setContextMenu(null)}
+          onToggleFoil={() => {
+            onChange(setCardFoil(deck, contextCard.instanceId, !contextCard.foil));
+          }}
+          onSetCover={() => {
+            onChange({
+              ...deck,
+              coverInstanceId: contextCard.instanceId,
+              updatedAt: new Date().toISOString(),
+            });
+          }}
+          onClearCover={onClearCover}
+          onMove={() => setMoveOpen(true)}
+          onChangePrinting={() => setPrintingOpen(true)}
+          onRemove={onRemoveSelected}
         />
       ) : null}
     </div>

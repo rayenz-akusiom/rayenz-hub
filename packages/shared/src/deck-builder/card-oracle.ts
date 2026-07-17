@@ -48,6 +48,7 @@ export function emptyCardOracle(over: Partial<CardOracle> = {}): CardOracle {
     flavorName: null,
     manaValue: null,
     imageUrl: null,
+    finishes: null,
     updatedAt: null,
     ...over,
   };
@@ -183,6 +184,7 @@ function mergeOraclePreferExisting(
       (base.scryfallId || incoming.scryfallId
         ? scryfallImageFromId(base.scryfallId || incoming.scryfallId)
         : null),
+    finishes: base.finishes ?? incoming.finishes ?? null,
     updatedAt: base.updatedAt || incoming.updatedAt || now,
   };
 }
@@ -253,9 +255,11 @@ export function cardOracleFromScryfall(data: {
   printed_name?: string;
   flavor_name?: string;
   cmc?: number;
+  finishes?: string[];
 }): CardOracle {
   const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
   const scryfallId = data.id || null;
+  const finishes = Array.isArray(data.finishes) ? data.finishes.map(String) : null;
   return emptyCardOracle({
     scryfallId,
     typeLine: data.type_line || null,
@@ -268,6 +272,7 @@ export function cardOracleFromScryfall(data: {
     flavorName: data.flavor_name?.trim() || null,
     manaValue: typeof data.cmc === 'number' && Number.isFinite(data.cmc) ? data.cmc : null,
     imageUrl: scryfallId ? scryfallImageFromId(scryfallId) : null,
+    finishes: finishes?.length ? finishes : null,
     updatedAt: new Date().toISOString(),
   });
 }

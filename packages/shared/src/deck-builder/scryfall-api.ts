@@ -58,6 +58,8 @@ export type PrintingFields = {
   printedName: string | null;
   flavorName: string | null;
   manaValue: number | null;
+  /** Scryfall finishes for this printing when known. */
+  finishes?: string[] | null;
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};
@@ -151,6 +153,7 @@ export function mapScryfallCardToPrinting(
     printedName: card.printed_name?.trim() || null,
     flavorName: card.flavor_name?.trim() || null,
     manaValue: typeof card.cmc === 'number' && Number.isFinite(card.cmc) ? card.cmc : null,
+    finishes: finishes.length ? finishes : null,
   };
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   pickCommanderPair,
   partitionCategories,
@@ -66,18 +66,22 @@ function PartnerTie({ illegal }: { illegal?: boolean }) {
   );
 }
 
+export type CardContextMenuHandler = (card: CardView, e: MouseEvent) => void;
+
 export function CardGroup({
   cards,
   layout,
   selectedId,
   onSelectCard,
   draggable,
+  onCardContextMenu,
 }: {
   cards: CardView[];
   layout: CardLayout;
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   draggable?: boolean;
+  onCardContextMenu?: CardContextMenuHandler;
 }) {
   if (layout === 'stacked') {
     return (
@@ -89,6 +93,7 @@ export function CardGroup({
               selected={selectedId === card.instanceId}
               onSelect={onSelectCard}
               draggable={draggable}
+              onContextMenu={onCardContextMenu}
             />
             <button
               type="button"
@@ -97,6 +102,11 @@ export function CardGroup({
               aria-hidden="true"
               title={cardDisplayName(card)}
               onClick={() => onSelectCard?.(card)}
+              onContextMenu={(e) => {
+                if (!onCardContextMenu) return;
+                e.preventDefault();
+                onCardContextMenu(card, e);
+              }}
             />
           </div>
         ))}
@@ -112,6 +122,7 @@ export function CardGroup({
           selected={selectedId === card.instanceId}
           onSelect={onSelectCard}
           draggable={draggable}
+          onContextMenu={onCardContextMenu}
         />
       ))}
     </div>
@@ -125,6 +136,7 @@ export function DropSection({
   selectedId,
   onSelectCard,
   onDropCard,
+  onCardContextMenu,
   variant = 'section',
   cardSort = 'name_asc',
 }: {
@@ -134,6 +146,7 @@ export function DropSection({
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
   variant?: 'section' | 'header' | 'column';
   cardSort?: CardSortMode;
 }) {
@@ -170,6 +183,7 @@ export function DropSection({
         selectedId={selectedId}
         onSelectCard={onSelectCard}
         draggable={canDrop}
+        onCardContextMenu={onCardContextMenu}
       />
     </section>
   );
@@ -181,6 +195,7 @@ function CommanderSlot({
   selectedId,
   onSelectCard,
   onDropCard,
+  onCardContextMenu,
   draggable,
 }: {
   slot: 0 | 1;
@@ -188,6 +203,7 @@ function CommanderSlot({
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -217,6 +233,7 @@ function CommanderSlot({
           selected={selectedId === card.instanceId}
           onSelect={onSelectCard}
           draggable={draggable}
+          onContextMenu={onCardContextMenu}
         />
       ) : (
         <span className="db-commander-slot-placeholder">Drop commander</span>
@@ -230,12 +247,14 @@ function CommanderSlots({
   selectedId,
   onSelectCard,
   onDropCard,
+  onCardContextMenu,
   dragging,
 }: {
   commanders: CardView[];
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
   dragging: boolean;
 }) {
   const canDrop = Boolean(onDropCard);
@@ -263,6 +282,7 @@ function CommanderSlots({
           selectedId={selectedId}
           onSelectCard={onSelectCard}
           onDropCard={onDropCard}
+          onCardContextMenu={onCardContextMenu}
           draggable={canDrop}
         />
         {showSecond ? (
@@ -274,6 +294,7 @@ function CommanderSlots({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
             />
           </>
@@ -294,6 +315,7 @@ export function DeckHeaderRow({
   selectedId,
   onSelectCard,
   onDropCard,
+  onCardContextMenu,
   format,
   cardSort = 'name_asc',
 }: {
@@ -302,6 +324,7 @@ export function DeckHeaderRow({
   selectedId?: string | null;
   onSelectCard?: (card: CardView) => void;
   onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
   format?: DeckFormat | null;
   cardSort?: CardSortMode;
 }) {
@@ -320,6 +343,7 @@ export function DeckHeaderRow({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
               dragging={dragging}
             />
           </div>
@@ -333,6 +357,7 @@ export function DeckHeaderRow({
                 selectedId={selectedId}
                 onSelectCard={onSelectCard}
                 onDropCard={onDropCard}
+                onCardContextMenu={onCardContextMenu}
                 variant="header"
                 cardSort={cardSort}
               />
@@ -361,6 +386,7 @@ export function DeckHeaderRow({
               selectedId={selectedId}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
               variant="header"
               cardSort={cardSort}
             />
@@ -378,6 +404,7 @@ export function CategoryBrowse({
   layout = 'stacked',
   cardSort = 'name_asc',
   onDropCard,
+  onCardContextMenu,
   mode = 'main',
   includeSwapCategories = false,
 }: {
@@ -389,6 +416,7 @@ export function CategoryBrowse({
   layout?: CardLayout;
   cardSort?: CardSortMode;
   onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
 }) {
@@ -415,6 +443,7 @@ export function CategoryBrowse({
             selectedId={selectedId}
             onSelectCard={onSelectCard}
             onDropCard={onDropCard}
+            onCardContextMenu={onCardContextMenu}
             variant="column"
             cardSort={cardSort}
           />
@@ -432,6 +461,7 @@ export function CategoryBrowse({
       selectedId={selectedId}
       onSelectCard={onSelectCard}
       onDropCard={onDropCard}
+      onCardContextMenu={onCardContextMenu}
       variant={layout === 'grid' ? 'section' : 'column'}
       cardSort={cardSort}
     />
@@ -445,6 +475,7 @@ export function CategoryBrowse({
         selectedId={selectedId}
         onSelectCard={onSelectCard}
         onDropCard={onDropCard}
+        onCardContextMenu={onCardContextMenu}
         format={format}
         cardSort={cardSort}
       />

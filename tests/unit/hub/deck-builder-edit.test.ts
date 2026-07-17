@@ -7,7 +7,12 @@ import {
   applyChangePrinting,
   applyRemoveCard,
 } from '../../../packages/web/src/deck-builder/edit/card-mutations.ts';
-import { mapScryfallCardToPrinting } from '../../../packages/shared/src/index.ts';
+import {
+  cardSupportsFoilToggle,
+  mapScryfallCardToPrinting,
+  setCardFoil,
+  type DeckDocument,
+} from '../../../packages/shared/src/index.ts';
 
 describe('card mutations', () => {
   it('moves category and stack', () => {
@@ -47,5 +52,66 @@ describe('card mutations', () => {
 
     const removed = applyRemoveCard(changed, newCard.instanceId);
     expect(removed.cards.find((c) => c.instanceId === newCard.instanceId)).toBeUndefined();
+  });
+});
+
+describe('setCardFoil', () => {
+  it('enables foil only when oracle finishes include foil', () => {
+    const base = commander as DeckDocument;
+    const card = { ...base.cards[0]!, scryfallId: 'foil-ok-id', foil: false };
+    const doc: DeckDocument = {
+      ...base,
+      cards: [card, ...base.cards.slice(1)],
+      oracle: {
+        'id:foil-ok-id': {
+          scryfallId: 'foil-ok-id',
+          colourIdentity: [],
+          typeLine: null,
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: null,
+          imageUrl: null,
+          finishes: ['nonfoil', 'foil'],
+          updatedAt: null,
+        },
+      },
+    };
+    expect(cardSupportsFoilToggle(doc, card)).toBe(true);
+    const on = setCardFoil(doc, card.instanceId, true);
+    expect(on.cards[0]!.foil).toBe(true);
+    const off = setCardFoil(on, card.instanceId, false);
+    expect(off.cards[0]!.foil).toBe(false);
+  });
+
+  it('refuses enabling foil when finishes lack foil', () => {
+    const base = commander as DeckDocument;
+    const card = { ...base.cards[0]!, scryfallId: 'no-foil-id', foil: false };
+    const doc: DeckDocument = {
+      ...base,
+      cards: [card, ...base.cards.slice(1)],
+      oracle: {
+        'id:no-foil-id': {
+          scryfallId: 'no-foil-id',
+          colourIdentity: [],
+          typeLine: null,
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: null,
+          imageUrl: null,
+          finishes: ['nonfoil'],
+          updatedAt: null,
+        },
+      },
+    };
+    expect(cardSupportsFoilToggle(doc, card)).toBe(false);
+    expect(setCardFoil(doc, card.instanceId, true).cards[0]!.foil).toBe(false);
   });
 });

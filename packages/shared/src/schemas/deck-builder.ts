@@ -52,6 +52,8 @@ export const CardOracleSchema = z.object({
   manaValue: z.number().nullable().default(null),
   /** CDN URL (cards.scryfall.io) — never image bytes. */
   imageUrl: z.string().nullable().default(null),
+  /** Scryfall finishes for this printing (e.g. nonfoil, foil); null = not enriched. */
+  finishes: z.array(z.string()).nullable().default(null),
   updatedAt: z.string().nullable().default(null),
 });
 export type CardOracle = z.infer<typeof CardOracleSchema>;

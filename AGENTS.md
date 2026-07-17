@@ -40,12 +40,20 @@ Reports land under `coverage/` (gitignored). Gate → `coverage/web-gate/`; full
 ### What we measure
 
 - **Provider:** `@vitest/coverage-v8` (pin to the same major/minor as `vitest`).
-- **Primary gate (`test:coverage`):** **branch** coverage ≥ **80%** on the **coverage core** in `vitest.coverage.config.ts`.
+- **Primary gate (`test:coverage`):** **branch** coverage ≥ **80%** on SPA **logic + UI** loaded by tests (`vitest.coverage.config.ts`).
 - **Full report (`test:coverage:full`):** all of `packages/web/src` with `all: true`, no threshold — find gaps outside the gate.
 - Statements/lines/functions are reported for visibility but are not the CI gate.
-- **`coverage.all: false` on the gate:** only imported files count (after excludes). Prefer testing hub chrome with **mocked** heavy child apps.
-- **Gate excludes:** bootstraps (`main.tsx`, `types.ts`, `index.ts`); presentational shells (`*App.tsx`, pages, browse/modals/dialogs, OR/DR/DS React surfaces, DailiesApp, cards UI); **coverage backlog** still exercised by tests but not gated: `mtg/archidekt-export.ts`, `mtg/order-reconcile-export.ts`, `mtg/profile-sync.ts`, `dailies/itemdb.ts`, `deck-suggest/generation.ts`.
-- **Gate includes:** hub chrome, API client, lib, deck-builder/suggest/review/reconcile **logic**, dailies settings/timed/wishing-well, etc.
+- **`coverage.all: false` on the gate:** only imported files count (after excludes).
+- **Gate excludes (narrow):** bootstraps (`main.tsx`, `types.ts`, `index.ts`); non-UI giants still on the backlog (`mtg/archidekt-export.ts`, `mtg/order-reconcile-export.ts`, `mtg/profile-sync.ts`, `dailies/itemdb.ts`, `deck-suggest/generation.ts`, `pet-image-slug.ts`, `dailies/icons.ts`).
+- **Gate includes:** hub chrome, all `*App.tsx` shells, settings pages, cards UI, browse/library/modals, Suggest/Review/Reconcile panels, plus logic modules.
+
+### SPA UI testing practices
+
+1. Put RTL suites under `tests/web/*.test.tsx` (jsdom).
+2. Mock network, Hub API, IndexedDB stores, Archidekt bridges, and `HubProgress.mount` — assert visible chrome and user flows, not implementation details.
+3. Prefer exercising real child components with tiny fixtures; mock a child only when it pulls an entire subsystem.
+4. Cover at least: empty/loading/error, primary happy path, and one settings/API-off vs API-on branch per major app.
+5. HubShell may still mock app children when testing chrome alone; app-level suites must import the real `*App` under test.
 ### Where to put tests
 
 | Kind | Location | Environment |
@@ -77,7 +85,7 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 
 ### Best practices (don't)
 
-1. **Don't** chase 100% statements on presentational JSX — cover important branches; leave chrome to light smoke + e2e.
+1. **Don't** rely on e2e alone for SPA branch coverage — RTL owns app chrome and phase transitions; Playwright owns cross-app flows.
 2. **Don't** use `istanbul ignore` / coverage ignores to hide real logic; only for truly unreachable defensive guards, and comment why.
 3. **Don't** redefine `window.location.hostname` under jsdom without a stubbed `location` object — prefer happy-dom for those tests or `vi.stubGlobal` carefully.
 4. **Don't** point Hub API URL at the Vite origin in tests or docs — `assertApiNotPageOrigin` rejects that class of misconfig.

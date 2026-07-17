@@ -7,8 +7,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Unified coverage run for packages/web (unit + React web tests).
- * Gate: ≥80% branches on the coverage *core* (logic + hub chrome).
- * See AGENTS.md → Testing & coverage.
+ * Gate: ≥80% branches across SPA logic + UI (see AGENTS.md).
  */
 export default defineConfig({
   plugins: [react()],
@@ -18,11 +17,8 @@ export default defineConfig({
     },
   },
   test: {
-    // happy-dom matches tests/unit; jsdom for React DOM assertions in tests/web.
     environment: 'happy-dom',
-    environmentMatchGlobs: [
-      ['tests/web/**', 'jsdom'],
-    ],
+    environmentMatchGlobs: [['tests/web/**', 'jsdom']],
     setupFiles: ['./tests/web/setup.ts'],
     include: [
       'tests/unit/**/*.test.{js,ts,tsx}',
@@ -30,7 +26,6 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      // Keep this path dedicated to the gated run (no concurrent writers).
       reportsDirectory: './coverage/web-gate',
       clean: true,
       reporter: ['text', 'text-summary', 'html', 'json-summary'],
@@ -41,45 +36,14 @@ export default defineConfig({
         'packages/web/src/**/main.tsx',
         'packages/web/src/**/types.ts',
         'packages/web/src/**/index.ts',
-        // Presentational / integration surfaces: smoke + e2e, not branch gate.
-        'packages/web/src/App.tsx',
-        'packages/web/src/SettingsShell.tsx',
-        'packages/web/src/pages/**',
-        'packages/web/src/cards/**',
-        'packages/web/src/neopets-more/**',
-        'packages/web/src/lib/pet-image-slug.ts',
-        'packages/web/src/**/*App.tsx',
-        'packages/web/src/**/*Modal.tsx',
-        'packages/web/src/**/*Dialog.tsx',
-        'packages/web/src/**/BrowseShell.tsx',
-        'packages/web/src/**/CategoryBrowse.tsx',
-        'packages/web/src/**/ColourIdentityBrowse.tsx',
-        'packages/web/src/**/MasonryColumns.tsx',
-        'packages/web/src/**/CardTile.tsx',
-        'packages/web/src/**/CardFace.tsx',
-        'packages/web/src/**/LibraryView.tsx',
-        'packages/web/src/**/SwapQueuePanel.tsx',
-        'packages/web/src/**/DbMenu.tsx',
-        'packages/web/src/**/FormatBadge.tsx',
-        'packages/web/src/**/ExportBar.tsx',
-        'packages/web/src/**/DeckActionsMenu.tsx',
-        'packages/web/src/**/MoveSheet.tsx',
-        'packages/web/src/**/DragMove.tsx',
-        'packages/web/src/**/OrderReconcile*.tsx',
-        'packages/web/src/**/DeckReview*.tsx',
-        'packages/web/src/**/DeckSuggest*.tsx',
-        'packages/web/src/**/Suggestion*.tsx',
-        'packages/web/src/dailies/DailiesApp.tsx',
-        'packages/web/src/dailies/icons.ts',
-        'packages/web/src/deck-builder/ui/**',
-        'packages/web/src/deck-builder/card-size.ts',
-        // Coverage backlog (large bridge/export surfaces). Tracked in AGENTS.md;
-        // reported via `npm run test:coverage:full`, not the 80% gate.
+        // Non-UI orchestration / bridge giants — tracked via test:coverage:full.
         'packages/web/src/mtg/archidekt-export.ts',
         'packages/web/src/mtg/order-reconcile-export.ts',
         'packages/web/src/mtg/profile-sync.ts',
         'packages/web/src/dailies/itemdb.ts',
         'packages/web/src/deck-suggest/generation.ts',
+        'packages/web/src/lib/pet-image-slug.ts',
+        'packages/web/src/dailies/icons.ts',
       ],
       thresholds: {
         branches: 80,

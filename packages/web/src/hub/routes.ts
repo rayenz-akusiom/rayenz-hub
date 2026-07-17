@@ -2,6 +2,8 @@ export type HubPath =
   | '/dailies'
   | '/neopets-more'
   | '/deck-builder'
+  | '/commander-builder'
+  | '/cube-builder'
   | '/deck-suggest'
   | '/deck-review'
   | '/order-reconcile'
@@ -13,7 +15,7 @@ export type HubPath =
 
 export const DEFAULT_PATH: HubPath = '/dailies';
 
-/** Hub user segment in deck deep links (`#/deck-builder/{user}/{deck}`). */
+/** Hub user segment in deck deep links (`#/{builder}/{user}/{deck}`). */
 export const HUB_USER_SLUG = 'default';
 
 export type DeckBuilderRoute = {
@@ -21,10 +23,25 @@ export type DeckBuilderRoute = {
   deckSlug: string;
 };
 
+export type BuilderFormat = 'commander' | 'cube';
+
+const BUILDER_PREFIX: Record<BuilderFormat, '/commander-builder' | '/cube-builder'> = {
+  commander: '/commander-builder',
+  cube: '/cube-builder',
+};
+
+const ALL_BUILDER_PREFIXES = [
+  '/commander-builder',
+  '/cube-builder',
+  '/deck-builder',
+] as const;
+
 export const KNOWN_PATHS = new Set<string>([
   '/dailies',
   '/neopets-more',
   '/deck-builder',
+  '/commander-builder',
+  '/cube-builder',
   '/deck-suggest',
   '/deck-review',
   '/order-reconcile',
@@ -42,7 +59,7 @@ export const LEGACY_PATHS = new Set<string>();
 const LEGACY_APPS_SEGMENT_TO_HASH: Record<string, string> = {
   dailies: '#/dailies',
   'neopets-more': '#/neopets-more',
-  'deck-builder': '#/deck-builder',
+  'deck-builder': '#/commander-builder',
   'deck-suggest': '#/deck-suggest',
   'deck-review': '#/deck-review',
   'order-reconcile': '#/order-reconcile',
@@ -83,6 +100,12 @@ export function pathFromHash(hash?: string | null): HubPath {
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;
   }
+  if (path === '/commander-builder' || path.startsWith('/commander-builder/')) {
+    return '/commander-builder';
+  }
+  if (path === '/cube-builder' || path.startsWith('/cube-builder/')) {
+    return '/cube-builder';
+  }
   if (path === '/deck-builder' || path.startsWith('/deck-builder/')) {
     return '/deck-builder';
   }
@@ -92,15 +115,14 @@ export function pathFromHash(hash?: string | null): HubPath {
   return DEFAULT_PATH;
 }
 
-/**
- * Parse `#/deck-builder/:user/:deck` deep links.
- * Returns null for library (`#/deck-builder`) or malformed nested paths.
- */
-export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | null {
-  const normalized = normalizeHash(hash ?? (typeof window !== 'undefined' ? window.location.hash : ''));
-  const path = normalized.slice(1);
-  if (!path.startsWith('/deck-builder/')) return null;
-  const rest = path.slice('/deck-builder/'.length);
+export function builderBasePath(format: BuilderFormat): '/commander-builder' | '/cube-builder' {
+  return BUILDER_PREFIX[format];
+}
+
+function parseBuilderRouteFromPrefix(path: string, prefix: string): DeckBuilderRoute | null {
+  if (path === prefix) return null;
+  if (!path.startsWith(`${prefix}/`)) return null;
+  const rest = path.slice(prefix.length + 1);
   const parts = rest.split('/').filter(Boolean);
   if (parts.length !== 2) return null;
   const [userSlug, deckSlug] = parts;
@@ -108,12 +130,70 @@ export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | 
   return { userSlug, deckSlug };
 }
 
-/** Build `#/deck-builder` or `#/deck-builder/:user/:deck`. */
-export function deckBuilderHash(userSlug?: string | null, deckSlug?: string | null): string {
-  if (userSlug && deckSlug) {
-    return `#/deck-builder/${userSlug}/${deckSlug}`;
+/**
+ * Parse `#/{builder}/:user/:deck` deep links for commander, cube, or legacy deck-builder.
+ * Returns null for library routes or malformed nested paths.
+ */
+export function parseBuilderRoute(
+  hash?: string | null,
+  format?: BuilderFormat,
+): DeckBuilderRoute | null {
+  const normalized = normalizeHash(
+    hash ?? (typeof window !== 'undefined' ? window.location.hash : ''),
+  );
+  const path = normalized.slice(1);
+
+  if (format) {
+    return parseBuilderRouteFromPrefix(path, builderBasePath(format));
   }
-  return '#/deck-builder';
+
+  for (const prefix of ALL_BUILDER_PREFIXES) {
+    const route = parseBuilderRouteFromPrefix(path, prefix);
+    if (route) return route;
+  }
+  return null;
+}
+
+/** Build `#/{builder}` or `#/{builder}/:user/:deck`. */
+export function builderHash(
+  format: BuilderFormat,
+  userSlug?: string | null,
+  deckSlug?: string | null,
+): string {
+  const base = builderBasePath(format);
+  if (userSlug && deckSlug) {
+    return `#${base}/${userSlug}/${deckSlug}`;
+  }
+  return `#${base}`;
+}
+
+/** Map legacy `#/deck-builder` hashes to the split builder routes. */
+export function resolveLegacyDeckBuilderHash(
+  hash: string,
+  lookupFormat: (deckSlug: string) => BuilderFormat | null | undefined,
+): string {
+  const route = parseBuilderRoute(hash);
+  if (!route) {
+    return builderHash('commander');
+  }
+  const fmt = lookupFormat(route.deckSlug);
+  if (fmt === 'cube') {
+    return builderHash('cube', route.userSlug, route.deckSlug);
+  }
+  return builderHash('commander', route.userSlug, route.deckSlug);
+}
+
+/**
+ * Parse `#/deck-builder/:user/:deck` and split-builder deep links (deprecated wrapper).
+ * @deprecated Use parseBuilderRoute instead.
+ */
+export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | null {
+  return parseBuilderRoute(hash);
+}
+
+/** @deprecated Use builderHash('commander', ...) instead. */
+export function deckBuilderHash(userSlug?: string | null, deckSlug?: string | null): string {
+  return builderHash('commander', userSlug, deckSlug);
 }
 
 export function isSettingsPath(path: string): boolean {

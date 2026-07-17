@@ -1,5 +1,7 @@
 import {
+  applyForcedFormat,
   detectDeckFormat,
+  defaultBrowseView,
   emptyCardOracle,
   ensureCategoryDef,
   ensureProxiesCategoryDef,
@@ -15,9 +17,12 @@ import {
   canonicalizeSwapCategory,
   isSwapQueueCategoryName,
   PROXIES_CATEGORY,
+  type BrowseView,
   type CardInstance,
   type CategoryDef,
   type DeckDocument,
+  type DeckFormat,
+  type ForcedFormat,
 } from '@rayenz-hub/shared';
 
 
@@ -95,6 +100,45 @@ export function deckNameFromArchidektUrl(url: string | null | undefined): string
 
     .replace(/\b\w+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
 
+}
+
+export function emptyDeckDocument(opts: {
+  name: string;
+  format: DeckFormat;
+  cubeTargetSize?: number | null;
+  browseViewDefault?: BrowseView | null;
+  categories?: CategoryDef[];
+}): DeckDocument {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: 1,
+    deckId: nextId('deck'),
+    name: opts.name,
+    format: opts.format,
+    archidektId: null,
+    archidektUrl: null,
+    categories: opts.categories ?? [],
+    cards: [],
+    oracle: {},
+    formalSwapEntries: [],
+    coverInstanceId: null,
+    browseViewDefault: opts.browseViewDefault ?? defaultBrowseView(opts.format),
+    cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
+    createdAt: now,
+    updatedAt: now,
+    lastArchidektSyncAt: null,
+    lastArchidektImportAt: null,
+    cubeTargetSize: opts.cubeTargetSize ?? null,
+  };
+}
+
+function withForcedFormat(
+  doc: DeckDocument,
+  forcedFormat?: ForcedFormat,
+): DeckDocument {
+  if (!forcedFormat) return doc;
+  return applyForcedFormat(doc, forcedFormat).document;
 }
 
 
@@ -234,7 +278,7 @@ export function documentFromImportText(
 
   text: string,
 
-  opts: { deckId?: string; name?: string; formatHint?: string } = {},
+  opts: { deckId?: string; name?: string; formatHint?: string; forcedFormat?: ForcedFormat } = {},
 
 ): DeckDocument {
 
@@ -296,7 +340,8 @@ export function documentFromImportText(
   const cards = normalizeCardQuantities(rawCards, format, nextId);
   const formalSwapEntries = seedFormalSwapsFromCategories(cards, []);
 
-  return {
+  return withForcedFormat(
+    {
     schemaVersion: 1,
     deckId: opts.deckId || nextId('deck'),
     name,
@@ -315,7 +360,10 @@ export function documentFromImportText(
     updatedAt: now,
     lastArchidektSyncAt: null,
     lastArchidektImportAt: now,
-  };
+    cubeTargetSize: null,
+  },
+    opts.forcedFormat,
+  );
 
 }
 
@@ -347,7 +395,7 @@ export function documentFromArchidektSnapshot(
 
   existing?: DeckDocument | null,
 
-  opts: { clearSwaps?: boolean; nameOverride?: string } = {},
+  opts: { clearSwaps?: boolean; nameOverride?: string; forcedFormat?: ForcedFormat } = {},
 
 ): DeckDocument {
 
@@ -478,8 +526,8 @@ export function documentFromArchidektSnapshot(
 
 
 
-  return {
-
+  return withForcedFormat(
+    {
     schemaVersion: 1,
 
     deckId,
@@ -516,7 +564,10 @@ export function documentFromArchidektSnapshot(
 
     lastArchidektImportAt: now,
 
-  };
+    cubeTargetSize: existing?.cubeTargetSize ?? null,
+  },
+    opts.forcedFormat,
+  );
 
 }
 

@@ -9,7 +9,7 @@ export type SettingsTab = 'dailies' | 'deck-builder' | 'deck-suggest' | 'order-r
 
 const TABS: { id: SettingsTab; label: string; path: string }[] = [
   { id: 'dailies', label: 'Dailies', path: '/settings/dailies' },
-  { id: 'deck-builder', label: 'Deck Builder', path: '/settings/deck-builder' },
+  { id: 'deck-builder', label: 'Deck builders', path: '/settings/deck-builder' },
   { id: 'deck-suggest', label: 'Deck Suggest', path: '/settings/deck-suggest' },
   { id: 'order-reconcile', label: 'Order Reconcile', path: '/settings/order-reconcile' },
 ];

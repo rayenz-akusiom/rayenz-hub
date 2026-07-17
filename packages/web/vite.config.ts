@@ -62,7 +62,7 @@ function pagesFallbackPlugin(): Plugin {
   const legacyAppsMap = {
     dailies: '#/dailies',
     'neopets-more': '#/neopets-more',
-    'deck-builder': '#/deck-builder',
+    'deck-builder': '#/commander-builder',
     'deck-suggest': '#/deck-suggest',
     'deck-review': '#/deck-review',
     'order-reconcile': '#/order-reconcile',

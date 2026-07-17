@@ -13,6 +13,8 @@ export * from './deck-builder/scryfall-images';
 export * from './deck-builder/deck-cover';
 export * from './deck-builder/partner';
 export * from './deck-builder/format';
+export * from './deck-builder/force-format';
+export * from './deck-builder/library-filter';
 export * from './deck-builder/browse';
 export * from './deck-builder/quantities';
 export * from './deck-builder/color-identity-map';

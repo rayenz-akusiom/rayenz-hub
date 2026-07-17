@@ -67,7 +67,7 @@ export function DeckBuilderSettingsPage() {
 
   return (
     <div className="hub-web-page hub-web-page--tab">
-      <h2 className="hub-web-section-title">Deck Builder</h2>
+      <h2 className="hub-web-section-title">Deck builders</h2>
       <p className="hub-web-hint">
         Preferences for colour-identity browse labels. Guilds, X-less, and Prismatic are fixed; only
         three-colour names change.

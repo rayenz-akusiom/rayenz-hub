@@ -13,8 +13,14 @@ vi.mock('../../packages/web/src/dailies/DailiesApp', () => ({
 vi.mock('../../packages/web/src/neopets-more/NeopetsMoreApp', () => ({
   NeopetsMoreApp: () => <div data-testid="neopets-more">More</div>,
 }));
-vi.mock('../../packages/web/src/deck-builder/DeckBuilderApp', () => ({
-  DeckBuilderApp: () => <div data-testid="deck-builder">Deck Builder</div>,
+vi.mock('../../packages/web/src/deck-builder/LegacyDeckBuilderRedirect', () => ({
+  LegacyDeckBuilderRedirect: () => <div data-testid="deck-builder-legacy">Legacy redirect</div>,
+}));
+vi.mock('../../packages/web/src/deck-builder/commander/CommanderBuilderApp', () => ({
+  CommanderBuilderApp: () => <div data-testid="commander-builder">Commander Builder</div>,
+}));
+vi.mock('../../packages/web/src/deck-builder/cube/CubeBuilderApp', () => ({
+  CubeBuilderApp: () => <div data-testid="cube-builder">Cube Builder</div>,
 }));
 vi.mock('../../packages/web/src/deck-review/DeckReviewApp', () => ({
   DeckReviewApp: () => <div data-testid="deck-review">Deck Review</div>,
@@ -61,7 +67,9 @@ describe('HubShell AppOutlet', () => {
   it.each([
     ['/dailies', 'dailies', undefined],
     ['/neopets-more', 'neopets-more', undefined],
-    ['/deck-builder', 'deck-builder', undefined],
+    ['/commander-builder', 'commander-builder', undefined],
+    ['/cube-builder', 'cube-builder', undefined],
+    ['/deck-builder', 'deck-builder-legacy', undefined],
     ['/deck-review', 'deck-review', undefined],
     ['/deck-suggest', 'deck-suggest', undefined],
     ['/order-reconcile', 'order-reconcile', undefined],
@@ -151,7 +159,7 @@ describe('HubShell nav toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Open menu' }));
     expect(nav).toHaveClass('open');
 
-    await user.click(navLink('Deck Builder'));
+    await user.click(navLink('Commander Builder'));
     expect(nav).not.toHaveClass('open');
   });
 });
@@ -175,7 +183,7 @@ describe('HubNav active links', () => {
   it('marks the matching app link active on non-settings routes', () => {
     render(<HubNav path="/order-reconcile" open={false} onClose={() => {}} />);
     expect(navLink('Order Reconcile')).toHaveClass('active');
-    expect(navLink('Deck Builder')).not.toHaveClass('active');
+    expect(navLink('Commander Builder')).not.toHaveClass('active');
   });
 
   it('renders grouped nav labels', () => {

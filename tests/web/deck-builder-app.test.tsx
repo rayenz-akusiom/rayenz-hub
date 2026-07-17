@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { toDeckSummary } from '@rayenz-hub/shared';
-import { DeckBuilderApp } from '../../packages/web/src/deck-builder/DeckBuilderApp';
+import { CommanderBuilderApp } from '../../packages/web/src/deck-builder/commander/CommanderBuilderApp';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
 
@@ -83,8 +83,8 @@ const commanderSummary = toDeckSummary(commanderDoc);
 const cubeSummary = toDeckSummary(cubeDoc);
 
 function headerAddDeckButton() {
-  const header = screen.getByRole('heading', { name: 'Deck Builder' }).parentElement!;
-  return within(header).getByRole('button', { name: 'Add deck' });
+  const header = screen.getByRole('heading', { name: 'Commander Builder' }).parentElement!;
+  return within(header).getByRole('button', { name: 'Add Commander deck' });
 }
 
 function deckOpenButton(deckName: string) {
@@ -115,10 +115,10 @@ afterEach(() => {
   window.location.hash = '';
 });
 
-describe('DeckBuilderApp', () => {
+describe('CommanderBuilderApp', () => {
   beforeEach(() => {
     defaultMocks();
-    window.location.hash = '#/deck-builder';
+    window.location.hash = '#/commander-builder';
   });
 
   it('shows loading then empty library state', async () => {
@@ -130,31 +130,29 @@ describe('DeckBuilderApp', () => {
         }),
     );
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     expect(screen.getByLabelText(/loading library/i)).toBeInTheDocument();
 
     resolveList([]);
     await waitFor(() => {
-      expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
   });
 
-  it('lists decks grouped by format', async () => {
-    render(<DeckBuilderApp />);
+  it('lists commander decks only', async () => {
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
-    expect(screen.getByText('Vintage Cube')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Commander' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Cube' })).toBeInTheDocument();
+    expect(screen.queryByText('Vintage Cube')).not.toBeInTheDocument();
   });
 
   it('shows library error when listDecks fails', async () => {
     listDecks.mockRejectedValue(new Error('IndexedDB unavailable'));
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByText('IndexedDB unavailable')).toBeInTheDocument();
@@ -165,21 +163,21 @@ describe('DeckBuilderApp', () => {
     listDecks.mockResolvedValue([]);
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
 
     await user.click(headerAddDeckButton());
-    expect(screen.getByRole('dialog', { name: 'Add deck' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Create Commander deck' })).toBeInTheDocument();
   });
 
   it('opens BrowseShell when a deck tile is selected', async () => {
     const user = userEvent.setup();
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(deckOpenButton('Fixture Commander'));
@@ -190,12 +188,12 @@ describe('DeckBuilderApp', () => {
     expect(screen.getByText('Swap queue')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
-    expect(window.location.hash).toBe('#/deck-builder/default/fixture-commander');
+    expect(window.location.hash).toBe('#/commander-builder/default/fixture-commander');
   });
 
   it('opens a deck from a deep-link hash on load', async () => {
-    window.location.hash = '#/deck-builder/default/fixture-commander';
-    render(<DeckBuilderApp />);
+    window.location.hash = '#/commander-builder/default/fixture-commander';
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
@@ -205,18 +203,18 @@ describe('DeckBuilderApp', () => {
   });
 
   it('shows an error for an unknown deck slug deep link', async () => {
-    window.location.hash = '#/deck-builder/default/missing-deck';
-    render(<DeckBuilderApp />);
+    window.location.hash = '#/commander-builder/default/missing-deck';
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByText('Deck not found')).toBeInTheDocument();
     });
-    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
   });
 
   it('shows an error for an unknown user slug deep link', async () => {
-    window.location.hash = '#/deck-builder/other-user/fixture-commander';
-    render(<DeckBuilderApp />);
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByText('Unknown user “other-user”')).toBeInTheDocument();
@@ -224,24 +222,24 @@ describe('DeckBuilderApp', () => {
   });
 
   it('library tiles expose copyable deep-link hrefs', async () => {
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     expect(deckOpenButton('Fixture Commander')).toHaveAttribute(
       'href',
-      '#/deck-builder/default/fixture-commander',
+      '#/commander-builder/default/fixture-commander',
     );
   });
 
   it('shows profile panel behind the Profile tab', async () => {
     const user = userEvent.setup();
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
@@ -260,22 +258,22 @@ describe('DeckBuilderApp', () => {
 
   it('returns to library from BrowseShell back button', async () => {
     const user = userEvent.setup();
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
     });
-    expect(window.location.hash).toBe('#/deck-builder/default/fixture-commander');
+    expect(window.location.hash).toBe('#/commander-builder/default/fixture-commander');
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
     });
-    expect(window.location.hash).toBe('#/deck-builder');
+    expect(window.location.hash).toBe('#/commander-builder');
   });
 
   it('stays on library when an in-flight persist finishes after Library click', async () => {
@@ -288,9 +286,9 @@ describe('DeckBuilderApp', () => {
         }),
     );
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
@@ -302,9 +300,9 @@ describe('DeckBuilderApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
     });
-    expect(window.location.hash).toBe('#/deck-builder');
+    expect(window.location.hash).toBe('#/commander-builder');
 
     finishSave({
       ...commanderDoc,
@@ -313,8 +311,8 @@ describe('DeckBuilderApp', () => {
     });
 
     await new Promise((r) => setTimeout(r, 30));
-    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/deck-builder');
+    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/commander-builder');
     expect(screen.queryByRole('button', { name: 'Library' })).not.toBeInTheDocument();
   });
 
@@ -328,9 +326,9 @@ describe('DeckBuilderApp', () => {
         }),
     );
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
@@ -340,9 +338,9 @@ describe('DeckBuilderApp', () => {
     await user.click(screen.getByRole('button', { name: /Layout/i }));
     await user.click(screen.getByRole('menuitem', { name: /Grid/i }));
 
-    window.location.hash = '#/deck-builder';
+    window.location.hash = '#/commander-builder';
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
     });
 
     finishSave({
@@ -352,17 +350,17 @@ describe('DeckBuilderApp', () => {
     });
 
     await new Promise((r) => setTimeout(r, 30));
-    expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/deck-builder');
+    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/commander-builder');
   });
 
   it('shows deck-not-found error when getDeck returns null', async () => {
     getDeck.mockResolvedValue(null);
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(deckOpenButton('Fixture Commander'));
@@ -373,7 +371,7 @@ describe('DeckBuilderApp', () => {
 
   it('shows Sync from API when hub API is configured', async () => {
     apiConfigured.value = true;
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Sync from API' })).toBeInTheDocument();
@@ -385,9 +383,9 @@ describe('DeckBuilderApp', () => {
     apiListDecks.mockRejectedValue(new Error('Remote list failed'));
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(deckOpenButton('Fixture Commander'));
@@ -400,13 +398,13 @@ describe('DeckBuilderApp', () => {
     listDecks.mockResolvedValue([]);
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
 
     await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Add deck' });
+    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -425,13 +423,13 @@ describe('DeckBuilderApp', () => {
     );
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
 
     await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Add deck' });
+    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -449,13 +447,13 @@ describe('DeckBuilderApp', () => {
     );
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('No Hub-saved decks yet.')).toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
 
     await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Add deck' });
+    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -469,9 +467,9 @@ describe('DeckBuilderApp', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Delete Fixture Commander' }));
@@ -487,9 +485,9 @@ describe('DeckBuilderApp', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Delete Fixture Commander' }));
@@ -504,11 +502,22 @@ describe('DeckBuilderApp', () => {
     apiConfigured.value = true;
     apiDeleteDeck.mockRejectedValue(new Error('API delete failed'));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const secondCommander = {
+      ...commanderSummary,
+      deckId: 'cmd-2',
+      name: 'Second Commander',
+    };
+    listDecks.mockResolvedValue([commanderSummary, secondCommander]);
+    getDeck.mockImplementation(async (id) => {
+      if (id === commanderDoc.deckId) return commanderDoc;
+      if (id === 'cmd-2') return { ...commanderDoc, deckId: 'cmd-2', name: 'Second Commander' };
+      return null;
+    });
     const user = userEvent.setup();
 
-    render(<DeckBuilderApp />);
+    render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText('Fixture Commander')).toBeInTheDocument();
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
     await user.click(deckOpenButton('Fixture Commander'));
@@ -518,7 +527,7 @@ describe('DeckBuilderApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Deck Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Delete Fixture Commander' }));
@@ -527,7 +536,7 @@ describe('DeckBuilderApp', () => {
       expect(deleteDeck).toHaveBeenCalled();
     });
 
-    await user.click(deckOpenButton('Vintage Cube'));
+    await user.click(deckOpenButton('Second Commander'));
     await waitFor(() => {
       expect(screen.getByText('API delete failed')).toBeInTheDocument();
     });

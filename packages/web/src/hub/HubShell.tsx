@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { DailiesApp } from '../dailies/DailiesApp';
-import { DeckBuilderApp } from '../deck-builder/DeckBuilderApp';
+import { LegacyDeckBuilderRedirect } from '../deck-builder/LegacyDeckBuilderRedirect';
+import { CommanderBuilderApp } from '../deck-builder/commander/CommanderBuilderApp';
+import { CubeBuilderApp } from '../deck-builder/cube/CubeBuilderApp';
 import { DeckReviewApp } from '../deck-review/DeckReviewApp';
 import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
 import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
@@ -21,7 +23,9 @@ function settingsTabFromPath(path: string): SettingsTab {
 function AppOutlet({ path }: { path: string }) {
   if (path === '/dailies') return <DailiesApp />;
   if (path === '/neopets-more') return <NeopetsMoreApp />;
-  if (path === '/deck-builder') return <DeckBuilderApp />;
+  if (path === '/commander-builder') return <CommanderBuilderApp />;
+  if (path === '/cube-builder') return <CubeBuilderApp />;
+  if (path === '/deck-builder') return <LegacyDeckBuilderRedirect />;
   if (path === '/deck-review') return <DeckReviewApp />;
   if (path === '/deck-suggest') return <DeckSuggestApp />;
   if (path === '/order-reconcile') return <OrderReconcileApp />;

@@ -39,10 +39,10 @@ describe('hub routes', () => {
     expect(parseDeckBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
   });
 
-  it('builds deck-builder hashes', () => {
-    expect(deckBuilderHash()).toBe('#/deck-builder');
+  it('builds deprecated deck-builder hashes via commander builder', () => {
+    expect(deckBuilderHash()).toBe('#/commander-builder');
     expect(deckBuilderHash(HUB_USER_SLUG, 'fixture-commander')).toBe(
-      '#/deck-builder/default/fixture-commander',
+      '#/commander-builder/default/fixture-commander',
     );
     expect(HUB_USER_SLUG).toBe('default');
   });
@@ -52,7 +52,7 @@ describe('hub routes', () => {
   });
 
   it('adds a leading slash when hash path omits it', () => {
-    expect(normalizeHash('#deck-builder')).toBe('#/deck-builder');
+    expect(normalizeHash('#commander-builder')).toBe('#/commander-builder');
     expect(pathFromHash('#deck-suggest')).toBe('/deck-suggest');
   });
 

@@ -107,6 +107,7 @@ const DeckDocumentObjectSchema = z.object({
   updatedAt: z.string(),
   lastArchidektSyncAt: z.string().nullable().default(null),
   lastArchidektImportAt: z.string().nullable().default(null),
+  cubeTargetSize: z.number().positive().nullable().optional().default(null),
 });
 
 /** Parses deck docs; migrates legacy on-card enrich fields into `oracle`. */

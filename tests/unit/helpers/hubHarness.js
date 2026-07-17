@@ -18,6 +18,8 @@ export function runInWindow(code) {
 
 const MODULE_GLOBALS = [
    'HubUtils',
+   'HubStorage',
+   'HubApiClient',
    'ArchidektExport',
    'OrderReconcileExport',
    'OrderEmailParse',

@@ -222,6 +222,8 @@ The Hub is a single React SPA (`packages/web`). All hash routes (`#/dailies`, `#
 
 **Always run `npm run build:web` before `deploy:hub`** so `rayenz-hub/index.html` points at the current SPA bundle.
 
+To test the SPA (and optional local API) from a phone on your LAN, see [mobile-local-testing.md](./mobile-local-testing.md).
+
 ---
 
 
@@ -287,6 +289,7 @@ Need real HTTP?
 
 ## Related docs
 
+- [mobile-local-testing.md](./mobile-local-testing.md) — phone testing via PC LAN (Vite `--host`, SAM `--host 0.0.0.0`)
 - [quickstart.md](./quickstart.md) — prerequisites, deploy, free-tier, migration
 - [../../rayenz-hub/rayenz-hub/docs/hub-api-production.md](../../rayenz-hub/rayenz-hub/docs/hub-api-production.md) — production `localStorage` keys
 - [../../rayenz-hub/tests/README.md](../../rayenz-hub/tests/README.md) — test layout and fixtures

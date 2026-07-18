@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   pickCommanderPair,
   partitionCategories,
@@ -22,7 +22,6 @@ import {
 import { FormatBadge } from '../ui/FormatBadge';
 import { CardTile, DRAG_MIME, type SelectCardHandler } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
-import { useStackExpandScrollPin } from './useStackExpandScrollPin';
 
 export type DropCardHandler = (
   instanceId: string,
@@ -88,7 +87,17 @@ function PartnerTie({ illegal }: { illegal?: boolean }) {
 
 export type CardContextMenuHandler = (card: CardView, e: MouseEvent) => void;
 
-type CardGroupProps = {
+export function CardGroup({
+  cards,
+  layout,
+  selectedId,
+  selectedIds,
+  onSelectCard,
+  draggable,
+  onCardContextMenu,
+  categoryKey,
+  placeholderCount = 0,
+}: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
   selectedId?: string | null;
@@ -100,71 +109,7 @@ type CardGroupProps = {
   categoryKey?: string;
   /** Empty visual slots appended after real cards (target gap). */
   placeholderCount?: number;
-};
-
-function StackedCardGroup({
-  cards,
-  selectedId,
-  selectedIds,
-  onSelectCard,
-  draggable,
-  onCardContextMenu,
-  categoryKey,
-  placeholders,
-}: Omit<CardGroupProps, 'layout' | 'placeholderCount'> & { placeholders: ReactNode[] }) {
-  const stackRef = useRef<HTMLDivElement>(null);
-  useStackExpandScrollPin(stackRef);
-
-  return (
-    <div ref={stackRef} className="db-card-stack">
-      {cards.map((card) => (
-        <div
-          key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
-          className="db-card-stack-item"
-        >
-          <CardTile
-            card={card}
-            selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
-            onSelect={onSelectCard}
-            draggable={draggable}
-            onContextMenu={onCardContextMenu}
-            membership={card.membership || 'primary'}
-          />
-          <button
-            type="button"
-            className="db-card-stack-peek"
-            tabIndex={-1}
-            aria-hidden="true"
-            title={cardDisplayName(card)}
-            onClick={(e) => onSelectCard?.(card, e)}
-            onContextMenu={(e) => {
-              if (!onCardContextMenu) return;
-              e.preventDefault();
-              onCardContextMenu(card, e);
-            }}
-          />
-        </div>
-      ))}
-      {placeholders.map((slot, i) => (
-        <div key={`placeholder-wrap:${categoryKey || ''}:${i}`} className="db-card-stack-item">
-          {slot}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function CardGroup({
-  cards,
-  layout,
-  selectedId,
-  selectedIds,
-  onSelectCard,
-  draggable,
-  onCardContextMenu,
-  categoryKey,
-  placeholderCount = 0,
-}: CardGroupProps) {
+}) {
   const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
     <div
       key={`placeholder:${categoryKey || ''}:${i}`}
@@ -177,16 +122,41 @@ export function CardGroup({
 
   if (layout === 'stacked') {
     return (
-      <StackedCardGroup
-        cards={cards}
-        selectedId={selectedId}
-        selectedIds={selectedIds}
-        onSelectCard={onSelectCard}
-        draggable={draggable}
-        onCardContextMenu={onCardContextMenu}
-        categoryKey={categoryKey}
-        placeholders={placeholders}
-      />
+      <div className="db-card-stack">
+        {cards.map((card) => (
+          <div
+            key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
+            className="db-card-stack-item"
+          >
+            <CardTile
+              card={card}
+              selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+              onSelect={onSelectCard}
+              draggable={draggable}
+              onContextMenu={onCardContextMenu}
+              membership={card.membership || 'primary'}
+            />
+            <button
+              type="button"
+              className="db-card-stack-peek"
+              tabIndex={-1}
+              aria-hidden="true"
+              title={cardDisplayName(card)}
+              onClick={(e) => onSelectCard?.(card, e)}
+              onContextMenu={(e) => {
+                if (!onCardContextMenu) return;
+                e.preventDefault();
+                onCardContextMenu(card, e);
+              }}
+            />
+          </div>
+        ))}
+        {placeholders.map((slot, i) => (
+          <div key={`placeholder-wrap:${categoryKey || ''}:${i}`} className="db-card-stack-item">
+            {slot}
+          </div>
+        ))}
+      </div>
     );
   }
   return (

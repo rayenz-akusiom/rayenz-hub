@@ -704,7 +704,7 @@ body,
 
 .db-card-stack-item + .db-card-stack-item {
   margin-top: calc(var(--db-card-overlap) - var(--db-card-w) * var(--db-card-ratio));
-  transition: margin-top 0.45s ease;
+  transition: transform 0.45s ease;
   transition-delay: 0s;
 }
 
@@ -746,10 +746,21 @@ body,
   pointer-events: none;
 }
 
-/* Open gap below hovered card only (hovered stays under cursor) */
-.db-card-stack-item:hover + .db-card-stack-item,
-.db-card-stack-item:focus-within + .db-card-stack-item {
-  margin-top: 0.5rem;
+/* Keep revealed face above following cards during transform expand */
+.db-card-stack-item:hover,
+.db-card-stack-item:focus-within {
+  z-index: 2;
+}
+
+/*
+ * Open gap below hovered card via transform (not margin) so layout height
+ * stays collapsed — expand can paint off-screen without scrolling the page.
+ */
+.db-card-stack-item:hover ~ .db-card-stack-item,
+.db-card-stack-item:focus-within ~ .db-card-stack-item {
+  transform: translateY(
+    calc(0.5rem - (var(--db-card-overlap) - var(--db-card-w) * var(--db-card-ratio)))
+  );
   transition-delay: 0.35s;
 }
 
@@ -1258,10 +1269,12 @@ body,
   text-align: center;
 }
 
-/* Stacked: corner badges (flip/foil) hidden except top/hover/selected; qty stays visible in peek strip */
+/* Stacked: corner badges (flip/foil/proxy) only on top or hover/focus reveal after open delay; qty stays in peek strip */
 .db-card-stack .db-card-badges-corner,
 .db-card-stack .db-card-badges-foil {
   opacity: 0;
+  transition: opacity 0.2s ease;
+  transition-delay: 0s;
 }
 
 .db-card-stack .db-card-badges-corner .db-badge-flip {
@@ -1269,20 +1282,23 @@ body,
 }
 
 .db-card-stack-item:last-child .db-card-badges-corner,
+.db-card-stack-item:last-child .db-card-badges-foil {
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+/* Match stack open delay so badges appear only once the face starts uncovering */
 .db-card-stack-item:hover .db-card-badges-corner,
 .db-card-stack-item:focus-within .db-card-badges-corner,
-.db-card-stack .db-card-tile.is-selected .db-card-badges-corner,
-.db-card-stack-item:last-child .db-card-badges-foil,
 .db-card-stack-item:hover .db-card-badges-foil,
-.db-card-stack-item:focus-within .db-card-badges-foil,
-.db-card-stack .db-card-tile.is-selected .db-card-badges-foil {
+.db-card-stack-item:focus-within .db-card-badges-foil {
   opacity: 1;
+  transition-delay: 0.35s;
 }
 
 .db-card-stack-item:last-child .db-card-badges-corner .db-badge-flip,
 .db-card-stack-item:hover .db-card-badges-corner .db-badge-flip,
-.db-card-stack-item:focus-within .db-card-badges-corner .db-badge-flip,
-.db-card-stack .db-card-tile.is-selected .db-card-badges-corner .db-badge-flip {
+.db-card-stack-item:focus-within .db-card-badges-corner .db-badge-flip {
   pointer-events: auto;
 }
 

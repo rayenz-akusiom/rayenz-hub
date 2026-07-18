@@ -1,4 +1,13 @@
-import { moveCardsCategory, cardDisplayName, type CardView, type DeckDocument } from '@rayenz-hub/shared';
+import { useState } from 'react';
+import {
+  canonicalizeCategoryName,
+  moveCardsCategory,
+  cardDisplayName,
+  type CardView,
+  type DeckDocument,
+} from '@rayenz-hub/shared';
+
+const NEW_CATEGORY_VALUE = '__new__';
 
 export function MoveSheet({
   deck,
@@ -42,27 +51,79 @@ export function MoveSheet({
         ? primary.stack || ''
         : '';
 
+  const [category, setCategory] = useState(defaultCategory);
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+  const [stack, setStack] = useState(defaultStack);
+
+  function resolvedCategory(): string {
+    if (creatingNew) {
+      return canonicalizeCategoryName(newCategory.trim());
+    }
+    return category;
+  }
+
+  function apply() {
+    const cat = resolvedCategory();
+    if (!cat) return;
+    onApply(
+      moveCardsCategory(
+        deck,
+        list.map((c) => c.instanceId),
+        cat,
+        stack.trim() || null,
+      ),
+    );
+  }
+
   return (
     <div className="db-modal" role="dialog" aria-modal="true" aria-label="Move card">
       <div className="db-modal-card">
         <h3>{title}</h3>
-        <label>
-          Category
-          <select
-            className="db-select"
-            defaultValue={defaultCategory}
-            id="db-move-cat"
-          >
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+        {creatingNew ? (
+          <label>
+            New category
+            <input
+              className="db-input"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="Category name"
+              aria-label="New category name"
+              autoFocus
+            />
+          </label>
+        ) : (
+          <label>
+            Category
+            <select
+              className="db-select"
+              value={category}
+              aria-label="Category"
+              onChange={(e) => {
+                if (e.target.value === NEW_CATEGORY_VALUE) {
+                  setCreatingNew(true);
+                  return;
+                }
+                setCategory(e.target.value);
+              }}
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              <option value={NEW_CATEGORY_VALUE}>New category…</option>
+            </select>
+          </label>
+        )}
         <label>
           Stack (optional)
-          <input className="db-input" id="db-move-stack" defaultValue={defaultStack} />
+          <input
+            className="db-input"
+            value={stack}
+            onChange={(e) => setStack(e.target.value)}
+            aria-label="Stack (optional)"
+          />
         </label>
         <div className="db-modal-actions">
           <button type="button" className="db-btn" onClick={onClose}>
@@ -71,19 +132,8 @@ export function MoveSheet({
           <button
             type="button"
             className="db-btn is-active"
-            onClick={() => {
-              const cat = (document.getElementById('db-move-cat') as HTMLSelectElement).value;
-              const stackRaw = (document.getElementById('db-move-stack') as HTMLInputElement).value;
-              const stack = stackRaw.trim() || null;
-              onApply(
-                moveCardsCategory(
-                  deck,
-                  list.map((c) => c.instanceId),
-                  cat,
-                  stack,
-                ),
-              );
-            }}
+            disabled={!resolvedCategory()}
+            onClick={apply}
           >
             Apply
           </button>

@@ -262,6 +262,15 @@ export function categoryTarget(
   return t == null || !Number.isFinite(t) ? null : Math.max(0, Math.floor(Number(t)));
 }
 
+/** How many UI placeholder slots to append so visual length reaches `target`. */
+export function categoryPlaceholderCount(
+  primaryCount: number,
+  target: number | null,
+): number {
+  if (target == null || target <= 0) return 0;
+  return Math.max(0, Math.floor(target) - Math.max(0, primaryCount));
+}
+
 /** Included-in-deck category defs that have a numeric target. */
 export function includedCategoriesWithTargets(
   categories: CategoryDef[],
@@ -499,6 +508,27 @@ export function partitionCategories(
     } else {
       excluded[name] = list;
     }
+  }
+
+  // Empty defs with target > 0 still appear as drop sections (0/T).
+  const presentKeys = new Set([
+    ...Object.keys(header),
+    ...Object.keys(included),
+    ...Object.keys(excluded),
+  ].map((k) => canonicalizeCategoryName(k)));
+  for (const def of deck.categories || []) {
+    const name = def.name;
+    if (isSwapQueueCategory(name) || isHeaderCategory(name)) continue;
+    const key = canonicalizeCategoryName(name);
+    if (!key || presentKeys.has(key)) continue;
+    const target = categoryTarget(deck.categories || [], name);
+    if (target == null || target <= 0) continue;
+    if (categoryIncluded(deck.categories || [], name)) {
+      included[name] = [];
+    } else {
+      excluded[name] = [];
+    }
+    presentKeys.add(key);
   }
 
   const headerKeys = (HEADER_CATEGORIES as readonly string[]).filter((k) => header[k]?.length);

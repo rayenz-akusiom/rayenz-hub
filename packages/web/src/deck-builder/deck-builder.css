@@ -598,6 +598,19 @@ body,
 
 .db-category-reorder-name {
   flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.db-category-reorder-name:hover,
+.db-category-reorder-name:focus-visible {
+  text-decoration: underline;
 }
 
 .db-category-edit {
@@ -1002,6 +1015,31 @@ body,
   overflow: hidden;
   cursor: pointer;
   width: var(--db-card-w);
+}
+
+.db-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--db-card-w);
+  aspect-ratio: var(--db-card-aspect);
+  border-radius: var(--db-card-radius);
+  border: 2px dashed color-mix(in srgb, var(--db-muted, #666) 80%, transparent);
+  background: color-mix(in srgb, var(--db-muted, #888) 42%, var(--db-surface, #fff) 58%);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.db-card-placeholder-plus {
+  font-size: calc(var(--db-card-w) * 0.32);
+  font-weight: 600;
+  line-height: 1;
+  color: color-mix(in srgb, var(--db-muted, #555) 85%, transparent);
+  user-select: none;
+}
+
+.db-card-stack-item .db-card-placeholder {
+  display: flex;
 }
 
 .db-card-tile[draggable='true'] {

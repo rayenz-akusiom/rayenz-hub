@@ -5,6 +5,7 @@ import {
   resolveDeckCards,
   sortCardsInGroup,
   cardDisplayName,
+  categoryPlaceholderCount,
   categoryTarget,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
@@ -95,6 +96,7 @@ export function CardGroup({
   draggable,
   onCardContextMenu,
   categoryKey,
+  placeholderCount = 0,
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
@@ -105,7 +107,19 @@ export function CardGroup({
   onCardContextMenu?: CardContextMenuHandler;
   /** Disambiguates duplicate instance keys in multi-category browse. */
   categoryKey?: string;
+  /** Empty visual slots appended after real cards (target gap). */
+  placeholderCount?: number;
 }) {
+  const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
+    <div
+      key={`placeholder:${categoryKey || ''}:${i}`}
+      className="db-card-placeholder"
+      aria-hidden="true"
+    >
+      <span className="db-card-placeholder-plus">+</span>
+    </div>
+  ));
+
   if (layout === 'stacked') {
     return (
       <div className="db-card-stack">
@@ -137,6 +151,11 @@ export function CardGroup({
             />
           </div>
         ))}
+        {placeholders.map((slot, i) => (
+          <div key={`placeholder-wrap:${categoryKey || ''}:${i}`} className="db-card-stack-item">
+            {slot}
+          </div>
+        ))}
       </div>
     );
   }
@@ -153,6 +172,7 @@ export function CardGroup({
           membership={card.membership || 'primary'}
         />
       ))}
+      {placeholders}
     </div>
   );
 }
@@ -194,13 +214,11 @@ export function DropSection({
   const base =
     variant === 'header' ? 'db-header-cat' : variant === 'column' ? 'db-cat-column' : 'db-section';
   const sorted = useMemo(() => sortCardsInGroup(cards, cardSort), [cards, cardSort]);
-  const n = sorted.length;
+  const n = primaryCount != null ? primaryCount : sorted.length;
   const countLabel =
     target != null ? `(${n}/${target})` : `(${n})`;
-  const mismatch =
-    warnTarget &&
-    target != null &&
-    (primaryCount != null ? primaryCount : n) !== target;
+  const mismatch = warnTarget && target != null && n !== target;
+  const placeholderCount = categoryPlaceholderCount(n, target);
   const titleClass =
     variant === 'header' ? 'db-header-cat-title' : 'db-section-title';
 
@@ -251,6 +269,7 @@ export function DropSection({
         draggable={canDrop}
         onCardContextMenu={onCardContextMenu}
         categoryKey={category}
+        placeholderCount={placeholderCount}
       />
     </section>
   );

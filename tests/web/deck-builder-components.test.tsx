@@ -389,6 +389,26 @@ describe('MoveSheet', () => {
     expect(onClose).toHaveBeenCalled();
     expect(onApply).not.toHaveBeenCalled();
   });
+
+  it('moves into a newly typed category name', async () => {
+    const card = commanderDoc.cards[0] as CardInstance;
+    const onApply = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <MoveSheet deck={commanderDoc} cards={[card]} onClose={vi.fn()} onApply={onApply} />,
+    );
+
+    await user.selectOptions(screen.getByLabelText('Category'), '__new__');
+    await user.type(screen.getByLabelText('New category name'), 'Ramp');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(onApply).toHaveBeenCalled();
+    const next = onApply.mock.calls[0]![0] as DeckDocument;
+    const moved = next.cards.find((c) => c.instanceId === card.instanceId);
+    expect(moved?.primaryCategory).toBe('Ramp');
+    expect(next.categories.some((c) => c.name === 'Ramp')).toBe(true);
+  });
 });
 
 describe('SwapQueuePanel', () => {

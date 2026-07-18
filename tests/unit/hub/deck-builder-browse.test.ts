@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addSecondaryCategory,
   applyCategoryTargetWithSeed,
+  categoryPlaceholderCount,
   categoryTargetsMismatchCubeSize,
   deckHeaderTarget,
   deckSizeMismatch,
@@ -144,6 +145,25 @@ describe('browse grouping', () => {
     expect(part.excluded['Queued In']).toHaveLength(1);
     expect(part.excluded['Queued Out']).toHaveLength(1);
   });
+
+  it('includes empty categories only when target > 0', () => {
+    const deck = {
+      cards: [],
+      categories: [
+        { name: 'Ramp', includedInDeck: true, includedInPrice: true, target: 10 },
+        { name: 'Draw', includedInDeck: true, includedInPrice: true, target: 0 },
+        { name: 'Removal', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: 5 },
+      ],
+    };
+    const part = partitionCategories(deck);
+    expect(part.includedKeys).toContain('Ramp');
+    expect(part.included.Ramp).toEqual([]);
+    expect(part.includedKeys).not.toContain('Draw');
+    expect(part.includedKeys).not.toContain('Removal');
+    expect(part.excludedKeys).toContain('Maybeboard');
+    expect(part.excluded.Maybeboard).toEqual([]);
+  });
 });
 
 describe('secondary categories and multi browse', () => {
@@ -268,6 +288,15 @@ describe('secondary categories and multi browse', () => {
 });
 
 describe('category targets', () => {
+  it('categoryPlaceholderCount fills to target without counting overfill', () => {
+    expect(categoryPlaceholderCount(0, null)).toBe(0);
+    expect(categoryPlaceholderCount(0, 0)).toBe(0);
+    expect(categoryPlaceholderCount(3, 10)).toBe(7);
+    expect(categoryPlaceholderCount(10, 10)).toBe(0);
+    expect(categoryPlaceholderCount(12, 10)).toBe(0);
+    expect(categoryPlaceholderCount(-1, 5)).toBe(5);
+  });
+
   it('seeds other targets when the first target is set', () => {
     const deck = {
       cards: [

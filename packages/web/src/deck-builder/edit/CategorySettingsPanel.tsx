@@ -11,11 +11,13 @@ export function CategorySettingsPanel({
   deck,
   onChange,
   onClose,
+  onEditCategory,
   initialFocus = 'order',
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   onClose: () => void;
+  onEditCategory?: (name: string) => void;
   initialFocus?: 'order' | 'deck';
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -64,6 +66,7 @@ export function CategorySettingsPanel({
         target: null,
       },
     ]);
+    onEditCategory?.(trimmed);
   }
 
   return (
@@ -88,7 +91,7 @@ export function CategorySettingsPanel({
           <h4 id="db-cat-order-heading">Order</h4>
           <p className="db-meta">
             Drag rows to set Categories (Custom) browse order. New categories append at the end.
-            Edit name, targets, and inclusion by clicking a category title in browse.
+            Click a category name to edit targets and inclusion, or click a category title in browse.
           </p>
           <ul className="db-category-reorder-list">
             {rows.map((cat, index) => (
@@ -103,7 +106,13 @@ export function CategorySettingsPanel({
                 <span className="db-category-drag-handle" aria-hidden="true">
                   ⋮⋮
                 </span>
-                <span className="db-category-reorder-name">{cat.name}</span>
+                <button
+                  type="button"
+                  className="db-category-reorder-name"
+                  onClick={() => onEditCategory?.(cat.name)}
+                >
+                  {cat.name}
+                </button>
               </li>
             ))}
           </ul>

@@ -793,6 +793,10 @@ export function BrowseShell({
             });
           }}
           onClose={() => setCategoriesOpen(false)}
+          onEditCategory={(name) => {
+            setCategoriesOpen(false);
+            setEditingCategory(name);
+          }}
           initialFocus="order"
         />
       ) : null}

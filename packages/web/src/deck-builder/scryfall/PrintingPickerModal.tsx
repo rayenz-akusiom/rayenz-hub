@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  canonicalizeCategoryName,
   cardHasBackFace,
   fetchPrintings,
   mapScryfallCardToPrinting,
@@ -11,6 +12,8 @@ import {
 } from '@rayenz-hub/shared';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
+
+const NEW_CATEGORY_VALUE = '__new__';
 
 export function PrintingPickerModal({
   cardName,
@@ -56,6 +59,8 @@ export function PrintingPickerModal({
   const [category, setCategory] = useState(
     defaultCategory || categoryOptions?.[0] || 'Maybeboard',
   );
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -87,12 +92,22 @@ export function PrintingPickerModal({
 
   const anyFoil = prints.some(printingSupportsFoil);
 
+  function resolvedCategory(): string | undefined {
+    if (!categoryOptions) return undefined;
+    if (creatingNew) {
+      return canonicalizeCategoryName(newCategory.trim()) || undefined;
+    }
+    return category;
+  }
+
   function confirm() {
     if (!picked) return;
+    const cat = resolvedCategory();
+    if (categoryOptions && !cat) return;
     const printing = mapScryfallCardToPrinting(picked, {
       foil: foil && printingSupportsFoil(picked),
     });
-    onConfirm(printing, categoryOptions ? category : undefined, { proxy });
+    onConfirm(printing, cat, { proxy });
   }
 
   const card = (
@@ -127,20 +142,41 @@ export function PrintingPickerModal({
 
       <div className="db-picker-scroll">
         {categoryOptions?.length ? (
-          <label>
-            Category
-            <select
-              className="db-select"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {categoryOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
+          creatingNew ? (
+            <label>
+              New category
+              <input
+                className="db-input"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Category name"
+                aria-label="New category name"
+                autoFocus
+              />
+            </label>
+          ) : (
+            <label>
+              Category
+              <select
+                className="db-select"
+                value={category}
+                onChange={(e) => {
+                  if (e.target.value === NEW_CATEGORY_VALUE) {
+                    setCreatingNew(true);
+                    return;
+                  }
+                  setCategory(e.target.value);
+                }}
+              >
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value={NEW_CATEGORY_VALUE}>New category…</option>
+              </select>
+            </label>
+          )
         ) : null}
 
         {loading ? <p className="db-muted">Loading printings…</p> : null}
@@ -197,7 +233,7 @@ export function PrintingPickerModal({
         <button
           type="button"
           className="db-btn is-active"
-          disabled={!picked}
+          disabled={!picked || (Boolean(categoryOptions) && !resolvedCategory())}
           onClick={confirm}
         >
           {confirmLabel}

@@ -67,6 +67,62 @@ describe('CardGroup and DropSection', () => {
     });
     expect(onDropCard).toHaveBeenCalledWith('inst-1', 'Ramp');
   });
+
+  it('accepts drops into an empty section with a target', () => {
+    const onDropCard = vi.fn();
+    render(
+      <DropSection
+        category="Ramp"
+        cards={[]}
+        layout="grid"
+        onDropCard={onDropCard}
+        target={10}
+        primaryCount={0}
+        warnTarget
+      />,
+    );
+
+    expect(screen.getByText(/\(0\/10\)/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.db-card-placeholder')).toHaveLength(10);
+    const section = screen.getByText(/Ramp/).closest('section')!;
+    fireEvent.drop(section, {
+      dataTransfer: {
+        getData: (type: string) => (type === DRAG_MIME || type === 'text/plain' ? 'inst-1' : ''),
+      },
+    });
+    expect(onDropCard).toHaveBeenCalledWith('inst-1', 'Ramp');
+  });
+
+  it('appends placeholders to match target without inflating N', () => {
+    render(
+      <DropSection
+        category="Ramp"
+        cards={[cardAt(0)]}
+        layout="grid"
+        target={5}
+        primaryCount={1}
+        warnTarget
+      />,
+    );
+
+    expect(screen.getByText(/\(1\/5\)/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.db-card-placeholder')).toHaveLength(4);
+  });
+
+  it('uses primaryCount for N and placeholders in multi-inflated lists', () => {
+    render(
+      <DropSection
+        category="Ramp"
+        cards={[cardAt(0), cardAt(1)]}
+        layout="stacked"
+        target={5}
+        primaryCount={1}
+      />,
+    );
+
+    expect(screen.getByText(/\(1\/5\)/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.db-card-placeholder')).toHaveLength(4);
+  });
 });
 
 describe('DeckHeaderRow', () => {

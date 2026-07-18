@@ -38,6 +38,57 @@ describe('CategorySettingsPanel', () => {
     expect(screen.getByLabelText(/Cube target size/i)).toHaveValue(360);
     expect(screen.queryByLabelText(/Target for White/i)).not.toBeInTheDocument();
   });
+
+  it('opens edit when a category name is clicked', async () => {
+    const onEditCategory = vi.fn();
+    const user = userEvent.setup();
+    const deck: DeckDocument = {
+      ...cubeDoc,
+      categories: [
+        { name: 'White', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+    };
+
+    render(
+      <CategorySettingsPanel
+        deck={deck}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+        onEditCategory={onEditCategory}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'White' }));
+    expect(onEditCategory).toHaveBeenCalledWith('White');
+  });
+
+  it('adds a category and opens edit for the new name', async () => {
+    const onChange = vi.fn();
+    const onEditCategory = vi.fn();
+    const user = userEvent.setup();
+    vi.spyOn(window, 'prompt').mockReturnValue('Ramp');
+    const deck: DeckDocument = {
+      ...cubeDoc,
+      categories: [
+        { name: 'White', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+    };
+
+    render(
+      <CategorySettingsPanel
+        deck={deck}
+        onChange={onChange}
+        onClose={vi.fn()}
+        onEditCategory={onEditCategory}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Add category/i }));
+    expect(onChange).toHaveBeenCalled();
+    const last = onChange.mock.calls.at(-1)?.[0] as DeckDocument;
+    expect(last.categories.some((c) => c.name === 'Ramp')).toBe(true);
+    expect(onEditCategory).toHaveBeenCalledWith('Ramp');
+  });
 });
 
 describe('CategoryEditDialog', () => {

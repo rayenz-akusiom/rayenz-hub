@@ -26,5 +26,6 @@ export * from './deck-builder/card-types';
 export * from './deck-builder/category-names';
 export * from './mtg/option-key';
 export * from './mtg/swap-queue';
+export * from './mtg/archidekt-import-text';
 export * from './mtg/cut-candidates';
 export * from './mtg/suggestions-bundle';

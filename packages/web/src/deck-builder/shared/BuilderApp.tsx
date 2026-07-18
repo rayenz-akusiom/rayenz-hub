@@ -28,7 +28,16 @@ async function saveDualMode(doc: DeckDocument): Promise<{ saved: DeckDocument; a
   const saved = await store.saveDeck(doc);
   if (isApiConfigured()) {
     try {
-      await deckApi.apiPutDeck(saved);
+      const remote = await deckApi.apiPutDeck(saved);
+      // Deployed APIs that omit CategoryDef.target still bump updatedAt; keep Hub targets
+      // and re-save so local clock stays ahead of remote and refreshLibrary won't wipe IDB.
+      const reconciled = store.reconcileDeckAfterApiPut(saved, remote);
+      if (
+        reconciled.updatedAt !== saved.updatedAt ||
+        JSON.stringify(reconciled.categories) !== JSON.stringify(saved.categories)
+      ) {
+        return { saved: await store.saveDeck(reconciled) };
+      }
     } catch (e) {
       return { saved, apiError: e instanceof Error ? e.message : String(e) };
     }

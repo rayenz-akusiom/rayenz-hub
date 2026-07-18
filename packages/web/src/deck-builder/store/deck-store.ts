@@ -1,6 +1,8 @@
 import {
+  canonicalizeCategoryName,
   DeckDocumentSchema,
   toDeckSummary,
+  type CategoryDef,
   type DeckDocument,
   type DeckSummary,
 } from '@rayenz-hub/shared';
@@ -153,14 +155,52 @@ export async function deleteDeck(deckId: string): Promise<void> {
   writeLibraryIndex(readLibraryIndex().filter((s) => s.deckId !== deckId));
 }
 
-/** Last-write-wins merge by updatedAt (ISO strings). */
+function categoryTargetCount(categories: CategoryDef[] | undefined): number {
+  return (categories || []).filter((c) => c.target != null && Number.isFinite(c.target)).length;
+}
+
+/**
+ * Copy Hub-only category targets from donor onto winner when winner is missing them.
+ * Used when an older API build strips `target` on PUT but still bumps updatedAt.
+ */
+export function overlayCategoryTargets(
+  winner: DeckDocument,
+  donor: DeckDocument,
+): DeckDocument {
+  if (categoryTargetCount(winner.categories) > 0) return winner;
+  if (categoryTargetCount(donor.categories) === 0) return winner;
+  const donorByName = new Map(
+    (donor.categories || []).map((c) => [canonicalizeCategoryName(c.name), c]),
+  );
+  let changed = false;
+  const categories = (winner.categories || []).map((c) => {
+    if (c.target != null && Number.isFinite(c.target)) return c;
+    const d = donorByName.get(canonicalizeCategoryName(c.name));
+    if (d?.target == null || !Number.isFinite(d.target)) return c;
+    changed = true;
+    return { ...c, target: d.target };
+  });
+  return changed ? { ...winner, categories } : winner;
+}
+
+/** Last-write-wins merge by updatedAt (ISO strings), preserving Hub category targets. */
 export function mergeDeckDocuments(
   local: DeckDocument | null,
   remote: DeckDocument | null,
 ): DeckDocument | null {
   if (!local) return remote;
   if (!remote) return local;
-  return remote.updatedAt >= local.updatedAt ? remote : local;
+  const winner = remote.updatedAt >= local.updatedAt ? remote : local;
+  const donor = winner === remote ? local : remote;
+  return overlayCategoryTargets(winner, donor);
+}
+
+/** After API PUT: keep local category targets if the response dropped them. */
+export function reconcileDeckAfterApiPut(
+  local: DeckDocument,
+  remote: DeckDocument,
+): DeckDocument {
+  return overlayCategoryTargets(remote, local);
 }
 
 /** Test helper */

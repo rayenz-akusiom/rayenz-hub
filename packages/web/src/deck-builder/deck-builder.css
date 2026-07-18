@@ -693,11 +693,13 @@ body,
   flex-direction: column;
   align-items: flex-start;
   width: var(--db-card-w);
+  overflow-anchor: none;
 }
 
 .db-card-stack-item {
   position: relative;
   width: var(--db-card-w);
+  overflow-anchor: none;
 }
 
 .db-card-stack-item + .db-card-stack-item {

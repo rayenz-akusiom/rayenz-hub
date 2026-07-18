@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quick Stock At Top <Rayenz>
 // @namespace    neopets.quickstock
-// @version      2026-06-26-2
+// @version      2026-07-18
 // @description  Quick Stock toolbar at the top (submit, check-all) plus default-action sorting for common items.
 // @author       rayenz-akusiom
 // @match        https://www.neopets.com/quickstock.phtml*
@@ -30,6 +30,7 @@
             'Codestone',
             'Dubloon',
             'Paint Brush',
+            'Business Card',
         ],
         namePatterns: [
             /\b(Strength|Defence|Defense|Endurance|Level(?:\s|-)?Up|Hit Points)\b.*\b(Potion|Elixir|Serum|Negg|Drink|Smoothie|Soda|Juice|Shake|Slushie|Cocktail|Tea|Coffee|Chocolate|Cookie|Candy|Bar|Soup|Tonic|Flask|Vial|Beverage|Milkshake|Fizz|Pop|Cola|Muffin|Cake|Grog|Brew|Draught|Mixture|Concoction|Remedy|Medicine|Tablet|Capsule|Powder|Nectar|Ambrosia|Punch|Gummy|Lolly|Marshmallow|Truffle|Bonbon|Ice Cream)/i,
@@ -153,7 +154,7 @@
         link.id = DEFAULT_BTN_ID;
         link.href = '#';
         link.textContent = 'Default Actions';
-        link.title = 'Deposit codestones, dubloons, paint brushes, stat boosters, and map pieces (except lab / petpet lab / Forgotten Shore); stock everything else';
+        link.title = 'Deposit codestones, dubloons, paint brushes, business cards, stat boosters, and map pieces (except lab / petpet lab / Forgotten Shore); stock everything else';
         link.addEventListener('click', (event) => {
             event.preventDefault();
             applyDefaultActions(form, link);

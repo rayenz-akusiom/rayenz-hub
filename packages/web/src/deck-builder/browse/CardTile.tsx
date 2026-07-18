@@ -20,6 +20,7 @@ export function CardTile({
   actionLabel,
   onContextMenu,
   membership = 'primary',
+  swapInGhost = false,
 }: {
   card: CardView;
   onSelect?: SelectCardHandler;
@@ -29,6 +30,8 @@ export function CardTile({
   actionLabel?: string;
   onContextMenu?: (card: CardView, e: ReactMouseEvent) => void;
   membership?: CategoryMembership;
+  /** Formal swap In — temporary ghost styling in main browse. */
+  swapInGhost?: boolean;
 }) {
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
@@ -43,7 +46,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}`}
       onClick={(e) => onSelect?.(card, e)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -56,8 +59,8 @@ export function CardTile({
         e.preventDefault();
         onContextMenu(card, e);
       }}
-      title={displayName}
-      aria-label={actionLabel || displayName}
+      title={swapInGhost ? `${displayName} (swap in)` : displayName}
+      aria-label={actionLabel || (swapInGhost ? `${displayName}, swap in` : displayName)}
       aria-pressed={selected}
       draggable={draggable}
       onDragStart={(e) => {

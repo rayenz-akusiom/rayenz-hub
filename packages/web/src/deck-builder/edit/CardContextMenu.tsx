@@ -24,6 +24,7 @@ export function CardContextMenu({
   onClearCover,
   onMove,
   onMoveToDefault,
+  onAddToSwapQueue,
   onChangePrinting,
   onRemove,
   onRemoveSecondary,
@@ -46,6 +47,7 @@ export function CardContextMenu({
   onClearCover: () => void;
   onMove: () => void;
   onMoveToDefault?: () => void;
+  onAddToSwapQueue?: () => void;
   onChangePrinting: () => void;
   onRemove: () => void;
   onRemoveSecondary?: (category: string) => void;
@@ -183,6 +185,19 @@ export function CardContextMenu({
           }}
         >
           {multi ? `Move ${selectionCount} to default` : 'Move to default'}
+        </button>
+      ) : null}
+      {onAddToSwapQueue ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onAddToSwapQueue();
+            onClose();
+          }}
+        >
+          {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
         </button>
       ) : null}
       {!multi

@@ -27,11 +27,13 @@ import {
   moveCardCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
+  queueCardsAsOut,
   removeCardsFromDeck,
   removeSecondaryCategory,
   secondaryCategoriesOf,
   setCardsFoil,
   setCardsProxy,
+  syncCardsWithFormalSwaps,
   upsertOracle,
   type BrowseView,
   type CardView,
@@ -363,6 +365,11 @@ export function BrowseShell({
     commit(moveCardsToDefaultCategories(deckRef.current, selectionIdList));
   }
 
+  function onAddToSwapQueue() {
+    if (!selectionCount) return;
+    commit(queueCardsAsOut(deckRef.current, selectionIdList));
+  }
+
   function setViewAndPersist(next: BrowseView) {
     setView(next);
     if (deckRef.current.browseViewDefault !== next) {
@@ -428,7 +435,7 @@ export function BrowseShell({
             }
           : { ...e, sortIndex: i },
       );
-    commitPatch({ formalSwapEntries: entries });
+    commit(syncCardsWithFormalSwaps(current, entries));
     clearSwapEdit();
   }
 
@@ -437,7 +444,7 @@ export function BrowseShell({
     const entries = deckRef.current.formalSwapEntries
       .filter((e) => e.id !== draft.entryId)
       .map((e, i) => ({ ...e, sortIndex: i }));
-    commitPatch({ formalSwapEntries: entries });
+    commit(syncCardsWithFormalSwaps(deckRef.current, entries));
     clearSwapEdit();
   }
 
@@ -618,6 +625,9 @@ export function BrowseShell({
                 <button type="button" className="db-btn" onClick={onMoveToDefault}>
                   Move to default
                 </button>
+                <button type="button" className="db-btn" onClick={onAddToSwapQueue}>
+                  {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
+                </button>
                 {!multi ? (
                   <button
                     type="button"
@@ -702,13 +712,7 @@ export function BrowseShell({
             <SwapQueuePanel
               deck={deck}
               onChange={(next) => {
-                commitPatch({
-                  formalSwapEntries: next.formalSwapEntries,
-                  ...(next.cards !== deck.cards ? { cards: next.cards } : {}),
-                  ...(next.categories !== deck.categories
-                    ? { categories: next.categories }
-                    : {}),
-                });
+                commit(syncCardsWithFormalSwaps(deckRef.current, next.formalSwapEntries));
               }}
               draft={draft}
               onStartEdit={(entry) => {
@@ -844,6 +848,7 @@ export function BrowseShell({
           onClearCover={onClearCover}
           onMove={() => setMoveOpen(true)}
           onMoveToDefault={onMoveToDefault}
+          onAddToSwapQueue={onAddToSwapQueue}
           onChangePrinting={() => setPrintingOpen(true)}
           onRemove={onRemoveSelected}
           onRemoveSecondary={(category) => {

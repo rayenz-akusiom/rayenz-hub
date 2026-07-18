@@ -3,6 +3,7 @@ import {
   DECK_BUILDER_SETTINGS_EVENT,
   DEFAULT_DECK_BUILDER_SETTINGS,
   colourIdentitySectionsFor,
+  formalSwapInIds,
   groupByColourIdentity,
   partitionCategories,
   resolveDeckCards,
@@ -13,6 +14,7 @@ import {
   type CategoryDef,
   type DeckBuilderSettingsPayload,
   type DeckDocument,
+  type FormalSwapEntry,
 } from '@rayenz-hub/shared';
 import { loadDeckBuilderSettings } from '../../api/hub-api';
 import {
@@ -42,13 +44,14 @@ export function ColourIdentityBrowse({
   deckMetaWarn,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'formalSwapEntries'>
     | {
         cards: CardView[];
         categories: CategoryDef[];
         format?: DeckDocument['format'];
         oracle?: DeckDocument['oracle'];
         name?: string;
+        formalSwapEntries?: FormalSwapEntry[];
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -70,6 +73,13 @@ export function ColourIdentityBrowse({
   const resolvedDeck = useMemo(
     () => ({ ...deck, cards: resolvedCards }),
     [deck, resolvedCards],
+  );
+  const swapInIds = useMemo(
+    () =>
+      formalSwapInIds(
+        'formalSwapEntries' in deck ? deck.formalSwapEntries : undefined,
+      ),
+    [deck],
   );
 
   useEffect(() => {
@@ -111,15 +121,15 @@ export function ColourIdentityBrowse({
   const visibleOrder = useMemo(() => {
     const ciOpts = { style, separateLands };
     const headerIds = headerKeys.flatMap((cat) =>
-      sortCardsInGroup(header[cat] || [], cardSort, ciOpts).map((c) => c.instanceId),
+      sortCardsInGroup(header[cat] || [], cardSort, ciOpts, swapInIds).map((c) => c.instanceId),
     );
     const bodyIds = sectionOrder.flatMap((section) => {
       const list = groups[section];
       if (!list?.length) return [];
-      return sortCardsInGroup(list, cardSort, ciOpts).map((c) => c.instanceId);
+      return sortCardsInGroup(list, cardSort, ciOpts, swapInIds).map((c) => c.instanceId);
     });
     return [...headerIds, ...bodyIds];
-  }, [headerKeys, header, sectionOrder, groups, cardSort, style, separateLands]);
+  }, [headerKeys, header, sectionOrder, groups, cardSort, style, separateLands, swapInIds]);
 
   useEffect(() => {
     onVisibleOrderChange?.(visibleOrder);
@@ -129,7 +139,7 @@ export function ColourIdentityBrowse({
     .map((section) => {
       const list = groups[section];
       if (!list?.length) return null;
-      const sorted = sortCardsInGroup(list, cardSort, { style, separateLands });
+      const sorted = sortCardsInGroup(list, cardSort, { style, separateLands }, swapInIds);
       return (
         <section
           key={section}
@@ -146,6 +156,7 @@ export function ColourIdentityBrowse({
             onSelectCard={onSelectCard}
             draggable={Boolean(onDropCard)}
             onCardContextMenu={onCardContextMenu}
+            swapInIds={swapInIds}
           />
         </section>
       );
@@ -169,6 +180,7 @@ export function ColourIdentityBrowse({
         deckName={deckName}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
+        swapInIds={swapInIds}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

@@ -135,7 +135,7 @@ export function ensureCategoryDef(
   if (categories.some((c) => canonicalizeCategoryName(c.name) === canonical)) {
     return categories;
   }
-  const aside = canonical === 'Maybeboard';
+  const aside = canonical === 'Maybeboard' || isSwapQueueCategory(canonical);
   const proxies = canonical === PROXIES_CATEGORY;
   return [
     ...categories,

@@ -1073,6 +1073,15 @@ body,
   outline-offset: -2px;
 }
 
+.db-card-tile.is-swap-in-ghost::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
 .db-section.is-target-warn .db-section-title,
 .db-cat-column.is-target-warn .db-section-title,
 .db-section-title.is-target-warn,

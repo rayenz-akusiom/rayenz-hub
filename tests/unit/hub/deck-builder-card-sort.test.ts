@@ -109,4 +109,11 @@ describe('sortCardsInGroup', () => {
     const sorted = sortCardsInGroup([arvinox, unknownMana, bolt], 'mana_desc');
     expect(sorted.map((c) => c.instanceId)).toEqual(['a', 'b', 'd']);
   });
+
+  it('partitions swap-In ghosts to the end after normal sort', () => {
+    const ghosts = new Set(['a', 'c']);
+    const sorted = sortCardsInGroup([arvinox, bolt, counterspell], 'name_asc', undefined, ghosts);
+    // Normal A–Z: c, b, a → permanent b first, then ghosts c then a (stable within partition)
+    expect(sorted.map((c) => c.instanceId)).toEqual(['b', 'c', 'a']);
+  });
 });

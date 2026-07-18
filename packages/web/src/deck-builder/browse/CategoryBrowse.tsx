@@ -7,6 +7,7 @@ import {
   cardDisplayName,
   categoryPlaceholderCount,
   categoryTarget,
+  formalSwapInIds,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
   type BrowseView,
@@ -17,6 +18,7 @@ import {
   type CategoryMembership,
   type DeckDocument,
   type DeckFormat,
+  type FormalSwapEntry,
   categoryKeySortFor,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
@@ -97,6 +99,7 @@ export function CardGroup({
   onCardContextMenu,
   categoryKey,
   placeholderCount = 0,
+  swapInIds,
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
@@ -109,6 +112,8 @@ export function CardGroup({
   categoryKey?: string;
   /** Empty visual slots appended after real cards (target gap). */
   placeholderCount?: number;
+  /** Formal swap In instance ids — rendered as temporary ghosts. */
+  swapInIds?: ReadonlySet<string> | null;
 }) {
   const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
     <div
@@ -135,6 +140,7 @@ export function CardGroup({
               draggable={draggable}
               onContextMenu={onCardContextMenu}
               membership={card.membership || 'primary'}
+              swapInGhost={Boolean(swapInIds?.has(card.instanceId))}
             />
             <button
               type="button"
@@ -170,6 +176,7 @@ export function CardGroup({
           draggable={draggable}
           onContextMenu={onCardContextMenu}
           membership={card.membership || 'primary'}
+          swapInGhost={Boolean(swapInIds?.has(card.instanceId))}
         />
       ))}
       {placeholders}
@@ -192,6 +199,7 @@ export function DropSection({
   target = null,
   primaryCount,
   warnTarget = false,
+  swapInIds,
 }: {
   category: string;
   cards: Array<CardView & { membership?: CategoryMembership }>;
@@ -208,12 +216,16 @@ export function DropSection({
   /** Primary-only count for target warnings (multi browse may inflate `cards.length`). */
   primaryCount?: number;
   warnTarget?: boolean;
+  swapInIds?: ReadonlySet<string> | null;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
   const base =
     variant === 'header' ? 'db-header-cat' : variant === 'column' ? 'db-cat-column' : 'db-section';
-  const sorted = useMemo(() => sortCardsInGroup(cards, cardSort), [cards, cardSort]);
+  const sorted = useMemo(
+    () => sortCardsInGroup(cards, cardSort, undefined, swapInIds),
+    [cards, cardSort, swapInIds],
+  );
   const n = primaryCount != null ? primaryCount : sorted.length;
   const countLabel =
     target != null ? `(${n}/${target})` : `(${n})`;
@@ -270,6 +282,7 @@ export function DropSection({
         onCardContextMenu={onCardContextMenu}
         categoryKey={category}
         placeholderCount={placeholderCount}
+        swapInIds={swapInIds}
       />
     </section>
   );
@@ -415,6 +428,7 @@ export function DeckHeaderRow({
   deckName,
   deckMeta,
   deckMetaWarn,
+  swapInIds,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -429,6 +443,7 @@ export function DeckHeaderRow({
   deckName?: string;
   deckMeta?: string;
   deckMetaWarn?: boolean;
+  swapInIds?: ReadonlySet<string> | null;
 }) {
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
@@ -466,6 +481,7 @@ export function DeckHeaderRow({
               onEditCategory={onEditCategory}
               variant="header"
               cardSort={cardSort}
+              swapInIds={swapInIds}
             />
           </div>
         ) : null}
@@ -492,6 +508,7 @@ export function DeckHeaderRow({
               onEditCategory={onEditCategory}
               variant="header"
               cardSort={cardSort}
+              swapInIds={swapInIds}
             />
           </div>
         ))}
@@ -537,13 +554,14 @@ export function CategoryBrowse({
   browseView = 'category',
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name'>
+    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'formalSwapEntries'>
     | {
         cards: CardView[];
         categories: CategoryDef[];
         format?: DeckFormat;
         oracle?: DeckDocument['oracle'];
         name?: string;
+        formalSwapEntries?: FormalSwapEntry[];
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -568,6 +586,13 @@ export function CategoryBrowse({
   const format = ('format' in deck ? deck.format : undefined) || 'other';
   const multi = browseView === 'category_multi';
   const keySort = categoryKeySortFor(browseView, format);
+  const swapInIds = useMemo(
+    () =>
+      formalSwapInIds(
+        'formalSwapEntries' in deck ? deck.formalSwapEntries : undefined,
+      ),
+    [deck],
+  );
   const { header, included, excluded, headerKeys, includedKeys, excludedKeys } = useMemo(
     () =>
       partitionCategories(
@@ -584,17 +609,23 @@ export function CategoryBrowse({
   const visibleOrder = useMemo(() => {
     if (mode === 'aside') {
       return excludedKeys.flatMap((cat) =>
-        sortCardsInGroup(excluded[cat] || [], cardSort).map((c) => c.instanceId),
+        sortCardsInGroup(excluded[cat] || [], cardSort, undefined, swapInIds).map(
+          (c) => c.instanceId,
+        ),
       );
     }
     const headerIds = headerKeys.flatMap((cat) => {
       if (format === 'commander' && cat === 'Commander') {
         return (header[cat] || []).map((c) => c.instanceId);
       }
-      return sortCardsInGroup(header[cat] || [], cardSort).map((c) => c.instanceId);
+      return sortCardsInGroup(header[cat] || [], cardSort, undefined, swapInIds).map(
+        (c) => c.instanceId,
+      );
     });
     const bodyIds = includedKeys.flatMap((cat) =>
-      sortCardsInGroup(included[cat] || [], cardSort).map((c) => c.instanceId),
+      sortCardsInGroup(included[cat] || [], cardSort, undefined, swapInIds).map(
+        (c) => c.instanceId,
+      ),
     );
     return [...headerIds, ...bodyIds];
   }, [
@@ -607,6 +638,7 @@ export function CategoryBrowse({
     included,
     cardSort,
     format,
+    swapInIds,
   ]);
 
   useEffect(() => {
@@ -635,6 +667,7 @@ export function CategoryBrowse({
             target={categoryTarget(categories, cat)}
             primaryCount={primaryCategoryCount(resolved, cat)}
             warnTarget={warnTargets}
+            swapInIds={swapInIds}
           />
         ))}
       </div>
@@ -658,6 +691,7 @@ export function CategoryBrowse({
       target={categoryTarget(categories, cat)}
       primaryCount={primaryCategoryCount(resolved, cat)}
       warnTarget={warnTargets}
+      swapInIds={swapInIds}
     />
   );
 
@@ -699,6 +733,7 @@ export function CategoryBrowse({
         deckName={deckName}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
+        swapInIds={swapInIds}
       />
       {body}
     </div>

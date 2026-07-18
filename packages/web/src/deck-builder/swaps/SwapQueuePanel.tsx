@@ -7,6 +7,7 @@ import {
   incompleteEntryCount,
   isSwapQueueCategory,
   resolveDeckCards,
+  syncCardsWithFormalSwaps,
   type CardView,
   type DeckDocument,
   type FormalSwapEntry,
@@ -388,11 +389,7 @@ export function SwapQueuePanel({
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
 
   function updateEntries(next: FormalSwapEntry[]) {
-    onChange({
-      ...deck,
-      formalSwapEntries: next.map((e, i) => ({ ...e, sortIndex: i })),
-      updatedAt: new Date().toISOString(),
-    });
+    onChange(syncCardsWithFormalSwaps(deck, next));
   }
 
   return (

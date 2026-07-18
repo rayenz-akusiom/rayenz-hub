@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared';
-import { moveCardCategory } from '@rayenz-hub/shared';
+import { moveCardCategory, syncCardsWithFormalSwaps } from '@rayenz-hub/shared';
 import { LibraryView } from '../../packages/web/src/deck-builder/library/LibraryView';
 import { FormatBadge } from '../../packages/web/src/deck-builder/ui/FormatBadge';
 import { DbMenu, DbMenuItem } from '../../packages/web/src/deck-builder/ui/DbMenu';
@@ -10,6 +10,7 @@ import { ExportBar } from '../../packages/web/src/deck-builder/import-export/Exp
 import { MoveSheet } from '../../packages/web/src/deck-builder/edit/MoveSheet';
 import { SwapQueuePanel } from '../../packages/web/src/deck-builder/swaps/SwapQueuePanel';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
+import { CategoryBrowse } from '../../packages/web/src/deck-builder/browse/CategoryBrowse';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
@@ -349,6 +350,92 @@ describe('BrowseShell selection and context menu', () => {
         ]),
       }),
     );
+  });
+
+  it('adds the selected card to the swap queue from the context menu', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const deck = foilDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+
+    const tile = screen.getByRole('button', { name: new RegExp(card.name, 'i') });
+    fireEvent.contextMenu(tile);
+    await user.click(screen.getByRole('menuitem', { name: 'Add to swap queue' }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formalSwapEntries: [
+          expect.objectContaining({
+            inInstanceId: null,
+            outInstanceId: card.instanceId,
+            sortIndex: 0,
+          }),
+        ],
+        cards: expect.arrayContaining([
+          expect.objectContaining({
+            instanceId: card.instanceId,
+            primaryCategory: 'Queued Out',
+          }),
+        ]),
+      }),
+    );
+  });
+});
+
+describe('CategoryBrowse swap-In ghosts', () => {
+  it('marks formal Ins as ghosts and sorts them after permanent cards', () => {
+    const creatureA = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'ghost-1',
+      name: 'Alpha Ghost',
+      primaryCategory: 'Creature',
+      categories: ['Creature'],
+    };
+    const creatureB = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'perm-1',
+      name: 'Zebra Beast',
+      primaryCategory: 'Creature',
+      categories: ['Creature'],
+    };
+    const synced = syncCardsWithFormalSwaps(
+      {
+        ...commanderDoc,
+        cardLayoutDefault: 'grid',
+        cards: [creatureA, creatureB, ...commanderDoc.cards.slice(1)],
+      },
+      [
+        {
+          id: 's1',
+          inInstanceId: 'ghost-1',
+          outInstanceId: null,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    );
+
+    const { container } = render(
+      <CategoryBrowse deck={synced} layout="grid" cardSort="name_asc" />,
+    );
+
+    const ghost = screen.getByRole('button', { name: /Alpha Ghost, swap in/i });
+    expect(ghost).toHaveClass('is-swap-in-ghost');
+
+    const creatureSection = Array.from(
+      container.querySelectorAll('.db-section, .db-cat-column'),
+    ).find((el) => el.textContent?.includes('Creature'));
+    expect(creatureSection).toBeTruthy();
+    const tiles = within(creatureSection as HTMLElement).getAllByRole('button');
+    const names = tiles.map((t) => t.getAttribute('aria-label') || '');
+    // A–Z alone would put Alpha before Zebra; ghost partition puts permanent Zebra first.
+    const permIdx = names.findIndex((n) => n.includes('Zebra Beast'));
+    const ghostIdx = names.findIndex((n) => n.includes('Alpha Ghost'));
+    expect(permIdx).toBeGreaterThanOrEqual(0);
+    expect(ghostIdx).toBeGreaterThan(permIdx);
   });
 });
 

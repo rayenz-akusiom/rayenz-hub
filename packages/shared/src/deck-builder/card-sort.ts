@@ -37,11 +37,13 @@ function colourIdentityRank(
 /**
  * Sort cards within a browse group. Missing mana / CI sort last.
  * Stable ties: display name, then instanceId.
+ * When `ghostIds` is set, those cards are stable-partitioned to the end (above placeholders).
  */
 export function sortCardsInGroup(
   cards: CardView[],
   mode: CardSortMode,
   options?: ColourIdentityOptionsInput,
+  ghostIds?: ReadonlySet<string> | null,
 ): CardView[] {
   const list = [...cards];
   list.sort((a, b) => {
@@ -65,5 +67,12 @@ export function sortCardsInGroup(
     }
     return compareDisplayName(a, b);
   });
-  return list;
+  if (!ghostIds?.size) return list;
+  const permanent: CardView[] = [];
+  const ghosts: CardView[] = [];
+  for (const card of list) {
+    if (ghostIds.has(card.instanceId)) ghosts.push(card);
+    else permanent.push(card);
+  }
+  return [...permanent, ...ghosts];
 }

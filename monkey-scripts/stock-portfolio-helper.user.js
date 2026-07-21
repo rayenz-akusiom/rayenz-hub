@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stock Portfolio Helper <Rayenz>
 // @namespace    neopets.stock
-// @version      2026-06-20-4
+// @version      2026-07-21
 // @description  Reorganizes the stock portfolio into buy/sell/other sections with quick buy and sell-all actions.
 // @author       rayenz-akusiom
 // @match        https://www.neopets.com/stockmarket.phtml?type=portfolio
@@ -299,8 +299,11 @@
         const atBuyPrice = groups
             .filter((g) => g.currentPrice === BUY_PRICE)
             .sort((a, b) => a.qty - b.qty);
-        const atSellPrice = groups
-            .filter((g) => g.currentPrice >= SELL_PRICE)
+        const atSellPriceMulti = groups
+            .filter((g) => g.currentPrice >= SELL_PRICE && g.qty > 1)
+            .sort((a, b) => b.qty - a.qty);
+        const atSellPriceSingle = groups
+            .filter((g) => g.currentPrice >= SELL_PRICE && g.qty <= 1)
             .sort((a, b) => b.qty - a.qty);
         const rest = groups
             .filter((g) => g.currentPrice !== BUY_PRICE && g.currentPrice < SELL_PRICE)
@@ -308,7 +311,15 @@
 
         const orderedSections = [
             { title: `Stocks at ${BUY_PRICE} NP (least owned first)`, items: atBuyPrice },
-            { title: `Stocks at or above ${SELL_PRICE} NP (most owned first)`, items: atSellPrice, sellAll: true },
+            {
+                title: `Stocks at or above ${SELL_PRICE} NP with more than 1 share (most owned first)`,
+                items: atSellPriceMulti,
+                sellAll: true,
+            },
+            {
+                title: `Stocks at or above ${SELL_PRICE} NP with 1 share`,
+                items: atSellPriceSingle,
+            },
             { title: 'Other stocks (highest market value first)', items: rest },
         ];
 

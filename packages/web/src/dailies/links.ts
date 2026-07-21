@@ -102,6 +102,13 @@ export const DAILIES_LINKS: DailyLink[] = [
     img: IMG + 'sch_high_security_lunchbox.gif',
   },
   {
+    id: 'quick-stock',
+    label: 'Quick Stock',
+    group: 1,
+    url: 'https://www.neopets.com/quickstock.phtml',
+    img: 'https://images.neopets.com/themes/h5/constellations/images/inventory-icon.svg',
+  },
+  {
     id: 'gallery',
     label: 'Gallery',
     group: 1,

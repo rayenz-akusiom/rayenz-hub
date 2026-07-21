@@ -1,0 +1,278 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm 
+help npmrc` for supported config options.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> test:unit
+> vitest run tests/unit tests/unit/hub/dailies-itemdb.test.ts
+
+ DEPRECATED  "environmentMatchGlobs" is deprecated. Use `test.projects` to define different configurations instead.
+
+ RUN  v3.2.7 C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub
+
+ Γ£ô tests/unit/hub/hub-utils.test.ts (20 tests) 48ms
+stderr | Fetch.onError 
+(file:\C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub\node_modules\happy-dom\src\fetch\Fetch.ts:669:37)
+AggregateError: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1747:14)
+        at afterConnectMultiple (node:net:1777:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1747:14)
+        at afterConnectMultiple (node:net:1777:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+
+stderr | HTMLLinkElement.#loadStyleSheet (file:\C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub\node_modules\happy-d
+om\src\nodes\html-link-element\HTMLLinkElement.ts:474:31)
+DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL 
+"http://localhost:3000/apps/foo/foo.css": 
+    at Fetch.onError 
+(file:///C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub/node_modules/happy-dom/src/fetch/Fetch.ts:671:4)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at Socket.socketErrorListener (node:_http_client:593:5)
+    at Socket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:90:21)
+
+ Γ£ô tests/unit/hub/deck-builder-store.test.ts (4 tests) 355ms
+   Γ£ô deck-store local persistence > saves and reloads a deck without network  350ms
+ Γ£ô tests/unit/hub/dailies-timed.test.ts (7 tests) 23ms
+stdout | tests/unit/hub/dailies-wishing-well.test.ts > dailies wishing well state > recordWishingOutcome persists error state
+[Dailies Wishing Well] state {"formatVersion":1,"periodKey":"2026-6-17-day","wish":"","donation":21,"lastWishCount":null,"status":"error","lastError":"Not enough Neopoints for that donation.","updatedAt":1784321733094}
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb picker > loads list data without items call when every row has isHidden defined
+[Dailies ItemDB] chosen item Books book-list {"itemIid":2,"name":"Cheap Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] Books (book-list): items=1 picked="Cheap Item" 100 NP source=network cacheAge=0m blacklist=0 sessionSkips=0 | fetches: list-info + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb picker > merges items endpoint when itemInfo has partial isHidden flags
+[Dailies ItemDB] chosen item Books book-list {"itemIid":1,"name":"Neopolitan Magazine","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] Books (book-list): items=1 picked="Neopolitan Magazine" 500 NP source=network cacheAge=0m blacklist=0 sessionSkips=0 | fetches: list-info + items + itemdata
+
+ Γ£ô tests/unit/hub/dailies-wishing-well.test.ts (10 tests) 32ms
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb picker > merges items endpoint when itemInfo lacks isHidden flags entirely
+[Dailies ItemDB] Stamps (stamp-list): items=0 picked=none source=network cacheAge=0m blacklist=0 sessionSkips=0 | fetches: list-info + items + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb picker > falls back to items endpoint when list info has no itemInfo
+[Dailies ItemDB] chosen item Books book-list {"itemIid":3,"name":"Fallback Item","priceNp":200,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] Books (book-list): items=1 picked="Fallback Item" 200 NP source=network cacheAge=0m blacklist=0 sessionSkips=0 | fetches: list-info + items + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb picker > surfaces session expired on 401
+[Dailies ItemDB] Books (book-list): error ΓÇö ItemDB session expired ΓÇö visit itemdb.com.br (log in if needed), then refresh | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > only fetches uncached list when others are cached
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Cached Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Cached Item" 100 NP source=cached cacheAge=975d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > only fetches uncached list when others are cached
+[Dailies ItemDB] chosen item stamps stamp-a {"itemIid":2,"name":"New Item","priceNp":200,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] stamps (stamp-a): items=1 picked="New Item" 200 NP source=network cacheAge=975d blacklist=0 sessionSkips=0 | fetches: list-info + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > fetches at most one uncached list per visit
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Item" 100 NP source=network cacheAge=975d blacklist=0 sessionSkips=0 | fetches: list-info + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > 429 sets rateLimitedUntil and skips further fetches
+[Dailies ItemDB] books (book-a): error ΓÇö ItemDB rate limit or temporary outage ΓÇö wait and refresh | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > uncached list wins fetch slot over due TTL refresh
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Stale Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Stale Item" 100 NP source=cached cacheAge=976d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > uncached list wins fetch slot over due TTL refresh
+[Dailies ItemDB] chosen item stamps stamp-a {"itemIid":2,"name":"Fresh Item","priceNp":50,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] stamps (stamp-a): items=1 picked="Fresh Item" 50 NP source=network cacheAge=975d blacklist=0 sessionSkips=0 | fetches: list-info + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > all cached and rate limited serves cache without network
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Item" 100 NP source=cached cacheAge=975d blacklist=0 sessionSkips=0 | fetches: none
+[Dailies ItemDB] chosen item stamps stamp-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] stamps (stamp-a): items=1 picked="Item" 100 NP source=cached cacheAge=975d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > warm path refreshes at most one due list
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Item" 100 NP source=cached cacheAge=976d blacklist=0 sessionSkips=0 | fetches: none
+[Dailies ItemDB] chosen item stamps stamp-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] stamps (stamp-a): items=1 picked="Item" 100 NP source=cached cacheAge=975d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > warm path refreshes at most one due list
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Item" 100 NP source=network cacheAge=975d blacklist=0 sessionSkips=0 | fetches: list-info + itemdata
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > 2h gate blocks refresh when lastAnyRefreshAt is too recent
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Item","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Item" 100 NP source=cached cacheAge=976d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > skipCurrentItem session-skips and re-picks without persisting blacklist
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Next","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=2 picked="Next" 500 NP source=cached cacheAge=975d blacklist=0 sessionSkips=1 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > blacklist persists across cache refresh
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Next","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=2 picked="Next" 500 NP source=cached cacheAge=975d blacklist=1 sessionSkips=1 | fetches: none
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Next","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=2 picked="Next" 500 NP source=cached cacheAge=975d blacklist=1 sessionSkips=1 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > clearBlacklist clears one list and re-picks previously blacklisted items
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Mid","priceNp":300,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=3 picked="Mid" 300 NP source=cached cacheAge=975d blacklist=1 sessionSkips=1 | fetches: none
+[Dailies ItemDB] chosen item books book-a {"itemIid":3,"name":"Next","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=3 picked="Next" 500 NP source=cached cacheAge=975d blacklist=2 sessionSkips=1 | fetches: none
+[Dailies ItemDB] stamps (stamp-a): items=1 picked=none source=cached cacheAge=975d blacklist=1 sessionSkips=0 | fetches: none
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Mid","priceNp":300,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=3 picked="Mid" 300 NP source=cached cacheAge=975d blacklist=0 sessionSkips=1 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > session skip clears on clearSessionSkips
+[Dailies ItemDB] chosen item books book-a {"itemIid":2,"name":"Next","priceNp":500,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=2 picked="Next" 500 NP source=cached cacheAge=975d blacklist=0 sessionSkips=1 | fetches: none
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Cheap","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=2 picked="Cheap" 100 NP source=cached cacheAge=975d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > warm refresh failure serves cached pick
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Cached Book","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Cached Book" 100 NP source=cached cacheAge=976d blacklist=0 sessionSkips=0 | fetches: none
+
+stdout | tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > warm refresh failure serves cached pick
+[Dailies ItemDB] books (book-a): error ΓÇö ItemDB temporarily unavailable ΓÇö try again later | fetches: none
+[Dailies ItemDB] chosen item books book-a {"itemIid":1,"name":"Cached Book","priceNp":100,"image":null,"shopWizardUrl":null,"description":null}
+[Dailies ItemDB] books (book-a): items=1 picked="Cached Book" 100 NP source=cached-fallback cacheAge=976d blacklist=0 sessionSkips=0 | fetches: none
+
+ Γ¥» tests/unit/hub/dailies-itemdb.test.ts (39 tests | 1 failed) 60ms
+   Γ£ô dailies itemdb picker > picks cheapest non-hidden tradeable item by ItemDB price 3ms
+   Γ£ô dailies itemdb picker > itemdbUrlForWishlistItem uses kebab-case item name 1ms
+   Γ£ô dailies itemdb picker > normalize stores itemIid and omits itemdbId 0ms
+   Γ£ô dailies itemdb picker > skips hidden cheapest item and picks next cheapest visible item 0ms
+   Γ£ô dailies itemdb picker > skips hidden and NC items 0ms
+   Γ£ô dailies itemdb picker > treats isHidden false and undefined as visible 0ms
+   Γ£ô dailies itemdb picker > itemInfoNeedsItemsMerge is true when any row lacks isHidden 0ms
+   Γ£ô dailies itemdb picker > mergeListItemRows marks hidden when either source has isHidden true 0ms
+   Γ£ô dailies itemdb picker > normalize excludes hidden items from cached list 1ms
+   Γ£ô dailies itemdb picker > falls back to first eligible item when none have prices 0ms
+   Γ£ô dailies itemdb picker > sorts priced items before zero NP in normalized cache 0ms
+   Γ£ô dailies itemdb picker > picks zero NP only when no priced eligible items remain 0ms
+   Γ£ô dailies itemdb picker > pickFirstWishlistItem skips local skip ids 0ms
+   Γ£ô dailies itemdb picker > 503 maps to unavailable not rate limit 0ms
+   Γ£ô dailies itemdb picker > 429 mentions outage as well as rate limit 0ms
+   Γ£ô dailies itemdb picker > returns no-bridge when userscript bridge is unavailable 0ms
+   Γ£ô dailies itemdb picker > loads list data without items call when every row has isHidden defined 22ms
+   Γ£ô dailies itemdb picker > merges items endpoint when itemInfo has partial isHidden flags 1ms
+   Γ£ô dailies itemdb picker > merges items endpoint when itemInfo lacks isHidden flags entirely 0ms
+   Γ£ô dailies itemdb picker > falls back to items endpoint when list info has no itemInfo 0ms
+   Γ£ô dailies itemdb picker > surfaces session expired on 401 0ms
+   Γ£ô dailies itemdb cache and skip > cache read/write round-trips v2 normalized items 1ms
+   Γ£ô dailies itemdb cache and skip > migrates legacy local hidden into blacklist 0ms
+   Γ£ô dailies itemdb cache and skip > migrates cache localSkipIds into blacklist 0ms
+   Γ£ô dailies itemdb cache and skip > rejects legacy v1 cache format 0ms
+   Γ£ô dailies itemdb cache and skip > retries cache save without descriptions on quota failure 2ms
+   Γ£ô dailies itemdb cache and skip > only fetches uncached list when others are cached 1ms
+   Γ£ô dailies itemdb cache and skip > fetches at most one uncached list per visit 1ms
+   Γ£ô dailies itemdb cache and skip > 429 sets rateLimitedUntil and skips further fetches 0ms
+   Γ£ô dailies itemdb cache and skip > uncached list wins fetch slot over due TTL refresh 1ms
+   Γ£ô dailies itemdb cache and skip > all cached and rate limited serves cache without network 1ms
+   Γ£ô dailies itemdb cache and skip > warm path refreshes at most one due list 1ms
+   Γ£ô dailies itemdb cache and skip > 2h gate blocks refresh when lastAnyRefreshAt is too recent 1ms
+   Γ£ô dailies itemdb cache and skip > skipCurrentItem session-skips and re-picks without persisting blacklist 0ms
+   Γ£ô dailies itemdb cache and skip > blacklist persists across cache refresh 1ms
+   ├ù dailies itemdb cache and skip > clearBlacklist clears one list and re-picks previously blacklisted items 14ms
+     ΓåÆ expected 'Mid' to be 'Cheap' // Object.is equality
+   Γ£ô dailies itemdb cache and skip > session skip clears on clearSessionSkips 1ms
+   Γ£ô dailies itemdb cache and skip > scheduler picks oldest due cache first 0ms
+   Γ£ô dailies itemdb cache and skip > warm refresh failure serves cached pick 2ms
+ Γ£ô tests/unit/hub/hub-api-client-sync.test.ts (55 tests) 44ms
+ Γ£ô tests/unit/hub/deck-suggest-readiness.test.tsx (13 tests) 56ms
+ Γ£ô tests/unit/hub/deck-builder-cover.test.ts (8 tests) 31ms
+ Γ£ô tests/unit/hub/deck-review-logic.test.ts (44 tests) 45ms
+ Γ£ô tests/unit/hub/deck-suggest-debug.test.ts (14 tests) 34ms
+ Γ£ô tests/unit/hub/deck-suggest-rules.test.ts (10 tests) 35ms
+ Γ£ô tests/unit/hub/deck-suggest-export.test.ts (11 tests) 40ms
+ Γ£ô tests/unit/hub/deck-review-msh.test.ts (22 tests) 77ms
+ Γ£ô tests/unit/hub/deck-review.test.tsx (18 tests) 102ms
+ Γ£ô tests/unit/hub/order-reconcile-logic.test.ts (49 tests) 227ms
+ Γ£ô tests/unit/hub/archidekt-export.test.ts (65 tests) 36ms
+ Γ£ô tests/unit/hub/hub-progress.test.ts (10 tests) 29ms
+ Γ£ô tests/unit/hub/deck-suggest-queue-proxy.test.ts (15 tests) 34ms
+ Γ£ô tests/unit/hub/hub-storage-handoff.test.ts (34 tests) 31ms
+ Γ£ô tests/unit/hub/deck-suggest-deck-load.test.ts (10 tests) 26ms
+ Γ£ô tests/unit/hub/deck-suggest-generation.test.ts (2 tests) 26ms
+ Γ£ô tests/unit/hub/cut-candidates.test.ts (10 tests) 26ms
+ Γ£ô tests/unit/hub/deck-builder-colour-identity.test.ts (10 tests) 28ms
+ Γ£ô tests/unit/hub/order-reconcile.test.ts (18 tests) 32ms
+ Γ£ô tests/unit/hub/deck-builder-browse.test.ts (7 tests) 25ms
+ Γ£ô tests/unit/hub/deck-builder-scryfall.test.ts (17 tests) 29ms
+ Γ£ô tests/unit/hub/deck-builder-card-sort.test.ts (6 tests) 22ms
+ Γ£ô tests/unit/hub/deck-builder-import.test.ts (19 tests) 21ms
+ Γ£ô tests/unit/hub/order-reconcile-export.test.ts (45 tests) 18ms
+ Γ£ô tests/unit/hub/deck-suggest-data.test.ts (14 tests) 15ms
+ Γ£ô tests/unit/hub/deck-builder-oracle.test.ts (14 tests) 18ms
+ Γ£ô tests/unit/hub/neopets-bridge.test.ts (6 tests) 14ms
+ Γ£ô tests/unit/hub/email-parse.test.ts (15 tests) 13ms
+ Γ£ô tests/unit/hub/core-scripts.test.ts (6 tests) 12ms
+ Γ£ô tests/unit/hub/deck-suggest-rule-guards.test.ts (15 tests) 14ms
+ Γ£ô tests/unit/hub/deck-builder-swap-ci.test.ts (5 tests) 12ms
+ Γ£ô tests/unit/hub/deck-suggest-tagger.test.ts (8 tests) 10ms
+ Γ£ô tests/unit/hub/deck-suggest-pools.test.ts (7 tests) 11ms
+ Γ£ô tests/unit/hub/router.test.ts (13 tests) 9ms
+ Γ£ô tests/unit/hub/dailies-settings.test.ts (12 tests) 11ms
+ Γ£ô tests/unit/hub/scryfall-cache.test.ts (4 tests) 9ms
+ Γ£ô tests/unit/hub/deck-builder-enrich.test.ts (17 tests) 10ms
+ Γ£ô tests/unit/hub/deck-builder-quantities.test.ts (5 tests) 11ms
+ Γ£ô tests/unit/hub/deck-builder-edit.test.ts (6 tests) 10ms
+ Γ£ô tests/unit/hub/suggestions-bundle.test.ts (6 tests) 8ms
+ Γ£ô tests/unit/hub/deck-builder-card-faces.test.ts (7 tests) 6ms
+ Γ£ô tests/unit/hub/deck-builder-swap-pickers.test.ts (5 tests) 7ms
+ Γ£ô tests/unit/hub/deck-builder-formal-swaps.test.ts (3 tests) 5ms
+ Γ£ô tests/unit/hub/deck-builder-partner.test.ts (13 tests) 7ms
+ Γ£ô tests/unit/hub/dailies-main-pet.test.ts (6 tests) 6ms
+ Γ£ô tests/unit/hub/string-utils.test.ts (5 tests) 4ms
+ Γ£ô tests/unit/hub/deck-builder-export.test.ts (3 tests) 5ms
+ Γ£ô tests/unit/hub/deck-builder-commander-slots.test.ts (5 tests) 4ms
+ Γ£ô tests/unit/hub/deck-builder-sync.test.ts (1 test) 2ms
+ Γ£ô tests/unit/hub/install-hub-globals.test.ts (3 tests) 4ms
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 1 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  tests/unit/hub/dailies-itemdb.test.ts > dailies itemdb cache and skip > clearBlacklist clears one list and 
+re-picks previously blacklisted items
+AssertionError: expected 'Mid' to be 'Cheap' // Object.is equality
+
+Expected: "Cheap"
+Received: "Mid"
+
+ Γ¥» tests/unit/hub/dailies-itemdb.test.ts:754:32
+    752|       expect(window.DailiesItemdb.getBlacklistIds(listA)).toEqual([]);
+    753|       expect(window.DailiesItemdb.getBlacklistIds(listB)).toEqual([10]ΓÇª
+    754|       expect(target.item.name).toBe('Cheap');
+       |                                ^
+    755|    });
+    756| 
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/1]ΓÄ»
+
+
+ Test Files  1 failed | 54 passed (55)
+      Tests  1 failed | 795 passed (796)
+   Start at  16:55:31
+   Duration  6.06s (transform 2.66s, setup 0ms, collect 14.10s, tests 1.83s, environment 44.12s, prepare 8.55s)
+

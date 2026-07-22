@@ -13,11 +13,27 @@ function blockDrag(e: React.DragEvent) {
   e.stopPropagation();
 }
 
-/** Reserved light bar for target category (not deck name). */
-export function TileCategoryBar({ category }: { category?: string | null }) {
+/** Reserved light bar: deck (truncates first) then target category. */
+export function TileCategoryBar({
+  deck,
+  category,
+}: {
+  deck?: string | null;
+  category?: string | null;
+}) {
+  const deckText = deck?.trim() || '';
+  const categoryText = category?.trim() || '';
+  if (!deckText && !categoryText) {
+    return (
+      <div className="sq-tile-cat-bar">
+        <span className="sq-tile-cat-deck">{'\u00a0'}</span>
+      </div>
+    );
+  }
   return (
     <div className="sq-tile-cat-bar">
-      <span className="sq-tile-cat-target">{category?.trim() ? category : '\u00a0'}</span>
+      {deckText ? <span className="sq-tile-cat-deck">{deckText}</span> : null}
+      {categoryText ? <span className="sq-tile-cat-target">{categoryText}</span> : null}
     </div>
   );
 }
@@ -26,19 +42,21 @@ export function TileCategoryBar({ category }: { category?: string | null }) {
 export function SwapFaceTile({
   card,
   incomplete,
+  deckLabel,
   categoryLabel,
   actionLabel,
   onClick,
 }: {
   card: CardView | null;
   incomplete?: boolean;
+  deckLabel?: string | null;
   categoryLabel?: string | null;
   actionLabel: string;
   onClick?: () => void;
 }) {
   return (
     <div className={`sq-face-tile${incomplete ? ' is-draft' : ''}`}>
-      <TileCategoryBar category={categoryLabel} />
+      <TileCategoryBar deck={deckLabel} category={categoryLabel} />
       {card ? (
         <CardTile card={card} onSelect={onClick} actionLabel={actionLabel} />
       ) : (
@@ -55,6 +73,7 @@ export function SwapPairQueueTile({
   outCard,
   inCard,
   incomplete,
+  deckLabel,
   categoryLabel,
   actionLabel,
   cardWidthPx,
@@ -63,6 +82,7 @@ export function SwapPairQueueTile({
   outCard: CardView | null;
   inCard: CardView | null;
   incomplete?: boolean;
+  deckLabel?: string | null;
   categoryLabel?: string | null;
   actionLabel: string;
   cardWidthPx: number;
@@ -116,7 +136,7 @@ export function SwapPairQueueTile({
         title={actionLabel}
         aria-label={actionLabel}
       >
-        <TileCategoryBar category={categoryLabel} />
+        <TileCategoryBar deck={deckLabel} category={categoryLabel} />
         <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
       </button>
       {hover && pos

@@ -33,24 +33,44 @@ type PairUnit = {
   deckId: string;
   deckName: string;
   entryId: string;
+  category: string;
+  inCardName: string;
   inSource: WantSource | null;
   outSource: WantSource | null;
   incomplete: boolean;
 };
 
+function comparePairUnits(a: PairUnit, b: PairUnit): number {
+  return (
+    a.deckName.localeCompare(b.deckName) ||
+    a.category.localeCompare(b.category) ||
+    a.inCardName.localeCompare(b.inCardName) ||
+    a.key.localeCompare(b.key)
+  );
+}
+
 /** One Swaps tile per formal entry (In and/or Out sides). */
-function buildPairUnits(queuedIn: WantSource[], queuedOut: WantSource[]): PairUnit[] {
+function buildPairUnits(
+  queuedIn: WantSource[],
+  queuedOut: WantSource[],
+  decks: DeckDocument[],
+): PairUnit[] {
   const map = new Map<string, PairUnit>();
+  const byDeck = deckMap(decks);
 
   function ensure(s: WantSource): PairUnit {
     const key = `${s.deckId}:${s.entryId}`;
     let unit = map.get(key);
     if (!unit) {
+      const deck = byDeck.get(s.deckId);
+      const entry = deck?.formalSwapEntries?.find((e) => e.id === s.entryId);
       unit = {
         key,
         deckId: s.deckId,
         deckName: s.deckName,
         entryId: s.entryId,
+        category: entry?.inTargetCategory?.trim() || '',
+        inCardName: '',
         inSource: null,
         outSource: null,
         incomplete: s.pairIncomplete,
@@ -70,7 +90,11 @@ function buildPairUnits(queuedIn: WantSource[], queuedOut: WantSource[]): PairUn
     unit.outSource = s;
   }
 
-  return [...map.values()];
+  for (const unit of map.values()) {
+    unit.inCardName = unit.inSource?.cardName || unit.outSource?.cardName || '';
+  }
+
+  return [...map.values()].sort(comparePairUnits);
 }
 
 function withQty(card: CardView, quantity: number): CardView {
@@ -241,7 +265,13 @@ function TilesView({
 }) {
   const { widthPx } = useCardSize();
   const byDeck = deckMap(decks);
-  const pairs = buildPairUnits(queuedIn, queuedOut);
+  const pairs = buildPairUnits(queuedIn, queuedOut, decks);
+  const seekingSorted = [...seeking].sort(
+    (a, b) =>
+      a.deckName.localeCompare(b.deckName) ||
+      a.cardName.localeCompare(b.cardName) ||
+      a.entryId.localeCompare(b.entryId),
+  );
 
   return (
     <div className="sq-swimlanes" data-testid="queue-tiles-view" data-layout="tiles">
@@ -267,7 +297,6 @@ function TilesView({
               : inSrc?.outInstanceId
                 ? byId.get(inSrc.outInstanceId) || null
                 : null;
-            const entry = deck?.formalSwapEntries?.find((e) => e.id === unit.entryId);
             const openSrc = inSrc || outSrc!;
             return (
               <li key={unit.key}>
@@ -275,7 +304,8 @@ function TilesView({
                   outCard={outCard}
                   inCard={inCard}
                   incomplete={unit.incomplete}
-                  categoryLabel={entry?.inTargetCategory}
+                  deckLabel={unit.deckName}
+                  categoryLabel={unit.category || null}
                   actionLabel={`Swap, ${unit.deckName}`}
                   cardWidthPx={widthPx}
                   onClick={() => onSelect?.(openSrc)}
@@ -288,11 +318,11 @@ function TilesView({
 
       <SwimlaneSection
         lane="seeking"
-        hasItems={seeking.length > 0}
+        hasItems={seekingSorted.length > 0}
         emptyMessage="No Seeking cards."
       >
         <ul className="sq-lane-grid is-grid db-card-grid">
-          {seeking.map((s) => {
+          {seekingSorted.map((s) => {
             const deck = byDeck.get(s.deckId);
             const cards = deck ? resolveDeckCards(deck) : [];
             const card = cards.find((c) => c.instanceId === s.cardInstanceId) || null;
@@ -300,6 +330,7 @@ function TilesView({
               <li key={`${s.deckId}:${s.entryId}`}>
                 <SwapFaceTile
                   card={card}
+                  deckLabel={s.deckName}
                   actionLabel={`${s.cardName}, Seeking, ${s.deckName}`}
                   onClick={() => onSelect?.(s)}
                 />

@@ -130,12 +130,14 @@ describe('SwapQueueApp browse / layout', () => {
     expect(document.querySelector('.db-swap-pair')).toBeTruthy();
     const catBar = document.querySelector('.db-swap-pair .sq-tile-cat-bar');
     expect(catBar).toBeTruthy();
+    expect(catBar).toHaveTextContent('Commander Deck');
     expect(catBar).toHaveTextContent('Ramp');
+    expect(catBar?.querySelector('.sq-tile-cat-deck')).toHaveTextContent('Commander Deck');
+    expect(catBar?.querySelector('.sq-tile-cat-target')).toHaveTextContent('Ramp');
     expect(screen.queryByText('→ Ramp')).not.toBeInTheDocument();
-    expect(screen.queryByText('Commander Deck')).not.toBeInTheDocument();
   });
 
-  it('keeps category header height when target category is empty', async () => {
+  it('shows deck name in tile header when target category is empty', async () => {
     const deck = pairDeck();
     deck.formalSwapEntries[0]!.inTargetCategory = null;
     mockLoadSwapWantSources.mockResolvedValue({
@@ -146,7 +148,91 @@ describe('SwapQueueApp browse / layout', () => {
     await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
     const catBar = document.querySelector('.db-swap-pair .sq-tile-cat-bar');
     expect(catBar).toBeTruthy();
-    expect(catBar?.textContent?.trim()).toBe('');
+    expect(catBar?.querySelector('.sq-tile-cat-deck')).toHaveTextContent('Commander Deck');
+    expect(catBar?.querySelector('.sq-tile-cat-target')).toBeNull();
+  });
+
+  it('Tiles Swaps sort by deck then category then In card name', async () => {
+    const alpha: DeckDocument = {
+      ...pairDeck(),
+      deckId: 'd-alpha',
+      name: 'Alpha Deck',
+      cards: [
+        { ...pairDeck().cards[0]!, instanceId: 'a-in-b', name: 'Beta In' },
+        { ...pairDeck().cards[1]!, instanceId: 'a-out-b', name: 'Beta Out' },
+        { ...pairDeck().cards[0]!, instanceId: 'a-in-a', name: 'Alpha In' },
+        { ...pairDeck().cards[1]!, instanceId: 'a-out-a', name: 'Alpha Out' },
+        { ...pairDeck().cards[0]!, instanceId: 'a-in-ramp', name: 'Zebra In' },
+        { ...pairDeck().cards[1]!, instanceId: 'a-out-ramp', name: 'Zebra Out' },
+      ],
+      formalSwapEntries: [
+        {
+          id: 'a-removal-beta',
+          inInstanceId: 'a-in-b',
+          outInstanceId: 'a-out-b',
+          inTargetCategory: 'Removal',
+          sortIndex: 0,
+          notes: null,
+        },
+        {
+          id: 'a-removal-alpha',
+          inInstanceId: 'a-in-a',
+          outInstanceId: 'a-out-a',
+          inTargetCategory: 'Removal',
+          sortIndex: 1,
+          notes: null,
+        },
+        {
+          id: 'a-ramp',
+          inInstanceId: 'a-in-ramp',
+          outInstanceId: 'a-out-ramp',
+          inTargetCategory: 'Ramp',
+          sortIndex: 2,
+          notes: null,
+        },
+      ],
+    };
+    const beta: DeckDocument = {
+      ...pairDeck(),
+      deckId: 'd-beta',
+      name: 'Beta Deck',
+      cards: [
+        { ...pairDeck().cards[0]!, instanceId: 'b-in', name: 'Sol Ring' },
+        { ...pairDeck().cards[1]!, instanceId: 'b-out', name: 'Cut Card' },
+      ],
+      formalSwapEntries: [
+        {
+          id: 'b1',
+          inInstanceId: 'b-in',
+          outInstanceId: 'b-out',
+          inTargetCategory: 'Ramp',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [beta, alpha],
+      sources: aggregateSwapWants([beta, alpha]),
+    });
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => {
+      expect(document.querySelectorAll('.db-swap-pair').length).toBe(4);
+    });
+    const bars = [...document.querySelectorAll('.db-swap-pair .sq-tile-cat-bar')].map((el) => ({
+      deck: el.querySelector('.sq-tile-cat-deck')?.textContent?.trim(),
+      category: el.querySelector('.sq-tile-cat-target')?.textContent?.trim(),
+    }));
+    expect(bars).toEqual([
+      { deck: 'Alpha Deck', category: 'Ramp' },
+      { deck: 'Alpha Deck', category: 'Removal' },
+      { deck: 'Alpha Deck', category: 'Removal' },
+      { deck: 'Beta Deck', category: 'Ramp' },
+    ]);
+    const inNames = [...document.querySelectorAll('.db-swap-pair .db-swap-pair-in img')].map((el) =>
+      el.getAttribute('alt')?.trim(),
+    );
+    expect(inNames).toEqual(['Zebra In', 'Alpha In', 'Beta In', 'Sol Ring']);
   });
 
   it('pair tiles inherit shell --db-card-w so size picker scales preview faces', async () => {

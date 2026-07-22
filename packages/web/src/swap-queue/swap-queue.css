@@ -118,6 +118,7 @@
 .sq-tile-cat-bar {
   display: flex;
   align-items: center;
+  gap: 0.4rem;
   flex-shrink: 0;
   width: 100%;
   min-height: 2rem;
@@ -133,14 +134,28 @@
   border-radius: 7px 7px 0 0;
 }
 
+/* Deck truncates first; category stays fully visible when possible. */
+.sq-tile-cat-deck {
+  flex: 1 1 auto;
+  min-width: 0;
+  opacity: 0.75;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
 .sq-tile-cat-target {
+  flex: 0 0 auto;
+  max-width: 100%;
   opacity: 0.9;
   font-weight: 700;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: 100%;
   text-align: left;
 }
 

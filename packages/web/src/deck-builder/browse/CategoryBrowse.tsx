@@ -260,16 +260,19 @@ export function DropSection({
           title={`Edit ${category}`}
           aria-label={`Edit ${category}`}
         >
-          <span className="db-section-title-text">
-            {category} <span className="db-count">{countLabel}</span>
-          </span>
+          <span className="db-section-title-text">{category}</span>
+          <span className="db-count">{countLabel}</span>
           <span className="db-section-title-pencil" aria-hidden="true">
             ✎
           </span>
         </button>
       ) : (
-        <h3 className={`${titleClass}${mismatch ? ' is-target-warn' : ''}`}>
-          {category} <span className="db-count">{countLabel}</span>
+        <h3
+          className={`${titleClass}${mismatch ? ' is-target-warn' : ''}`}
+          title={category}
+        >
+          <span className="db-section-title-text">{category}</span>{' '}
+          <span className="db-count">{countLabel}</span>
         </h3>
       )}
       <CardGroup

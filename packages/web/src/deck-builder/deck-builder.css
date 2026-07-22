@@ -15,7 +15,8 @@
   --db-card-aspect: 61 / 85;
   /* ~5.5% of width clips Scryfall JPEG white corners */
   --db-card-radius: calc(var(--db-card-w) * 0.055);
-  --db-swap-card-w: calc(var(--db-card-w) * 0.42);
+  /* Shells set --db-swap-card-w explicitly (aside XS / queue = picker). */
+  --db-swap-card-w: var(--db-card-w);
   --db-cat-gap: 0.5rem;
 }
 
@@ -547,8 +548,25 @@ body,
 }
 
 .db-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
   margin: 0 0 0.5rem;
   font-size: 1rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.db-section-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.db-section-title .db-count,
+.db-section-title-edit .db-count {
+  flex-shrink: 0;
 }
 
 .db-section-title-edit {
@@ -556,6 +574,8 @@ body,
   align-items: center;
   gap: 0.35rem;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin: 0 0 0.5rem;
   padding: 0;
   border: none;
@@ -568,12 +588,17 @@ body,
   color: inherit;
 }
 
+.db-section-title-edit .db-section-title-text {
+  flex: 1 1 auto;
+}
+
 .db-section-title-edit:hover .db-section-title-pencil,
 .db-section-title-edit:focus-visible .db-section-title-pencil {
   opacity: 1;
 }
 
 .db-section-title-pencil {
+  flex-shrink: 0;
   opacity: 0;
   font-size: 0.85em;
   color: var(--db-muted, #888);
@@ -1934,7 +1959,6 @@ body,
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
-  min-height: 11rem;
   -webkit-user-drag: none;
   user-select: none;
 }
@@ -1943,10 +1967,12 @@ body,
   border-style: dashed;
 }
 
-.db-swap-pair-stack {
+/* Preview: mini faces scale with --db-swap-card-w; slack for ±3–4deg rotation. */
+.db-swap-pair-stack,
+.db-swap-pair-stack.is-preview {
   position: relative;
-  height: 10.5rem;
-  width: calc(var(--db-swap-card-w) * 2 + 1.25rem);
+  height: calc(var(--db-swap-card-w) * var(--db-card-ratio) + var(--db-swap-card-w) * 0.35);
+  width: calc(var(--db-swap-card-w) * 2 + var(--db-swap-card-w) * 0.45);
   margin: 0 auto;
 }
 
@@ -1958,6 +1984,10 @@ body,
 .db-swap-pair-stack.is-full .db-swap-pair-out,
 .db-swap-pair-stack.is-full .db-swap-pair-in {
   width: var(--db-card-w);
+}
+
+.db-swap-pair-stack.is-full .db-swap-pair-out {
+  top: calc(var(--db-card-w) * 0.08);
 }
 
 .db-swap-pair-stack.is-full .db-swap-mini {
@@ -2012,12 +2042,12 @@ body,
   top: 48%;
   z-index: 3;
   transform: translate(-50%, -50%);
-  font-size: 1.1rem;
+  font-size: calc(var(--db-swap-card-w) * 0.18);
   color: #fff;
   background: rgba(20, 24, 28, 0.72);
   border-radius: 999px;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: calc(var(--db-swap-card-w) * 0.28);
+  height: calc(var(--db-swap-card-w) * 0.28);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
@@ -2031,7 +2061,7 @@ body,
 
 .db-swap-pair-out {
   left: 0;
-  top: 1.25rem;
+  top: calc(var(--db-swap-card-w) * 0.2);
   z-index: 1;
   transform: rotate(-4deg);
 }
@@ -2209,6 +2239,92 @@ body,
 .db-empty {
   color: var(--db-muted);
   font-size: 0.9rem;
+}
+
+.db-looking-for {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--db-border);
+}
+
+.db-looking-for-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.db-looking-for-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--db-border);
+  border-radius: 6px;
+  background: var(--db-bg, #fff);
+}
+
+.db-looking-for-name {
+  font-size: 0.85rem;
+}
+
+.db-unified-rows {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.db-unified-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--db-border);
+  border-radius: 8px;
+  background: var(--db-panel);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-unified-qty {
+  font-weight: 700;
+  min-width: 1.5rem;
+}
+
+.db-unified-name {
+  flex: 1 1 auto;
+}
+
+.db-unified-count {
+  color: var(--db-muted);
+  font-size: 0.85rem;
+}
+
+.db-unified-instances {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0 0 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.db-unified-instance-btn {
+  border: none;
+  background: transparent;
+  color: var(--db-accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.1rem 0;
+  text-align: left;
 }
 
 .db-profile {

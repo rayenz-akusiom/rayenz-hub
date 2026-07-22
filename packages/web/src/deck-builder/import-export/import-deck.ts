@@ -13,9 +13,11 @@ import {
   nameOrTypeLooksDual,
   scryfallImageFromId,
   seedFormalSwapsFromCategories,
+  seedLookingForFromCategories,
   upsertOracle,
   canonicalizeSwapCategory,
   canonicalizeCategoryName,
+  isLookingForCategory,
   isSwapQueueCategoryName,
   PROXIES_CATEGORY,
   type BrowseView,
@@ -122,6 +124,7 @@ export function emptyDeckDocument(opts: {
     cards: [],
     oracle: {},
     formalSwapEntries: [],
+    lookingForEntries: [],
     coverInstanceId: null,
     browseViewDefault: opts.browseViewDefault ?? defaultBrowseView(opts.format),
     cardLayoutDefault: 'stacked',
@@ -318,8 +321,10 @@ export function documentFromImportText(
 
   let categories: CategoryDef[] = catNames.map((name) => ({
     name,
-    includedInDeck: !isSwapQueueCategoryName(name) && name !== 'Maybeboard',
-    includedInPrice: !isSwapQueueCategoryName(name) && name !== 'Maybeboard',
+    includedInDeck:
+      !isSwapQueueCategoryName(name) && !isLookingForCategory(name) && name !== 'Maybeboard',
+    includedInPrice:
+      !isSwapQueueCategoryName(name) && !isLookingForCategory(name) && name !== 'Maybeboard',
   }));
 
   if (rawCards.some((c) => c.proxy)) {
@@ -341,6 +346,7 @@ export function documentFromImportText(
   const format = detectDeckFormat({ name, format: opts.formatHint });
   const cards = normalizeCardQuantities(rawCards, format, nextId);
   const formalSwapEntries = seedFormalSwapsFromCategories(cards, []);
+  const lookingForEntries = seedLookingForFromCategories(cards, []);
 
   return withForcedFormat(
     {
@@ -354,6 +360,7 @@ export function documentFromImportText(
     cards,
     oracle,
     formalSwapEntries,
+    lookingForEntries,
     coverInstanceId: null,
     browseViewDefault: null,
     cardLayoutDefault: 'stacked',
@@ -544,6 +551,10 @@ export function documentFromArchidektSnapshot(
 
     : seedFormalSwapsFromCategories(cards, []);
 
+  const lookingForEntries = keepSwaps
+    ? existing?.lookingForEntries || []
+    : seedLookingForFromCategories(cards, existing?.lookingForEntries || []);
+
 
 
   return withForcedFormat(
@@ -567,6 +578,8 @@ export function documentFromArchidektSnapshot(
     oracle,
 
     formalSwapEntries,
+
+    lookingForEntries,
 
     coverInstanceId: existing?.coverInstanceId ?? null,
 

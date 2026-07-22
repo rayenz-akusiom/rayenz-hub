@@ -35,6 +35,7 @@ const noop = () => {};
 
 afterEach(() => {
   cleanup();
+  localStorage.removeItem('rayenzHubPickerCardSize');
 });
 
 describe('FormatBadge', () => {
@@ -506,6 +507,8 @@ describe('SwapQueuePanel', () => {
     onCancelEdit: vi.fn(),
     onSaveEdit: vi.fn(),
     onRemoveEdit: vi.fn(),
+    onAddLookingFor: vi.fn(),
+    onRemoveLookingFor: vi.fn(),
   };
 
   it('adds swap entry and shows incomplete warning', async () => {
@@ -563,6 +566,39 @@ describe('SwapQueuePanel', () => {
     expect(screen.getByText('→ Creature')).toBeInTheDocument();
     await user.click(screen.getByTitle('Click to edit swap'));
     expect(onStartEdit).toHaveBeenCalledWith(deck.formalSwapEntries[0]);
+  });
+
+  it('freezes preview pair tiles to aside size while popout uses picker size', async () => {
+    localStorage.setItem('rayenzHubPickerCardSize', 'L');
+    window.dispatchEvent(new CustomEvent('rayenz-hub-card-size', { detail: 'L' }));
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const user = userEvent.setup();
+
+    render(
+      <SwapQueuePanel deck={deck} onChange={vi.fn()} draft={null} {...panelProps} />,
+    );
+
+    const panel = document.querySelector('.db-swaps') as HTMLElement;
+    expect(panel.style.getPropertyValue('--db-card-w')).toBe('63px');
+    expect(panel.style.getPropertyValue('--db-swap-card-w')).toBe('63px');
+    expect(document.querySelector('.db-swap-pair-stack.is-preview')).toBeTruthy();
+
+    await user.hover(screen.getByTitle('Click to edit swap'));
+    const popout = document.querySelector('.db-swap-pair-popout') as HTMLElement;
+    expect(popout).toBeInTheDocument();
+    expect(popout.style.getPropertyValue('--db-card-w')).toBe('310px');
   });
 
   it('shows incomplete warning and hides empty category text', () => {

@@ -7,6 +7,8 @@ export type HubPath =
   | '/deck-suggest'
   | '/deck-review'
   | '/order-reconcile'
+  | '/swap-queue'
+  | '/wishlist'
   | '/settings'
   | '/settings/dailies'
   | '/settings/deck-builder'
@@ -24,6 +26,33 @@ export type DeckBuilderRoute = {
 };
 
 export type BuilderFormat = 'commander' | 'cube';
+
+export type SwapQueueBrowseMode = 'default' | 'unified';
+
+export type SwapQueueLayoutMode = 'tiles' | 'stacked' | 'grid';
+
+/** @deprecated Use SwapQueueLayoutMode — kept for older imports during rename. */
+export type SwapQueueViewMode = 'queue_tiles' | 'queued_in';
+
+export function defaultBrowseForSwapQueuePath(
+  _path: string | null | undefined,
+): SwapQueueBrowseMode {
+  return 'default';
+}
+
+export function defaultLayoutForSwapQueuePath(
+  path: string | null | undefined,
+): SwapQueueLayoutMode {
+  if (path === '/wishlist' || path === 'wishlist') return 'grid';
+  return 'tiles';
+}
+
+/** @deprecated Use defaultLayoutForSwapQueuePath. */
+export function defaultViewForSwapQueuePath(
+  path: string | null | undefined,
+): SwapQueueViewMode {
+  return defaultLayoutForSwapQueuePath(path) === 'tiles' ? 'queue_tiles' : 'queued_in';
+}
 
 const BUILDER_PREFIX: Record<BuilderFormat, '/commander-builder' | '/cube-builder'> = {
   commander: '/commander-builder',
@@ -45,6 +74,8 @@ export const KNOWN_PATHS = new Set<string>([
   '/deck-suggest',
   '/deck-review',
   '/order-reconcile',
+  '/swap-queue',
+  '/wishlist',
   '/settings',
   '/settings/dailies',
   '/settings/deck-builder',
@@ -63,6 +94,8 @@ const LEGACY_APPS_SEGMENT_TO_HASH: Record<string, string> = {
   'deck-suggest': '#/deck-suggest',
   'deck-review': '#/deck-review',
   'order-reconcile': '#/order-reconcile',
+  'swap-queue': '#/swap-queue',
+  wishlist: '#/wishlist',
   settings: '#/settings/dailies',
 };
 
@@ -97,6 +130,10 @@ export function normalizeHash(hash: string | null | undefined): string {
 export function pathFromHash(hash?: string | null): HubPath {
   const normalized = normalizeHash(hash ?? window.location.hash);
   const path = normalized.slice(1);
+  // Draft path → Swap Queue
+  if (path === '/swap-wants') {
+    return '/swap-queue';
+  }
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;
   }

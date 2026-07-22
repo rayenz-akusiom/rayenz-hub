@@ -1,12 +1,15 @@
 import type { CardInstance, DeckDocument } from '../schemas/deck-builder.js';
 import { PROXIES_CATEGORY } from '../deck-builder/card-edits.js';
 import { applyFormalSwapsToCards } from '../deck-builder/formal-swaps.js';
+import { applyLookingForToCards } from '../deck-builder/looking-for.js';
 import {
+  SEEKING,
   SWAP_IN,
   SWAP_IN_LEGACY,
   SWAP_OUT,
   SWAP_OUT_LEGACY,
   canonicalizeSwapCategory,
+  isSeekingCategory,
   isSwapInCategory,
   isSwapOutCategory,
 } from './swap-queue.js';
@@ -88,7 +91,11 @@ function formatSingleCategoryWithFlags(
     }
   } else if (/^borrowed \(out\)$/i.test(category)) {
     bracket += '{noDeck}{noPrice}';
-  } else if (isSwapInCategory(category) || /^maybeboard$/i.test(category)) {
+  } else if (
+    isSwapInCategory(category) ||
+    isSeekingCategory(category) ||
+    /^maybeboard$/i.test(category)
+  ) {
     bracket += '{noDeck}{noPrice}';
   }
   return bracket;
@@ -263,8 +270,12 @@ function categoriesForCard(card: CardInstance): string[] {
 
 /** Build Archidekt replace-deck import text from a Hub deck document (per-line categories). */
 export function buildArchidektImportText(doc: DeckDocument): string {
-  const cards = applyFormalSwapsToCards(doc.cards, doc.formalSwapEntries, doc.format);
+  let cards = applyFormalSwapsToCards(doc.cards, doc.formalSwapEntries, doc.format);
+  cards = applyLookingForToCards(cards, doc.lookingForEntries || [], doc.format);
   const categorySettings = buildCategorySettings(doc);
+  if ((doc.lookingForEntries || []).length && !categorySettings[SEEKING]) {
+    categorySettings[SEEKING] = { includedInDeck: false, includedInPrice: false };
+  }
   if (cards.some((c) => c.proxy) && !categorySettings[PROXIES_CATEGORY]) {
     categorySettings[PROXIES_CATEGORY] = { includedInDeck: true, includedInPrice: false };
   }

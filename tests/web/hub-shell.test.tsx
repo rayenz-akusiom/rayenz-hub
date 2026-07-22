@@ -31,6 +31,13 @@ vi.mock('../../packages/web/src/deck-suggest/DeckSuggestApp', () => ({
 vi.mock('../../packages/web/src/order-reconcile/OrderReconcileApp', () => ({
   OrderReconcileApp: () => <div data-testid="order-reconcile">Order Reconcile</div>,
 }));
+vi.mock('../../packages/web/src/swap-queue/SwapQueueApp', () => ({
+  SwapQueueApp: ({ entryPath }: { entryPath?: string }) => (
+    <div data-testid="swap-queue" data-entry-path={entryPath ?? 'swap-queue'}>
+      Swap Queue
+    </div>
+  ),
+}));
 vi.mock('../../packages/web/src/SettingsShell', () => ({
   SettingsShell: ({ tab }: { tab?: string }) => (
     <div data-testid="settings" data-tab={tab ?? 'dailies'}>
@@ -73,6 +80,8 @@ describe('HubShell AppOutlet', () => {
     ['/deck-review', 'deck-review', undefined],
     ['/deck-suggest', 'deck-suggest', undefined],
     ['/order-reconcile', 'order-reconcile', undefined],
+    ['/swap-queue', 'swap-queue', undefined],
+    ['/wishlist', 'swap-queue', undefined],
     ['/settings', 'settings', 'dailies'],
     ['/settings/dailies', 'settings', 'dailies'],
     ['/settings/deck-builder', 'settings', 'deck-builder'],

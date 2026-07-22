@@ -7,6 +7,7 @@ import type {
 } from '../schemas/deck-builder.js';
 import { isSwapQueueCategory, moveCardCategory } from './browse.js';
 import { canonicalizeCategoryName } from './category-names.js';
+import { isLookingForCategory } from '../mtg/swap-queue.js';
 import { colourIdentitySection } from './colour-identity.js';
 import {
   emptyCardOracle,
@@ -135,7 +136,8 @@ export function ensureCategoryDef(
   if (categories.some((c) => canonicalizeCategoryName(c.name) === canonical)) {
     return categories;
   }
-  const aside = canonical === 'Maybeboard' || isSwapQueueCategory(canonical);
+  const aside =
+    canonical === 'Maybeboard' || isSwapQueueCategory(canonical) || isLookingForCategory(canonical);
   const proxies = canonical === PROXIES_CATEGORY;
   return [
     ...categories,

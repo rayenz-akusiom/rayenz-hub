@@ -40,13 +40,15 @@ import {
   type CardLayout,
   type CardSortMode,
   type DeckDocument,
-  type FormalSwapEntry,
   type PrintingFields,
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
-import { SwapQueuePanel, type SwapEditDraft } from '../swaps/SwapQueuePanel';
+import { UnifiedListBrowse } from './UnifiedListBrowse';
+import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
+import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chrome';
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
+import { addLookingForCard, removeLookingForEntry } from '../swaps/useSwapQueue';
 import { MoveSheet } from '../edit/MoveSheet';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
 import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
@@ -70,16 +72,6 @@ function BookIcon() {
       />
     </svg>
   );
-}
-
-function draftFromEntry(entry: FormalSwapEntry): SwapEditDraft {
-  return {
-    entryId: entry.id,
-    inInstanceId: entry.inInstanceId,
-    outInstanceId: entry.outInstanceId,
-    inTargetCategory: entry.inTargetCategory,
-    notes: entry.notes || '',
-  };
 }
 
 function isToggleModifier(e?: MouseEvent | ReactKeyboardEvent): boolean {
@@ -236,6 +228,7 @@ export function BrowseShell({
 
   const isColourIdentityView =
     view === 'colour_identity' || view === 'colour_identity_spells';
+  const isUnifiedListView = view === 'unified_list';
   // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
   const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
 
@@ -330,6 +323,15 @@ export function BrowseShell({
       return new Set([id]);
     });
     setSelectionAnchorId(id);
+  }
+
+  function onSelectUnifiedInstance(instanceId: string) {
+    setContextMenu(null);
+    setSelectedIds((prev) => {
+      if (prev.size === 1 && prev.has(instanceId)) return new Set();
+      return new Set([instanceId]);
+    });
+    setSelectionAnchorId(instanceId);
   }
 
   function onCardContextMenu(card: CardView, e: MouseEvent) {
@@ -446,6 +448,14 @@ export function BrowseShell({
       .map((e, i) => ({ ...e, sortIndex: i }));
     commit(syncCardsWithFormalSwaps(deckRef.current, entries));
     clearSwapEdit();
+  }
+
+  function onAddLookingFor(printing: PrintingFields, meta?: { proxy: boolean }) {
+    commit(addLookingForCard(deckRef.current, printing, meta));
+  }
+
+  function onRemoveLookingFor(entryId: string) {
+    commit(removeLookingForEntry(deckRef.current, entryId));
   }
 
   function onAddCard(
@@ -646,7 +656,14 @@ export function BrowseShell({
               </div>
             </div>
           ) : null}
-          {isColourIdentityView ? (
+          {isUnifiedListView ? (
+            <UnifiedListBrowse
+              deck={deck}
+              onSelectInstance={onSelectUnifiedInstance}
+              deckMeta={deckMeta}
+              deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+            />
+          ) : isColourIdentityView ? (
             <ColourIdentityBrowse
               deck={deck}
               selectedIds={selectedIds}
@@ -716,13 +733,15 @@ export function BrowseShell({
               }}
               draft={draft}
               onStartEdit={(entry) => {
-                setDraft(draftFromEntry(entry));
+                setDraft(draftFromFormalEntry(entry));
               }}
               onDraftChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
               onConfirmIn={onConfirmSwapIn}
               onCancelEdit={clearSwapEdit}
               onSaveEdit={saveSwapEdit}
               onRemoveEdit={removeSwapEdit}
+              onAddLookingFor={onAddLookingFor}
+              onRemoveLookingFor={onRemoveLookingFor}
             />
             <CategoryBrowse
               deck={deck}

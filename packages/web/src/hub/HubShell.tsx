@@ -7,6 +7,7 @@ import { DeckReviewApp } from '../deck-review/DeckReviewApp';
 import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
 import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
 import { OrderReconcileApp } from '../order-reconcile/OrderReconcileApp';
+import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
 import { SettingsShell, type SettingsTab } from '../SettingsShell';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
 import { HubNav } from './HubNav';
@@ -29,6 +30,8 @@ function AppOutlet({ path }: { path: string }) {
   if (path === '/deck-review') return <DeckReviewApp />;
   if (path === '/deck-suggest') return <DeckSuggestApp />;
   if (path === '/order-reconcile') return <OrderReconcileApp />;
+  if (path === '/swap-queue') return <SwapQueueApp entryPath="swap-queue" />;
+  if (path === '/wishlist') return <SwapQueueApp entryPath="wishlist" />;
   if (isSettingsPath(path)) {
     return <SettingsShell tab={settingsTabFromPath(path)} />;
   }

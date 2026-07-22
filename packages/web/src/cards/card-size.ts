@@ -13,6 +13,9 @@ export const CARD_SIZE_PX: Record<CardSizeKey, number> = {
   L: 310,
 };
 
+/** Builder aside swap-pair preview face width (legacy 0.42×S). Not a picker key. */
+export const CARD_SIZE_SWAP_ASIDE_PX = Math.round(CARD_SIZE_PX.S * 0.42); // 63
+
 export const CARD_SIZE_LABELS: Record<CardSizeKey, string> = {
   S: 'Small',
   M: 'Medium',

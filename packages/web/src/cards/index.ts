@@ -11,6 +11,7 @@ export {
   CARD_SIZE_KEYS,
   CARD_SIZE_LABELS,
   CARD_SIZE_PX,
+  CARD_SIZE_SWAP_ASIDE_PX,
   CARD_SIZE_STORAGE_KEY,
   loadCardSize,
   saveCardSize,

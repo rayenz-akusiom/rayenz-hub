@@ -1,10 +1,16 @@
 /** Canonical Archidekt swap-queue category names (Hub write/export). */
 export const SWAP_IN = 'Queued In';
 export const SWAP_OUT = 'Queued Out';
+export const SEEKING = 'Seeking';
 
 /** Legacy Archidekt names — still accepted when reading decks/snapshots. */
 export const SWAP_IN_LEGACY = 'New Set In';
 export const SWAP_OUT_LEGACY = 'New Set Out';
+/** Pre-Seeking category name; normalized to Seeking on read/canonicalize. */
+export const SEEKING_LEGACY = 'Looking For';
+
+/** @deprecated Use SEEKING — kept as alias during rename. */
+export const LOOKING_FOR = SEEKING;
 
 export type SnapshotCard = {
   name: string;
@@ -47,10 +53,19 @@ export function isSwapQueueCategoryName(name: string | null | undefined): boolea
   return isSwapInCategory(name) || isSwapOutCategory(name);
 }
 
-/** Map legacy New Set In/Out → Queued In/Out; leave other names unchanged. */
+export function isSeekingCategory(name: string | null | undefined): boolean {
+  const n = String(name || '');
+  return n === SEEKING || n === SEEKING_LEGACY;
+}
+
+/** @deprecated Use isSeekingCategory. */
+export const isLookingForCategory = isSeekingCategory;
+
+/** Map legacy names → canonical Queued In/Out / Seeking. */
 export function canonicalizeSwapCategory(name: string): string {
   if (isSwapInCategory(name)) return SWAP_IN;
   if (isSwapOutCategory(name)) return SWAP_OUT;
+  if (isSeekingCategory(name)) return SEEKING;
   return name;
 }
 
@@ -114,10 +129,15 @@ export function hasMaybeboardOnlySwapQueue(snapshot: DeckSnapshot | null | undef
 export const SwapQueue = {
   SWAP_IN,
   SWAP_OUT,
+  SEEKING,
+  LOOKING_FOR,
+  SEEKING_LEGACY,
   SWAP_IN_LEGACY,
   SWAP_OUT_LEGACY,
   isSwapInCategory,
   isSwapOutCategory,
+  isSeekingCategory,
+  isLookingForCategory,
   isSwapQueueCategoryName,
   canonicalizeSwapCategory,
   deriveSwapQueue,

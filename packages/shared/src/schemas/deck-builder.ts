@@ -16,6 +16,7 @@ export const BrowseViewSchema = z.enum([
   'category_multi',
   'colour_identity',
   'colour_identity_spells',
+  'unified_list',
 ]);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
 
@@ -94,6 +95,14 @@ export const FormalSwapEntrySchema = z.object({
 });
 export type FormalSwapEntry = z.infer<typeof FormalSwapEntrySchema>;
 
+export const LookingForEntrySchema = z.object({
+  id: z.string().min(1),
+  instanceId: z.string().min(1),
+  sortIndex: z.number().int().nonnegative().default(0),
+  notes: z.string().nullable().optional().default(null),
+});
+export type LookingForEntry = z.infer<typeof LookingForEntrySchema>;
+
 const DeckDocumentObjectSchema = z.object({
   schemaVersion: z.literal(1).or(z.number().int().positive()),
   deckId: z.string().min(1),
@@ -106,6 +115,7 @@ const DeckDocumentObjectSchema = z.object({
   /** Print-keyed oracle cache (id: / print: / name:). */
   oracle: z.record(z.string(), CardOracleSchema).default({}),
   formalSwapEntries: z.array(FormalSwapEntrySchema).default([]),
+  lookingForEntries: z.array(LookingForEntrySchema).default([]),
   /** When set and present in cards, library cover uses this instance instead of the heuristic. */
   coverInstanceId: z.string().nullable().default(null),
   browseViewDefault: BrowseViewSchema.nullable().default(null),

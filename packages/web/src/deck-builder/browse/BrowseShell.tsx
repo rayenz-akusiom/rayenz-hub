@@ -55,6 +55,7 @@ import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
 import { CategoryEditDialog } from '../edit/CategoryEditDialog';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
+import { GlanceGenerateButton } from '../commander/GlanceGenerateButton';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
@@ -604,6 +605,7 @@ export function BrowseShell({
             }
           }}
         />
+        {deck.format === 'commander' ? <GlanceGenerateButton deck={deck} /> : null}
       </header>
 
       <div className="db-body">

@@ -4,9 +4,9 @@ Description: Rayenz Hub API — local-first serverless backend
 
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 60
     Runtime: nodejs20.x
-    MemorySize: 256
+    MemorySize: 2048
     Architectures:
       - x86_64
 
@@ -150,6 +150,12 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/decks/{deckId}
             Method: DELETE
+        DeckGlance:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks/{deckId}/glance
+            Method: POST
         ReviewProgressGet:
           Type: HttpApi
           Properties:
@@ -182,6 +188,9 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - src/handler.ts
+        # Native module — must not be bundled (breaks Lambda init / SAM local).
+        External:
+          - sharp
 
   HubHttpApi:
     Type: AWS::Serverless::HttpApi
@@ -196,6 +205,7 @@ Resources:
         AllowMethods:
           - GET
           - PUT
+          - POST
           - DELETE
           - OPTIONS
 

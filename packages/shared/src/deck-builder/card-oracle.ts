@@ -39,6 +39,7 @@ export function emptyCardOracle(over: Partial<CardOracle> = {}): CardOracle {
   return {
     scryfallId: null,
     colourIdentity: [],
+    colours: null,
     typeLine: null,
     layout: null,
     keywords: null,
@@ -280,6 +281,7 @@ export function cardOracleFromScryfall(data: {
   id?: string;
   type_line?: string;
   color_identity?: string[];
+  colors?: string[];
   layout?: string;
   keywords?: string[];
   oracle_text?: string;
@@ -291,10 +293,12 @@ export function cardOracleFromScryfall(data: {
   const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
   const scryfallId = data.id || null;
   const finishes = Array.isArray(data.finishes) ? data.finishes.map(String) : null;
+  const colours = Array.isArray(data.colors) ? normalizeColourIdentity(data.colors) : null;
   return emptyCardOracle({
     scryfallId,
     typeLine: data.type_line || null,
     colourIdentity: normalizeColourIdentity(data.color_identity || []),
+    colours: colours?.length ? colours : null,
     layout: data.layout || 'normal',
     keywords,
     partnerWith: parsePartnerWithName(data.oracle_text),

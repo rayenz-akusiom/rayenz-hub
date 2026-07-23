@@ -42,6 +42,13 @@ export async function route(
     return handleDeck(method, decodeURIComponent(deckMatch[1]), headers, event.body);
   }
 
+  const glanceMatch = /^\/v1\/decks\/([^/]+)\/glance$/.exec(path);
+  if (glanceMatch && method === 'POST') {
+    // Dynamic import keeps sharp (native) off the cold path for other routes.
+    const { handleDeckGlance } = await import('./handlers/deck-glance.js');
+    return handleDeckGlance(decodeURIComponent(glanceMatch[1]), headers);
+  }
+
   const reviewMatch = /^\/v1\/review-progress\/([^/]+)$/.exec(path);
   if (reviewMatch) {
     return handleReviewProgress(method, decodeURIComponent(reviewMatch[1]), headers, event.body);

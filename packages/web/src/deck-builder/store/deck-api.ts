@@ -30,3 +30,32 @@ export async function apiDeleteDeck(deckId: string): Promise<void> {
   if (!isApiConfigured()) return;
   await apiFetch(`/v1/decks/${encodeURIComponent(deckId)}`, { method: 'DELETE' });
 }
+
+export async function apiPostDeckGlance(deckId: string): Promise<Blob> {
+  const { getHubApiConfig, assertApiNotPageOrigin } = await import('../../api/hub-api-client');
+  const cfg = getHubApiConfig();
+  if (!cfg.enabled) {
+    throw new Error('Hub API not configured. Set rayenz-hub-api-url and rayenz-hub-api-key in localStorage.');
+  }
+  assertApiNotPageOrigin(cfg.url);
+  const res = await fetch(`${cfg.url}/v1/decks/${encodeURIComponent(deckId)}/glance`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cfg.key}`,
+    },
+  });
+  if (res.status === 401) {
+    throw new Error('Hub API unauthorized — check rayenz-hub-api-key.');
+  }
+  if (!res.ok) {
+    const peek = await res.text();
+    try {
+      const json = JSON.parse(peek) as { error?: string; message?: string };
+      throw new Error(json.error || json.message || `Hub API error ${res.status}`);
+    } catch (parseErr) {
+      if (parseErr instanceof Error && !parseErr.message.startsWith('Unexpected')) throw parseErr;
+      throw new Error(`Hub API error ${res.status}: ${peek}`);
+    }
+  }
+  return res.blob();
+}

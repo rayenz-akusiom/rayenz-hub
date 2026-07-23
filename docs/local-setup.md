@@ -31,10 +31,18 @@ For **live HTTP API** testing you also need:
 | **AWS SAM CLI** | `sam local start-api` — [install guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) |
 
 
-Optional: create `../rayenz-hub/.env.local` (gitignored) for env vars outside SAM injection. SAM local uses `[infra/env.local.json](../../rayenz-hub/infra/env.local.json)` by default.
+## Glance image generation
+
+`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, exactly 100 cards after swaps). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured.
+
+- **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.
+- **Cache**: Private S3 prefix `glance-cache/{layoutVersion}/{fingerprint}.png` (MinIO when using SAM local). Layout version bumps invalidate stale PNGs.
+- **Tests**: `npx vitest run tests/unit/hub/deck-builder-glance-*.test.ts tests/api/deck-glance.test.ts`
+- **Spec quickstart**: `documents/specs/006-commander-deck-glance/quickstart.md`
+
+Client-only GitHub Pages deploy: glance control stays disabled without API; other Commander Builder flows unchanged.
 
 ---
-
 
 
 ## 2. Fast path — automated tests (no Docker / SAM)

@@ -24,7 +24,7 @@
     "init:local-db": "node scripts/create-local-hub-table.mjs",
     "start:dynamodb:persist": "docker run --rm -p 8000:8000 -u root -v rayenz-hub-dynamodb:/home/dynamodblocal/data amazon/dynamodb-local -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data",
     "start:minio:persist": "docker run --rm -p 9000:9000 -e MINIO_ROOT_USER=local -e MINIO_ROOT_PASSWORD=localpass1 -v rayenz-hub-minio:/data minio/minio server /data",
-    "build:api": "sam build --template-file infra/template.yaml --build-in-source",
+    "build:api": "sam build --template-file infra/template.yaml --build-in-source && node scripts/copy-api-lambda-assets.mjs",
     "start:api": "npm run build:api && sam local start-api --template .aws-sam/build/template.yaml --env-vars infra/env.local.json --port 3000",
     "deploy:api": "npm run build:api && sam deploy --config-file infra/samconfig.toml",
     "deploy:api:guided": "npm run build:api && sam deploy --guided --config-file infra/samconfig.toml",

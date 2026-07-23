@@ -16,6 +16,8 @@ export function createS3Client(env: ApiEnv): S3Client {
 export interface BlobStore {
   getText(key: string): Promise<string | null>;
   putText(key: string, body: string, contentType: string): Promise<void>;
+  getBytes?(key: string): Promise<Uint8Array | null>;
+  putBytes?(key: string, body: Uint8Array, contentType: string): Promise<void>;
   deleteObject?(key: string): Promise<void>;
 }
 
@@ -40,6 +42,32 @@ export class S3BlobStore implements BlobStore {
   }
 
   async putText(key: string, body: string, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
+  async getBytes(key: string): Promise<Uint8Array | null> {
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (!result.Body) return null;
+      return new Uint8Array(await result.Body.transformToByteArray());
+    } catch (e) {
+      if (isNotFound(e)) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  async putBytes(key: string, body: Uint8Array, contentType: string): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

@@ -24,6 +24,7 @@ import {
   type SelectCardHandler,
 } from './CategoryBrowse';
 import { MasonryColumns } from './MasonryColumns';
+import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 function mergeStyle(remote: DeckBuilderSettingsPayload | null): DeckBuilderSettingsPayload {
   return { ...DEFAULT_DECK_BUILDER_SETTINGS, ...(remote || {}) };
@@ -42,6 +43,7 @@ export function ColourIdentityBrowse({
   onVisibleOrderChange,
   deckMeta,
   deckMetaWarn,
+  syncStatus = null,
 }: {
   deck:
     | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'formalSwapEntries'>
@@ -64,6 +66,7 @@ export function ColourIdentityBrowse({
   onVisibleOrderChange?: (ids: string[]) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
+  syncStatus?: DeckSyncStatus | null;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -180,6 +183,7 @@ export function ColourIdentityBrowse({
         deckName={deckName}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
+        syncStatus={syncStatus}
         swapInIds={swapInIds}
       />
       {layout === 'stacked' ? (

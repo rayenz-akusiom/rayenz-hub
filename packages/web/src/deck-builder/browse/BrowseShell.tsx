@@ -62,6 +62,7 @@ import { useCardSize } from '../card-size';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
+import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 function BookIcon() {
   return (
@@ -97,10 +98,12 @@ export function BrowseShell({
   deck,
   onChange,
   onBack,
+  syncStatus = null,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   onBack: () => void;
+  syncStatus?: DeckSyncStatus | null;
 }) {
   const [view, setView] = useState<BrowseView>(
     deck.browseViewDefault || defaultBrowseView(deck.format),
@@ -662,6 +665,7 @@ export function BrowseShell({
               onSelectInstance={onSelectUnifiedInstance}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+              syncStatus={syncStatus}
             />
           ) : isColourIdentityView ? (
             <ColourIdentityBrowse
@@ -676,6 +680,7 @@ export function BrowseShell({
               onVisibleOrderChange={onVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+              syncStatus={syncStatus}
             />
           ) : (
             <CategoryBrowse
@@ -689,6 +694,7 @@ export function BrowseShell({
               onVisibleOrderChange={onVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+              syncStatus={syncStatus}
               browseView={isCategoryBrowseView(view) ? view : 'category'}
               onEditCategory={(cat) => setEditingCategory(cat)}
             />

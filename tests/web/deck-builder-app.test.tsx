@@ -37,6 +37,7 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
   deleteDeck: (deckId: string) => deleteDeck(deckId),
   mergeDeckDocuments: (local: DeckDocument | null, remote: DeckDocument | null) =>
     mergeDeckDocuments(local, remote),
+  reconcileDeckAfterApiPut: (local: DeckDocument, remote: DeckDocument) => remote,
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
@@ -381,6 +382,8 @@ describe('CommanderBuilderApp', () => {
   it('keeps local decks and shows API warning after failed remote sync when browsing', async () => {
     apiConfigured.value = true;
     apiListDecks.mockRejectedValue(new Error('Remote list failed'));
+    // Remote already present — open must not upload or clear the list-sync warning.
+    apiGetDeck.mockResolvedValue(commanderDoc);
     const user = userEvent.setup();
 
     render(<CommanderBuilderApp />);
@@ -390,7 +393,212 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByText('Remote list failed')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Remote list failed')).toBeInTheDocument();
+    expect(apiPutDeck).not.toHaveBeenCalled();
+  });
+
+  it('uploads local-only deck to API when opening', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(null);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(apiGetDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+    expect(apiPutDeck).toHaveBeenCalledWith(
+      expect.objectContaining({ deckId: commanderDoc.deckId, name: commanderDoc.name }),
+    );
+  });
+
+  it('does not upload when opening a deck that already exists remotely', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(commanderDoc);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(apiGetDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+    expect(apiPutDeck).not.toHaveBeenCalled();
+  });
+
+  it('does not call API on open when API is not configured', async () => {
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(apiGetDeck).not.toHaveBeenCalled();
+    expect(apiPutDeck).not.toHaveBeenCalled();
+  });
+
+  it('opens local deck and shows warning when remote GET fails', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockRejectedValue(new Error('GET failed'));
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText('GET failed')).toBeInTheDocument();
+    expect(apiPutDeck).not.toHaveBeenCalled();
+  });
+
+  it('opens local deck and shows warning when local-only PUT fails', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(null);
+    apiPutDeck.mockRejectedValue(new Error('API sync failed'));
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText('API sync failed')).toBeInTheDocument();
+    expect(saveDeck).toHaveBeenCalled();
+  });
+
+  it('hides sync charm when API is not configured', async () => {
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('img', { name: 'Synced to Hub' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Saved locally only' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Hub sync failed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Saving to Hub…' })).not.toBeInTheDocument();
+  });
+
+  it('shows synced charm after uploading local-only deck on open', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(null);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Synced to Hub')).not.toBeInTheDocument();
+  });
+
+  it('shows synced charm when opening a deck that already exists remotely', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(commanderDoc);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
+    });
+    expect(apiPutDeck).not.toHaveBeenCalled();
+    expect(screen.queryByText('Synced to Hub')).not.toBeInTheDocument();
+  });
+
+  it('shows local-only charm when open upload fails', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(null);
+    apiPutDeck.mockRejectedValue(new Error('API sync failed'));
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Saved locally only' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Saved locally only')).not.toBeInTheDocument();
+  });
+
+  it('shows error charm when remote GET fails on open', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockRejectedValue(new Error('GET failed'));
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Hub sync failed' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Hub sync failed')).not.toBeInTheDocument();
+  });
+
+  it('shows synced charm after a successful edit persist with API configured', async () => {
+    apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(commanderDoc);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Layout/i }));
+    await user.click(screen.getByRole('menuitem', { name: /Grid/i }));
+
+    await waitFor(() => {
+      expect(apiPutDeck).toHaveBeenCalled();
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
     });
   });
 
@@ -445,6 +653,11 @@ describe('CommanderBuilderApp', () => {
     getDeck.mockImplementation(async () =>
       saveDeck.mock.calls.length ? (saveDeck.mock.calls.at(-1)?.[0] as DeckDocument) : null,
     );
+    listDecks.mockImplementation(async () =>
+      saveDeck.mock.calls.length
+        ? [toDeckSummary(saveDeck.mock.calls.at(-1)?.[0] as DeckDocument)]
+        : [],
+    );
     const user = userEvent.setup();
 
     render(<CommanderBuilderApp />);
@@ -459,7 +672,9 @@ describe('CommanderBuilderApp', () => {
 
     await waitFor(() => {
       expect(screen.getByText('API sync failed')).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Hub sync failed' })).toBeInTheDocument();
     });
+    expect(screen.queryByText('Hub sync failed')).not.toBeInTheDocument();
     expect(saveDeck).toHaveBeenCalled();
   });
 
@@ -507,10 +722,17 @@ describe('CommanderBuilderApp', () => {
       deckId: 'cmd-2',
       name: 'Second Commander',
     };
+    const secondDoc = { ...commanderDoc, deckId: 'cmd-2', name: 'Second Commander' };
     listDecks.mockResolvedValue([commanderSummary, secondCommander]);
     getDeck.mockImplementation(async (id) => {
       if (id === commanderDoc.deckId) return commanderDoc;
-      if (id === 'cmd-2') return { ...commanderDoc, deckId: 'cmd-2', name: 'Second Commander' };
+      if (id === 'cmd-2') return secondDoc;
+      return null;
+    });
+    // Treat both as already remote so open does not upload and clear the delete warning.
+    apiGetDeck.mockImplementation(async (id) => {
+      if (id === commanderDoc.deckId) return commanderDoc;
+      if (id === 'cmd-2') return secondDoc;
       return null;
     });
     const user = userEvent.setup();

@@ -22,6 +22,7 @@ import {
   categoryKeySortFor,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
+import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { CardTile, DRAG_MIME, type SelectCardHandler } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
 
@@ -431,6 +432,7 @@ export function DeckHeaderRow({
   deckName,
   deckMeta,
   deckMetaWarn,
+  syncStatus,
   swapInIds,
 }: {
   header: Record<string, CardView[]>;
@@ -446,6 +448,7 @@ export function DeckHeaderRow({
   deckName?: string;
   deckMeta?: string;
   deckMetaWarn?: boolean;
+  syncStatus?: DeckSyncStatus | null;
   swapInIds?: ReadonlySet<string> | null;
 }) {
   const commanders = header['Commander'] || [];
@@ -529,8 +532,13 @@ export function DeckHeaderRow({
             <FormatBadge format={badgeFormat} />
             <span>{deckName}</span>
           </h2>
-          {deckMeta ? (
-            <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+          {deckMeta || syncStatus ? (
+            <div className="db-meta-row">
+              {deckMeta ? (
+                <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+              ) : null}
+              {syncStatus ? <SyncStatusCharm status={syncStatus} /> : null}
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -554,6 +562,7 @@ export function CategoryBrowse({
   includeSwapCategories = false,
   deckMeta,
   deckMetaWarn,
+  syncStatus = null,
   browseView = 'category',
 }: {
   deck:
@@ -580,6 +589,7 @@ export function CategoryBrowse({
   includeSwapCategories?: boolean;
   deckMeta?: string;
   deckMetaWarn?: boolean;
+  syncStatus?: DeckSyncStatus | null;
   browseView?: BrowseView;
 }) {
   const resolved = useMemo(
@@ -736,6 +746,7 @@ export function CategoryBrowse({
         deckName={deckName}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
+        syncStatus={syncStatus}
         swapInIds={swapInIds}
       />
       {body}

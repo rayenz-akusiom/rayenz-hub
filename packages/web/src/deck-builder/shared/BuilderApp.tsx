@@ -16,6 +16,7 @@ import { BrowseShell } from '../browse/BrowseShell';
 import { FormatFilteredLibrary } from './library/FormatFilteredLibrary';
 import * as store from '../store/deck-store';
 import * as deckApi from '../store/deck-api';
+import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 export type CreateDialogProps = {
   onClose: () => void;
@@ -84,6 +85,7 @@ export function BuilderApp({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiWarning, setApiWarning] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<DeckSyncStatus | null>(null);
   const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
   const persistSeq = useRef(0);
   const decksRef = useRef<DeckSummary[]>([]);
@@ -128,8 +130,36 @@ export function BuilderApp({
         return;
       }
       if (redirectToCorrectBuilder(doc)) return;
-      setActive(doc);
-      if (opts?.syncHash !== false) syncDeckHash(doc);
+
+      let toShow = doc;
+      if (isApiConfigured()) {
+        setSyncStatus('syncing');
+        try {
+          const remote = await deckApi.apiGetDeck(deckId);
+          if (remote == null) {
+            const { saved, apiError } = await saveDualMode(doc);
+            toShow = saved;
+            if (apiError) {
+              setApiWarning(apiError);
+              setSyncStatus('local');
+            } else {
+              setApiWarning(null);
+              setSyncStatus('synced');
+            }
+          } else {
+            setSyncStatus('synced');
+          }
+        } catch (e) {
+          setApiWarning(e instanceof Error ? e.message : String(e));
+          setSyncStatus('error');
+        }
+      } else {
+        setSyncStatus(null);
+      }
+
+      setActive(toShow);
+      activeRef.current = toShow;
+      if (opts?.syncHash !== false) syncDeckHash(toShow);
     },
     [redirectToCorrectBuilder, syncDeckHash],
   );
@@ -150,12 +180,14 @@ export function BuilderApp({
         if (activeRef.current) {
           invalidatePersist();
           setActive(null);
+          setSyncStatus(null);
         }
         return;
       }
       if (route.userSlug !== HUB_USER_SLUG) {
         setError(`Unknown user “${route.userSlug}”`);
         setActive(null);
+        setSyncStatus(null);
         return;
       }
       const match = list.find((d) => toKebabCase(d.name) === route.deckSlug);
@@ -166,6 +198,7 @@ export function BuilderApp({
         }
         setError('Deck not found');
         setActive(null);
+        setSyncStatus(null);
         return;
       }
       if (match.format !== builderFormat) {
@@ -228,6 +261,7 @@ export function BuilderApp({
           }
         }
         setDecks(list);
+        decksRef.current = list;
         if (applyRoute) await applyRouteFromHash(list);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -259,9 +293,15 @@ export function BuilderApp({
       setActive(next);
     }
     setApiWarning(null);
+    if (isApiConfigured()) setSyncStatus('syncing');
     const { saved, apiError } = await saveDualMode(next);
     if (seq !== persistSeq.current) return;
-    if (apiError) setApiWarning(apiError);
+    if (apiError) {
+      setApiWarning(apiError);
+      if (isApiConfigured()) setSyncStatus('error');
+    } else if (isApiConfigured()) {
+      setSyncStatus('synced');
+    }
     if (!parseBuilderRoute(window.location.hash, builderFormat)) return;
     if (activeRef.current && activeRef.current.deckId !== saved.deckId) return;
     // Don't clobber a newer in-memory edit that landed while save was in flight.
@@ -284,6 +324,7 @@ export function BuilderApp({
     const { apiError } = await deleteDualMode(deckId);
     if (active?.deckId === deckId) {
       setActive(null);
+      setSyncStatus(null);
       syncDeckHash(null);
     }
     if (apiError) setApiWarning(apiError);
@@ -296,9 +337,11 @@ export function BuilderApp({
         {apiWarning ? <p className="db-warn">{apiWarning}</p> : null}
         <BrowseShell
           deck={active}
+          syncStatus={syncStatus}
           onBack={() => {
             invalidatePersist();
             setActive(null);
+            setSyncStatus(null);
             syncDeckHash(null);
             void refreshLibrary({ applyRoute: false });
           }}
@@ -334,8 +377,10 @@ export function BuilderApp({
           onMismatchWarning={setMismatchWarning}
           onSave={async (doc) => {
             await persist(doc);
+            await refreshLibrary({ applyRoute: false });
             const saved = await store.getDeck(doc.deckId);
             if (saved && redirectToCorrectBuilder(saved)) return;
+            activeRef.current = saved;
             setActive(saved);
             if (saved) syncDeckHash(saved);
           }}

@@ -5,18 +5,21 @@ import {
   unifyDeckCardInstances,
   type DeckDocument,
 } from '@rayenz-hub/shared';
+import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 export function UnifiedListBrowse({
   deck,
   onSelectInstance,
   deckMeta,
   deckMetaWarn,
+  syncStatus = null,
 }: {
   deck: Pick<DeckDocument, 'cards' | 'oracle'>;
   /** Called with an instance id when a drill-down instance button is clicked. */
   onSelectInstance?: (instanceId: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
+  syncStatus?: DeckSyncStatus | null;
 }) {
   const rows = useMemo(() => unifyDeckCardInstances(deck as DeckDocument), [deck]);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -27,7 +30,14 @@ export function UnifiedListBrowse({
 
   return (
     <div className="db-browse db-unified-list" data-testid="unified-list-browse">
-      {deckMeta ? <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p> : null}
+      {deckMeta || syncStatus ? (
+        <div className="db-meta-row">
+          {deckMeta ? (
+            <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+          ) : null}
+          {syncStatus ? <SyncStatusCharm status={syncStatus} /> : null}
+        </div>
+      ) : null}
       {!rows.length ? <p className="db-empty">No cards in this deck.</p> : null}
       <ul className="db-unified-rows">
         {rows.map((row) => {

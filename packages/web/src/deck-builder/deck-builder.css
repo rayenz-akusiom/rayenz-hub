@@ -75,6 +75,58 @@ body,
   font-size: 0.85rem;
 }
 
+.db-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  min-height: 1.1rem;
+}
+
+.db-meta-row .db-meta {
+  margin: 0;
+}
+
+.db-sync-charm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--db-muted);
+  line-height: 0;
+}
+
+.db-sync-charm.is-synced {
+  color: var(--db-accent);
+}
+
+.db-sync-charm.is-local {
+  color: var(--db-muted);
+}
+
+.db-sync-charm.is-error {
+  color: var(--db-danger);
+}
+
+.db-sync-charm.is-syncing {
+  color: var(--db-muted);
+}
+
+.db-sync-charm-icon {
+  display: block;
+}
+
+@keyframes db-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.db-sync-charm-spin {
+  transform-origin: 8px 9.2px;
+  animation: db-sync-spin 0.9s linear infinite;
+}
+
 .db-btn {
   border: 1px solid var(--db-border);
   background: var(--db-panel);

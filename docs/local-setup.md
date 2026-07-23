@@ -102,19 +102,32 @@ npm run init:local-db
 
 ### Terminal 2 — MinIO (S3)
 
-Required for profile YAML and large set-pool blobs. Credentials must match the API client (`local` / `localpass1`).
+Required for deck JSON blobs, profile YAML, and large set-pool objects. Credentials must match the API client (`local` / `localpass1`).
+
+**Preferred** — persistent volume (objects survive container restarts):
+
+```powershell
+cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
+npm run start:minio:persist
+```
+
+Uses Docker volume `rayenz-hub-minio` mounted at `/data`. If you start MinIO **without** that volume (ephemeral/`docker run` with a fresh anonymous mount), DynamoDB can still list decks while `GET /v1/decks/:id` returns **500** (`NoSuchBucket`) because the API looks for bucket `rayenz-hub-data-local` on an empty store.
+
+**Ephemeral alternative** (data lost when the container is removed):
 
 ```powershell
 docker run -p 9000:9000 -e MINIO_ROOT_USER=local -e MINIO_ROOT_PASSWORD=localpass1 minio/minio server /data
 ```
 
-**One-time:** create the bucket (MinIO does not auto-create it):
+**One-time:** create the bucket on a new/empty volume (MinIO does not auto-create it). Skip if `rayenz-hub-minio` already has `rayenz-hub-data-local`:
 
 ```powershell
 $env:AWS_ACCESS_KEY_ID = "local"
 $env:AWS_SECRET_ACCESS_KEY = "localpass1"
 aws --endpoint-url http://127.0.0.1:9000 s3 mb s3://rayenz-hub-data-local
 ```
+
+Without AWS CLI, create the bucket from the monorepo with the SDK (same credentials/endpoint as above), or use MinIO Console if you expose it.
 
 
 
@@ -267,7 +280,7 @@ Edit code
   → npm run test:web   (if packages/web changed)
 
 Need real HTTP?
-  → Docker (DynamoDB + MinIO)
+  → Docker (DynamoDB persist + MinIO persist)
   → npm run start:api
   → Static Hub + localStorage API keys
 ```

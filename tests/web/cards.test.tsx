@@ -7,7 +7,7 @@ import {
   useCardFaceSession,
 } from '../../packages/web/src/cards/CardFaceSession';
 import { CardSizePicker } from '../../packages/web/src/cards/CardSizePicker';
-import { CARD_SIZE_STORAGE_KEY } from '../../packages/web/src/cards/card-size';
+import { CARD_SIZE_PX, CARD_SIZE_STORAGE_KEY, CARD_SIZE_SWAP_ASIDE_PX, swapPairHoverPopoutWidthPx } from '../../packages/web/src/cards/card-size';
 import {
   CardPickerModal,
   resolveFinish,
@@ -140,6 +140,18 @@ describe('CardSizePicker', () => {
 
     await user.click(screen.getByRole('button', { name: 'Large' }));
     expect(onChange).toHaveBeenCalledWith('L');
+  });
+});
+
+describe('swapPairHoverPopoutWidthPx', () => {
+  it('returns Medium when preview is below Medium', () => {
+    expect(swapPairHoverPopoutWidthPx(CARD_SIZE_SWAP_ASIDE_PX)).toBe(CARD_SIZE_PX.M);
+    expect(swapPairHoverPopoutWidthPx(CARD_SIZE_PX.S)).toBe(CARD_SIZE_PX.M);
+  });
+
+  it('returns null at Medium or larger', () => {
+    expect(swapPairHoverPopoutWidthPx(CARD_SIZE_PX.M)).toBeNull();
+    expect(swapPairHoverPopoutWidthPx(CARD_SIZE_PX.L)).toBeNull();
   });
 });
 

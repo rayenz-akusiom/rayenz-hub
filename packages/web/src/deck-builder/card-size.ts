@@ -9,6 +9,7 @@ export {
   CARD_SIZE_STORAGE_KEY,
   loadCardSize,
   saveCardSize,
+  swapPairHoverPopoutWidthPx,
   useCardSize,
   type CardSizeKey,
 } from '../cards/card-size';

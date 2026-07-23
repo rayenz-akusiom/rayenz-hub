@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardView } from '@rayenz-hub/shared';
+import { swapPairHoverPopoutWidthPx } from '../deck-builder/card-size';
 import { CardTile } from '../deck-builder/browse/CardTile';
 import { SwapPairFaces } from '../deck-builder/swaps/swap-pair-faces';
 
@@ -91,17 +92,18 @@ export function SwapPairQueueTile({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const popoutWidthPx = swapPairHoverPopoutWidthPx(cardWidthPx);
 
   useLayoutEffect(() => {
-    if (!hover || !triggerRef.current) {
+    if (!hover || popoutWidthPx == null || !triggerRef.current) {
       setPos(null);
       return;
     }
     const rect = triggerRef.current.getBoundingClientRect();
     const gap = 10;
     const edge = 8;
-    const popW = cardWidthPx * 2 + 48;
-    const popH = cardWidthPx * 1.4 + (categoryLabel ? 40 : 24);
+    const popW = popoutWidthPx * 2 + 48;
+    const popH = popoutWidthPx * 1.4 + (categoryLabel ? 40 : 24);
     let left = rect.left - popW - gap;
     if (left < edge) {
       left = rect.right + gap;
@@ -113,10 +115,10 @@ export function SwapPairQueueTile({
       window.innerHeight - popH - edge,
     );
     setPos({ top, left });
-  }, [hover, cardWidthPx, categoryLabel]);
+  }, [hover, popoutWidthPx, categoryLabel]);
 
   const popoutStyle = {
-    ['--db-card-w']: `${cardWidthPx}px`,
+    ['--db-card-w']: `${popoutWidthPx ?? 0}px`,
     top: pos?.top ?? 0,
     left: pos?.left ?? 0,
   } as CSSProperties;
@@ -139,7 +141,7 @@ export function SwapPairQueueTile({
         <TileCategoryBar deck={deckLabel} category={categoryLabel} />
         <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
       </button>
-      {hover && pos
+      {hover && popoutWidthPx != null && pos
         ? createPortal(
             <div
               className="db-swap-pair-popout"

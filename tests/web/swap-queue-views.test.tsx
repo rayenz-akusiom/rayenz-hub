@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
@@ -250,6 +250,44 @@ describe('SwapQueueApp browse / layout', () => {
     expect(app.style.getPropertyValue('--db-swap-card-w')).toBe('310px');
     expect(document.querySelector('.db-swap-pair-stack.is-preview')).toBeTruthy();
     expect(document.querySelector('.sq-lane-grid.is-pairs')).toBeTruthy();
+  });
+
+  it('shows Medium popout on hover at Small tile size', async () => {
+    const deck = pairDeck();
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    localStorage.setItem('rayenzHubPickerCardSize', 'S');
+    window.dispatchEvent(new CustomEvent('rayenz-hub-card-size', { detail: 'S' }));
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+    const app = document.querySelector('.swap-queue-app') as HTMLElement;
+    expect(app.style.getPropertyValue('--db-swap-card-w')).toBe('150px');
+
+    const pair = document.querySelector('.db-swap-pair') as HTMLElement;
+    await user.hover(pair);
+    const popout = document.querySelector('.db-swap-pair-popout') as HTMLElement;
+    expect(popout).toBeInTheDocument();
+    expect(popout.style.getPropertyValue('--db-card-w')).toBe('213px');
+    expect(within(popout).getByText('→ Ramp')).toBeInTheDocument();
+  });
+
+  it('hides pair popout when tile size is Medium or larger', async () => {
+    const deck = pairDeck();
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    localStorage.setItem('rayenzHubPickerCardSize', 'M');
+    window.dispatchEvent(new CustomEvent('rayenz-hub-card-size', { detail: 'M' }));
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+
+    await user.hover(document.querySelector('.db-swap-pair') as HTMLElement);
+    expect(document.querySelector('.db-swap-pair-popout')).not.toBeInTheDocument();
   });
 
   it('Stacked layout shows per-deck overlapping stacks like the deck builder', async () => {

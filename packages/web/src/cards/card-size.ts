@@ -16,6 +16,11 @@ export const CARD_SIZE_PX: Record<CardSizeKey, number> = {
 /** Builder aside swap-pair preview face width (legacy 0.42×S). Not a picker key. */
 export const CARD_SIZE_SWAP_ASIDE_PX = Math.round(CARD_SIZE_PX.S * 0.42); // 63
 
+/** Popout only when preview faces are below M; always renders at M. */
+export function swapPairHoverPopoutWidthPx(previewWidthPx: number): number | null {
+  return previewWidthPx < CARD_SIZE_PX.M ? CARD_SIZE_PX.M : null;
+}
+
 export const CARD_SIZE_LABELS: Record<CardSizeKey, string> = {
   S: 'Small',
   M: 'Medium',

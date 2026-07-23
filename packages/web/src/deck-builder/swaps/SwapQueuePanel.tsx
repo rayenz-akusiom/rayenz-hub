@@ -11,7 +11,7 @@ import {
   type FormalSwapEntry,
   type PrintingFields,
 } from '@rayenz-hub/shared';
-import { CARD_SIZE_SWAP_ASIDE_PX, useCardSize } from '../card-size';
+import { CARD_SIZE_SWAP_ASIDE_PX, swapPairHoverPopoutWidthPx } from '../card-size';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import {
   draftFromFormalEntry,
@@ -44,13 +44,14 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+const ASIDE_POPOUT_WIDTH_PX = swapPairHoverPopoutWidthPx(CARD_SIZE_SWAP_ASIDE_PX);
+
 function SwapPairButton({
   entry,
   outCard,
   inCard,
   incompleteEntry,
   isEditing,
-  popoutWidthPx,
   onStartEdit,
 }: {
   entry: FormalSwapEntry;
@@ -58,16 +59,15 @@ function SwapPairButton({
   inCard: CardView | null;
   incompleteEntry: boolean;
   isEditing: boolean;
-  /** Live picker size for hover popout only; preview stays Small via panel CSS. */
-  popoutWidthPx: number;
   onStartEdit: (entry: FormalSwapEntry) => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const popoutWidthPx = ASIDE_POPOUT_WIDTH_PX;
 
   useLayoutEffect(() => {
-    if (!hover || !triggerRef.current) {
+    if (!hover || popoutWidthPx == null || !triggerRef.current) {
       setPos(null);
       return;
     }
@@ -90,7 +90,7 @@ function SwapPairButton({
   }, [hover, popoutWidthPx, entry.inTargetCategory]);
 
   const popoutStyle = {
-    ['--db-card-w']: `${popoutWidthPx}px`,
+    ['--db-card-w']: `${popoutWidthPx ?? 0}px`,
     top: pos?.top ?? 0,
     left: pos?.left ?? 0,
   } as CSSProperties;
@@ -114,7 +114,7 @@ function SwapPairButton({
           <span className="db-swap-target">→ {entry.inTargetCategory}</span>
         ) : null}
       </button>
-      {hover && pos
+      {hover && popoutWidthPx != null && pos
         ? createPortal(
             <div
               className="db-swap-pair-popout"
@@ -225,7 +225,6 @@ export function SwapQueuePanel({
   onAddLookingFor: (printing: PrintingFields, meta?: { proxy: boolean }) => void;
   onRemoveLookingFor: (entryId: string) => void;
 }) {
-  const { widthPx: popoutWidthPx } = useCardSize();
   const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const incomplete = incompleteEntryCount(entries);
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
@@ -266,7 +265,6 @@ export function SwapQueuePanel({
                 inCard={inCard}
                 incompleteEntry={incompleteEntry}
                 isEditing={isEditing}
-                popoutWidthPx={popoutWidthPx}
                 onStartEdit={onStartEdit}
               />
             </li>

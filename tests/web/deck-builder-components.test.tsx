@@ -568,7 +568,7 @@ describe('SwapQueuePanel', () => {
     expect(onStartEdit).toHaveBeenCalledWith(deck.formalSwapEntries[0]);
   });
 
-  it('freezes preview pair tiles to aside size while popout uses picker size', async () => {
+  it('freezes preview pair tiles to aside size while popout stays at Medium', async () => {
     localStorage.setItem('rayenzHubPickerCardSize', 'L');
     window.dispatchEvent(new CustomEvent('rayenz-hub-card-size', { detail: 'L' }));
     const deck: DeckDocument = {
@@ -598,7 +598,7 @@ describe('SwapQueuePanel', () => {
     await user.hover(screen.getByTitle('Click to edit swap'));
     const popout = document.querySelector('.db-swap-pair-popout') as HTMLElement;
     expect(popout).toBeInTheDocument();
-    expect(popout.style.getPropertyValue('--db-card-w')).toBe('310px');
+    expect(popout.style.getPropertyValue('--db-card-w')).toBe('213px');
   });
 
   it('shows incomplete warning and hides empty category text', () => {
@@ -625,7 +625,7 @@ describe('SwapQueuePanel', () => {
     expect(screen.queryByText(/^→ /)).not.toBeInTheDocument();
   });
 
-  it('shows picker-sized pop-out on hover', async () => {
+  it('shows Medium pop-out on hover for aside mini tiles', async () => {
     const deck: DeckDocument = {
       ...commanderDoc,
       formalSwapEntries: [
@@ -650,10 +650,11 @@ describe('SwapQueuePanel', () => {
 
     await user.hover(pair);
 
-    const popout = document.querySelector('.db-swap-pair-popout');
+    const popout = document.querySelector('.db-swap-pair-popout') as HTMLElement;
     expect(popout).toBeInTheDocument();
-    expect(popout?.querySelector('.db-swap-pair-stack.is-full')).toBeTruthy();
-    expect(within(popout as HTMLElement).getByText('→ Creature')).toBeInTheDocument();
+    expect(popout.querySelector('.db-swap-pair-stack.is-full')).toBeTruthy();
+    expect(popout.style.getPropertyValue('--db-card-w')).toBe('213px');
+    expect(within(popout).getByText('→ Creature')).toBeInTheDocument();
 
     await user.unhover(pair);
     expect(document.querySelector('.db-swap-pair-popout')).not.toBeInTheDocument();

@@ -507,8 +507,6 @@ describe('SwapQueuePanel', () => {
     onCancelEdit: vi.fn(),
     onSaveEdit: vi.fn(),
     onRemoveEdit: vi.fn(),
-    onAddLookingFor: vi.fn(),
-    onRemoveLookingFor: vi.fn(),
   };
 
   it('adds swap entry and shows incomplete warning', async () => {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   canonicalizeCategoryName,
+  deckCategoryOptions,
   moveCardsCategory,
   cardDisplayName,
   type CardView,
@@ -25,12 +26,7 @@ export function MoveSheet({
   const primary = list[0];
   if (!primary) return null;
 
-  const categories = [
-    ...new Set([
-      ...deck.categories.map((c) => c.name),
-      ...deck.cards.map((c) => c.primaryCategory),
-    ]),
-  ].sort();
+  const categories = deckCategoryOptions(deck);
 
   const title =
     list.length === 1

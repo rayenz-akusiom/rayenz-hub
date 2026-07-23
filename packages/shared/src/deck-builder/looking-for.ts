@@ -209,4 +209,15 @@ export function lookingForFallbackCategory(
   return defaultAddCategory(deck);
 }
 
+/**
+ * Re-seed Seeking entries from primary Seeking cards, then sync category membership.
+ * Use after add/move/remove so lookingForEntries stays aligned with card categories.
+ */
+export function reconcileLookingForFromCards(deck: DeckDocument): DeckDocument {
+  return syncCardsWithLookingFor(
+    deck,
+    seedLookingForFromCategories(deck.cards, deck.lookingForEntries || []),
+  ).deck;
+}
+
 export { SEEKING, LOOKING_FOR, isSeekingCategory, isLookingForCategory, isSwapQueueCategoryName };

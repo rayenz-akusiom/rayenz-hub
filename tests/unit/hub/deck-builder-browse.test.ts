@@ -164,6 +164,33 @@ describe('browse grouping', () => {
     expect(part.excludedKeys).toContain('Maybeboard');
     expect(part.excluded.Maybeboard).toEqual([]);
   });
+
+  it('always surfaces Seeking in aside even when empty', () => {
+    const part = partitionCategories({ cards: [], categories: [] });
+    expect(part.excludedKeys).toContain('Seeking');
+    expect(part.excluded.Seeking).toEqual([]);
+    expect(part.includedKeys).not.toContain('Seeking');
+  });
+
+  it('folds legacy Looking For cards into Seeking aside bucket', () => {
+    const part = partitionCategories({
+      cards: [
+        {
+          ...commander.cards[0],
+          instanceId: 'lf1',
+          primaryCategory: 'Looking For',
+          categories: ['Looking For'],
+        },
+      ],
+      categories: [
+        { name: 'Looking For', includedInDeck: false, includedInPrice: false },
+      ],
+    });
+    expect(part.excludedKeys).toContain('Seeking');
+    expect(part.excludedKeys).not.toContain('Looking For');
+    expect(part.excluded.Seeking).toHaveLength(1);
+    expect(part.excluded.Seeking[0].instanceId).toBe('lf1');
+  });
 });
 
 describe('secondary categories and multi browse', () => {

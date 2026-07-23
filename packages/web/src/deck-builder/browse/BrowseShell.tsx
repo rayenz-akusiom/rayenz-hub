@@ -24,13 +24,14 @@ import {
   ensureCategoryDef,
   incompleteEntryCount,
   isCategoryBrowseView,
-  moveCardCategory,
+  moveCardsCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
   queueCardsAsOut,
   removeCardsFromDeck,
   removeSecondaryCategory,
   secondaryCategoriesOf,
+  SEEKING,
   setCardsFoil,
   setCardsProxy,
   syncCardsWithFormalSwaps,
@@ -48,7 +49,6 @@ import { UnifiedListBrowse } from './UnifiedListBrowse';
 import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
 import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chrome';
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
-import { addLookingForCard, removeLookingForEntry } from '../swaps/useSwapQueue';
 import { MoveSheet } from '../edit/MoveSheet';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
 import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
@@ -203,6 +203,16 @@ export function BrowseShell({
       deckRef.current = deck;
     }
   }, [deck]);
+
+  // Ensure Seeking category def exists so aside flags / deck size stay correct.
+  useEffect(() => {
+    const cats = deck.categories || [];
+    if (cats.some((c) => c.name === SEEKING)) return;
+    commit({
+      ...deckRef.current,
+      categories: ensureCategoryDef(cats, SEEKING),
+    });
+  }, [deck.deckId, deck.categories, commit]);
 
   const onEnrichPatch = useCallback(
     (next: DeckDocument) => {
@@ -413,10 +423,7 @@ export function BrowseShell({
     }
 
     if (card.primaryCategory === category) return;
-    commitPatch({
-      cards: moveCardCategory(current.cards, instanceId, category, card.stack),
-      categories: ensureCategoryDef(current.categories || [], category),
-    });
+    commit(moveCardsCategory(current, [instanceId], category, card.stack));
   }
 
   function clearSwapEdit() {
@@ -451,14 +458,6 @@ export function BrowseShell({
       .map((e, i) => ({ ...e, sortIndex: i }));
     commit(syncCardsWithFormalSwaps(deckRef.current, entries));
     clearSwapEdit();
-  }
-
-  function onAddLookingFor(printing: PrintingFields, meta?: { proxy: boolean }) {
-    commit(addLookingForCard(deckRef.current, printing, meta));
-  }
-
-  function onRemoveLookingFor(entryId: string) {
-    commit(removeLookingForEntry(deckRef.current, entryId));
   }
 
   function onAddCard(
@@ -746,8 +745,6 @@ export function BrowseShell({
               onCancelEdit={clearSwapEdit}
               onSaveEdit={saveSwapEdit}
               onRemoveEdit={removeSwapEdit}
-              onAddLookingFor={onAddLookingFor}
-              onRemoveLookingFor={onRemoveLookingFor}
             />
             <CategoryBrowse
               deck={deck}
@@ -781,10 +778,7 @@ export function BrowseShell({
           cards={selectedCards}
           onClose={() => setMoveOpen(false)}
           onApply={(next) => {
-            commitPatch({
-              cards: next.cards,
-              categories: next.categories,
-            });
+            commit(next);
             setMoveOpen(false);
           }}
         />

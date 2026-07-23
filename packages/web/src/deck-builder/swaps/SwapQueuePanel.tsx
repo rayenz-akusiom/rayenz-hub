@@ -1,9 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  cardDisplayName,
   incompleteEntryCount,
-  SEEKING,
   resolveDeckCards,
   syncCardsWithFormalSwaps,
   type CardView,
@@ -12,7 +10,6 @@ import {
   type PrintingFields,
 } from '@rayenz-hub/shared';
 import { CARD_SIZE_SWAP_ASIDE_PX, swapPairHoverPopoutWidthPx } from '../card-size';
-import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import {
   draftFromFormalEntry,
   SwapEditChrome,
@@ -134,72 +131,6 @@ function SwapPairButton({
   );
 }
 
-function SeekingSection({
-  deck,
-  onAdd,
-  onRemove,
-}: {
-  deck: DeckDocument;
-  onAdd: (printing: PrintingFields, meta?: { proxy: boolean }) => void;
-  onRemove: (entryId: string) => void;
-}) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const entries = [...(deck.lookingForEntries || [])].sort(
-    (a, b) => a.sortIndex - b.sortIndex,
-  );
-  const cardsById = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
-
-  return (
-    <div className="db-looking-for">
-      <div className="db-swaps-header">
-        <h3>Seeking</h3>
-        <button
-          type="button"
-          className="db-btn"
-          aria-label="Add to Seeking"
-          onClick={() => setSearchOpen(true)}
-        >
-          Add
-        </button>
-      </div>
-      <ul className="db-looking-for-list">
-        {entries.map((entry) => {
-          const card = cardsById.get(entry.instanceId) || null;
-          const name = card ? cardDisplayName(card) : 'Unknown card';
-          return (
-            <li key={entry.id} className="db-looking-for-item">
-              <span className="db-looking-for-name">{name}</span>
-              <button
-                type="button"
-                className="db-btn db-btn-danger"
-                aria-label={`Remove ${name} from Seeking`}
-                onClick={() => onRemove(entry.id)}
-              >
-                Remove
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {!entries.length ? <p className="db-empty">No Seeking cards yet.</p> : null}
-
-      {searchOpen ? (
-        <ScryfallSearchModal
-          deck={deck}
-          title="Add card to Seeking"
-          confirmLabel="Add to Seeking"
-          defaultCategory={SEEKING}
-          onClose={() => setSearchOpen(false)}
-          onAdd={(printing, _category, meta) => {
-            onAdd(printing, meta);
-            setSearchOpen(false);
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 export function SwapQueuePanel({
   deck,
   onChange,
@@ -210,8 +141,6 @@ export function SwapQueuePanel({
   onCancelEdit,
   onSaveEdit,
   onRemoveEdit,
-  onAddLookingFor,
-  onRemoveLookingFor,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
@@ -222,8 +151,6 @@ export function SwapQueuePanel({
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onRemoveEdit: () => void;
-  onAddLookingFor: (printing: PrintingFields, meta?: { proxy: boolean }) => void;
-  onRemoveLookingFor: (entryId: string) => void;
 }) {
   const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const incomplete = incompleteEntryCount(entries);
@@ -272,8 +199,6 @@ export function SwapQueuePanel({
         })}
       </ul>
       {!entries.length ? <p className="db-empty">No swap pairings yet.</p> : null}
-
-      <SeekingSection deck={deck} onAdd={onAddLookingFor} onRemove={onRemoveLookingFor} />
 
       {draft ? (
         <SwapEditChrome

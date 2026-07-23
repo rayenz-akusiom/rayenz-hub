@@ -1,7 +1,7 @@
 import {
   addCardToDeck,
   changeCardPrinting,
-  moveCardCategory,
+  moveCardsCategory,
   removeCardFromDeck,
   type CardInstance,
   type DeckDocument,
@@ -15,11 +15,7 @@ export function applyCardMove(
   primaryCategory: string,
   stack: string | null = null,
 ): DeckDocument {
-  return {
-    ...deck,
-    cards: moveCardCategory(deck.cards, instanceId, primaryCategory, stack),
-    updatedAt: new Date().toISOString(),
-  };
+  return moveCardsCategory(deck, [instanceId], primaryCategory, stack);
 }
 
 export function applyAddCard(

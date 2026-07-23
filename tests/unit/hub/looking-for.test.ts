@@ -2,11 +2,18 @@ import { describe, it, expect } from 'vitest';
 import {
   applyLookingForToCards,
   normalizeLookingForEntries,
+  reconcileLookingForFromCards,
   seedLookingForFromCategories,
   syncCardsWithLookingFor,
 } from '../../../packages/shared/src/deck-builder/looking-for.ts';
+import {
+  addCardToDeck,
+  moveCardsCategory,
+  removeCardFromDeck,
+} from '../../../packages/shared/src/deck-builder/card-edits.ts';
 import { buildArchidektImportText } from '../../../packages/shared/src/mtg/archidekt-import-text.ts';
 import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
+import type { PrintingFields } from '../../../packages/shared/src/deck-builder/scryfall-api.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 
 function baseDeck(over: Partial<DeckDocument> = {}): DeckDocument {
@@ -31,6 +38,20 @@ function baseDeck(over: Partial<DeckDocument> = {}): DeckDocument {
     ...over,
   };
 }
+
+const printing: PrintingFields = {
+  name: 'Brainstorm',
+  setCode: 'mh2',
+  collectorNumber: '1',
+  scryfallId: 'sf-brainstorm',
+  foil: false,
+  layout: 'normal',
+  typeLine: 'Instant',
+  colourIdentity: ['U'],
+  printedName: null,
+  flavorName: null,
+  manaValue: 1,
+};
 
 describe('looking-for', () => {
   it('normalizes sortIndex', () => {
@@ -139,5 +160,46 @@ describe('looking-for', () => {
       }),
     );
     expect(text).toMatch(/Seeking\{noDeck\}\{noPrice\}/);
+  });
+
+  it('move into Seeking creates a lookingFor entry', () => {
+    const next = moveCardsCategory(baseDeck(), ['c1'], 'Seeking');
+    expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Seeking');
+    expect(next.lookingForEntries.map((e) => e.instanceId)).toEqual(['c1']);
+  });
+
+  it('move out of Seeking clears the lookingFor entry', () => {
+    const seeking = moveCardsCategory(baseDeck(), ['c1'], 'Seeking');
+    const next = moveCardsCategory(seeking, ['c1'], 'Other');
+    expect(next.lookingForEntries).toHaveLength(0);
+    expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Other');
+  });
+
+  it('addCardToDeck with Seeking creates a lookingFor entry', () => {
+    const next = addCardToDeck(baseDeck(), printing, 'Seeking');
+    const added = next.cards.find((c) => c.scryfallId === 'sf-brainstorm')!;
+    expect(added.primaryCategory).toBe('Seeking');
+    expect(next.lookingForEntries.some((e) => e.instanceId === added.instanceId)).toBe(true);
+  });
+
+  it('removeCardFromDeck drops lookingFor entries for that instance', () => {
+    const seeking = moveCardsCategory(baseDeck(), ['c1'], 'Seeking');
+    expect(seeking.lookingForEntries).toHaveLength(1);
+    const next = removeCardFromDeck(seeking, 'c1');
+    expect(next.cards.some((c) => c.instanceId === 'c1')).toBe(false);
+    expect(next.lookingForEntries).toHaveLength(0);
+  });
+
+  it('reconcileLookingForFromCards re-seeds from primary Seeking cards', () => {
+    const deck = baseDeck({
+      cards: (commander.cards as DeckDocument['cards']).map((c) =>
+        c.instanceId === 'c1'
+          ? { ...c, primaryCategory: 'Seeking', categories: ['Seeking'] }
+          : c,
+      ),
+      lookingForEntries: [],
+    });
+    const next = reconcileLookingForFromCards(deck);
+    expect(next.lookingForEntries.map((e) => e.instanceId)).toEqual(['c1']);
   });
 });

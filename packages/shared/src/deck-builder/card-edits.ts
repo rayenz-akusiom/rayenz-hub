@@ -7,7 +7,7 @@ import type {
 } from '../schemas/deck-builder.js';
 import { isSwapQueueCategory, moveCardCategory } from './browse.js';
 import { canonicalizeCategoryName } from './category-names.js';
-import { isLookingForCategory } from '../mtg/swap-queue.js';
+import { isLookingForCategory, SEEKING } from '../mtg/swap-queue.js';
 import { colourIdentitySection } from './colour-identity.js';
 import {
   emptyCardOracle,
@@ -21,6 +21,7 @@ import { normalizeCardQuantities } from './quantities.js';
 import type { PrintingFields } from './scryfall-api.js';
 import { applyPrintingToCard } from './scryfall-api.js';
 import { scryfallImageFromId } from './scryfall-images.js';
+import { reconcileLookingForFromCards } from './looking-for.js';
 
 function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -120,6 +121,7 @@ export function deckCategoryOptions(deck: Pick<DeckDocument, 'categories' | 'car
     if (card.primaryCategory) names.add(card.primaryCategory);
   }
   names.add('Maybeboard');
+  names.add(SEEKING);
   names.add('Other');
   return [...names].sort((a, b) => a.localeCompare(b));
 }
@@ -312,12 +314,12 @@ export function moveCardsCategory(
   for (const id of idSet) {
     cards = moveCardCategory(cards, id, primaryCategory, stack);
   }
-  return {
+  return reconcileLookingForFromCards({
     ...deck,
     cards,
     categories: ensureCategoryDef(deck.categories || [], primaryCategory),
     updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 export function addCardToDeck(
@@ -354,26 +356,28 @@ export function addCardToDeck(
   const key = oracleKey(instance);
   let categories = ensureCategoryDef(deck.categories || [], primaryCategory);
   if (proxy) categories = ensureProxiesCategoryDef(categories);
-  return {
+  return reconcileLookingForFromCards({
     ...deck,
     cards,
     oracle: upsertOracle(deck.oracle, key, oracleFromPrinting(printing)),
     categories,
     updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 export function removeCardFromDeck(
   deck: DeckDocument,
   instanceId: string,
 ): DeckDocument {
-  return {
+  const next: DeckDocument = {
     ...deck,
     cards: deck.cards.filter((c) => c.instanceId !== instanceId),
     formalSwapEntries: scrubSwapRefs(deck.formalSwapEntries || [], instanceId),
+    lookingForEntries: (deck.lookingForEntries || []).filter((e) => e.instanceId !== instanceId),
     coverInstanceId: deck.coverInstanceId === instanceId ? null : deck.coverInstanceId ?? null,
     updatedAt: new Date().toISOString(),
   };
+  return reconcileLookingForFromCards(next);
 }
 
 export function changeCardPrinting(

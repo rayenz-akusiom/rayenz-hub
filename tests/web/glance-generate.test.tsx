@@ -6,7 +6,12 @@ import { GlanceGenerateButton } from '../../packages/web/src/deck-builder/comman
 import { buildEligibleCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
-const postGlance = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
+const postGlance = vi.fn(async () => ({
+  blob: new Blob(['png'], { type: 'image/png' }),
+  cache: 'MISS',
+  generation: 'glance-gen-4',
+  delivery: 'inline' as const,
+}));
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
@@ -49,13 +54,14 @@ describe('GlanceGenerateButton', () => {
     expect(postGlance).not.toHaveBeenCalled();
   });
 
-  it('generates, previews, and exposes download without client canvas fallback', async () => {
+  it('generates, previews, shows status, and exposes download', async () => {
     const deck = buildEligibleCommanderDeck();
     render(<GlanceGenerateButton deck={deck} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Generate glance' }));
     await waitFor(() => expect(postGlance).toHaveBeenCalledWith(deck.deckId));
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
+    expect(screen.getByText(/gen glance-gen-4 · cache MISS/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 });

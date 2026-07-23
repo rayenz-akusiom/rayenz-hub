@@ -36,7 +36,7 @@ For **live HTTP API** testing you also need:
 `POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, exactly 100 cards after swaps). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured.
 
 - **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.
-- **Cache**: Private S3 prefix `glance-cache/{layoutVersion}/{fingerprint}.png` (MinIO when using SAM local). Layout version bumps invalidate stale PNGs.
+- **Cache**: Private S3 prefix `glance-cache/{GLANCE_GENERATION_VERSION}/{fingerprint}.png` (MinIO when using SAM local). Bump generation version to invalidate stale PNGs.
 - **Tests**: `npx vitest run tests/unit/hub/deck-builder-glance-*.test.ts tests/api/deck-glance.test.ts`
 - **Spec quickstart**: `documents/specs/006-commander-deck-glance/quickstart.md`
 

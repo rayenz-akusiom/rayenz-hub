@@ -2,6 +2,7 @@ import {
   cardImageUrl,
   collectionIdentifierForCard,
   fetchCardsCollection,
+  scryfallCdnUrlWithSize,
   scryfallImageFromId,
   type GlanceCard,
   type GlanceLayoutPlan,
@@ -23,7 +24,7 @@ function printKey(card: Pick<GlanceCard, 'name' | 'setCode' | 'collectorNumber'>
   return `${String(card.name || '').toLowerCase()}|${String(card.setCode || '').toLowerCase()}|${card.collectorNumber || ''}`;
 }
 
-/** Prefer direct CDN URLs; api.scryfall.com image redirects are resolved server-side. */
+/** Prefer direct CDN URLs at `small` size; api.scryfall.com redirects are resolved server-side. */
 export function glanceImageUrlForCard(
   card: Pick<
     GlanceCard,
@@ -31,9 +32,15 @@ export function glanceImageUrlForCard(
   > & { scryfallId?: string | null },
 ): string | null {
   if (card.scryfallId) {
-    return scryfallImageFromId(card.scryfallId) || card.imageUrl || null;
+    return (
+      scryfallImageFromId(card.scryfallId, undefined, 'normal') ||
+      scryfallCdnUrlWithSize(card.imageUrl, 'normal') ||
+      null
+    );
   }
-  if (isCdnImageUrl(card.imageUrl)) return card.imageUrl;
+  if (isCdnImageUrl(card.imageUrl)) {
+    return scryfallCdnUrlWithSize(card.imageUrl, 'normal');
+  }
   const derived = cardImageUrl({
     name: card.name,
     setCode: card.setCode,
@@ -41,6 +48,7 @@ export function glanceImageUrlForCard(
     scryfallId: card.scryfallId ?? null,
     imageUrl: isCdnImageUrl(card.imageUrl) ? card.imageUrl : null,
   });
+  if (isCdnImageUrl(derived)) return scryfallCdnUrlWithSize(derived, 'normal');
   return derived || card.imageUrl || null;
 }
 

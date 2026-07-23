@@ -3,7 +3,7 @@ import { isSeekingCategory, isSwapOutCategory } from '../../mtg/swap-queue.js';
 import { categoryIncluded, COMMANDER_DECK_TARGET } from '../browse.js';
 import { canonicalizeCategoryName } from '../category-names.js';
 import { getOracle, resolveCardView } from '../card-oracle.js';
-import { cardImageUrl, scryfallImageFromId } from '../scryfall-images.js';
+import { cardImageUrl, scryfallCdnUrlWithSize, scryfallImageFromId } from '../scryfall-images.js';
 import { isBasicLand, normalizeCardQuantities } from '../quantities.js';
 import { formalSwapInIds, syncCardsWithFormalSwaps } from '../formal-swaps.js';
 import { sortLands, sortNonLands } from './colour-sort.js';
@@ -48,10 +48,15 @@ function toGlanceCard(card: CardInstance, doc: DeckDocument): GlanceCard {
   const typeLine = view.typeLine;
   const basic = isBasicLand({ name: card.name, typeLine });
   const scryfallId = card.scryfallId || view.scryfallId || oracle?.scryfallId || null;
+  const fromId = scryfallImageFromId(scryfallId, undefined, 'normal');
+  const fromView = view.imageUrl?.includes('cards.scryfall.io')
+    ? scryfallCdnUrlWithSize(view.imageUrl, 'normal')
+    : null;
+  const fromCard = cardImageUrl({ ...view, scryfallId });
   const imageUrl =
-    scryfallImageFromId(scryfallId) ||
-    (view.imageUrl && view.imageUrl.includes('cards.scryfall.io') ? view.imageUrl : null) ||
-    cardImageUrl({ ...view, scryfallId }) ||
+    fromId ||
+    fromView ||
+    (fromCard.includes('cards.scryfall.io') ? scryfallCdnUrlWithSize(fromCard, 'normal') : fromCard || null) ||
     null;
   return {
     instanceId: card.instanceId,

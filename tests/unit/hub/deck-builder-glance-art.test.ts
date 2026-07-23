@@ -19,5 +19,18 @@ describe('glance art resolution', () => {
       scryfallId: 'b2c3fa98-f233-4a55-8ea0-5269a6ef9243',
     });
     expect(url).toContain('cards.scryfall.io');
+    expect(url).toContain('/normal/');
+  });
+
+  it('rewrites stored normal CDN urls to normal', () => {
+    const url = glanceImageUrlForCard({
+      name: 'Forest',
+      setCode: 'm12',
+      collectorNumber: '246',
+      imageUrl: 'https://cards.scryfall.io/normal/front/b/2/b2c3fa98-f233-4a55-8ea0-5269a6ef9243.jpg',
+    });
+    expect(url).toBe(
+      'https://cards.scryfall.io/normal/front/b/2/b2c3fa98-f233-4a55-8ea0-5269a6ef9243.jpg',
+    );
   });
 });

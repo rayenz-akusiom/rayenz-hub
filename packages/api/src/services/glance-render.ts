@@ -16,15 +16,27 @@ function loadSharp(): Promise<Sharp> {
   return sharpPromise;
 }
 
-function watermarkFontPath(): string {
-  const candidates = [
+function assetRootCandidates(): string[] {
+  return [
     process.env.LAMBDA_TASK_ROOT,
     process.cwd(),
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'),
-  ]
-    .filter(Boolean)
-    .map((root) => path.join(root as string, 'assets/fonts/BebasNeue-Regular.ttf'));
+  ].filter(Boolean) as string[];
+}
+
+function resolveFontPath(filename: string): string {
+  const candidates = assetRootCandidates().map((root) =>
+    path.join(root, 'assets/fonts', filename),
+  );
   return candidates.find((p) => existsSync(p)) ?? candidates[0]!;
+}
+
+function sansFontPath(): string {
+  return resolveFontPath('DejaVuSans.ttf');
+}
+
+function watermarkFontPath(): string {
+  return resolveFontPath('BebasNeue-Regular.ttf');
 }
 
 export type GlanceImageLoader = (
@@ -39,18 +51,35 @@ async function defaultImageLoader(
   return fetchImageBytes(url, fetch);
 }
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function truncateName(name: string, maxLen: number): string {
   const trimmed = String(name || '').trim();
   if (trimmed.length <= maxLen) return trimmed;
   return `${trimmed.slice(0, Math.max(1, maxLen - 1))}…`;
+}
+
+type DrawTextOptions = {
+  text: string;
+  fontPath: string;
+  width: number;
+  height: number;
+  fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+};
+
+async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
+  const sharp = await loadSharp();
+  return sharp({
+    text: {
+      text: options.text,
+      font: options.fontPath,
+      width: options.width,
+      height: options.height,
+      align: 'left',
+      rgba: true,
+    },
+  })
+    .png()
+    .toBuffer();
 }
 
 async function drawNamedPlaceholder(
@@ -60,12 +89,27 @@ async function drawNamedPlaceholder(
 ): Promise<Buffer> {
   const sharp = await loadSharp();
   const label = truncateName(name, Math.max(8, Math.floor(width / 7)));
-  const fontSize = Math.max(10, Math.min(14, Math.floor(width / 7)));
-  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100%" height="100%" rx="6" ry="6" fill="#2a2a36" stroke="#4a4a58" stroke-width="2"/>
-    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#d8d8e4" font-size="${fontSize}" font-family="sans-serif">${escapeXml(label)}</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const textBoxH = Math.max(16, Math.floor(height * 0.28));
+  const textRaw = await drawTextRaster({
+    text: label,
+    fontPath: sansFontPath(),
+    width: Math.max(40, width - 8),
+    height: textBoxH,
+  });
+  const textTile = await sharp(textRaw)
+    .resize(Math.max(1, width - 8), textBoxH, { fit: 'inside' })
+    .toBuffer();
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 42, g: 42, b: 54, alpha: 1 },
+    },
+  })
+    .composite([{ input: textTile, left: 4, top: Math.floor((height - textBoxH) / 2) }])
+    .png()
+    .toBuffer();
 }
 
 async function loadTile(
@@ -80,7 +124,7 @@ async function loadTile(
   if (raw) {
     return sharp(Buffer.from(raw))
       .resize(width, height, { fit: 'cover' })
-      .png()
+      .jpeg({ quality: 85 })
       .toBuffer();
   }
   return drawNamedPlaceholder(card.name, width, height);
@@ -89,41 +133,70 @@ async function loadTile(
 async function drawQuantityBadge(qty: number, width: number): Promise<Buffer> {
   const sharp = await loadSharp();
   const size = Math.max(18, Math.round(width * 0.22));
-  const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="rgba(0,0,0,0.72)"/>
-    <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="${Math.round(size * 0.45)}" font-family="sans-serif" font-weight="700">${qty}</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const bg = await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0.72 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const text = await drawTextRaster({
+    text: String(qty),
+    fontPath: sansFontPath(),
+    width: size,
+    height: size,
+    fontSize: Math.round(size * 0.45),
+    fontWeight: 'bold',
+  });
+  return sharp(bg).composite([{ input: text, left: 0, top: 0 }]).png().toBuffer();
 }
 
-async function drawWatermark(): Promise<Buffer> {
+async function drawWatermark(canvasWidth: number): Promise<Buffer> {
   const sharp = await loadSharp();
-  const svg = `<svg width="1920" height="${WATERMARK_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100%" height="100%" fill="rgba(0,0,0,0.35)"/>
-    <text x="960" y="34" text-anchor="middle" fill="rgba(255,255,255,0.82)" font-size="28" font-family="Bebas Neue">Rayenz</text>
-  </svg>`;
-  try {
-    return await sharp(Buffer.from(svg)).png().toBuffer();
-  } catch {
-    return sharp({
-      text: {
-        text: 'Rayenz',
-        font: watermarkFontPath(),
-        rgba: true,
-        width: 400,
-        height: 40,
-      },
-    })
-      .extend({
-        top: 4,
-        bottom: 4,
-        left: 760,
-        right: 760,
-        background: { r: 0, g: 0, b: 0, alpha: 0.35 },
-      })
-      .png()
-      .toBuffer();
-  }
+  const strip = await sharp({
+    create: {
+      width: canvasWidth,
+      height: WATERMARK_HEIGHT,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0.35 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const text = await drawTextRaster({
+    text: 'Rayenz',
+    fontPath: watermarkFontPath(),
+    width: 400,
+    height: 40,
+    fontSize: 32,
+  });
+  const left = Math.max(0, Math.floor((canvasWidth - 400) / 2));
+  return sharp(strip).composite([{ input: text, left, top: 4 }]).png().toBuffer();
+}
+
+async function drawLabel(text: string): Promise<Buffer> {
+  return drawTextRaster({
+    text,
+    fontPath: sansFontPath(),
+    width: 800,
+    height: 28,
+    fontSize: 18,
+    fontWeight: 'bold',
+  });
+}
+
+async function drawDeckTitle(deckName: string): Promise<Buffer> {
+  return drawTextRaster({
+    text: deckName,
+    fontPath: sansFontPath(),
+    width: 800,
+    height: 40,
+    fontSize: 24,
+    fontWeight: 'bold',
+  });
 }
 
 export type RenderGlanceOptions = {
@@ -137,6 +210,15 @@ export async function renderGlancePng(
   const sharp = await loadSharp();
   const loader = options.imageLoader ?? defaultImageLoader;
   const composites: import('sharp').OverlayOptions[] = [];
+
+  for (const label of plan.labels) {
+    const tile = await drawLabel(label.text);
+    composites.push({
+      input: tile,
+      left: label.x,
+      top: label.y,
+    });
+  }
 
   for (const placement of plan.placements) {
     const tile = await loadTile(placement.card, placement.width, placement.height, loader);
@@ -156,7 +238,7 @@ export async function renderGlancePng(
     }
   }
 
-  const watermark = await drawWatermark();
+  const watermark = await drawWatermark(plan.canvasWidth);
   composites.push({
     input: watermark,
     left: 0,
@@ -164,10 +246,8 @@ export async function renderGlancePng(
   });
 
   if (plan.deckName) {
-    const titleSvg = `<svg width="800" height="40" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="28" fill="#f2f2f2" font-size="24" font-family="sans-serif" font-weight="600">${escapeXml(plan.deckName)}</text>
-    </svg>`;
-    composites.push({ input: Buffer.from(titleSvg), left: 24, top: 12 });
+    const title = await drawDeckTitle(plan.deckName);
+    composites.push({ input: title, left: 24, top: 12 });
   }
 
   const png = await sharp({
@@ -179,7 +259,7 @@ export async function renderGlancePng(
     },
   })
     .composite(composites)
-    .png()
+    .png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true })
     .toBuffer();
 
   return new Uint8Array(png);

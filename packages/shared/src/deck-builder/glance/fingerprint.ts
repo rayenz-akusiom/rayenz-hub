@@ -1,5 +1,5 @@
 import type { GlanceIncludeSet } from './types.js';
-import { GLANCE_LAYOUT_VERSION } from './types.js';
+import { GLANCE_GENERATION_VERSION } from './types.js';
 import { sha256Hex } from './sha256.js';
 
 function cardIdentity(card: {
@@ -32,8 +32,8 @@ export function canonicalIncludeSetMaterial(includeSet: GlanceIncludeSet): strin
 
 export function glanceFingerprint(
   includeSet: GlanceIncludeSet,
-  layoutVersion: string = GLANCE_LAYOUT_VERSION,
+  generationVersion: string = GLANCE_GENERATION_VERSION,
 ): string {
-  const material = `${layoutVersion}\n${canonicalIncludeSetMaterial(includeSet)}`;
+  const material = `${generationVersion}\n${canonicalIncludeSetMaterial(includeSet)}`;
   return sha256Hex(material);
 }

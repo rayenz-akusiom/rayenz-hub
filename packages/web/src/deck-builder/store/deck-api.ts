@@ -31,7 +31,14 @@ export async function apiDeleteDeck(deckId: string): Promise<void> {
   await apiFetch(`/v1/decks/${encodeURIComponent(deckId)}`, { method: 'DELETE' });
 }
 
-export async function apiPostDeckGlance(deckId: string): Promise<Blob> {
+export type DeckGlanceResult = {
+  blob: Blob;
+  cache: string | null;
+  generation: string | null;
+  delivery: 'inline' | 'presigned';
+};
+
+export async function apiPostDeckGlance(deckId: string): Promise<DeckGlanceResult> {
   const { getHubApiConfig, assertApiNotPageOrigin } = await import('../../api/hub-api-client');
   const cfg = getHubApiConfig();
   if (!cfg.enabled) {
@@ -57,5 +64,39 @@ export async function apiPostDeckGlance(deckId: string): Promise<Blob> {
       throw new Error(`Hub API error ${res.status}: ${peek}`);
     }
   }
-  return res.blob();
+
+  const cache = res.headers.get('x-glance-cache');
+  const generation = res.headers.get('x-glance-generation');
+  const contentType = res.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const body = (await res.json()) as {
+      delivery?: string;
+      url?: string;
+      cache?: string;
+      generation?: string;
+    };
+    if (body.delivery === 'presigned' && body.url) {
+      const imageRes = await fetch(body.url);
+      if (!imageRes.ok) {
+        throw new Error(`Failed to fetch glance image (${imageRes.status}).`);
+      }
+      const blob = await imageRes.blob();
+      return {
+        blob,
+        cache: body.cache ?? null,
+        generation: body.generation ?? null,
+        delivery: 'presigned',
+      };
+    }
+    throw new Error('Unexpected glance API response.');
+  }
+
+  const blob = await res.blob();
+  return {
+    blob,
+    cache,
+    generation,
+    delivery: 'inline',
+  };
 }

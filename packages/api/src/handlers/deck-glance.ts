@@ -1,12 +1,16 @@
 import {
   buildGlanceIncludeSet,
   buildGlanceLayoutPlan,
+  GLANCE_GENERATION_VERSION,
   type DeckDocument,
 } from '@rayenz-hub/shared';
-import { binaryResponse, errorResponse } from '../lib/response.js';
+import { binaryResponse, errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
-import { GlanceCacheRepository } from '../repositories/glance-cache.js';
+import {
+  GLANCE_INLINE_MAX_BYTES,
+  GlanceCacheRepository,
+} from '../repositories/glance-cache.js';
 import {
   createGlanceImageLoader,
   enrichGlancePlanArt,
@@ -28,6 +32,11 @@ export type DeckGlanceOptions = RenderGlanceOptions & {
   blobStore?: BlobStore;
   fetchImpl?: typeof fetch;
   skipArtEnrichment?: boolean;
+  inlineMaxBytes?: number;
+  presignGet?: (
+    generationVersion: string,
+    fingerprint: string,
+  ) => Promise<{ url: string; expiresAt: string }>;
 };
 
 export async function handleDeckGlance(
@@ -54,13 +63,15 @@ export async function handleDeckGlance(
     }
 
     const plan = buildGlanceLayoutPlan(includeResult.includeSet, deck.name || null);
+    const bucket = env.HUB_BUCKET_NAME || 'rayenz-hub-data-local';
+    const s3Client = createS3Client(env);
     const blob =
-      options.blobStore ??
-      new S3BlobStore(createS3Client(env), env.HUB_BUCKET_NAME || 'rayenz-hub-data-local');
-    const cache = new GlanceCacheRepository(blob);
+      options.blobStore ?? new S3BlobStore(s3Client, bucket);
+    const cache = new GlanceCacheRepository(blob, { client: s3Client, bucket });
     const fetchImpl = options.fetchImpl ?? fetch;
+    const inlineMaxBytes = options.inlineMaxBytes ?? GLANCE_INLINE_MAX_BYTES;
 
-    let png = await cache.get(plan.layoutVersion, plan.fingerprint);
+    let png = await cache.get(GLANCE_GENERATION_VERSION, plan.fingerprint);
     let cacheStatus: 'HIT' | 'MISS' = 'HIT';
     if (!png) {
       cacheStatus = 'MISS';
@@ -70,7 +81,20 @@ export async function handleDeckGlance(
       const imageCache = await prefetchGlanceImages(renderPlan, fetchImpl);
       const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
       png = await renderGlancePng(renderPlan, { imageLoader });
-      await cache.put(plan.layoutVersion, plan.fingerprint, png);
+      await cache.put(GLANCE_GENERATION_VERSION, plan.fingerprint, png);
+    }
+
+    if (png.byteLength > inlineMaxBytes) {
+      const presigned = options.presignGet
+        ? await options.presignGet(GLANCE_GENERATION_VERSION, plan.fingerprint)
+        : await cache.presignGet(GLANCE_GENERATION_VERSION, plan.fingerprint);
+      return jsonResponse(200, {
+        delivery: 'presigned',
+        url: presigned.url,
+        expiresAt: presigned.expiresAt,
+        generation: GLANCE_GENERATION_VERSION,
+        cache: cacheStatus,
+      });
     }
 
     const filename = `${safeFilename(deck.name)}-glance.png`;
@@ -78,6 +102,7 @@ export async function handleDeckGlance(
       'content-type': 'image/png',
       'content-disposition': `attachment; filename="${filename}"`,
       'x-glance-cache': cacheStatus,
+      'x-glance-generation': GLANCE_GENERATION_VERSION,
     });
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);

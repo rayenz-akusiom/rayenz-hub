@@ -11,6 +11,11 @@ describe('deck-builder glance include-set', () => {
     if (!result.ok) return;
     expect(result.includeSet.quantitySum).toBe(100);
     expect(result.includeSet.commanders).toHaveLength(1);
+    for (const card of result.includeSet.cards) {
+      if (card.imageUrl?.includes('cards.scryfall.io')) {
+        expect(card.imageUrl).toContain('/normal/');
+      }
+    }
   });
 
   it('rejects decks whose include-set is not exactly 100', () => {

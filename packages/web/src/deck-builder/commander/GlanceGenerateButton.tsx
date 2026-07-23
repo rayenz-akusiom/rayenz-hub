@@ -13,6 +13,7 @@ export function GlanceGenerateButton({ deck }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pngBlob, setPngBlob] = useState<Blob | null>(null);
+  const [statusLine, setStatusLine] = useState<string | null>(null);
 
   const apiReady = isApiConfigured();
   const hasDeckId = Boolean(deck.deckId);
@@ -22,6 +23,7 @@ export function GlanceGenerateButton({ deck }: Props) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPngBlob(null);
+    setStatusLine(null);
   }, [previewUrl]);
 
   const closeDialog = useCallback(() => {
@@ -49,10 +51,15 @@ export function GlanceGenerateButton({ deck }: Props) {
       if (!hasDeckId) {
         throw new Error('Save this deck to the Hub API before generating a glance image.');
       }
-      const blob = await apiPostDeckGlance(deck.deckId);
-      const url = URL.createObjectURL(blob);
-      setPngBlob(blob);
+      const result = await apiPostDeckGlance(deck.deckId);
+      const url = URL.createObjectURL(result.blob);
+      setPngBlob(result.blob);
       setPreviewUrl(url);
+      const parts = ['Generated'];
+      if (result.generation) parts.push(`gen ${result.generation}`);
+      if (result.cache) parts.push(`cache ${result.cache}`);
+      if (result.delivery === 'presigned') parts.push('presigned fetch');
+      setStatusLine(parts.join(' · '));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate glance image.');
     } finally {
@@ -103,6 +110,7 @@ export function GlanceGenerateButton({ deck }: Props) {
             <h2>Deck glance</h2>
             {loading ? <p>Generating glance image…</p> : null}
             {error ? <p className="db-error">{error}</p> : null}
+            {statusLine ? <p className="db-glance-status">{statusLine}</p> : null}
             {previewUrl ? (
               <img src={previewUrl} alt="Deck glance preview" className="db-glance-preview" />
             ) : null}

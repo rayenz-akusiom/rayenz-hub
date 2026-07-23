@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGlanceIncludeSet, buildGlanceLayoutPlan } from '@rayenz-hub/shared';
+import { buildGlanceIncludeSet, buildGlanceLayoutPlan, GLANCE_GENERATION_VERSION } from '@rayenz-hub/shared';
 import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
 import { handleDeckGlance } from '../../packages/api/src/handlers/deck-glance.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
@@ -52,6 +52,7 @@ describe('deck glance API', () => {
     expect(first.statusCode).toBe(200);
     expect(first.headers?.['content-type']).toBe('image/png');
     expect(first.headers?.['x-glance-cache']).toBe('MISS');
+    expect(first.headers?.['x-glance-generation']).toBe(GLANCE_GENERATION_VERSION);
     expect(first.isBase64Encoded).toBe(true);
 
     const second = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, {
@@ -88,5 +89,28 @@ describe('deck glance API', () => {
     }
     const forest = plan.placements.find((p) => p.card.instanceId === 'forest-stack');
     expect(forest?.showQuantity).toBe(true);
+  });
+
+  it('returns presigned JSON when PNG exceeds inline limit', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildEligibleCommanderDeck({ deckId: 'glance-presigned' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const blob = asBlobStore(s3);
+    const res = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, {
+      ...renderOptions,
+      blobStore: blob,
+      inlineMaxBytes: 1,
+      presignGet: async () => ({
+        url: 'https://example.test/glance.png',
+        expiresAt: '2026-07-23T00:00:00.000Z',
+      }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers?.['content-type']).toBe('application/json');
+    const body = JSON.parse(String(res.body));
+    expect(body.delivery).toBe('presigned');
+    expect(body.url).toBe('https://example.test/glance.png');
+    expect(body.generation).toBe(GLANCE_GENERATION_VERSION);
+    expect(body.cache).toBe('MISS');
   });
 });

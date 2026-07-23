@@ -26,4 +26,4 @@ Before compositing, `deck-glance.ts` calls `enrichGlancePlanArt` + `prefetchGlan
 - Batches **`/cards/collection`** for printings missing `scryfallId`.
 - Falls back to **named neutral placeholders** when art is still unavailable (coordinates unchanged).
 
-Layout version **`glance-layout-2`** bumps the S3 cache prefix; redeploy/regenerate to drop any cached all-red PNGs from the MVP build.
+Layout version **`glance-gen-4`** bumps the S3 cache prefix (fixed 1080 canvas, vertical name fans, section headers, bundled fonts, presigned fallback for large PNGs); regenerate after deploy to drop older cached PNGs.

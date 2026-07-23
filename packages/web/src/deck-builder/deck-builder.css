@@ -1804,6 +1804,24 @@ body,
   width: min(48rem, 100%);
 }
 
+.db-glance-modal {
+  width: min(56rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.db-glance-preview {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.db-glance-status {
+  color: var(--db-muted, #8a8a96);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .db-modal-actions {
   display: flex;
   justify-content: flex-end;

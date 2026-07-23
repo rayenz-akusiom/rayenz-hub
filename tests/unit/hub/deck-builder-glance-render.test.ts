@@ -15,5 +15,6 @@ describe('deck-builder glance render', () => {
     });
     expect(png.byteLength).toBeGreaterThan(1000);
     expect(plan.placements.length).toBeGreaterThan(0);
+    expect(plan.labels.length).toBeGreaterThan(0);
   });
 });

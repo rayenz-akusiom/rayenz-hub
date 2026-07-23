@@ -67,6 +67,9 @@ describe('scryfall image urls', () => {
     expect(scryfallImageFromId('91fdb56b-54d5-4272-8319-505ff987fe9b')).toBe(
       'https://cards.scryfall.io/normal/front/9/1/91fdb56b-54d5-4272-8319-505ff987fe9b.jpg',
     );
+    expect(scryfallImageFromId('abc-123', 'front', 'small')).toBe(
+      'https://cards.scryfall.io/small/front/a/b/abc-123.jpg',
+    );
   });
 
   it('appends face=back for printing and name api urls', () => {

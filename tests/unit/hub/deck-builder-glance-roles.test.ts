@@ -15,7 +15,10 @@ describe('deck-builder glance roles and quantities', () => {
     expect(include.includeSet.lieutenants.length).toBeLessThanOrEqual(2);
     const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
     expect(plan.placements.filter((p) => p.region === 'commander')).toHaveLength(1);
-    expect(plan.placements.every((p) => p.region !== 'lieutenant' || p.height >= 180)).toBe(true);
+    const rolePlacements = plan.placements.filter(
+      (p) => p.region === 'commander' || p.region === 'lieutenant',
+    );
+    expect(rolePlacements.every((p) => p.width === 213 && p.height === 297)).toBe(true);
   });
 
   it('shows quantity badges only for basic lands with quantity > 1', () => {

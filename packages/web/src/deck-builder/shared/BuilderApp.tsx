@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { filterLibraryByFormat } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
@@ -17,6 +17,15 @@ import { FormatFilteredLibrary } from './library/FormatFilteredLibrary';
 import * as store from '../store/deck-store';
 import * as deckApi from '../store/deck-api';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
+import {
+  SAMPLE_COMMANDER_DECK_NAME,
+  dismissSampleDeck,
+  ensureSampleDeck,
+  getSampleCommanderSummary,
+  isSampleDeckId,
+  isSampleDismissed,
+  shouldOfferSampleCommander,
+} from '../sample/sample-deck';
 
 export type CreateDialogProps = {
   onClose: () => void;
@@ -27,6 +36,9 @@ export type CreateDialogProps = {
 
 async function saveDualMode(doc: DeckDocument): Promise<{ saved: DeckDocument; apiError?: string }> {
   const saved = await store.saveDeck(doc);
+  if (isSampleDeckId(doc.deckId)) {
+    return { saved };
+  }
   if (isApiConfigured()) {
     try {
       const remote = await deckApi.apiPutDeck(saved);
@@ -48,6 +60,10 @@ async function saveDualMode(doc: DeckDocument): Promise<{ saved: DeckDocument; a
 
 async function deleteDualMode(deckId: string): Promise<{ apiError?: string }> {
   await store.deleteDeck(deckId);
+  if (isSampleDeckId(deckId)) {
+    dismissSampleDeck();
+    return {};
+  }
   if (isApiConfigured()) {
     try {
       await deckApi.apiDeleteDeck(deckId);
@@ -73,8 +89,19 @@ function deepLinkIndexMatch(builderFormat: BuilderFormat): DeckSummary | null {
   const route = parseBuilderRoute(window.location.hash, builderFormat);
   if (!route || route.userSlug !== HUB_USER_SLUG) return null;
   const match = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
-  if (!match || match.format !== builderFormat) return null;
-  return match;
+  if (match && match.format === builderFormat) {
+    if (isSampleDeckId(match.deckId) && isSampleDismissed()) return null;
+    return match;
+  }
+  // Sample may not be seeded into the index yet on first paint.
+  if (
+    builderFormat === 'commander' &&
+    route.deckSlug === toKebabCase(SAMPLE_COMMANDER_DECK_NAME) &&
+    !isSampleDismissed()
+  ) {
+    return getSampleCommanderSummary();
+  }
+  return null;
 }
 
 export function BuilderApp({
@@ -89,6 +116,7 @@ export function BuilderApp({
   CreateDialog: ComponentType<CreateDialogProps>;
 }) {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [sampleDeck, setSampleDeck] = useState<DeckSummary | null>(null);
   const [active, setActive] = useState<DeckDocument | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -102,7 +130,10 @@ export function BuilderApp({
   const activeRef = useRef<DeckDocument | null>(null);
   const applyingRouteRef = useRef(false);
 
-  const filteredDecks = filterLibraryByFormat(decks, builderFormat);
+  const filteredDecks = useMemo(
+    () => filterLibraryByFormat(decks, builderFormat).filter((d) => !isSampleDeckId(d.deckId)),
+    [decks, builderFormat],
+  );
 
   useEffect(() => {
     decksRef.current = decks;
@@ -134,7 +165,10 @@ export function BuilderApp({
   const openDeck = useCallback(
     async (deckId: string, opts?: { syncHash?: boolean }) => {
       setError(null);
-      const doc = await store.getDeck(deckId);
+      let doc = await store.getDeck(deckId);
+      if (!doc && isSampleDeckId(deckId) && !isSampleDismissed()) {
+        doc = await ensureSampleDeck();
+      }
       if (!doc) {
         setError('Deck not found in local store');
         return;
@@ -151,6 +185,11 @@ export function BuilderApp({
         } finally {
           applyingRouteRef.current = false;
         }
+      }
+
+      if (isSampleDeckId(deckId)) {
+        setSyncStatus(isApiConfigured() ? 'local' : null);
+        return;
       }
 
       if (!isApiConfigured()) {
@@ -263,6 +302,7 @@ export function BuilderApp({
             const remote = await deckApi.apiListDecks();
             const byId = new Map(list.map((d) => [d.deckId, d]));
             for (const r of remote) {
+              if (isSampleDeckId(r.deckId)) continue;
               const local = byId.get(r.deckId);
               if (!local || r.updatedAt >= local.updatedAt) {
                 byId.set(r.deckId, {
@@ -273,7 +313,7 @@ export function BuilderApp({
                   coverPartnerStatus: r.coverPartnerStatus ?? local?.coverPartnerStatus ?? null,
                 });
                 const full = await deckApi.apiGetDeck(r.deckId);
-                if (full) {
+                if (full && !isSampleDeckId(full.deckId)) {
                   const merged = store.mergeDeckDocuments(await store.getDeck(r.deckId), full);
                   if (merged) await store.saveDeck(merged);
                 }
@@ -286,16 +326,30 @@ export function BuilderApp({
             setApiWarning(e instanceof Error ? e.message : String(e));
           }
         }
-        setDecks(list);
-        decksRef.current = list;
-        if (applyRoute) await applyRouteFromHash(list);
+
+        const realList = list.filter((d) => !isSampleDeckId(d.deckId));
+        let offeredSample: DeckSummary | null = null;
+        if (builderFormat === 'commander') {
+          const realCommander = filterLibraryByFormat(realList, 'commander');
+          if (shouldOfferSampleCommander(realCommander)) {
+            const ensured = await ensureSampleDeck();
+            offeredSample = ensured
+              ? { ...getSampleCommanderSummary(), updatedAt: ensured.updatedAt }
+              : getSampleCommanderSummary();
+          }
+        }
+        setSampleDeck(offeredSample);
+        setDecks(realList);
+        const routeList = offeredSample ? [...realList, offeredSample] : realList;
+        decksRef.current = routeList;
+        if (applyRoute) await applyRouteFromHash(routeList);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
       }
     },
-    [applyRouteFromHash],
+    [applyRouteFromHash, builderFormat],
   );
 
   // Open known deep links before paint so BrowseShell is the first meaningful frame.
@@ -344,10 +398,13 @@ export function BuilderApp({
       setActive(next);
     }
     setApiWarning(null);
-    if (isApiConfigured()) setSyncStatus('syncing');
+    const sample = isSampleDeckId(next.deckId);
+    if (isApiConfigured() && !sample) setSyncStatus('syncing');
     const { saved, apiError } = await saveDualMode(next);
     if (seq !== persistSeq.current) return;
-    if (apiError) {
+    if (sample) {
+      setSyncStatus(isApiConfigured() ? 'local' : null);
+    } else if (apiError) {
       setApiWarning(apiError);
       if (isApiConfigured()) setSyncStatus('error');
     } else if (isApiConfigured()) {
@@ -417,6 +474,7 @@ export function BuilderApp({
         title={title}
         addLabel={addLabel}
         decks={filteredDecks}
+        sampleDeck={builderFormat === 'commander' ? sampleDeck : null}
         loading={loading}
         error={error}
         onOpen={(id) => void openDeck(id)}

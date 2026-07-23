@@ -4,6 +4,13 @@ import userEvent from '@testing-library/user-event';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { toDeckSummary } from '@rayenz-hub/shared';
 import { CommanderBuilderApp } from '../../packages/web/src/deck-builder/commander/CommanderBuilderApp';
+import {
+  SAMPLE_COMMANDER_DECK_ID,
+  SAMPLE_COMMANDER_DECK_NAME,
+  SAMPLE_DISMISS_KEY,
+  buildSampleCommanderDocument,
+  sampleMainDeckCardCount,
+} from '../../packages/web/src/deck-builder/sample/sample-deck';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
 
@@ -84,6 +91,7 @@ const commanderDoc = withLayouts(commanderFixture as DeckDocument);
 const cubeDoc = withLayouts(cubeFixture as DeckDocument);
 const commanderSummary = toDeckSummary(commanderDoc);
 const cubeSummary = toDeckSummary(cubeDoc);
+const sampleDoc = buildSampleCommanderDocument();
 
 function headerAddDeckButton() {
   const header = screen.getByRole('heading', { name: /Commander Builder/ }).parentElement!;
@@ -111,6 +119,7 @@ function defaultMocks() {
   getDeck.mockImplementation(async (id) => {
     if (id === commanderDoc.deckId) return commanderDoc;
     if (id === cubeDoc.deckId) return cubeDoc;
+    if (id === SAMPLE_COMMANDER_DECK_ID) return sampleDoc;
     return null;
   });
   saveDeck.mockImplementation(async (doc) => ({ ...doc, updatedAt: new Date().toISOString() }));
@@ -127,6 +136,11 @@ afterEach(() => {
   vi.restoreAllMocks();
   apiConfigured.value = false;
   window.location.hash = '';
+  try {
+    localStorage.removeItem(SAMPLE_DISMISS_KEY);
+  } catch {
+    /* ignore */
+  }
 });
 
 describe('CommanderBuilderApp', () => {
@@ -135,7 +149,7 @@ describe('CommanderBuilderApp', () => {
     window.location.hash = '#/commander-builder';
   });
 
-  it('shows loading then empty library state', async () => {
+  it('shows loading then empty library state with sample deck', async () => {
     let resolveList!: (value: DeckSummary[]) => void;
     listDecks.mockImplementation(
       () =>
@@ -143,6 +157,10 @@ describe('CommanderBuilderApp', () => {
           resolveList = resolve;
         }),
     );
+    getDeck.mockImplementation(async (id) => {
+      if (id === SAMPLE_COMMANDER_DECK_ID) return null;
+      return null;
+    });
 
     render(<CommanderBuilderApp />);
     expect(screen.getByLabelText(/loading library/i)).toBeInTheDocument();
@@ -152,15 +170,22 @@ describe('CommanderBuilderApp', () => {
       expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
     });
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    expect(screen.getByText('Sample', { selector: '.db-sample-badge' })).toBeInTheDocument();
+    expect(screen.getByText(/Or open the sample deck above/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Commander Builder/ })).toHaveTextContent('(0)');
+    expect(saveDeck).toHaveBeenCalledWith(expect.objectContaining({ deckId: SAMPLE_COMMANDER_DECK_ID }));
   });
 
-  it('lists commander decks only', async () => {
+  it('lists commander decks only and hides sample when real decks exist', async () => {
     render(<CommanderBuilderApp />);
 
     await waitFor(() => {
       expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     expect(screen.queryByText('Vintage Cube')).not.toBeInTheDocument();
+    expect(screen.queryByText(SAMPLE_COMMANDER_DECK_NAME)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No Commander decks saved/i)).not.toBeInTheDocument();
   });
 
   it('shows library error when listDecks fails', async () => {
@@ -832,5 +857,77 @@ describe('CommanderBuilderApp', () => {
     await waitFor(() => {
       expect(screen.getByText('API delete failed')).toBeInTheDocument();
     });
+  });
+
+  it('opens sample deck and never puts to API when Hub API is configured', async () => {
+    apiConfigured.value = true;
+    listDecks.mockResolvedValue([]);
+    readLibraryIndex.mockReturnValue([]);
+    getDeck.mockImplementation(async (id) => {
+      if (id === SAMPLE_COMMANDER_DECK_ID) return sampleDoc;
+      return null;
+    });
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton(SAMPLE_COMMANDER_DECK_NAME));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: new RegExp(SAMPLE_COMMANDER_DECK_NAME, 'i') })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Saved locally only' })).toBeInTheDocument();
+    expect(apiGetDeck).not.toHaveBeenCalled();
+    expect(apiPutDeck).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /Layout/i }));
+    await user.click(screen.getByRole('menuitem', { name: /Grid/i }));
+
+    await waitFor(() => {
+      expect(saveDeck).toHaveBeenCalledWith(
+        expect.objectContaining({ deckId: SAMPLE_COMMANDER_DECK_ID, cardLayoutDefault: 'grid' }),
+      );
+    });
+    expect(apiPutDeck).not.toHaveBeenCalled();
+    expect(apiDeleteDeck).not.toHaveBeenCalled();
+  });
+
+  it('dismisses sample deck and keeps empty onboarding', async () => {
+    listDecks.mockResolvedValue([]);
+    readLibraryIndex.mockReturnValue([]);
+    getDeck.mockImplementation(async (id) => {
+      if (id === SAMPLE_COMMANDER_DECK_ID) return sampleDoc;
+      return null;
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: `Dismiss sample ${SAMPLE_COMMANDER_DECK_NAME}` }));
+
+    await waitFor(() => {
+      expect(deleteDeck).toHaveBeenCalledWith(SAMPLE_COMMANDER_DECK_ID);
+    });
+    expect(localStorage.getItem(SAMPLE_DISMISS_KEY)).toBe('1');
+    expect(apiDeleteDeck).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.queryByText(SAMPLE_COMMANDER_DECK_NAME)).not.toBeInTheDocument();
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Or open the sample deck above/i)).not.toBeInTheDocument();
+  });
+
+  it('builds a full sample commander main deck', () => {
+    expect(sampleMainDeckCardCount(sampleDoc)).toBeGreaterThanOrEqual(100);
+    expect(sampleDoc.formalSwapEntries.length).toBeGreaterThanOrEqual(1);
+    expect(sampleDoc.lookingForEntries.length).toBeGreaterThanOrEqual(1);
   });
 });

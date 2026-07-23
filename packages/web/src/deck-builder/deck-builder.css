@@ -347,6 +347,27 @@ body,
   flex: 0 0 auto;
 }
 
+.db-sample-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #2a4a3a;
+  color: #b8e0c8;
+  border: 1px solid #3d6b52;
+  flex: 0 0 auto;
+}
+
+.db-library-tile.is-sample .db-library-tile-open {
+  outline: 1px dashed rgba(61, 107, 82, 0.55);
+  outline-offset: -1px;
+}
+
 .db-library-tile-name {
   display: block;
   min-width: 0;
@@ -501,6 +522,12 @@ body,
   border-radius: 8px;
   padding: 1.5rem;
   text-align: center;
+}
+
+.db-empty-sample-hint {
+  color: var(--db-muted);
+  font-size: 0.92rem;
+  margin: 0.75rem 0 1rem;
 }
 
 .db-body {

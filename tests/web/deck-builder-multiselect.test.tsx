@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
+import {
+  DRAG_MIME,
+  DRAG_MIME_MULTI,
+} from '../../packages/web/src/deck-builder/browse/CardTile';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
@@ -92,6 +96,24 @@ function baseDeck(): DeckDocument {
   };
 }
 
+/** Counterspell in main; Birds + Forest in Maybeboard (aside). */
+function splitMainAsideDeck(): DeckDocument {
+  const deck = baseDeck();
+  return {
+    ...deck,
+    cards: deck.cards.map((c) => {
+      if (c.name === 'Counterspell') {
+        return { ...c, primaryCategory: 'Instant', categories: ['Instant'] };
+      }
+      return c;
+    }),
+    categories: [
+      ...deck.categories,
+      { name: 'Instant', includedInDeck: true, includedInPrice: true, target: null },
+    ],
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -115,8 +137,35 @@ describe('BrowseShell multiselect', () => {
     await user.keyboard('{/Control}');
 
     expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(birds).toHaveClass('is-selected');
+    expect(forest).toHaveClass('is-selected');
     expect(screen.queryByRole('button', { name: 'Change printing…' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set as cover' })).not.toBeInTheDocument();
+  });
+
+  it('dragstart on a selected card encodes the full multi-selection', async () => {
+    const user = userEvent.setup();
+    render(<BrowseShell deck={baseDeck()} onChange={vi.fn()} onBack={vi.fn()} />);
+
+    const birds = screen.getByRole('button', { name: 'Birds of Paradise' });
+    const forest = screen.getByRole('button', { name: 'Forest' });
+    await user.click(birds);
+    await user.keyboard('{Control>}');
+    await user.click(forest);
+    await user.keyboard('{/Control}');
+
+    const data: Record<string, string> = {};
+    fireEvent.dragStart(birds, {
+      dataTransfer: {
+        setData: (type: string, value: string) => {
+          data[type] = value;
+        },
+        effectAllowed: 'move',
+      },
+    });
+
+    expect(data[DRAG_MIME]).toBe('c1');
+    expect(JSON.parse(data[DRAG_MIME_MULTI]!)).toEqual(['c1', 'c2']);
   });
 
   it('Move to default files selected cards by type', async () => {
@@ -188,5 +237,44 @@ describe('BrowseShell multiselect', () => {
     expect(screen.getByText('1 selected')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+  });
+
+  it('ctrl-click multi-selects cards in aside Maybeboard', async () => {
+    const user = userEvent.setup();
+    render(<BrowseShell deck={splitMainAsideDeck()} onChange={vi.fn()} onBack={vi.fn()} />);
+
+    const birds = screen.getByRole('button', { name: 'Birds of Paradise' });
+    const forest = screen.getByRole('button', { name: 'Forest' });
+    const counterspell = screen.getByRole('button', { name: 'Counterspell' });
+
+    await user.click(birds);
+    await user.keyboard('{Control>}');
+    await user.click(forest);
+    await user.keyboard('{/Control}');
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(birds).toHaveClass('is-selected');
+    expect(forest).toHaveClass('is-selected');
+    expect(counterspell).not.toHaveClass('is-selected');
+  });
+
+  it('shift-click ranges across aside Maybeboard cards', async () => {
+    const user = userEvent.setup();
+    // name_asc: Birds → Counterspell → Forest in Maybeboard
+    render(<BrowseShell deck={baseDeck()} onChange={vi.fn()} onBack={vi.fn()} />);
+
+    const birds = screen.getByRole('button', { name: 'Birds of Paradise' });
+    const forest = screen.getByRole('button', { name: 'Forest' });
+    const counterspell = screen.getByRole('button', { name: 'Counterspell' });
+
+    await user.click(birds);
+    await user.keyboard('{Shift>}');
+    await user.click(forest);
+    await user.keyboard('{/Shift}');
+
+    expect(screen.getByText('3 selected')).toBeInTheDocument();
+    expect(birds).toHaveClass('is-selected');
+    expect(counterspell).toHaveClass('is-selected');
+    expect(forest).toHaveClass('is-selected');
   });
 });

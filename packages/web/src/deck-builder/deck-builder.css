@@ -1142,12 +1142,40 @@ body,
 
 .db-card-tile.is-selected {
   border-color: var(--db-accent);
+  /* outline is not clipped by overflow:hidden — readable on busy art */
+  outline: 3px solid var(--db-accent);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92);
+}
+
+.db-card-tile.is-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(31, 111, 235, 0.13);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.db-card-tile.is-drag-source {
+  opacity: 0.55;
+}
+
+.db-card-tile.is-selected.is-drag-source {
+  opacity: 0.75;
 }
 
 .db-card-tile.is-secondary-cat {
   opacity: 0.55;
   outline: 2px dashed var(--db-muted, #888);
   outline-offset: -2px;
+}
+
+.db-card-tile.is-secondary-cat.is-selected {
+  opacity: 0.92;
+  outline: 3px solid var(--db-accent);
+  outline-offset: 2px;
 }
 
 .db-card-tile.is-swap-in-ghost::after {
@@ -1157,6 +1185,10 @@ body,
   border-radius: inherit;
   background: rgba(255, 255, 255, 0.25);
   pointer-events: none;
+}
+
+.db-card-tile.is-selected.is-swap-in-ghost::after {
+  background: rgba(31, 111, 235, 0.13);
 }
 
 .db-section.is-target-warn .db-section-title,

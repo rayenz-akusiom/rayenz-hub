@@ -112,6 +112,6 @@ describe('CategoryBrowse aside Seeking section', () => {
       },
       preventDefault: () => {},
     });
-    expect(onDropCard).toHaveBeenCalledWith('c1', 'Seeking');
+    expect(onDropCard).toHaveBeenCalledWith(['c1'], 'Seeking');
   });
 });

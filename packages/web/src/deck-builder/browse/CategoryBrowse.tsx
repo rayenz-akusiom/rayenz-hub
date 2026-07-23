@@ -23,11 +23,16 @@ import {
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
-import { CardTile, DRAG_MIME, type SelectCardHandler } from './CardTile';
+import {
+  CardTile,
+  isDeckBuilderDragTypes,
+  readDragInstanceIds,
+  type SelectCardHandler,
+} from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
 
 export type DropCardHandler = (
-  instanceId: string,
+  instanceIds: string[],
   category: string,
   opts?: { commanderSlot?: 0 | 1 },
 ) => void;
@@ -48,15 +53,8 @@ function useDeckBuilderDragging(): boolean {
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
-    function isDeckBuilderDrag(e: DragEvent): boolean {
-      const types = e.dataTransfer?.types;
-      if (!types) return false;
-      const list = Array.from(types);
-      return list.includes(DRAG_MIME) || list.includes('text/plain');
-    }
-
     function onDragStart(e: DragEvent) {
-      if (isDeckBuilderDrag(e)) setDragging(true);
+      if (isDeckBuilderDragTypes(e.dataTransfer?.types)) setDragging(true);
     }
     function onDragEnd() {
       setDragging(false);
@@ -137,6 +135,7 @@ export function CardGroup({
             <CardTile
               card={card}
               selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+              selectedIds={selectedIds}
               onSelect={onSelectCard}
               draggable={draggable}
               onContextMenu={onCardContextMenu}
@@ -173,6 +172,7 @@ export function CardGroup({
           key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
           card={card}
           selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+          selectedIds={selectedIds}
           onSelect={onSelectCard}
           draggable={draggable}
           onContextMenu={onCardContextMenu}
@@ -249,8 +249,8 @@ export function DropSection({
         if (!canDrop) return;
         e.preventDefault();
         setDragOver(false);
-        const id = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
-        if (id) onDropCard?.(id, category);
+        const ids = readDragInstanceIds(e.dataTransfer);
+        if (ids.length) onDropCard?.(ids, category);
       }}
     >
       {onEditCategory ? (
@@ -328,14 +328,17 @@ function CommanderSlot({
         if (!onDropCard) return;
         e.preventDefault();
         setDragOver(false);
-        const id = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
-        if (id) onDropCard(id, 'Commander', { commanderSlot: slot });
+        // Commander slots always take the primary dragged card only.
+        const ids = readDragInstanceIds(e.dataTransfer);
+        const id = ids[0];
+        if (id) onDropCard([id], 'Commander', { commanderSlot: slot });
       }}
     >
       {card ? (
         <CardTile
           card={card}
           selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+          selectedIds={selectedIds}
           onSelect={onSelectCard}
           draggable={draggable}
           onContextMenu={onCardContextMenu}
@@ -583,7 +586,7 @@ export function CategoryBrowse({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
-  /** Flattened visible instance ids for shift-click range selection (main mode only). */
+  /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   mode?: 'main' | 'aside';
   includeSwapCategories?: boolean;
@@ -655,9 +658,9 @@ export function CategoryBrowse({
   ]);
 
   useEffect(() => {
-    if (mode !== 'main' || !onVisibleOrderChange) return;
+    if (!onVisibleOrderChange) return;
     onVisibleOrderChange(visibleOrder);
-  }, [mode, onVisibleOrderChange, visibleOrder]);
+  }, [onVisibleOrderChange, visibleOrder]);
 
   if (mode === 'aside') {
     if (!excludedKeys.length) return null;

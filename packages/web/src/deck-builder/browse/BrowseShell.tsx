@@ -112,7 +112,8 @@ export function BrowseShell({
   const [cardSort, setCardSort] = useState<CardSortMode>(deck.cardSortDefault || 'name_asc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
-  const [visibleOrder, setVisibleOrder] = useState<string[]>([]);
+  const [mainVisibleOrder, setMainVisibleOrder] = useState<string[]>([]);
+  const [asideVisibleOrder, setAsideVisibleOrder] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [printingOpen, setPrintingOpen] = useState(false);
@@ -124,6 +125,10 @@ export function BrowseShell({
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
+  const visibleOrder = useMemo(
+    () => [...mainVisibleOrder, ...asideVisibleOrder],
+    [mainVisibleOrder, asideVisibleOrder],
+  );
   const visibleOrderRef = useRef(visibleOrder);
   visibleOrderRef.current = visibleOrder;
 
@@ -301,8 +306,17 @@ export function BrowseShell({
     });
   }, [deck.cards]);
 
-  const onVisibleOrderChange = useCallback((ids: string[]) => {
-    setVisibleOrder((prev) => {
+  const onMainVisibleOrderChange = useCallback((ids: string[]) => {
+    setMainVisibleOrder((prev) => {
+      if (prev.length === ids.length && prev.every((id, i) => id === ids[i])) {
+        return prev;
+      }
+      return ids;
+    });
+  }, []);
+
+  const onAsideVisibleOrderChange = useCallback((ids: string[]) => {
+    setAsideVisibleOrder((prev) => {
       if (prev.length === ids.length && prev.every((id, i) => id === ids[i])) {
         return prev;
       }
@@ -407,23 +421,30 @@ export function BrowseShell({
   }
 
   function onDropCard(
-    instanceId: string,
+    instanceIds: string[],
     category: string,
     opts?: { commanderSlot?: 0 | 1 },
   ) {
     const current = deckRef.current;
-    const card = current.cards.find((c) => c.instanceId === instanceId);
-    if (!card) return;
+    const ids = instanceIds.filter(Boolean);
+    if (!ids.length) return;
 
     if (category === 'Commander' && opts?.commanderSlot != null) {
+      const instanceId = ids[0]!;
       commitPatch({
         cards: placeCardInCommanderSlot(current.cards, instanceId, opts.commanderSlot),
       });
       return;
     }
 
-    if (card.primaryCategory === category) return;
-    commit(moveCardsCategory(current, [instanceId], category, card.stack));
+    const toMove = ids.filter((id) => {
+      const card = current.cards.find((c) => c.instanceId === id);
+      return Boolean(card && card.primaryCategory !== category);
+    });
+    if (!toMove.length) return;
+
+    const stack = current.cards.find((c) => c.instanceId === toMove[0])?.stack ?? null;
+    commit(moveCardsCategory(current, toMove, category, stack));
   }
 
   function clearSwapEdit() {
@@ -676,7 +697,7 @@ export function BrowseShell({
               separateLands={view === 'colour_identity_spells'}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
-              onVisibleOrderChange={onVisibleOrderChange}
+              onVisibleOrderChange={onMainVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -690,7 +711,7 @@ export function BrowseShell({
               cardSort={cardSort}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
-              onVisibleOrderChange={onVisibleOrderChange}
+              onVisibleOrderChange={onMainVisibleOrderChange}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -755,6 +776,7 @@ export function BrowseShell({
               onDropCard={view === 'category_multi' ? undefined : onDropCard}
               onCardContextMenu={onCardContextMenu}
               onEditCategory={(cat) => setEditingCategory(cat)}
+              onVisibleOrderChange={onAsideVisibleOrderChange}
               mode="aside"
               includeSwapCategories={editingSwap}
               browseView={isCategoryBrowseView(view) ? view : 'category'}

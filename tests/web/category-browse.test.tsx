@@ -8,7 +8,7 @@ import {
   DeckHeaderRow,
   DropSection,
 } from '../../packages/web/src/deck-builder/browse/CategoryBrowse';
-import { DRAG_MIME } from '../../packages/web/src/deck-builder/browse/CardTile';
+import { DRAG_MIME, DRAG_MIME_MULTI } from '../../packages/web/src/deck-builder/browse/CardTile';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 const commanderDoc = commanderFixture as DeckDocument;
@@ -65,7 +65,7 @@ describe('CardGroup and DropSection', () => {
         getData: (type: string) => (type === DRAG_MIME || type === 'text/plain' ? 'inst-1' : ''),
       },
     });
-    expect(onDropCard).toHaveBeenCalledWith('inst-1', 'Ramp');
+    expect(onDropCard).toHaveBeenCalledWith(['inst-1'], 'Ramp');
   });
 
   it('accepts drops into an empty section with a target', () => {
@@ -90,7 +90,31 @@ describe('CardGroup and DropSection', () => {
         getData: (type: string) => (type === DRAG_MIME || type === 'text/plain' ? 'inst-1' : ''),
       },
     });
-    expect(onDropCard).toHaveBeenCalledWith('inst-1', 'Ramp');
+    expect(onDropCard).toHaveBeenCalledWith(['inst-1'], 'Ramp');
+  });
+
+  it('drops multi-id MIME payloads as an instance id list', () => {
+    const onDropCard = vi.fn();
+    render(
+      <DropSection
+        category="Ramp"
+        cards={[cardAt(0)]}
+        layout="grid"
+        onDropCard={onDropCard}
+      />,
+    );
+
+    const section = screen.getByText(/Ramp/).closest('section')!;
+    fireEvent.drop(section, {
+      dataTransfer: {
+        getData: (type: string) => {
+          if (type === DRAG_MIME_MULTI) return JSON.stringify(['inst-1', 'inst-2', 'inst-3']);
+          if (type === DRAG_MIME || type === 'text/plain') return 'inst-1';
+          return '';
+        },
+      },
+    });
+    expect(onDropCard).toHaveBeenCalledWith(['inst-1', 'inst-2', 'inst-3'], 'Ramp');
   });
 
   it('appends placeholders to match target without inflating N', () => {

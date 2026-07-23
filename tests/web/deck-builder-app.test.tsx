@@ -10,6 +10,7 @@ import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
 const apiConfigured = vi.hoisted(() => ({ value: false }));
 
 const listDecks = vi.fn<() => Promise<DeckSummary[]>>();
+const readLibraryIndex = vi.fn<() => DeckSummary[]>();
 const getDeck = vi.fn<(deckId: string) => Promise<DeckDocument | null>>();
 const saveDeck = vi.fn<(doc: DeckDocument) => Promise<DeckDocument>>();
 const deleteDeck = vi.fn<(deckId: string) => Promise<void>>();
@@ -32,6 +33,7 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
   listDecks: () => listDecks(),
+  readLibraryIndex: () => readLibraryIndex(),
   getDeck: (deckId: string) => getDeck(deckId),
   saveDeck: (doc: DeckDocument) => saveDeck(doc),
   deleteDeck: (deckId: string) => deleteDeck(deckId),
@@ -94,7 +96,18 @@ function deckOpenButton(deckName: string) {
 }
 
 function defaultMocks() {
+  listDecks.mockReset();
+  readLibraryIndex.mockReset();
+  getDeck.mockReset();
+  saveDeck.mockReset();
+  deleteDeck.mockReset();
+  apiListDecks.mockReset();
+  apiGetDeck.mockReset();
+  apiPutDeck.mockReset();
+  apiDeleteDeck.mockReset();
+  mergeDeckDocuments.mockReset();
   listDecks.mockResolvedValue([commanderSummary, cubeSummary]);
+  readLibraryIndex.mockReturnValue([commanderSummary, cubeSummary]);
   getDeck.mockImplementation(async (id) => {
     if (id === commanderDoc.deckId) return commanderDoc;
     if (id === cubeDoc.deckId) return cubeDoc;
@@ -201,9 +214,66 @@ describe('CommanderBuilderApp', () => {
     });
     expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
     expect(getDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
+  });
+
+  it('skips the library loading skeleton when deep-linking to a known deck', async () => {
+    let resolveList!: (value: DeckSummary[]) => void;
+    listDecks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    window.location.hash = '#/commander-builder/default/fixture-commander';
+
+    render(<CommanderBuilderApp />);
+
+    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    expect(getDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+
+    resolveList([commanderSummary, cubeSummary]);
+    await waitFor(() => {
+      expect(listDecks).toHaveBeenCalled();
+    });
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+  });
+
+  it('skips library skeleton while resolving an unknown deep-link slug', async () => {
+    let resolveList!: (value: DeckSummary[]) => void;
+    listDecks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    readLibraryIndex.mockReturnValue([]);
+    window.location.hash = '#/commander-builder/default/missing-deck';
+
+    render(<CommanderBuilderApp />);
+
+    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
+    expect(document.querySelector('.db-app[aria-busy="true"]')).toBeTruthy();
+
+    resolveList([commanderSummary]);
+    await waitFor(() => {
+      expect(screen.getByText('Deck not found')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
   });
 
   it('shows an error for an unknown deck slug deep link', async () => {
+    readLibraryIndex.mockReturnValue([]);
     window.location.hash = '#/commander-builder/default/missing-deck';
     render(<CommanderBuilderApp />);
 
@@ -393,7 +463,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
     });
     expect(screen.getByText('Remote list failed')).toBeInTheDocument();
     expect(apiPutDeck).not.toHaveBeenCalled();
@@ -411,7 +481,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
     });
     expect(apiGetDeck).toHaveBeenCalledWith(commanderDoc.deckId);
     expect(apiPutDeck).toHaveBeenCalledWith(
@@ -431,7 +501,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Synced to Hub' })).toBeInTheDocument();
     });
     expect(apiGetDeck).toHaveBeenCalledWith(commanderDoc.deckId);
     expect(apiPutDeck).not.toHaveBeenCalled();
@@ -465,9 +535,9 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+      expect(screen.getByText('GET failed')).toBeInTheDocument();
     });
-    expect(screen.getByText('GET failed')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
     expect(apiPutDeck).not.toHaveBeenCalled();
   });
 
@@ -484,9 +554,9 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(deckOpenButton('Fixture Commander'));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+      expect(screen.getByText('API sync failed')).toBeInTheDocument();
     });
-    expect(screen.getByText('API sync failed')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
     expect(saveDeck).toHaveBeenCalled();
   });
 

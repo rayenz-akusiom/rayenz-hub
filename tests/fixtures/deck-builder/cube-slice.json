@@ -7,7 +7,8 @@
   "archidektUrl": null,
   "categories": [
     { "name": "White", "includedInDeck": true, "includedInPrice": true },
-    { "name": "Maybeboard", "includedInDeck": false, "includedInPrice": false }
+    { "name": "Maybeboard", "includedInDeck": false, "includedInPrice": false },
+    { "name": "Seeking", "includedInDeck": false, "includedInPrice": false }
   ],
   "cards": [
     {

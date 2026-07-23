@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { filterLibraryByFormat } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
@@ -68,6 +68,15 @@ function hashUsesOtherBuilder(hash: string, builderFormat: BuilderFormat): boole
   return normalized === otherBase || normalized.startsWith(`${otherBase}/`);
 }
 
+/** Sync index hit for the current builder deep-link hash, if any. */
+function deepLinkIndexMatch(builderFormat: BuilderFormat): DeckSummary | null {
+  const route = parseBuilderRoute(window.location.hash, builderFormat);
+  if (!route || route.userSlug !== HUB_USER_SLUG) return null;
+  const match = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
+  if (!match || match.format !== builderFormat) return null;
+  return match;
+}
+
 export function BuilderApp({
   builderFormat,
   title,
@@ -88,6 +97,7 @@ export function BuilderApp({
   const [syncStatus, setSyncStatus] = useState<DeckSyncStatus | null>(null);
   const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
   const persistSeq = useRef(0);
+  const openSeq = useRef(0);
   const decksRef = useRef<DeckSummary[]>([]);
   const activeRef = useRef<DeckDocument | null>(null);
   const applyingRouteRef = useRef(false);
@@ -131,35 +141,48 @@ export function BuilderApp({
       }
       if (redirectToCorrectBuilder(doc)) return;
 
-      let toShow = doc;
-      if (isApiConfigured()) {
-        setSyncStatus('syncing');
+      // Local-first: paint BrowseShell before optional API sync.
+      setActive(doc);
+      activeRef.current = doc;
+      if (opts?.syncHash !== false) {
+        applyingRouteRef.current = true;
         try {
-          const remote = await deckApi.apiGetDeck(deckId);
-          if (remote == null) {
-            const { saved, apiError } = await saveDualMode(doc);
-            toShow = saved;
-            if (apiError) {
-              setApiWarning(apiError);
-              setSyncStatus('local');
-            } else {
-              setApiWarning(null);
-              setSyncStatus('synced');
-            }
-          } else {
-            setSyncStatus('synced');
-          }
-        } catch (e) {
-          setApiWarning(e instanceof Error ? e.message : String(e));
-          setSyncStatus('error');
+          syncDeckHash(doc);
+        } finally {
+          applyingRouteRef.current = false;
         }
-      } else {
-        setSyncStatus(null);
       }
 
-      setActive(toShow);
-      activeRef.current = toShow;
-      if (opts?.syncHash !== false) syncDeckHash(toShow);
+      if (!isApiConfigured()) {
+        setSyncStatus(null);
+        return;
+      }
+
+      // Skip 'syncing' on open — jump straight to a terminal status to avoid charm flash.
+      const openGen = ++openSeq.current;
+      try {
+        const remote = await deckApi.apiGetDeck(deckId);
+        if (openGen !== openSeq.current || activeRef.current?.deckId !== deckId) return;
+        if (remote == null) {
+          const { saved, apiError } = await saveDualMode(doc);
+          if (openGen !== openSeq.current || activeRef.current?.deckId !== deckId) return;
+          setActive(saved);
+          activeRef.current = saved;
+          if (apiError) {
+            setApiWarning(apiError);
+            setSyncStatus('local');
+          } else {
+            setApiWarning(null);
+            setSyncStatus('synced');
+          }
+        } else {
+          setSyncStatus('synced');
+        }
+      } catch (e) {
+        if (openGen !== openSeq.current || activeRef.current?.deckId !== deckId) return;
+        setApiWarning(e instanceof Error ? e.message : String(e));
+        setSyncStatus('error');
+      }
     },
     [redirectToCorrectBuilder, syncDeckHash],
   );
@@ -179,6 +202,7 @@ export function BuilderApp({
       if (!route) {
         if (activeRef.current) {
           invalidatePersist();
+          activeRef.current = null;
           setActive(null);
           setSyncStatus(null);
         }
@@ -186,6 +210,7 @@ export function BuilderApp({
       }
       if (route.userSlug !== HUB_USER_SLUG) {
         setError(`Unknown user “${route.userSlug}”`);
+        activeRef.current = null;
         setActive(null);
         setSyncStatus(null);
         return;
@@ -197,6 +222,7 @@ export function BuilderApp({
           return;
         }
         setError('Deck not found');
+        activeRef.current = null;
         setActive(null);
         setSyncStatus(null);
         return;
@@ -271,6 +297,31 @@ export function BuilderApp({
     },
     [applyRouteFromHash],
   );
+
+  // Open known deep links before paint so BrowseShell is the first meaningful frame.
+  useLayoutEffect(() => {
+    const match = deepLinkIndexMatch(builderFormat);
+    if (!match) {
+      const route = parseBuilderRoute(window.location.hash, builderFormat);
+      if (route?.userSlug === HUB_USER_SLUG) {
+        const other = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
+        if (other && other.format !== builderFormat) {
+          navigateHub(
+            builderHash(
+              other.format === 'cube' ? 'cube' : 'commander',
+              route.userSlug,
+              route.deckSlug,
+            ),
+          );
+        }
+      }
+      return;
+    }
+    applyingRouteRef.current = true;
+    void openDeck(match.deckId, { syncHash: false }).finally(() => {
+      applyingRouteRef.current = false;
+    });
+  }, [builderFormat, openDeck]);
 
   useEffect(() => {
     void refreshLibrary();
@@ -351,6 +402,12 @@ export function BuilderApp({
         />
       </div>
     );
+  }
+
+  const deepLinkRoute = parseBuilderRoute(window.location.hash, builderFormat);
+  // Deep link still resolving — blank busy shell (no "Opening deck…" / library flash).
+  if (deepLinkRoute && !error && loading) {
+    return <div className="db-app" aria-busy="true" />;
   }
 
   return (

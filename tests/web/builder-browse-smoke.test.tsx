@@ -9,6 +9,7 @@ import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
 
 const listDecks = vi.fn<() => Promise<DeckSummary[]>>();
+const readLibraryIndex = vi.fn<() => DeckSummary[]>();
 const getDeck = vi.fn<(deckId: string) => Promise<DeckDocument | null>>();
 const saveDeck = vi.fn<(doc: DeckDocument) => Promise<DeckDocument>>();
 const deleteDeck = vi.fn<(deckId: string) => Promise<void>>();
@@ -21,6 +22,7 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
   listDecks: () => listDecks(),
+  readLibraryIndex: () => readLibraryIndex(),
   getDeck: (deckId: string) => getDeck(deckId),
   saveDeck: (doc: DeckDocument) => saveDeck(doc),
   deleteDeck: (deckId: string) => deleteDeck(deckId),
@@ -61,7 +63,9 @@ afterEach(() => {
 
 describe('builder browse smoke', () => {
   beforeEach(() => {
-    listDecks.mockResolvedValue([toDeckSummary(commanderDoc), toDeckSummary(cubeDoc)]);
+    const summaries = [toDeckSummary(commanderDoc), toDeckSummary(cubeDoc)];
+    listDecks.mockResolvedValue(summaries);
+    readLibraryIndex.mockReturnValue(summaries);
     getDeck.mockImplementation(async (id) => {
       if (id === commanderDoc.deckId) return commanderDoc;
       if (id === cubeDoc.deckId) return cubeDoc;

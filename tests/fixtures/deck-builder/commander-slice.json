@@ -9,7 +9,8 @@
     { "name": "Creature", "includedInDeck": true, "includedInPrice": true },
     { "name": "Land", "includedInDeck": true, "includedInPrice": true },
     { "name": "Queued In", "includedInDeck": false, "includedInPrice": false },
-    { "name": "Queued Out", "includedInDeck": false, "includedInPrice": false }
+    { "name": "Queued Out", "includedInDeck": false, "includedInPrice": false },
+    { "name": "Seeking", "includedInDeck": false, "includedInPrice": false }
   ],
   "cards": [
     {

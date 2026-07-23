@@ -88,7 +88,7 @@ describe('format-filtered libraries', () => {
       expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     expect(screen.queryByText('Vintage Cube')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Commander Builder \(1\)/ })).toBeInTheDocument();
   });
 
   it('Cube Builder lists only cube decks', async () => {
@@ -99,7 +99,7 @@ describe('format-filtered libraries', () => {
       expect(screen.getByText('Vintage Cube', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
     expect(screen.queryByText('Fixture Commander')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Cube Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Cube Builder \(1\)/ })).toBeInTheDocument();
   });
 
   it('Commander library tiles use commander-builder deep links', async () => {

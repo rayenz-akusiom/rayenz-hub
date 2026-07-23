@@ -263,7 +263,9 @@ export function FormatFilteredLibrary({
   return (
     <div className="db-library" style={libraryStyle}>
       <header className="db-header">
-        <h2>{title}</h2>
+        <h2>
+          {title} <span className="db-count">({decks.length})</span>
+        </h2>
         <div className="db-header-actions">
           <label className="db-library-sort">
             <span className="db-library-sort-label">Sort</span>

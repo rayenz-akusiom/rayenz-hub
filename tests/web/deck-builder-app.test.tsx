@@ -84,7 +84,7 @@ const commanderSummary = toDeckSummary(commanderDoc);
 const cubeSummary = toDeckSummary(cubeDoc);
 
 function headerAddDeckButton() {
-  const header = screen.getByRole('heading', { name: 'Commander Builder' }).parentElement!;
+  const header = screen.getByRole('heading', { name: /Commander Builder/ }).parentElement!;
   return within(header).getByRole('button', { name: 'Add Commander deck' });
 }
 
@@ -210,7 +210,7 @@ describe('CommanderBuilderApp', () => {
     await waitFor(() => {
       expect(screen.getByText('Deck not found')).toBeInTheDocument();
     });
-    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
   });
 
   it('shows an error for an unknown user slug deep link', async () => {
@@ -272,7 +272,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     });
     expect(window.location.hash).toBe('#/commander-builder');
   });
@@ -301,7 +301,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     });
     expect(window.location.hash).toBe('#/commander-builder');
 
@@ -312,7 +312,7 @@ describe('CommanderBuilderApp', () => {
     });
 
     await new Promise((r) => setTimeout(r, 30));
-    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/commander-builder');
     expect(screen.queryByRole('button', { name: 'Library' })).not.toBeInTheDocument();
   });
@@ -341,7 +341,7 @@ describe('CommanderBuilderApp', () => {
 
     window.location.hash = '#/commander-builder';
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     });
 
     finishSave({
@@ -351,7 +351,7 @@ describe('CommanderBuilderApp', () => {
     });
 
     await new Promise((r) => setTimeout(r, 30));
-    expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/commander-builder');
   });
 
@@ -749,7 +749,7 @@ describe('CommanderBuilderApp', () => {
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Commander Builder' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Delete Fixture Commander' }));

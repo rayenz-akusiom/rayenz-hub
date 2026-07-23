@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Quick Stock At Top <Rayenz>
 // @namespace    neopets.quickstock
-// @version      2026-07-18
+// @version      2026-07-23
 // @description  Quick Stock toolbar at the top (submit, check-all) plus default-action sorting for common items.
 // @author       rayenz-akusiom
 // @match        https://www.neopets.com/quickstock.phtml*
@@ -20,6 +20,90 @@
         'Petpet Laboratory Map ',
         'Forgotten Shore Map',
     ];
+
+    /**
+     * Neggery trade-in items (Negg Point values). Exact names from Jellyneo Neggery guide.
+     * Not every "Negg" item qualifies — purchased specials are spent with points, not traded in.
+     */
+    const NEGG_POINT_ITEMS = new Set([
+        'Battle Duck Negg',
+        'Blue Flower Easter Negg',
+        'Blue Negg',
+        'Candy Cane Negg',
+        'Capn Threelegs Halloween Negg',
+        'Checkered Easter Negg',
+        'Chocolate Orange Easter Negg',
+        'Christmas Pattern Negg',
+        'Chyrsaberry Surprise Easter Negg',
+        'Circuit Negg',
+        'Cog Halloween Negg',
+        'Combomelon Easter Negg',
+        'Cookie Negg',
+        'Cornupepper Easter Negg',
+        'Dancing Daisy Easter Negg',
+        'Decorative Negg',
+        'Faerie Easter Negg',
+        'Faeries Ruin Negg',
+        'Festival Negg',
+        'Fish Negg',
+        'Fishy Easter Negg',
+        'Floral Easter Negg',
+        'Frozen Negg',
+        'Fruity Faerie Easter Negg',
+        'Glass Negg',
+        'Green Festival Negg',
+        'Green Negg',
+        'Icy Negg',
+        'Island Mystic Halloween Negg',
+        'Lemon Sherbert Easter Negg',
+        'Lemon Swirly Negg',
+        'Lemon and Lime Easter Negg',
+        'Lever of Doom Halloween Negg',
+        'Lime Swirly Negg',
+        'Lovely Lime Easter Negg',
+        'Luxury Chocolate Easter Negg',
+        'Maple Syrup Negg',
+        'Mint Chocolate Easter Negg',
+        'Mutated Negg',
+        'Negg',
+        'Negg Cream Cookie',
+        'Negg of Marble',
+        'Orange Negg',
+        'Ornate Purple Negg',
+        'Partitioned Negg',
+        'Pastel Swirl Easter Negg',
+        'Peach Flower Easter Negg',
+        'Peachpa Easter Negg',
+        'Phear Easter Negg',
+        'Pink Negg',
+        'Pink Swirly Easter Negg',
+        'Pretty Pink Easter Negg',
+        'Princess Amira Halloween Negg',
+        'Punegg',
+        'Purple Cybunny Negg',
+        'Purple Negg',
+        'Rainbow Negg',
+        'Rainbow Vanilla Negg',
+        'Ranegg',
+        'Rock Negg',
+        'Rose Swirl Easter Negg',
+        'Sardplant Easter Negg',
+        'Scented Easter Negg',
+        'Scrambled Rainbow Negg',
+        'Speckled Negg',
+        'Spotted Easter Negg',
+        'Spring Flowers Easter Negg',
+        'Strawberries and Cream Easter Negg',
+        'Strawberry Swirl Easter Negg',
+        'Super Icy Negg',
+        'Sweet and Sour Negg',
+        'Swirly Negg #498',
+        'Ultimate Icy Negg',
+        'Ultra Icy Negg',
+        'Yellow Negg',
+        'Yellow Patterned Easter Negg',
+        'Yenegg',
+    ]);
 
     /**
      * Items matching these rules get "Deposit" selected; everything else gets "Stock".
@@ -154,7 +238,7 @@
         link.id = DEFAULT_BTN_ID;
         link.href = '#';
         link.textContent = 'Default Actions';
-        link.title = 'Deposit codestones, dubloons, paint brushes, business cards, stat boosters, and map pieces (except lab / petpet lab / Forgotten Shore); stock everything else';
+        link.title = 'Deposit codestones, dubloons, paint brushes, business cards, negg-point items, stat boosters, and map pieces (except lab / petpet lab / Forgotten Shore); stock everything else';
         link.addEventListener('click', (event) => {
             event.preventDefault();
             applyDefaultActions(form, link);
@@ -281,6 +365,10 @@
 
     function shouldGoToSdb(itemName) {
         if (isTreasureMapPiece(itemName)) {
+            return true;
+        }
+
+        if (NEGG_POINT_ITEMS.has(itemName)) {
             return true;
         }
 

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type MouseEvent,
@@ -329,8 +330,10 @@ export function DailiesApp() {
   const [petEditPos, setPetEditPos] = useState<{ top: number; left: number } | null>(null);
   const [alerts, setAlerts] = useState(() => getActiveCards(settings));
   const [wishlistTargets, setWishlistTargets] = useState<ListTarget[]>([]);
+  const [wishlistsLoading, setWishlistsLoading] = useState(false);
   const [wish, setWish] = useState(() => loadWishingWellState().wish || '');
   const [donation, setDonation] = useState(() => String(loadWishingWellState().donation || 21));
+  const wishlistReloadGen = useRef(0);
 
   const wishlists = useMemo(() => getWishlists(settings), [settings]);
   const groups = useMemo(() => getLinksByGroup(settings), [settings]);
@@ -339,10 +342,13 @@ export function DailiesApp() {
     setAlerts(getActiveCards(loadSettings()));
   }, []);
 
-  useEffect(() => {
-    clearSessionSkips();
-    let cancelled = false;
-    (async () => {
+  const reloadWishlists = useCallback(
+    async (options?: { clearSkips?: boolean }) => {
+      if (options?.clearSkips) {
+        clearSessionSkips();
+      }
+      const gen = ++wishlistReloadGen.current;
+      setWishlistsLoading(true);
       setWishlistTargets(
         wishlists.map((list) => ({
           list,
@@ -353,15 +359,26 @@ export function DailiesApp() {
           refreshed: false,
         })),
       );
-      const targets = await loadListTargets(wishlists, settings);
-      if (!cancelled) {
-        setWishlistTargets(targets);
+      try {
+        const targets = await loadListTargets(wishlists, settings);
+        if (gen === wishlistReloadGen.current) {
+          setWishlistTargets(targets);
+        }
+      } finally {
+        if (gen === wishlistReloadGen.current) {
+          setWishlistsLoading(false);
+        }
       }
-    })();
+    },
+    [wishlists, settings],
+  );
+
+  useEffect(() => {
+    void reloadWishlists({ clearSkips: true });
     return () => {
-      cancelled = true;
+      wishlistReloadGen.current += 1;
     };
-  }, [wishlists, settings]);
+  }, [reloadWishlists]);
 
   useEffect(() => {
     refreshWishingWellStatus().catch(() => {
@@ -576,7 +593,17 @@ export function DailiesApp() {
       <div className="dailies-layout">
         <section className="dailies-main" id="dailies-links">
           <section className="dailies-wishlists-section">
-            <h2 className="dailies-section-heading">Wishlists</h2>
+            <div className="dailies-wishlists-heading">
+              <h2 className="dailies-section-heading">Wishlists</h2>
+              <button
+                type="button"
+                className="wishlist-refresh-btn"
+                disabled={wishlistsLoading}
+                onClick={() => void reloadWishlists()}
+              >
+                Refresh
+              </button>
+            </div>
             <div className="wishlist-cards">
               {wishlistTargets.length === 0 ? (
                 <p className="wishlist-empty-note">No wishlists configured.</p>

@@ -117,7 +117,6 @@ function baseState(over: Partial<OrderReconcileState> = {}): OrderReconcileState
       customDeckUrls: '',
     },
     acquiredCards: [{ id: 'acq-1', name: 'Shock' }],
-    copies: [],
     assignments: [
       {
         copy_id: 'copy-auto',

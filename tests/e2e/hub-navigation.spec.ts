@@ -12,5 +12,5 @@ test('dailies link grid works after navigating away and back', async ({ page }) 
   await page.getByRole('link', { name: 'Dailies' }).click();
   const tileAfterReturn = page.locator('#app-root .daily-tile').first();
   await expect(tileAfterReturn).toBeVisible();
-  await expect(page.locator('#app-root .dailies-grid')).toBeVisible();
+  await expect(page.locator('#app-root .dailies-grid:not(.dailies-sidebar-grid)')).toBeVisible();
 });

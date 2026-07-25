@@ -51,7 +51,10 @@ export function defaultAddCategory(
   const cats = deck.categories || [];
   if (cats.some((c) => c.name === 'Maybeboard')) return 'Maybeboard';
   const aside = cats.find(
-    (c) => c.includedInDeck === false && !isSwapQueueCategory(c.name),
+    (c) =>
+      c.includedInDeck === false &&
+      !isSwapQueueCategory(c.name) &&
+      !isLookingForCategory(c.name),
   );
   if (aside) return aside.name;
   return 'Other';

@@ -76,7 +76,7 @@ describe('CardTile', () => {
     const tile = screen.getByRole('button', { name: /Lightning Bolt/i });
     expect(tile).toHaveAttribute('title', 'Lightning Bolt');
     await user.click(tile);
-    expect(onSelect).toHaveBeenCalledWith(bolt);
+    expect(onSelect).toHaveBeenCalledWith(bolt, expect.anything());
   });
 
   it('marks selected tiles', () => {

@@ -131,7 +131,7 @@ describe('partition omits swap categories', () => {
     };
     const p = partitionCategories(deck);
     expect(p.includedKeys).toEqual(['Creature']);
-    expect(p.excludedKeys).toEqual(['Maybeboard']);
+    expect(p.excludedKeys).toEqual(['Maybeboard', 'Seeking']);
     expect(p.includedKeys).not.toContain('Queued In');
     expect(p.excludedKeys).not.toContain('Queued Out');
   });

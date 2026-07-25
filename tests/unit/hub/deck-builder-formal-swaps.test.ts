@@ -7,11 +7,34 @@ import {
   normalizeFormalEntries,
   queueCardsAsOut,
   seedFormalSwapsFromCategories,
+  splitOutInstance,
   syncCardsWithFormalSwaps,
 } from '../../../packages/shared/src/deck-builder/formal-swaps.ts';
 import { deckSize } from '../../../packages/shared/src/deck-builder/browse.ts';
-import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
+import type { CardInstance, DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+
+function plainsStackDeck(qty = 6): DeckDocument {
+  const base = commander as unknown as DeckDocument;
+  const plains: CardInstance = {
+    instanceId: 'plains-stack',
+    name: 'Plains',
+    quantity: qty,
+    primaryCategory: 'Land',
+    categories: ['Land'],
+    stack: null,
+    setCode: 'm12',
+    collectorNumber: '230',
+    scryfallId: null,
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+  };
+  return {
+    ...base,
+    cards: [...base.cards.map((c) => ({ ...c, foil: false, proxy: false })), plains],
+  };
+}
 
 describe('formal swaps', () => {
   it('normalizes sortIndex and counts incomplete', () => {
@@ -141,10 +164,32 @@ describe('formal swaps', () => {
     });
   });
 
+  describe('splitOutInstance', () => {
+    it('no-ops when quantity is 1', () => {
+      const cards = plainsStackDeck(1).cards;
+      const result = splitOutInstance(cards, 'plains-stack', () => 'unused');
+      expect(result.outInstanceId).toBe('plains-stack');
+      expect(result.cards).toHaveLength(cards.length);
+      expect(result.cards.find((c) => c.instanceId === 'plains-stack')!.quantity).toBe(1);
+    });
+
+    it('peels one copy from a multi-qty stack', () => {
+      let n = 0;
+      const result = splitOutInstance(plainsStackDeck(6).cards, 'plains-stack', () => `split-${++n}`);
+      expect(result.outInstanceId).toBe('split-1');
+      const stack = result.cards.find((c) => c.instanceId === 'plains-stack')!;
+      const peeled = result.cards.find((c) => c.instanceId === 'split-1')!;
+      expect(stack.quantity).toBe(5);
+      expect(peeled.quantity).toBe(1);
+      expect(peeled.name).toBe('Plains');
+      expect(peeled.primaryCategory).toBe('Land');
+    });
+  });
+
   describe('syncCardsWithFormalSwaps / queueCardsAsOut', () => {
     const baseDeck = commander as unknown as DeckDocument;
 
-    it('moves Out to Queued Out and drops deck size', () => {
+    it('moves Out to Queued Out and drops deck size by one', () => {
       const before = deckSize(baseDeck);
       const outId = baseDeck.cards[0]!.instanceId;
       const next = queueCardsAsOut(baseDeck, [outId]);
@@ -153,7 +198,69 @@ describe('formal swaps', () => {
       expect(next.categories.some((c) => c.name === 'Queued Out' && c.includedInDeck === false)).toBe(
         true,
       );
-      expect(deckSize(next)).toBe(before - (Number(outCard.quantity) || 1));
+      expect(deckSize(next)).toBe(before - 1);
+    });
+
+    it('splits a basic land stack so only one copy leaves the deck', () => {
+      const deck = plainsStackDeck(6);
+      const before = deckSize(deck);
+      let n = 0;
+      const next = syncCardsWithFormalSwaps(
+        deck,
+        addCardsToSwapQueueAsOut([], ['plains-stack']),
+        { nextId: () => `out-${++n}` },
+      );
+      const stack = next.cards.find((c) => c.instanceId === 'plains-stack')!;
+      const outId = next.formalSwapEntries[0]!.outInstanceId!;
+      const outCard = next.cards.find((c) => c.instanceId === outId)!;
+      expect(stack.primaryCategory).toBe('Land');
+      expect(stack.quantity).toBe(5);
+      expect(outId).toBe('out-1');
+      expect(outCard.primaryCategory).toBe('Queued Out');
+      expect(outCard.quantity).toBe(1);
+      expect(deckSize(next)).toBe(before - 1);
+    });
+
+    it('queues a second Out from the same basic stack', () => {
+      const deck = plainsStackDeck(6);
+      let n = 0;
+      const nextId = () => `out-${++n}`;
+      const once = syncCardsWithFormalSwaps(
+        deck,
+        addCardsToSwapQueueAsOut([], ['plains-stack']),
+        { nextId },
+      );
+      const twice = syncCardsWithFormalSwaps(
+        once,
+        addCardsToSwapQueueAsOut(once.formalSwapEntries, ['plains-stack']),
+        { nextId },
+      );
+      const stack = twice.cards.find((c) => c.instanceId === 'plains-stack')!;
+      const outIds = twice.formalSwapEntries.map((e) => e.outInstanceId).filter(Boolean) as string[];
+      expect(stack.quantity).toBe(4);
+      expect(outIds).toHaveLength(2);
+      expect(new Set(outIds).size).toBe(2);
+      for (const id of outIds) {
+        const card = twice.cards.find((c) => c.instanceId === id)!;
+        expect(card.primaryCategory).toBe('Queued Out');
+        expect(card.quantity).toBe(1);
+      }
+    });
+
+    it('merges a restored basic Out back into the stack', () => {
+      const deck = plainsStackDeck(6);
+      let n = 0;
+      const queued = syncCardsWithFormalSwaps(
+        deck,
+        addCardsToSwapQueueAsOut([], ['plains-stack']),
+        { nextId: () => `out-${++n}` },
+      );
+      expect(queued.cards.find((c) => c.instanceId === 'plains-stack')!.quantity).toBe(5);
+      const cleared = syncCardsWithFormalSwaps(queued, []);
+      const stack = cleared.cards.find((c) => c.instanceId === 'plains-stack')!;
+      expect(stack.quantity).toBe(6);
+      expect(cleared.cards.filter((c) => c.name === 'Plains')).toHaveLength(1);
+      expect(cleared.formalSwapEntries).toHaveLength(0);
     });
 
     it('places In in target category so it remains counted', () => {

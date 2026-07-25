@@ -21,6 +21,17 @@ describe('buildOutPickerItems', () => {
     );
     expect(items[0]!.lines?.[0]).toBe(deck.cards[0]!.name);
   });
+
+  it('shows quantity on multi-qty stacks', () => {
+    const stack = {
+      ...deck.cards[1]!,
+      instanceId: 'plains-stack',
+      name: 'Plains',
+      quantity: 6,
+    } as CardInstance;
+    const items = buildOutPickerItems([stack]);
+    expect(items[0]!.lines?.[0]).toBe('Plains ×6');
+  });
 });
 
 describe('findMatchingPrintingInstance', () => {

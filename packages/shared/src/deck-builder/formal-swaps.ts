@@ -16,6 +16,10 @@ import { defaultAddCategory, ensureCategoryDef } from './card-edits.js';
 
 const MAYBEBOARD = 'Maybeboard';
 
+function defaultNextId(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export function incompleteEntryCount(entries: FormalSwapEntry[]): number {
   return (entries || []).filter((e) => !e.inInstanceId || !e.outInstanceId).length;
 }
@@ -66,6 +70,103 @@ function ensureSwapCategoryDefs(categories: CategoryDef[]): CategoryDef[] {
   return next;
 }
 
+/** Identity for merging a split singleton back into a multi-qty stack. */
+function stackMergeKey(card: CardInstance): string {
+  return [
+    String(card.name || ''),
+    String(card.setCode || ''),
+    String(card.collectorNumber || ''),
+    String(card.scryfallId || ''),
+    card.foil ? '1' : '0',
+    card.proxy ? '1' : '0',
+    String(card.primaryCategory || ''),
+    String(card.stack || ''),
+  ].join('\0');
+}
+
+/**
+ * Peel one copy off a multi-qty instance for use as a formal Out.
+ * Qty ≤ 1: unchanged. Qty > 1: decrement stack, insert a qty-1 clone, return its id.
+ */
+export function splitOutInstance(
+  cards: CardInstance[],
+  instanceId: string,
+  nextId: (prefix: string) => string = defaultNextId,
+): { cards: CardInstance[]; outInstanceId: string } {
+  const idx = cards.findIndex((c) => c.instanceId === instanceId);
+  if (idx < 0) return { cards, outInstanceId: instanceId };
+  const card = cards[idx]!;
+  const qty = Math.max(1, Number(card.quantity) || 1);
+  if (qty <= 1) return { cards, outInstanceId: instanceId };
+
+  const newId = nextId('c');
+  const clone: CardInstance = {
+    ...card,
+    instanceId: newId,
+    quantity: 1,
+    categories: [...(card.categories || [])],
+    foil: Boolean(card.foil),
+    proxy: Boolean(card.proxy),
+  };
+  const next = cards.map((c, i) => (i === idx ? { ...c, quantity: qty - 1 } : { ...c }));
+  next.splice(idx + 1, 0, clone);
+  return { cards: next, outInstanceId: newId };
+}
+
+function materializeOutSplits(
+  cards: CardInstance[],
+  entries: FormalSwapEntry[],
+  nextId: (prefix: string) => string = defaultNextId,
+): { cards: CardInstance[]; entries: FormalSwapEntry[] } {
+  let nextCards = cards.map((c) => ({ ...c, categories: [...(c.categories || [])] }));
+  const nextEntries = entries.map((e) => ({ ...e }));
+
+  for (const entry of nextEntries) {
+    if (!entry.outInstanceId) continue;
+    const split = splitOutInstance(nextCards, entry.outInstanceId, nextId);
+    nextCards = split.cards;
+    entry.outInstanceId = split.outInstanceId;
+  }
+
+  return { cards: nextCards, entries: nextEntries };
+}
+
+/**
+ * Merge a restored qty-1 card into a matching in-deck stack (same printing + category).
+ * Used after clearing a formal Out so basic-land stacks recombine.
+ */
+export function mergeCardIntoMatchingStack(
+  cards: CardInstance[],
+  instanceId: string,
+): CardInstance[] {
+  const idx = cards.findIndex((c) => c.instanceId === instanceId);
+  if (idx < 0) return cards;
+  const card = cards[idx]!;
+  const qty = Math.max(1, Number(card.quantity) || 1);
+  if (qty !== 1) return cards;
+  if (isSwapOutCategory(card.primaryCategory) || isSwapInCategory(card.primaryCategory)) {
+    return cards;
+  }
+
+  const key = stackMergeKey(card);
+  const targetIdx = cards.findIndex(
+    (c, i) =>
+      i !== idx &&
+      stackMergeKey(c) === key &&
+      !isSwapOutCategory(c.primaryCategory) &&
+      !isSwapInCategory(c.primaryCategory),
+  );
+  if (targetIdx < 0) return cards;
+
+  const targetId = cards[targetIdx]!.instanceId;
+  const next = cards.filter((_, i) => i !== idx);
+  return next.map((c) =>
+    c.instanceId === targetId
+      ? { ...c, quantity: (Number(c.quantity) || 1) + qty }
+      : c,
+  );
+}
+
 /**
  * Returns a copy of cards with swap category membership derived from formal entries.
  * Cards not referenced keep non-swap categories (stale In/Out cleared).
@@ -110,15 +211,29 @@ export function applyFormalSwapsToCards(
 
 /**
  * Live Hub projection: Outs → Queued Out (leave deck); Ins → target/default category (stay in deck).
+ * Multi-qty Outs are split so only one copy leaves the counted deck.
  */
 export function syncCardsWithFormalSwaps(
   deck: DeckDocument,
   entries?: FormalSwapEntry[],
+  opts?: { nextId?: (prefix: string) => string },
 ): DeckDocument {
-  const formalSwapEntries = normalizeFormalEntries(entries ?? deck.formalSwapEntries);
+  const nextId = opts?.nextId || defaultNextId;
+  const previouslyOut = new Set(
+    (deck.cards || [])
+      .filter((c) => isSwapOutCategory(c.primaryCategory))
+      .map((c) => c.instanceId),
+  );
+
+  const materialized = materializeOutSplits(
+    deck.cards || [],
+    normalizeFormalEntries(entries ?? deck.formalSwapEntries),
+    nextId,
+  );
+  const formalSwapEntries = normalizeFormalEntries(materialized.entries);
   const format = deck.format;
   const byId = new Map(
-    (deck.cards || []).map((c) => [c.instanceId, { ...c, categories: [...(c.categories || [])] }]),
+    materialized.cards.map((c) => [c.instanceId, { ...c, categories: [...(c.categories || [])] }]),
   );
   const referencedOut = new Set<string>();
   const referencedIn = new Set<string>();
@@ -142,7 +257,7 @@ export function syncCardsWithFormalSwaps(
     }
   }
 
-  const cards = (deck.cards || []).map((c) => {
+  let cards = materialized.cards.map((c) => {
     if (referencedOut.has(c.instanceId) || referencedIn.has(c.instanceId)) {
       return byId.get(c.instanceId)!;
     }
@@ -156,6 +271,11 @@ export function syncCardsWithFormalSwaps(
     }
     return existing;
   });
+
+  for (const id of previouslyOut) {
+    if (referencedOut.has(id)) continue;
+    cards = mergeCardIntoMatchingStack(cards, id);
+  }
 
   return {
     ...deck,

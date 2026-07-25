@@ -38,6 +38,9 @@ function printingLine(card: CardView): string {
 export function buildOutPickerItems(cards: CardView[]): CardPickerItem[] {
   return cards.map((card) => {
     const doubleFaced = cardHasBackFace(card.layout);
+    const qty = Math.max(1, Number(card.quantity) || 1);
+    const displayName = cardDisplayName(card);
+    const nameLine = qty > 1 ? `${displayName} ×${qty}` : displayName;
     return {
       value: card.instanceId,
       imgSrc: cardImageUrl(card) || undefined,
@@ -46,7 +49,7 @@ export function buildOutPickerItems(cards: CardView[]): CardPickerItem[] {
       layout: card.layout || undefined,
       faceKey: card.instanceId,
       category: card.primaryCategory || undefined,
-      lines: [cardDisplayName(card), printingLine(card)].filter(Boolean),
+      lines: [nameLine, printingLine(card)].filter(Boolean),
     };
   });
 }

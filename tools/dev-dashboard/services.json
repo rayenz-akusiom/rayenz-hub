@@ -1,0 +1,60 @@
+[
+  {
+    "id": "dynamodb",
+    "name": "DynamoDB Local",
+    "kind": "docker",
+    "port": 8000,
+    "containerName": "rayenz-hub-dynamodb",
+    "health": { "type": "tcp", "port": 8000 },
+    "openUrl": null,
+    "dockerRunArgs": [
+      "-d",
+      "--name", "rayenz-hub-dynamodb",
+      "-p", "8000:8000",
+      "-u", "root",
+      "-v", "rayenz-hub-dynamodb:/home/dynamodblocal/data",
+      "amazon/dynamodb-local",
+      "-jar", "DynamoDBLocal.jar",
+      "-sharedDb",
+      "-dbPath", "/home/dynamodblocal/data"
+    ]
+  },
+  {
+    "id": "minio",
+    "name": "MinIO (S3)",
+    "kind": "docker",
+    "port": 9000,
+    "containerName": "rayenz-hub-minio",
+    "health": { "type": "tcp", "port": 9000 },
+    "openUrl": "http://127.0.0.1:9000",
+    "dockerRunArgs": [
+      "-d",
+      "--name", "rayenz-hub-minio",
+      "-p", "9000:9000",
+      "-e", "MINIO_ROOT_USER=local",
+      "-e", "MINIO_ROOT_PASSWORD=localpass1",
+      "-v", "rayenz-hub-minio:/data",
+      "minio/minio",
+      "server",
+      "/data"
+    ]
+  },
+  {
+    "id": "api",
+    "name": "Hub API (SAM)",
+    "kind": "process",
+    "port": 3000,
+    "npmScript": "start:api",
+    "health": { "type": "tcp", "port": 3000 },
+    "openUrl": "http://127.0.0.1:3000/v1/health"
+  },
+  {
+    "id": "web",
+    "name": "Hub Web (Vite)",
+    "kind": "process",
+    "port": 5173,
+    "npmScript": "dev:web",
+    "health": { "type": "tcp", "port": 5173 },
+    "openUrl": "http://127.0.0.1:5173"
+  }
+]

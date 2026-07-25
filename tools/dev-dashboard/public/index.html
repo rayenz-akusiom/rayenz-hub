@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rayenz Hub — Local Dev</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">Rayenz Hub</p>
+        <h1>Local development</h1>
+      </div>
+      <div class="stack-actions">
+        <button type="button" id="btn-start-all" class="btn primary">Start all</button>
+        <button type="button" id="btn-stop-all" class="btn danger">Stop all</button>
+      </div>
+    </header>
+
+    <p class="hint">
+      Status refreshes every 2s. API start runs <code>sam build</code> first and can take a minute.
+      One-time: <code>npm run init:local-db</code> and create MinIO bucket
+      <code>rayenz-hub-data-local</code>.
+    </p>
+
+    <main id="services" class="services" aria-live="polite"></main>
+
+    <p id="banner" class="banner" hidden></p>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

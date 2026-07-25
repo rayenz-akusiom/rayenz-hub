@@ -72,18 +72,47 @@ npm run test:web
 
 
 
+## 2b. Local development dashboard (recommended)
+
+Instead of four terminals, run a localhost-only control panel that can start/stop/restart DynamoDB, MinIO, SAM API, and Vite:
+
+```powershell
+cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
+npm run dev:dashboard
+```
+
+Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
+
+CLI equivalents (same named Docker containers the dashboard uses):
+
+```powershell
+npm run start:dynamodb:persist
+npm run start:minio:persist
+npm run stop:dynamodb
+npm run stop:minio
+node tools/dev-dashboard/cli.mjs status
+```
+
+One-time setup (`init:local-db`, MinIO bucket) is still required — see below.
+
+---
+
+
+
 ## 3. Full stack — local API (SAM + Docker)
 
-Use when you want a real HTTP server at `http://127.0.0.1:3000` (manual curls, browser + `hub-api-client`).
+Use when you want a real HTTP server at `http://127.0.0.1:3000` (manual curls, browser + `hub-api-client`). Prefer [§2b](#2b-local-development-dashboard-recommended) when you want one UI for the whole stack.
 
 ### Terminal 1 — DynamoDB Local
 
-**Preferred** — persistent volume (tables survive container restarts):
+**Preferred** — persistent named container + volume (tables survive container restarts):
 
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run start:dynamodb:persist
 ```
+
+Starts (or reuses) Docker container `rayenz-hub-dynamodb` in the background. Stop with `npm run stop:dynamodb`.
 
 **Ephemeral alternative** (in-memory; data lost on stop):
 
@@ -112,14 +141,14 @@ npm run init:local-db
 
 Required for deck JSON blobs, profile YAML, and large set-pool objects. Credentials must match the API client (`local` / `localpass1`).
 
-**Preferred** — persistent volume (objects survive container restarts):
+**Preferred** — persistent named container + volume (objects survive container restarts):
 
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run start:minio:persist
 ```
 
-Uses Docker volume `rayenz-hub-minio` mounted at `/data`. If you start MinIO **without** that volume (ephemeral/`docker run` with a fresh anonymous mount), DynamoDB can still list decks while `GET /v1/decks/:id` returns **500** (`NoSuchBucket`) because the API looks for bucket `rayenz-hub-data-local` on an empty store.
+Starts (or reuses) Docker container `rayenz-hub-minio` in the background. Stop with `npm run stop:minio`. Uses Docker volume `rayenz-hub-minio` mounted at `/data`. If you start MinIO **without** that volume (ephemeral/`docker run` with a fresh anonymous mount), DynamoDB can still list decks while `GET /v1/decks/:id` returns **500** (`NoSuchBucket`) because the API looks for bucket `rayenz-hub-data-local` on an empty store.
 
 **Ephemeral alternative** (data lost when the container is removed):
 

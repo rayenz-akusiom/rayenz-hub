@@ -9,3 +9,6 @@ dist/
 .env.local
 .env.*.local
 packages/*/dist/
+tools/dev-dashboard/logs/*.log
+tools/dev-dashboard/.state.json
+

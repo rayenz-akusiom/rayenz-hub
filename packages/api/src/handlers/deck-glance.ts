@@ -39,9 +39,30 @@ export type DeckGlanceOptions = RenderGlanceOptions & {
   ) => Promise<{ url: string; expiresAt: string }>;
 };
 
+function parseGlanceRequest(
+  body: string | null | undefined,
+): { ok: true; lieutenantInstanceIds?: string[] } | { ok: false } {
+  if (!body) return { ok: true };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return { ok: false };
+  }
+  if (parsed == null) return { ok: true };
+  if (typeof parsed !== 'object') return { ok: false };
+  const raw = (parsed as { lieutenantInstanceIds?: unknown }).lieutenantInstanceIds;
+  if (raw === undefined || raw === null) return { ok: true };
+  if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !id)) {
+    return { ok: false };
+  }
+  return { ok: true, lieutenantInstanceIds: raw as string[] };
+}
+
 export async function handleDeckGlance(
   deckId: string,
   headers: Record<string, string | undefined>,
+  body: string | null | undefined = null,
   services: AppServices = getAppServices(),
   options: DeckGlanceOptions = {},
 ) {
@@ -57,7 +78,14 @@ export async function handleDeckGlance(
       return errorResponse(400, 'Glance is supported for Commander decks only.', 'GLANCE_UNSUPPORTED_FORMAT');
     }
 
-    const includeResult = buildGlanceIncludeSet(deck);
+    const request = parseGlanceRequest(body);
+    if (!request.ok) {
+      return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
+    }
+
+    const includeResult = buildGlanceIncludeSet(deck, {
+      lieutenantInstanceIds: request.lieutenantInstanceIds,
+    });
     if (!includeResult.ok) {
       return errorResponse(400, includeResult.message, includeResult.code);
     }

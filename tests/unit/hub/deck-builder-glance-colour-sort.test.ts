@@ -7,6 +7,7 @@ function card(partial: Partial<GlanceCard> & Pick<GlanceCard, 'name' | 'instance
     collectorNumber: null,
     typeLine: null,
     colours: [],
+    colourIdentity: [],
     primaryCategory: null,
     quantity: 1,
     imageUrl: null,

@@ -38,7 +38,15 @@ export type DeckGlanceResult = {
   delivery: 'inline' | 'presigned';
 };
 
-export async function apiPostDeckGlance(deckId: string): Promise<DeckGlanceResult> {
+export type DeckGlanceRequest = {
+  /** Lieutenants to highlight on the glance plate; defaults to the auto-pick. */
+  lieutenantInstanceIds?: string[];
+};
+
+export async function apiPostDeckGlance(
+  deckId: string,
+  request: DeckGlanceRequest = {},
+): Promise<DeckGlanceResult> {
   const { getHubApiConfig, assertApiNotPageOrigin } = await import('../../api/hub-api-client');
   const cfg = getHubApiConfig();
   if (!cfg.enabled) {
@@ -49,7 +57,9 @@ export async function apiPostDeckGlance(deckId: string): Promise<DeckGlanceResul
     method: 'POST',
     headers: {
       Authorization: `Bearer ${cfg.key}`,
+      'content-type': 'application/json',
     },
+    body: JSON.stringify(request),
   });
   if (res.status === 401) {
     throw new Error('Hub API unauthorized — check rayenz-hub-api-key.');

@@ -4,7 +4,10 @@ import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
 import { handleDeckGlance } from '../../packages/api/src/handlers/deck-glance.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 import { asBlobStore } from './helpers/test-blob-store.ts';
-import { buildEligibleCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
+import {
+  buildEligibleCommanderDeck,
+  buildMultiLieutenantCommanderDeck,
+} from '../fixtures/deck-builder/glance-eligible.ts';
 
 const TEST_CARD_IMAGE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -19,7 +22,7 @@ const renderOptions = {
 describe('deck glance API', () => {
   it('returns 404 for unknown deckId', async () => {
     const { services, s3 } = createMemoryStores();
-    const res = await handleDeckGlance('missing', TEST_AUTH_HEADERS, services, {
+    const res = await handleDeckGlance('missing', TEST_AUTH_HEADERS, null, services, {
       ...renderOptions,
       blobStore: asBlobStore(s3),
     });
@@ -31,7 +34,7 @@ describe('deck glance API', () => {
     const deck = buildEligibleCommanderDeck({ deckId: 'too-small' });
     deck.cards = deck.cards.slice(0, 10);
     await handleDeck('PUT', 'too-small', TEST_AUTH_HEADERS, JSON.stringify(deck), services);
-    const res = await handleDeckGlance('too-small', TEST_AUTH_HEADERS, services, {
+    const res = await handleDeckGlance('too-small', TEST_AUTH_HEADERS, null, services, {
       ...renderOptions,
       blobStore: asBlobStore(s3),
     });
@@ -45,7 +48,7 @@ describe('deck glance API', () => {
     await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
 
     const blob = asBlobStore(s3);
-    const first = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, {
+    const first = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, null, services, {
       ...renderOptions,
       blobStore: blob,
     });
@@ -55,7 +58,7 @@ describe('deck glance API', () => {
     expect(first.headers?.['x-glance-generation']).toBe(GLANCE_GENERATION_VERSION);
     expect(first.isBase64Encoded).toBe(true);
 
-    const second = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, {
+    const second = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, null, services, {
       ...renderOptions,
       blobStore: blob,
     });
@@ -70,22 +73,76 @@ describe('deck glance API', () => {
     await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
     const blob = asBlobStore(s3);
     const opts = { ...renderOptions, blobStore: blob };
-    const first = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, opts);
-    const second = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, opts);
+    const first = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, null, services, opts);
+    const second = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, null, services, opts);
     expect(first.body).toBe(second.body);
   });
 
-  it('sets showQuantity only on basic lands with quantity > 1 in the layout plan path', () => {
+  it('caches each lieutenant highlight selection separately', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildMultiLieutenantCommanderDeck(4, { deckId: 'glance-lts' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const opts = { ...renderOptions, blobStore: asBlobStore(s3) };
+    const glance = (ids: string[]) =>
+      handleDeckGlance(
+        deck.deckId,
+        TEST_AUTH_HEADERS,
+        JSON.stringify({ lieutenantInstanceIds: ids }),
+        services,
+        opts,
+      );
+
+    const first = await glance(['spell-0', 'spell-1']);
+    expect(first.statusCode).toBe(200);
+    expect(first.headers?.['x-glance-cache']).toBe('MISS');
+
+    const other = await glance(['spell-2', 'spell-3']);
+    expect(other.statusCode).toBe(200);
+    expect(other.headers?.['x-glance-cache']).toBe('MISS');
+
+    const repeat = await glance(['spell-0', 'spell-1']);
+    expect(repeat.headers?.['x-glance-cache']).toBe('HIT');
+  });
+
+  it('rejects malformed bodies and unknown lieutenant ids', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildMultiLieutenantCommanderDeck(4, { deckId: 'glance-lts-bad' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const opts = { ...renderOptions, blobStore: asBlobStore(s3) };
+
+    const badJson = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, '{oops', services, opts);
+    expect(badJson.statusCode).toBe(400);
+    expect(JSON.parse(String(badJson.body)).code).toBe('BAD_REQUEST');
+
+    const badShape = await handleDeckGlance(
+      deck.deckId,
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ lieutenantInstanceIds: [7] }),
+      services,
+      opts,
+    );
+    expect(badShape.statusCode).toBe(400);
+    expect(JSON.parse(String(badShape.body)).code).toBe('BAD_REQUEST');
+
+    const unknownId = await handleDeckGlance(
+      deck.deckId,
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ lieutenantInstanceIds: ['spell-40'] }),
+      services,
+      opts,
+    );
+    expect(unknownId.statusCode).toBe(400);
+    expect(JSON.parse(String(unknownId.body)).code).toBe('GLANCE_INVALID_LIEUTENANTS');
+  });
+
+  it('sets showQuantity for any card with quantity > 1 in the layout plan path', () => {
     const deck = buildEligibleCommanderDeck();
     const include = buildGlanceIncludeSet(deck);
     expect(include.ok).toBe(true);
     if (!include.ok) return;
     const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
     for (const placement of plan.placements) {
-      if (placement.showQuantity) {
-        expect(placement.card.isBasicLand).toBe(true);
-        expect(placement.card.quantity).toBeGreaterThan(1);
-      }
+      expect(placement.showQuantity).toBe(placement.card.quantity > 1);
     }
     const forest = plan.placements.find((p) => p.card.instanceId === 'forest-stack');
     expect(forest?.showQuantity).toBe(true);
@@ -96,7 +153,7 @@ describe('deck glance API', () => {
     const deck = buildEligibleCommanderDeck({ deckId: 'glance-presigned' });
     await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
     const blob = asBlobStore(s3);
-    const res = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, services, {
+    const res = await handleDeckGlance(deck.deckId, TEST_AUTH_HEADERS, null, services, {
       ...renderOptions,
       blobStore: blob,
       inlineMaxBytes: 1,

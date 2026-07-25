@@ -136,6 +136,34 @@ export function buildEligibleCommanderDeck(overrides: Partial<DeckDocument> = {}
   };
 }
 
+/** 100-card deck whose lieutenant count exceeds the glance highlight limit. */
+export function buildMultiLieutenantCommanderDeck(
+  lieutenantCount = 4,
+  overrides: Partial<DeckDocument> = {},
+): DeckDocument {
+  const base = buildEligibleCommanderDeck();
+  const cards = base.cards.map((c, index) =>
+    index >= 1 && index <= lieutenantCount
+      ? {
+          ...c,
+          name: `Lieutenant ${index}`,
+          primaryCategory: 'Lieutenants',
+          categories: ['Lieutenants'],
+        }
+      : { ...c },
+  );
+  return buildEligibleCommanderDeck({
+    ...base,
+    ...overrides,
+    deckId: overrides.deckId ?? 'glance-lieutenants',
+    categories: [
+      ...base.categories,
+      { name: 'Lieutenants', includedInDeck: true, includedInPrice: true },
+    ],
+    cards,
+  });
+}
+
 /** 100-card deck with one formal swap In/Out pair for glance eligibility tests. */
 export function buildGlanceSwapCommanderDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
   const base = buildEligibleCommanderDeck();

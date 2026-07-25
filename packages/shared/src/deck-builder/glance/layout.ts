@@ -1,5 +1,6 @@
 import { glanceFingerprint } from './fingerprint.js';
 import type {
+  GlanceBackdrop,
   GlanceCard,
   GlanceCardPlacement,
   GlanceIncludeSet,
@@ -11,244 +12,364 @@ import {
   GLANCE_CANVAS_HEIGHT,
   GLANCE_CANVAS_WIDTH,
   GLANCE_CARD_HEIGHT,
-  GLANCE_CARD_WIDTH,
   GLANCE_GENERATION_VERSION,
+  GLANCE_ROLE_HIGHLIGHT_LIMIT,
 } from './types.js';
 
-const BACKGROUND = '#1a1a22';
-const HEADER_HEIGHT = 56;
+const BACKGROUND = '#b8d4e8';
+/** Title strip height (matches footer treatment, taller for large type). */
+const HEADER_HEIGHT = 72;
 const WATERMARK_HEIGHT = 48;
 const LABEL_HEIGHT = 28;
-const ROLE_GAP = 12;
-const BAND_GAP_Y = 8;
-const SECTION_GAP = 12;
 const COL_GAP = 8;
+const ROLE_GAP = 12;
+const PLATE_PAD = 12;
+const SECTION_GAP = 10;
 const CARD_ASPECT = 61 / 85;
-const MIN_BAND_CARD_HEIGHT = 48;
+const MIN_CARD_HEIGHT = 48;
 /** Minimum vertical peek so card names stay readable. */
 const MIN_VISIBLE_Y = 22;
+/**
+ * Fixed fraction of a card revealed for each stacked card below the top one.
+ * Constant per render so every stack uses the same overlap that keeps the card
+ * name/title strip visible (blank space below short stacks is expected).
+ */
+const TITLE_PEEK_RATIO = 0.14;
+/** Breathing room between the packed content and the header/footer bars. */
+const CONTENT_MARGIN_Y = 18;
 const ORIGIN_X = 24;
+const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
 
-function showQuantityFor(card: GlanceCard): boolean {
-  return card.isBasicLand && card.quantity > 1;
-}
-
-function overlapPitchY(
-  count: number,
-  bandHeight: number,
-  cardHeight: number,
-  minVisible: number,
-): number {
-  if (count <= 1) return cardHeight;
-  const needed = bandHeight - cardHeight;
-  const pitch = needed / (count - 1);
-  return Math.max(minVisible, Math.min(cardHeight, pitch));
-}
-
-function distributeColumnMajor(cards: GlanceCard[], cols: number): GlanceCard[][] {
-  const columns: GlanceCard[][] = Array.from({ length: cols }, () => []);
-  let idx = 0;
-  for (let c = 0; c < cols; c++) {
-    const remaining = cards.length - idx;
-    const remainingCols = cols - c;
-    const take = Math.ceil(remaining / remainingCols);
-    columns[c] = cards.slice(idx, idx + take);
-    idx += take;
-  }
-  return columns;
-}
-
-type BandLayoutResult = {
-  placements: GlanceCardPlacement[];
-  cardWidth: number;
-  cardHeight: number;
+type Slot = {
+  x: number;
+  cardTop: number;
+  bandHeight: number;
+  maxRows: number;
 };
 
-function solveVerticalBand(
+function showQuantityFor(card: GlanceCard): boolean {
+  return card.quantity > 1;
+}
+
+/** Vertical peek per stacked card, fixed for a given card height. */
+function peekFor(cardHeight: number): number {
+  return Math.max(MIN_VISIBLE_Y, Math.round(cardHeight * TITLE_PEEK_RATIO));
+}
+
+/** Cards that fit in a band at the fixed peek pitch. */
+function maxRowsFixed(bandHeight: number, cardHeight: number): number {
+  if (bandHeight < cardHeight) return 0;
+  return 1 + Math.floor((bandHeight - cardHeight) / peekFor(cardHeight));
+}
+
+/**
+ * Split `count` items into contiguous chunks across the given slots, sized in
+ * proportion to each slot's capacity so every column fills to a similar ratio
+ * (fills horizontal space, keeps stacks short and balanced). Returns null if
+ * the slots cannot hold everything.
+ */
+function chunkByCapacity(count: number, slots: Slot[]): number[] | null {
+  if (count <= 0) return slots.map(() => 0);
+  if (!slots.length) return null;
+  const caps = slots.map((s) => Math.max(0, s.maxRows));
+  const totalCap = caps.reduce((a, b) => a + b, 0);
+  if (totalCap < count) return null;
+
+  const raw = caps.map((c) => (count * c) / totalCap);
+  const counts = raw.map((v) => Math.floor(v));
+  let assigned = counts.reduce((a, b) => a + b, 0);
+  const frac = raw.map((v, i) => ({ i, f: v - Math.floor(v) }));
+  frac.sort((a, b) => b.f - a.f);
+  let fi = 0;
+  while (assigned < count) {
+    let placed = false;
+    for (let step = 0; step < counts.length; step++) {
+      const idx = frac[(fi + step) % frac.length]!.i;
+      if (counts[idx]! < caps[idx]!) {
+        counts[idx]! += 1;
+        assigned += 1;
+        fi = (fi + step + 1) % frac.length;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) return null;
+  }
+  return counts;
+}
+
+function assignChunks(
   cards: GlanceCard[],
   region: GlanceRegion,
-  originX: number,
-  originY: number,
-  bandWidth: number,
-  bandHeight: number,
+  slots: Slot[],
+  cardWidth: number,
+  cardHeight: number,
   baseZ: number,
-): BandLayoutResult {
-  if (!cards.length || bandHeight < MIN_BAND_CARD_HEIGHT) {
-    return { placements: [], cardWidth: 0, cardHeight: 0 };
-  }
-
-  const minCardWidth = Math.round(MIN_BAND_CARD_HEIGHT * CARD_ASPECT);
-  const maxCols = Math.max(
-    1,
-    Math.floor((bandWidth + COL_GAP) / (minCardWidth + COL_GAP)),
-  );
-
-  let best: BandLayoutResult | null = null;
-
-  for (let cols = maxCols; cols >= 1; cols--) {
-    const columns = distributeColumnMajor(cards, cols);
-    const maxRows = Math.max(...columns.map((col) => col.length));
-    const cardHeightAtMinPitch =
-      maxRows <= 1 ? Math.min(GLANCE_CARD_HEIGHT, bandHeight) : bandHeight - (maxRows - 1) * MIN_VISIBLE_Y;
-
-    if (cardHeightAtMinPitch < MIN_BAND_CARD_HEIGHT) continue;
-
-    const cardHeight = Math.min(GLANCE_CARD_HEIGHT, Math.floor(cardHeightAtMinPitch));
-    const cardWidth = Math.round(cardHeight * CARD_ASPECT);
-    const colStride = cardWidth + COL_GAP;
-    if (cols * colStride - COL_GAP > bandWidth) continue;
-
-    const pitchY = overlapPitchY(maxRows, bandHeight, cardHeight, MIN_VISIBLE_Y);
-    const stackHeight = cardHeight + (maxRows - 1) * pitchY;
-    if (stackHeight > bandHeight + 1) continue;
-
-    if (best && best.cardHeight >= cardHeight) continue;
-
-    const placements: GlanceCardPlacement[] = [];
-    for (let c = 0; c < cols; c++) {
-      const col = columns[c]!;
-      if (!col.length) continue;
-      const x = Math.round(originX + c * colStride);
-      col.forEach((card, row) => {
-        placements.push({
-          card,
-          region,
-          x,
-          y: Math.round(originY + row * pitchY),
-          width: cardWidth,
-          height: cardHeight,
-          zIndex: baseZ + c * 1000 + row,
-          showQuantity: showQuantityFor(card),
-        });
+): GlanceCardPlacement[] | null {
+  if (!cards.length) return [];
+  const counts = chunkByCapacity(cards.length, slots);
+  if (!counts) return null;
+  const peek = peekFor(cardHeight);
+  const placements: GlanceCardPlacement[] = [];
+  let idx = 0;
+  for (let c = 0; c < slots.length; c++) {
+    const slot = slots[c]!;
+    const take = counts[c]!;
+    const col = cards.slice(idx, idx + take);
+    idx += take;
+    col.forEach((card, row) => {
+      placements.push({
+        card,
+        region,
+        x: Math.round(slot.x),
+        y: Math.round(slot.cardTop + row * peek),
+        width: cardWidth,
+        height: cardHeight,
+        zIndex: baseZ + c * 1000 + row,
+        showQuantity: showQuantityFor(card),
       });
-    }
-
-    best = { placements, cardWidth, cardHeight };
+    });
   }
+  return placements;
+}
 
-  return best ?? { placements: [], cardWidth: 0, cardHeight: 0 };
+export function buildTitlePips(commanders: GlanceCard[]): string[] {
+  const set = new Set<string>();
+  for (const cmd of commanders) {
+    for (const c of cmd.colourIdentity || []) {
+      const letter = String(c).toUpperCase();
+      if ((WUBRG as readonly string[]).includes(letter)) set.add(letter);
+    }
+  }
+  const ordered = WUBRG.filter((c) => set.has(c));
+  return ordered.length ? [...ordered] : ['C'];
+}
+
+function roleLabel(kind: 'commander' | 'lieutenant', count: number): string {
+  if (kind === 'commander') return count === 1 ? 'Commander' : 'Commanders';
+  return count === 1 ? 'Lieutenant' : 'Lieutenants';
 }
 
 function placeRoleRow(
   cards: GlanceCard[],
-  region: GlanceRegion,
+  region: 'commander' | 'lieutenant',
   originX: number,
   originY: number,
+  cardWidth: number,
+  cardHeight: number,
   baseZ: number,
-): { placements: GlanceCardPlacement[]; nextY: number } {
-  if (!cards.length) return { placements: [], nextY: originY };
-
-  const placements: GlanceCardPlacement[] = cards.map((card, index) => ({
+): GlanceCardPlacement[] {
+  return cards.map((card, index) => ({
     card,
     region,
-    x: Math.round(originX + index * (GLANCE_CARD_WIDTH + ROLE_GAP)),
+    x: Math.round(originX + index * (cardWidth + ROLE_GAP)),
     y: Math.round(originY),
-    width: GLANCE_CARD_WIDTH,
-    height: GLANCE_CARD_HEIGHT,
+    width: cardWidth,
+    height: cardHeight,
     zIndex: baseZ + index,
     showQuantity: showQuantityFor(card),
   }));
-
-  return { placements, nextY: originY + GLANCE_CARD_HEIGHT + BAND_GAP_Y };
-}
-
-function pushSectionLabel(
-  labels: GlanceLabel[],
-  text: string,
-  x: number,
-  y: number,
-): number {
-  labels.push({ text, x, y });
-  return y + LABEL_HEIGHT;
-}
-
-function reserveRoleSection(
-  cardCount: number,
-): number {
-  if (!cardCount) return 0;
-  return LABEL_HEIGHT + GLANCE_CARD_HEIGHT + BAND_GAP_Y + SECTION_GAP;
-}
-
-function allocateBandHeights(
-  remainingHeight: number,
-  nonLandCount: number,
-  landCount: number,
-): { mainBandHeight: number; landBandHeight: number } {
-  const mainLabel = nonLandCount ? LABEL_HEIGHT : 0;
-  const landLabel = landCount ? LABEL_HEIGHT : 0;
-  const gap = nonLandCount && landCount ? SECTION_GAP : 0;
-  const bandArea = remainingHeight - mainLabel - landLabel - gap;
-  if (bandArea <= 0) return { mainBandHeight: 0, landBandHeight: 0 };
-
-  if (!nonLandCount) return { mainBandHeight: 0, landBandHeight: bandArea };
-  if (!landCount) return { mainBandHeight: bandArea, landBandHeight: 0 };
-
-  const landShare = landCount / (nonLandCount + landCount);
-  const landBandHeight = Math.max(MIN_BAND_CARD_HEIGHT, Math.floor(bandArea * landShare));
-  const mainBandHeight = Math.max(MIN_BAND_CARD_HEIGHT, bandArea - landBandHeight);
-  return { mainBandHeight, landBandHeight };
 }
 
 export function buildGlanceLayoutPlan(
   includeSet: GlanceIncludeSet,
   deckName: string | null,
 ): GlanceLayoutPlan {
-  const placements: GlanceCardPlacement[] = [];
-  const labels: GlanceLabel[] = [];
-  const contentWidth = GLANCE_CANVAS_WIDTH - 48;
-  const contentBottom = GLANCE_CANVAS_HEIGHT - WATERMARK_HEIGHT;
-  let y = HEADER_HEIGHT;
+  const titlePips = buildTitlePips(includeSet.commanders);
+  const commanders = includeSet.commanders.slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
+  const lieutenants = includeSet.lieutenants.slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
+  const contentLeft = ORIGIN_X;
+  const contentRight = GLANCE_CANVAS_WIDTH - ORIGIN_X;
+  const contentTop = HEADER_HEIGHT + CONTENT_MARGIN_Y;
+  const contentBottom = GLANCE_CANVAS_HEIGHT - WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
+  const contentHeight = Math.max(0, contentBottom - contentTop);
 
-  const reservedForRoles =
-    reserveRoleSection(includeSet.commanders.length) +
-    reserveRoleSection(includeSet.lieutenants.length);
-  const { mainBandHeight, landBandHeight } = allocateBandHeights(
-    contentBottom - y - reservedForRoles,
-    includeSet.nonLands.length,
-    includeSet.lands.length,
-  );
+  let best: {
+    cardHeight: number;
+    placements: GlanceCardPlacement[];
+    labels: GlanceLabel[];
+    backdrops: GlanceBackdrop[];
+  } | null = null;
 
-  if (includeSet.commanders.length) {
-    y = pushSectionLabel(labels, 'Commanders', ORIGIN_X, y);
-    const role = placeRoleRow(includeSet.commanders, 'commander', ORIGIN_X, y, 10);
-    placements.push(...role.placements);
-    y = role.nextY + SECTION_GAP;
-  }
+  for (let cardHeight = GLANCE_CARD_HEIGHT; cardHeight >= MIN_CARD_HEIGHT; cardHeight -= 1) {
+    const cardWidth = Math.round(cardHeight * CARD_ASPECT);
+    const colStride = cardWidth + COL_GAP;
 
-  if (includeSet.lieutenants.length) {
-    y = pushSectionLabel(labels, 'Lieutenants', ORIGIN_X, y);
-    const role = placeRoleRow(includeSet.lieutenants, 'lieutenant', ORIGIN_X, y, 30);
-    placements.push(...role.placements);
-    y = role.nextY + SECTION_GAP;
-  }
+    const labels: GlanceLabel[] = [];
+    const backdrops: GlanceBackdrop[] = [];
+    const placements: GlanceCardPlacement[] = [];
 
-  if (includeSet.nonLands.length) {
-    y = pushSectionLabel(labels, 'Main deck', ORIGIN_X, y);
-    const band = solveVerticalBand(
+    let roleBlockRight = contentLeft;
+    let roleBlockBottom = contentTop;
+    let roleY = contentTop;
+
+    if (commanders.length) {
+      const plateInnerW =
+        PLATE_PAD * 2 + commanders.length * cardWidth + (commanders.length - 1) * ROLE_GAP;
+      const plateH = PLATE_PAD + LABEL_HEIGHT + cardHeight + PLATE_PAD;
+      const plateX = contentLeft;
+      const plateY = roleY;
+      labels.push({
+        text: roleLabel('commander', commanders.length),
+        x: plateX + PLATE_PAD,
+        y: plateY + PLATE_PAD,
+      });
+      backdrops.push({
+        region: 'commander',
+        x: plateX,
+        y: plateY,
+        width: plateInnerW,
+        height: plateH,
+        radius: Math.max(8, Math.round(cardWidth * 0.06)),
+      });
+      placements.push(
+        ...placeRoleRow(
+          commanders,
+          'commander',
+          plateX + PLATE_PAD,
+          plateY + PLATE_PAD + LABEL_HEIGHT,
+          cardWidth,
+          cardHeight,
+          10,
+        ),
+      );
+      roleBlockRight = Math.max(roleBlockRight, plateX + plateInnerW);
+      roleBlockBottom = Math.max(roleBlockBottom, plateY + plateH);
+      roleY = plateY + plateH + SECTION_GAP;
+    }
+
+    if (lieutenants.length) {
+      const plateInnerW =
+        PLATE_PAD * 2 + lieutenants.length * cardWidth + (lieutenants.length - 1) * ROLE_GAP;
+      const plateH = PLATE_PAD + LABEL_HEIGHT + cardHeight + PLATE_PAD;
+      const plateX = contentLeft;
+      const plateY = roleY;
+      labels.push({
+        text: roleLabel('lieutenant', lieutenants.length),
+        x: plateX + PLATE_PAD,
+        y: plateY + PLATE_PAD,
+      });
+      backdrops.push({
+        region: 'lieutenant',
+        x: plateX,
+        y: plateY,
+        width: plateInnerW,
+        height: plateH,
+        radius: Math.max(8, Math.round(cardWidth * 0.06)),
+      });
+      placements.push(
+        ...placeRoleRow(
+          lieutenants,
+          'lieutenant',
+          plateX + PLATE_PAD,
+          plateY + PLATE_PAD + LABEL_HEIGHT,
+          cardWidth,
+          cardHeight,
+          30,
+        ),
+      );
+      roleBlockRight = Math.max(roleBlockRight, plateX + plateInnerW);
+      roleBlockBottom = Math.max(roleBlockBottom, plateY + plateH);
+    }
+
+    const hasRoles = commanders.length + lieutenants.length > 0;
+    const besideLeft = hasRoles ? roleBlockRight + COL_GAP : contentLeft;
+    const besideWidth = Math.max(0, contentRight - besideLeft);
+    const underTop = hasRoles ? roleBlockBottom + SECTION_GAP : contentTop;
+    const underHeight = Math.max(0, contentBottom - underTop);
+    const underWidth = hasRoles ? Math.max(0, roleBlockRight - contentLeft) : 0;
+
+    // Reserve a label row at the top of each packing zone.
+    const besideCardTop = contentTop + LABEL_HEIGHT;
+    const besideBandHeight = Math.max(0, contentHeight - LABEL_HEIGHT);
+    const underCardTop = underTop + LABEL_HEIGHT;
+    const underBandHeight = Math.max(0, underHeight - LABEL_HEIGHT);
+
+    const besideCols = Math.max(0, Math.floor((besideWidth + COL_GAP) / colStride));
+    const underCols = Math.max(0, Math.floor((underWidth + COL_GAP) / colStride));
+    if (besideCols + underCols <= 0 && (includeSet.nonLands.length || includeSet.lands.length))
+      continue;
+
+    const besideSlot = (col: number): Slot => ({
+      x: besideLeft + col * colStride,
+      cardTop: besideCardTop,
+      bandHeight: besideBandHeight,
+      maxRows: maxRowsFixed(besideBandHeight, cardHeight),
+    });
+    const underSlot = (col: number): Slot => ({
+      x: contentLeft + col * colStride,
+      cardTop: underCardTop,
+      bandHeight: underBandHeight,
+      maxRows: maxRowsFixed(underBandHeight, cardHeight),
+    });
+
+    const nonLandCount = includeSet.nonLands.length;
+    const landCount = includeSet.lands.length;
+
+    // Split the tall "beside" columns between main deck and lands in proportion
+    // to their card counts; the shorter "under" columns (the void below the role
+    // block) are bonus capacity reserved for the main deck so it — not the
+    // lands — wraps underneath the commanders.
+    let mainBesideCols = besideCols;
+    let landBesideCols = 0;
+    if (nonLandCount > 0 && landCount > 0 && besideCols >= 2) {
+      const weight = nonLandCount / (nonLandCount + landCount);
+      mainBesideCols = Math.min(besideCols - 1, Math.max(1, Math.round(besideCols * weight)));
+      landBesideCols = besideCols - mainBesideCols;
+    } else if (nonLandCount === 0) {
+      mainBesideCols = 0;
+      landBesideCols = besideCols;
+    }
+
+    const mainSlots: Slot[] = [];
+    for (let c = 0; c < mainBesideCols; c++) mainSlots.push(besideSlot(c));
+    for (let c = 0; c < underCols; c++) mainSlots.push(underSlot(c));
+    const landSlots: Slot[] = [];
+    for (let c = 0; c < landBesideCols; c++) landSlots.push(besideSlot(mainBesideCols + c));
+
+    if (nonLandCount > 0 && !mainSlots.some((s) => s.maxRows > 0)) continue;
+    if (landCount > 0 && !landSlots.some((s) => s.maxRows > 0)) continue;
+
+    const nonLandPlacements = assignChunks(
       includeSet.nonLands,
       'nonland',
-      ORIGIN_X,
-      y,
-      contentWidth,
-      mainBandHeight,
+      mainSlots,
+      cardWidth,
+      cardHeight,
       100,
     );
-    placements.push(...band.placements);
-    y += mainBandHeight + (includeSet.lands.length ? SECTION_GAP : 0);
-  }
-
-  if (includeSet.lands.length) {
-    y = pushSectionLabel(labels, 'Lands', ORIGIN_X, y);
-    const band = solveVerticalBand(
+    if (!nonLandPlacements) continue;
+    const landPlacements = assignChunks(
       includeSet.lands,
       'land',
-      ORIGIN_X,
-      y,
-      contentWidth,
-      landBandHeight,
+      landSlots,
+      cardWidth,
+      cardHeight,
       200,
     );
-    placements.push(...band.placements);
+    if (!landPlacements) continue;
+
+    const labelSlot = (slots: Slot[], placed: GlanceCardPlacement[]): Slot | null => {
+      if (!placed.length) return null;
+      const used = slots.filter((_, i) => placed.some((p) => Math.round(slots[i]!.x) === p.x));
+      const candidates = used.length ? used : slots;
+      return candidates.reduce((a, b) => (b.cardTop < a.cardTop ? b : a));
+    };
+    if (nonLandCount) {
+      const s = labelSlot(mainSlots, nonLandPlacements);
+      if (s) labels.push({ text: 'Main deck', x: Math.round(s.x), y: Math.round(s.cardTop - LABEL_HEIGHT) });
+    }
+    if (landCount) {
+      const s = labelSlot(landSlots, landPlacements);
+      if (s) labels.push({ text: 'Lands', x: Math.round(s.x), y: Math.round(s.cardTop - LABEL_HEIGHT) });
+    }
+
+    placements.push(...nonLandPlacements, ...landPlacements);
+    const maxBottom = Math.max(...placements.map((p) => p.y + p.height), contentTop);
+    if (maxBottom > contentBottom + 1) continue;
+
+    best = { cardHeight, placements, labels, backdrops };
+    break;
   }
 
   const fingerprint = glanceFingerprint(includeSet, GLANCE_GENERATION_VERSION);
@@ -258,10 +379,12 @@ export function buildGlanceLayoutPlan(
     canvasWidth: GLANCE_CANVAS_WIDTH,
     canvasHeight: GLANCE_CANVAS_HEIGHT,
     deckName,
-    labels,
-    placements,
+    titlePips,
+    labels: best?.labels ?? [],
+    backdrops: best?.backdrops ?? [],
+    placements: best?.placements ?? [],
     fingerprint,
   };
 }
 
-export { BACKGROUND, WATERMARK_HEIGHT, MIN_VISIBLE_Y };
+export { BACKGROUND, WATERMARK_HEIGHT, MIN_VISIBLE_Y, HEADER_HEIGHT };

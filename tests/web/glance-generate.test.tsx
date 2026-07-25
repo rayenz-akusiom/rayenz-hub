@@ -3,22 +3,28 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import { GlanceGenerateButton } from '../../packages/web/src/deck-builder/commander/GlanceGenerateButton';
-import { buildEligibleCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
+import {
+  buildEligibleCommanderDeck,
+  buildMultiLieutenantCommanderDeck,
+} from '../fixtures/deck-builder/glance-eligible.ts';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
-const postGlance = vi.fn(async () => ({
-  blob: new Blob(['png'], { type: 'image/png' }),
-  cache: 'MISS',
-  generation: 'glance-gen-4',
-  delivery: 'inline' as const,
-}));
+const postGlance = vi.fn(
+  async (_deckId: string, _request?: { lieutenantInstanceIds?: string[] }) => ({
+    blob: new Blob(['png'], { type: 'image/png' }),
+    cache: 'MISS',
+    generation: 'glance-gen-8',
+    delivery: 'inline' as const,
+  }),
+);
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
-  apiPostDeckGlance: (deckId: string) => postGlance(deckId),
+  apiPostDeckGlance: (deckId: string, request?: { lieutenantInstanceIds?: string[] }) =>
+    postGlance(deckId, request),
 }));
 
 describe('GlanceGenerateButton', () => {
@@ -59,9 +65,51 @@ describe('GlanceGenerateButton', () => {
     render(<GlanceGenerateButton deck={deck} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Generate glance' }));
-    await waitFor(() => expect(postGlance).toHaveBeenCalledWith(deck.deckId));
+    await waitFor(() => expect(postGlance).toHaveBeenCalledWith(deck.deckId, {}));
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(/gen glance-gen-4 · cache MISS/i)).toBeInTheDocument();
+    expect(screen.getByText(/gen glance-gen-8 · cache MISS/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+  });
+
+  it('asks which lieutenants to highlight when the deck has more than two', async () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    render(<GlanceGenerateButton deck={deck} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Generate glance' }));
+
+    expect(await screen.findByText(/this deck has 4 lieutenants/i)).toBeInTheDocument();
+    expect(postGlance).not.toHaveBeenCalled();
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(4);
+    // Auto-picks are pre-selected; swap the second one for a later lieutenant.
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    await user.click(options[1]!);
+    await user.click(options[3]!);
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() =>
+      expect(postGlance).toHaveBeenCalledWith(deck.deckId, {
+        lieutenantInstanceIds: ['spell-0', 'spell-3'],
+      }),
+    );
+    expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
+  });
+
+  it('caps the lieutenant highlight selection at two', async () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    render(<GlanceGenerateButton deck={deck} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Generate glance' }));
+
+    const options = await screen.findAllByRole('option');
+    await user.click(options[2]!);
+    expect(options[2]).toHaveAttribute('aria-selected', 'false');
+
+    await user.click(options[0]!);
+    await user.click(options[2]!);
+    expect(options[2]).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled();
   });
 });

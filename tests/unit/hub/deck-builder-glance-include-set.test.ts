@@ -56,6 +56,49 @@ describe('deck-builder glance include-set', () => {
     expect(result.includeSet.cards.some((c) => c.instanceId === 'maybe-1')).toBe(false);
   });
 
+  it('classifies DFCs by front face only (Creature // Land → main deck, Land // Creature → land)', () => {
+    const base = buildEligibleCommanderDeck();
+    const cards = base.cards.map((c) => ({ ...c }));
+    const front = cards.find((c) => c.instanceId === 'spell-0')!;
+    front.name = 'Beast That Roots';
+    front.collectorNumber = '900';
+    const back = cards.find((c) => c.instanceId === 'spell-1')!;
+    back.name = 'Grove That Walks';
+    back.collectorNumber = '901';
+
+    const oracleEntry = (typeLine: string) => ({
+      scryfallId: null,
+      colourIdentity: ['G'],
+      colours: ['G'],
+      typeLine,
+      layout: 'transform',
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      printedName: null,
+      flavorName: null,
+      manaValue: 3,
+      imageUrl: null,
+      finishes: null,
+      updatedAt: null,
+    });
+    const oracle = {
+      ...base.oracle,
+      'print:m12:900': oracleEntry('Creature — Beast // Land — Forest'),
+      'print:m12:901': oracleEntry('Land — Forest // Creature — Beast'),
+    };
+
+    const result = buildGlanceIncludeSet({ ...base, cards, oracle });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const nonLandIds = new Set(result.includeSet.nonLands.map((c) => c.instanceId));
+    const landIds = new Set(result.includeSet.lands.map((c) => c.instanceId));
+    expect(nonLandIds.has('spell-0')).toBe(true);
+    expect(landIds.has('spell-0')).toBe(false);
+    expect(landIds.has('spell-1')).toBe(true);
+    expect(nonLandIds.has('spell-1')).toBe(false);
+  });
+
   it('stays eligible when swapping one basic from a multi-qty forest stack', () => {
     const base = buildEligibleCommanderDeck();
     const swapIn = {

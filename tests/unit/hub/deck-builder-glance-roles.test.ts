@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildGlanceIncludeSet, buildGlanceLayoutPlan } from '@rayenz-hub/shared';
+import {
+  buildGlanceIncludeSet,
+  buildGlanceLayoutPlan,
+  listGlanceLieutenants,
+} from '@rayenz-hub/shared';
 import {
   buildEligibleCommanderDeck,
   buildGlanceSwapCommanderDeck,
+  buildMultiLieutenantCommanderDeck,
 } from '../../fixtures/deck-builder/glance-eligible.ts';
 
 describe('deck-builder glance roles and quantities', () => {
@@ -21,21 +26,70 @@ describe('deck-builder glance roles and quantities', () => {
     expect(rolePlacements.every((p) => p.width === 213 && p.height === 297)).toBe(true);
   });
 
-  it('shows quantity badges only for basic lands with quantity > 1', () => {
+  it('shows quantity badges for any card with quantity > 1', () => {
     const deck = buildEligibleCommanderDeck();
     const include = buildGlanceIncludeSet(deck);
     expect(include.ok).toBe(true);
     if (!include.ok) return;
     const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
     for (const placement of plan.placements) {
-      if (placement.showQuantity) {
-        expect(placement.card.isBasicLand).toBe(true);
-        expect(placement.card.quantity).toBeGreaterThan(1);
-      }
-      if (placement.card.isBasicLand && placement.card.quantity > 1) {
-        expect(placement.showQuantity).toBe(true);
-      }
+      expect(placement.showQuantity).toBe(placement.card.quantity > 1);
     }
+    expect(plan.placements.some((p) => p.showQuantity)).toBe(true);
+  });
+
+  it('lists every lieutenant candidate for the highlight picker', () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    const lieutenants = listGlanceLieutenants(deck);
+    expect(lieutenants.map((c) => c.instanceId)).toEqual([
+      'spell-0',
+      'spell-1',
+      'spell-2',
+      'spell-3',
+    ]);
+  });
+
+  it('highlights the explicitly selected lieutenants and leaves the rest in the main deck', () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    const include = buildGlanceIncludeSet(deck, {
+      lieutenantInstanceIds: ['spell-3', 'spell-1'],
+    });
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.lieutenants.map((c) => c.instanceId)).toEqual([
+      'spell-1',
+      'spell-3',
+    ]);
+    const nonLandIds = include.includeSet.nonLands.map((c) => c.instanceId);
+    expect(nonLandIds).toContain('spell-0');
+    expect(nonLandIds).toContain('spell-2');
+    expect(nonLandIds).not.toContain('spell-1');
+  });
+
+  it('auto-picks the first two lieutenants when no selection is given', () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    const include = buildGlanceIncludeSet(deck);
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.lieutenants.map((c) => c.instanceId)).toEqual([
+      'spell-0',
+      'spell-1',
+    ]);
+  });
+
+  it('rejects selections that are not lieutenants or exceed the highlight limit', () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    const unknown = buildGlanceIncludeSet(deck, { lieutenantInstanceIds: ['spell-40'] });
+    expect(unknown.ok).toBe(false);
+    if (unknown.ok) return;
+    expect(unknown.code).toBe('GLANCE_INVALID_LIEUTENANTS');
+
+    const tooMany = buildGlanceIncludeSet(deck, {
+      lieutenantInstanceIds: ['spell-0', 'spell-1', 'spell-2'],
+    });
+    expect(tooMany.ok).toBe(false);
+    if (tooMany.ok) return;
+    expect(tooMany.code).toBe('GLANCE_INVALID_LIEUTENANTS');
   });
 
   it('applies swap ins while excluding outs for eligibility', () => {

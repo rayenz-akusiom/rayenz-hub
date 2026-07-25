@@ -12,6 +12,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifact = path.join(root, '.aws-sam/build/HubApiFunction');
 const srcFonts = path.join(root, 'packages/api/assets/fonts');
 const destFonts = path.join(artifact, 'assets/fonts');
+const srcMana = path.join(root, 'packages/api/assets/mana');
+const destMana = path.join(artifact, 'assets/mana');
 
 if (!existsSync(artifact)) {
   console.error(`Missing build artifact: ${artifact}`);
@@ -52,4 +54,10 @@ if (existsSync(srcFonts)) {
   mkdirSync(destFonts, { recursive: true });
   cpSync(srcFonts, destFonts, { recursive: true });
   console.log(`Copied fonts → ${destFonts}`);
+}
+
+if (existsSync(srcMana)) {
+  mkdirSync(destMana, { recursive: true });
+  cpSync(srcMana, destMana, { recursive: true });
+  console.log(`Copied mana → ${destMana}`);
 }

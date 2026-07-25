@@ -7,13 +7,27 @@ import { cardImageUrl, scryfallCdnUrlWithSize, scryfallImageFromId } from '../sc
 import { isBasicLand, normalizeCardQuantities } from '../quantities.js';
 import { formalSwapInIds, syncCardsWithFormalSwaps } from '../formal-swaps.js';
 import { sortLands, sortNonLands } from './colour-sort.js';
-import type { GlanceCard, GlanceIncludeSetResult } from './types.js';
+import type {
+  BuildGlanceIncludeSetOptions,
+  GlanceCard,
+  GlanceIncludeSetResult,
+} from './types.js';
+import { GLANCE_ROLE_HIGHLIGHT_LIMIT } from './types.js';
 
 const MAYBEBOARD = 'Maybeboard';
 
+/** Type line of the front face only (text before the ` // ` DFC separator). */
+function frontFaceTypeLine(typeLine: string | null | undefined): string {
+  const raw = String(typeLine || '');
+  const sep = raw.indexOf(' // ');
+  return sep === -1 ? raw : raw.slice(0, sep);
+}
+
 function isLandType(typeLine: string | null | undefined, basic: boolean): boolean {
   if (basic) return true;
-  return /\bLand\b/i.test(String(typeLine || ''));
+  // Only treat a card as a land when its FRONT face is a Land. This keeps DFCs
+  // whose land side is the back face (e.g. `Creature // Land`) in the main deck.
+  return /\bLand\b/i.test(frontFaceTypeLine(typeLine));
 }
 
 function basicLandColours(name: string): string[] {
@@ -42,6 +56,22 @@ function resolvePrintedColours(
   return [];
 }
 
+function resolveColourIdentity(
+  card: CardInstance,
+  oracle: ReturnType<typeof getOracle>,
+  typeLine: string | null,
+): string[] {
+  const fromOracle = oracle?.colourIdentity;
+  if (Array.isArray(fromOracle) && fromOracle.length) {
+    return fromOracle.map((c) => String(c).toUpperCase()).filter(Boolean);
+  }
+  const fromCard = card.colourIdentity;
+  if (Array.isArray(fromCard) && fromCard.length) {
+    return fromCard.map((c) => String(c).toUpperCase()).filter(Boolean);
+  }
+  return resolvePrintedColours(card, oracle, typeLine);
+}
+
 function toGlanceCard(card: CardInstance, doc: DeckDocument): GlanceCard {
   const oracle = getOracle(doc, card);
   const view = resolveCardView(card, oracle);
@@ -65,6 +95,7 @@ function toGlanceCard(card: CardInstance, doc: DeckDocument): GlanceCard {
     collectorNumber: card.collectorNumber,
     typeLine,
     colours: resolvePrintedColours(card, oracle, typeLine),
+    colourIdentity: resolveColourIdentity(card, oracle, typeLine),
     primaryCategory: card.primaryCategory,
     quantity: Math.max(1, Number(card.quantity) || 1),
     imageUrl,
@@ -90,20 +121,29 @@ function roleKey(name: string): 'commander' | 'lieutenant' | null {
   return null;
 }
 
-function pickRoles(cards: GlanceCard[], role: 'commander' | 'lieutenant'): GlanceCard[] {
-  return cards
-    .filter((c) => roleKey(c.primaryCategory || '') === role)
-    .sort((a, b) => {
-      const nameCmp = a.name.localeCompare(b.name);
-      if (nameCmp !== 0) return nameCmp;
-      const setCmp = String(a.setCode || '').localeCompare(String(b.setCode || ''));
-      if (setCmp !== 0) return setCmp;
-      return a.instanceId.localeCompare(b.instanceId);
-    })
-    .slice(0, 2);
+function sortRoleCards(cards: GlanceCard[]): GlanceCard[] {
+  return [...cards].sort((a, b) => {
+    const nameCmp = a.name.localeCompare(b.name);
+    if (nameCmp !== 0) return nameCmp;
+    const setCmp = String(a.setCode || '').localeCompare(String(b.setCode || ''));
+    if (setCmp !== 0) return setCmp;
+    return a.instanceId.localeCompare(b.instanceId);
+  });
 }
 
-export function buildGlanceIncludeSet(deck: DeckDocument): GlanceIncludeSetResult {
+function roleCards(cards: GlanceCard[], role: 'commander' | 'lieutenant'): GlanceCard[] {
+  return sortRoleCards(cards.filter((c) => roleKey(c.primaryCategory || '') === role));
+}
+
+function pickRoles(cards: GlanceCard[], role: 'commander' | 'lieutenant'): GlanceCard[] {
+  return roleCards(cards, role).slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
+}
+
+/** Cards eligible for the glance include set, before role/land partitioning. */
+function eligibleGlanceCards(deck: DeckDocument): {
+  cards: GlanceCard[];
+  quantitySum: number;
+} {
   const synced = syncCardsWithFormalSwaps(deck);
   const outIds = new Set<string>();
   for (const entry of synced.formalSwapEntries || []) {
@@ -126,6 +166,24 @@ export function buildGlanceIncludeSet(deck: DeckDocument): GlanceIncludeSetResul
   }
 
   const quantitySum = includedCards.reduce((sum, c) => sum + (Number(c.quantity) || 1), 0);
+  const normalized = normalizeCardQuantities(includedCards, 'commander');
+  return { cards: normalized.map((c) => toGlanceCard(c, synced)), quantitySum };
+}
+
+/**
+ * Every lieutenant candidate in the deck, sorted deterministically. Callers use
+ * this to offer a highlight choice when more than `GLANCE_ROLE_HIGHLIGHT_LIMIT`
+ * lieutenants exist.
+ */
+export function listGlanceLieutenants(deck: DeckDocument): GlanceCard[] {
+  return roleCards(eligibleGlanceCards(deck).cards, 'lieutenant');
+}
+
+export function buildGlanceIncludeSet(
+  deck: DeckDocument,
+  options: BuildGlanceIncludeSetOptions = {},
+): GlanceIncludeSetResult {
+  const { cards: glanceCards, quantitySum } = eligibleGlanceCards(deck);
   if (quantitySum !== COMMANDER_DECK_TARGET) {
     return {
       ok: false,
@@ -134,11 +192,36 @@ export function buildGlanceIncludeSet(deck: DeckDocument): GlanceIncludeSetResul
     };
   }
 
-  const normalized = normalizeCardQuantities(includedCards, 'commander');
-  const glanceCards = normalized.map((c) => toGlanceCard(c, synced));
-
   const commanders = pickRoles(glanceCards, 'commander');
-  const lieutenants = pickRoles(glanceCards, 'lieutenant');
+  const selection = options.lieutenantInstanceIds;
+  let lieutenants: GlanceCard[];
+  if (selection && selection.length) {
+    const candidates = roleCards(glanceCards, 'lieutenant');
+    const byId = new Map(candidates.map((c) => [c.instanceId, c]));
+    const picked: GlanceCard[] = [];
+    for (const id of selection) {
+      const card = byId.get(id);
+      if (!card) {
+        return {
+          ok: false,
+          code: 'GLANCE_INVALID_LIEUTENANTS',
+          message: `Unknown lieutenant selection: ${id}.`,
+        };
+      }
+      if (picked.some((c) => c.instanceId === id)) continue;
+      picked.push(card);
+    }
+    if (picked.length > GLANCE_ROLE_HIGHLIGHT_LIMIT) {
+      return {
+        ok: false,
+        code: 'GLANCE_INVALID_LIEUTENANTS',
+        message: `Select at most ${GLANCE_ROLE_HIGHLIGHT_LIMIT} lieutenants to highlight.`,
+      };
+    }
+    lieutenants = sortRoleCards(picked);
+  } else {
+    lieutenants = pickRoles(glanceCards, 'lieutenant');
+  }
   const roleIds = new Set([
     ...commanders.map((c) => c.instanceId),
     ...lieutenants.map((c) => c.instanceId),

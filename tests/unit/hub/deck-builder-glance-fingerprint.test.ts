@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { buildGlanceIncludeSet, glanceFingerprint } from '@rayenz-hub/shared';
-import { buildEligibleCommanderDeck } from '../../fixtures/deck-builder/glance-eligible.ts';
+import {
+  buildEligibleCommanderDeck,
+  buildMultiLieutenantCommanderDeck,
+} from '../../fixtures/deck-builder/glance-eligible.ts';
 import { sha256Hex } from '../../../packages/shared/src/deck-builder/glance/sha256.ts';
 
 describe('deck-builder glance fingerprint', () => {
@@ -17,5 +20,14 @@ describe('deck-builder glance fingerprint', () => {
     expect(include.ok).toBe(true);
     if (!include.ok) return;
     expect(glanceFingerprint(include.includeSet)).toBe(glanceFingerprint(include.includeSet));
+  });
+
+  it('differs when a different lieutenant highlight is chosen', () => {
+    const deck = buildMultiLieutenantCommanderDeck(4);
+    const first = buildGlanceIncludeSet(deck, { lieutenantInstanceIds: ['spell-0', 'spell-1'] });
+    const second = buildGlanceIncludeSet(deck, { lieutenantInstanceIds: ['spell-2', 'spell-3'] });
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(glanceFingerprint(first.includeSet)).not.toBe(glanceFingerprint(second.includeSet));
   });
 });

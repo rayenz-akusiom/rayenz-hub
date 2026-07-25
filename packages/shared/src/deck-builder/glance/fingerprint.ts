@@ -23,10 +23,19 @@ function cardIdentity(card: {
   ].join('|');
 }
 
+function roleMaterial(label: string, cards: { instanceId: string }[]): string {
+  const ids = cards.map((c) => c.instanceId).sort((a, b) => a.localeCompare(b));
+  return `${label}:${ids.join(',')}`;
+}
+
 export function canonicalIncludeSetMaterial(includeSet: GlanceIncludeSet): string {
   const lines = includeSet.cards
     .map(cardIdentity)
     .sort((a, b) => a.localeCompare(b));
+  // Highlight assignment is part of the identity: the same 100 cards render
+  // differently depending on which roles sit on the plates.
+  lines.push(roleMaterial('commanders', includeSet.commanders));
+  lines.push(roleMaterial('lieutenants', includeSet.lieutenants));
   return lines.join('\n');
 }
 

@@ -1831,22 +1831,141 @@ body,
   width: min(48rem, 100%);
 }
 
+.db-glance-overlay {
+  left: 200px;
+  inset: 0 0 0 200px;
+  place-items: stretch;
+  padding: 0.75rem;
+}
+
 .db-glance-modal {
-  width: min(56rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 2rem);
+  width: min(100%, calc(100vw - 200px - 1.5rem));
+  max-width: none;
+  height: calc(100vh - 1.5rem);
+  max-height: calc(100vh - 1.5rem);
+  margin: auto;
+  overflow: hidden;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.db-glance-statusline {
+  min-height: 1.25rem;
+}
+
+.db-glance-statusline p {
+  margin: 0;
+}
+
+.db-glance-slot {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: auto;
+}
+
+.db-glance-skeleton {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  border-radius: 12px;
+  background: var(--db-panel-2, rgba(255, 255, 255, 0.04));
+  border: 1px dashed var(--db-border, rgba(255, 255, 255, 0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.db-glance-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--db-border, rgba(255, 255, 255, 0.2));
+  border-top-color: var(--db-accent, #6aa8ff);
+  animation: db-glance-spin 0.8s linear infinite;
+}
+
+@keyframes db-glance-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .db-glance-preview {
   max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
+  object-fit: contain;
   display: block;
+  margin-inline: auto;
 }
 
 .db-glance-status {
   color: var(--db-muted, #8a8a96);
   font-size: 0.85rem;
   margin: 0;
+}
+
+.db-glance-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-w), 1fr));
+  gap: 0.65rem;
+  align-content: start;
+  align-self: start;
+  width: 100%;
+  padding: 0.25rem;
+}
+
+.db-glance-pick-option {
+  appearance: none;
+  border: 2px solid transparent;
+  border-radius: var(--db-card-radius);
+  background: transparent;
+  padding: 0.2rem;
+  cursor: pointer;
+  text-align: center;
+  display: grid;
+  gap: 0.25rem;
+  color: inherit;
+}
+
+.db-glance-pick-option:hover,
+.db-glance-pick-option:focus-visible {
+  border-color: var(--db-border);
+}
+
+.db-glance-pick-option.is-selected {
+  border-color: var(--db-accent, #2563eb);
+  box-shadow: 0 0 0 1px var(--db-accent, #2563eb);
+}
+
+.db-glance-pick-face {
+  position: relative;
+  display: block;
+  border-radius: var(--db-card-radius);
+  overflow: hidden;
+}
+
+.db-glance-pick-name {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--db-muted, #6a737d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .db-glance-overlay {
+    left: 0;
+    inset: 0;
+  }
+
+  .db-glance-modal {
+    width: min(100%, calc(100vw - 1.5rem));
+    height: calc(100vh - 1.5rem);
+  }
 }
 
 .db-modal-actions {

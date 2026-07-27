@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Runtime list shape used by Dailies UI / ItemDB fetch (resolved from official defs + overlays). */
 export const DailiesWishlistSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -7,6 +8,13 @@ export const DailiesWishlistSchema = z.object({
   slug: z.string(),
   user: z.string(),
   img: z.string().optional().default(''),
+  enabled: z.boolean().optional().default(true),
+});
+
+/** Per-list user overlays — official URLs are fixed in code. */
+export const DailiesTrackingListOverlaySchema = z.object({
+  enabled: z.boolean().optional(),
+  img: z.string().optional(),
 });
 
 export const DailiesSettingsPayloadSchema = z.object({
@@ -16,11 +24,14 @@ export const DailiesSettingsPayloadSchema = z.object({
   schools: z.record(z.boolean()).optional(),
   magmaPoolLocalTime: z.string().optional(),
   magmaPoolBufferMinutes: z.number().int().nonnegative().optional(),
+  /** @deprecated Migrated into trackingLists; kept for read-side migration. */
   wishlists: z.array(DailiesWishlistSchema).optional(),
+  trackingLists: z.record(DailiesTrackingListOverlaySchema).optional(),
   itemdbHidden: z.record(z.unknown()).optional(),
 });
 
 export type DailiesWishlist = z.infer<typeof DailiesWishlistSchema>;
+export type DailiesTrackingListOverlay = z.infer<typeof DailiesTrackingListOverlaySchema>;
 export type DailiesSettingsPayload = z.infer<typeof DailiesSettingsPayloadSchema>;
 
 export const DEFAULT_DAILIES_SCHOOLS: Record<string, boolean> = {
@@ -40,39 +51,152 @@ export const DEFAULT_DAILIES_SETTINGS: DailiesSettingsPayload = {
   schools: { ...DEFAULT_DAILIES_SCHOOLS },
   magmaPoolLocalTime: '14:47',
   magmaPoolBufferMinutes: 15,
+  trackingLists: {},
 };
 
-export const DEFAULT_DAILIES_WISHLISTS: DailiesWishlist[] = [
-  {
-    id: 'stamps-wishlist',
-    label: 'Stamps Wishlist',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/all-collectibles-checklist',
-    slug: 'all-collectibles-checklist',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/d3cf0h2ki5.gif',
-  },
+export type OfficialDailiesListDef = {
+  id: string;
+  label: string;
+  slug: string;
+  user: 'official';
+  listUrl: string;
+  defaultImg: string;
+};
+
+/** Fixed ItemDB official catalogs — the only trackable lists. */
+export const OFFICIAL_DAILIES_LISTS: OfficialDailiesListDef[] = [
   {
     id: 'gourmet-food',
     label: 'Gourmet Food',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/gourmet-food-checklist',
-    slug: 'gourmet-food-checklist',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/food_acara_cone.gif',
+    slug: 'gourmet-food',
+    user: 'official',
+    listUrl: 'https://itemdb.com.br/lists/official/gourmet-food',
+    defaultImg: 'https://images.neopets.com/items/food_acara_cone.gif',
   },
   {
     id: 'books-checklist',
     label: 'Books',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/book-award-checklist-2',
-    slug: 'book-award-checklist-2',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/boo_acy15vii_neotradbeg.gif',
+    slug: 'book-award',
+    user: 'official',
+    listUrl: 'https://itemdb.com.br/lists/official/book-award',
+    defaultImg: 'https://images.neopets.com/items/boo_acy15vii_neotradbeg.gif',
   },
   {
     id: 'booktastic-checklist',
     label: 'Booktastic',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/booktastic-book-award-checklist-2',
-    slug: 'booktastic-book-award-checklist-2',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/boo_stuck_in_space.gif',
+    slug: 'booktastic-book-award',
+    user: 'official',
+    listUrl: 'https://itemdb.com.br/lists/official/booktastic-book-award',
+    defaultImg: 'https://images.neopets.com/items/boo_stuck_in_space.gif',
+  },
+  {
+    id: 'stamps-wishlist',
+    label: 'Stamps',
+    slug: 'all-collectibles',
+    user: 'official',
+    listUrl: 'https://itemdb.com.br/lists/official/all-collectibles',
+    defaultImg: 'https://images.neopets.com/items/d3cf0h2ki5.gif',
   },
 ];
+
+/** @deprecated Use OFFICIAL_DAILIES_LISTS + resolveOfficialWishlists */
+export const DEFAULT_DAILIES_WISHLISTS: DailiesWishlist[] = OFFICIAL_DAILIES_LISTS.map((def) => ({
+  id: def.id,
+  label: def.label,
+  listUrl: def.listUrl,
+  slug: def.slug,
+  user: def.user,
+  img: def.defaultImg,
+  enabled: true,
+}));
+
+const LEGACY_SLUG_TO_ID: Record<string, string> = {
+  'gourmet-food-checklist': 'gourmet-food',
+  'book-award-checklist-2': 'books-checklist',
+  'book-award-checklist': 'books-checklist',
+  'booktastic-book-award-checklist-2': 'booktastic-checklist',
+  'booktastic-book-award-checklist': 'booktastic-checklist',
+  'all-collectibles-checklist': 'stamps-wishlist',
+};
+
+export function officialListIdFromLegacy(
+  entry: Partial<DailiesWishlist> | null | undefined,
+): string | null {
+  if (!entry) {
+    return null;
+  }
+  if (entry.id && OFFICIAL_DAILIES_LISTS.some((d) => d.id === entry.id)) {
+    return entry.id;
+  }
+  const slug = entry.slug || '';
+  if (LEGACY_SLUG_TO_ID[slug]) {
+    return LEGACY_SLUG_TO_ID[slug];
+  }
+  const official = OFFICIAL_DAILIES_LISTS.find((d) => d.slug === slug);
+  return official ? official.id : null;
+}
+
+/**
+ * Build trackingLists overlays from legacy wishlists[] and/or existing trackingLists.
+ * Unknown custom lists are dropped.
+ */
+export function migrateTrackingLists(
+  settings: DailiesSettingsPayload | null | undefined,
+): Record<string, DailiesTrackingListOverlay> {
+  const overlays: Record<string, DailiesTrackingListOverlay> = {
+    ...(settings?.trackingLists || {}),
+  };
+  const legacy = settings?.wishlists;
+  if (Array.isArray(legacy)) {
+    const seenOfficialIds = new Set<string>();
+    for (const entry of legacy) {
+      const id = officialListIdFromLegacy(entry);
+      if (!id) {
+        continue;
+      }
+      seenOfficialIds.add(id);
+      const prev = overlays[id] || {};
+      overlays[id] = {
+        enabled: prev.enabled !== undefined ? prev.enabled : entry.enabled !== false,
+        img: prev.img || entry.img || undefined,
+      };
+    }
+    // If legacy had an explicit curated set of official ids, disable missing ones
+    if (legacy.length > 0 && seenOfficialIds.size > 0 && legacy.length <= OFFICIAL_DAILIES_LISTS.length) {
+      const onlyOfficial = legacy.every((e) => officialListIdFromLegacy(e) != null);
+      if (onlyOfficial && seenOfficialIds.size < OFFICIAL_DAILIES_LISTS.length) {
+        for (const def of OFFICIAL_DAILIES_LISTS) {
+          if (!seenOfficialIds.has(def.id) && overlays[def.id]?.enabled === undefined) {
+            overlays[def.id] = { ...overlays[def.id], enabled: false };
+          }
+        }
+      }
+    }
+  }
+  return overlays;
+}
+
+/** Resolve official defs + overlays into runtime wishlist rows (all four; check enabled). */
+export function resolveOfficialWishlists(
+  settings: DailiesSettingsPayload | null | undefined,
+): DailiesWishlist[] {
+  const overlays = migrateTrackingLists(settings);
+  return OFFICIAL_DAILIES_LISTS.map((def) => {
+    const overlay = overlays[def.id] || {};
+    return {
+      id: def.id,
+      label: def.label,
+      listUrl: def.listUrl,
+      slug: def.slug,
+      user: def.user,
+      img: (overlay.img && overlay.img.trim()) || def.defaultImg,
+      enabled: overlay.enabled !== false,
+    };
+  });
+}
+
+export function enabledOfficialWishlists(
+  settings: DailiesSettingsPayload | null | undefined,
+): DailiesWishlist[] {
+  return resolveOfficialWishlists(settings).filter((w) => w.enabled !== false);
+}

@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type MouseEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { setParentHash } from '../lib/hub-storage';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
@@ -16,21 +17,31 @@ import {
   ITEMDB_ICON,
   SDB_ICON,
   SHOP_WIZARD_ICON,
+  WISHLIST_ACQUIRED_ICON,
   WISHLIST_MENU_ICON,
-  WISHLIST_NEXT_ICON,
 } from './icons';
 import {
   type ListTarget,
   type WishlistItem,
-  addToBlacklist,
-  clearBlacklist,
   clearSessionSkips,
   formatCacheAgeMs,
-  getBlacklistIds,
   itemdbUrlForWishlistItem,
   loadListTargets,
-  skipCurrentItem,
+  markItemAcquired,
+  syncAcquiredMemory,
 } from './itemdb';
+import {
+  buildNeededSnapshot,
+  pullAcquisitionDeltasFromBridge,
+  pushNeededSnapshotToBridge,
+} from './needed-bridge';
+import { acquiredIidSet, getAcquired, getProgressMeta, markAcquired } from './acquisition-store';
+import {
+  formatSyncResultSummary,
+  isHubSyncableListId,
+  syncAllHubProgressLists,
+  syncProgressForList,
+} from './progress-sync';
 import { ALBUM_LINK_IDS, BOOK_SHOPS, getLinksByGroup, type DailyLink } from './links';
 import {
   getMainPet,
@@ -100,6 +111,8 @@ function ActionIcon(props: {
   onClick?: (e: MouseEvent) => void;
   dataAttrs?: Record<string, string>;
   className?: string;
+  ariaExpanded?: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
 }) {
   const Tag = props.tag || (props.href ? 'a' : 'button');
   const className = 'wishlist-action-btn' + (props.className ? ' ' + props.className : '');
@@ -108,6 +121,7 @@ function ActionIcon(props: {
     title: props.title,
     'aria-label': props.title,
     children: <img src={props.iconSrc} alt="" referrerPolicy="no-referrer" />,
+    ...(props.ariaExpanded != null ? { 'aria-expanded': props.ariaExpanded } : {}),
   };
   if (Tag === 'a') {
     return (
@@ -115,7 +129,13 @@ function ActionIcon(props: {
     );
   }
   return (
-    <button type="button" {...common} onClick={props.onClick} {...props.dataAttrs} />
+    <button
+      type="button"
+      ref={props.buttonRef}
+      {...common}
+      onClick={props.onClick}
+      {...props.dataAttrs}
+    />
   );
 }
 
@@ -166,32 +186,67 @@ function Collapsible({ title, children }: { title: string; children: ReactNode }
   );
 }
 
+type WishlistSyncHint = {
+  visible: string;
+  detail?: string;
+};
+
 function WishlistCard({
   target,
   onChanged,
+  syncHint,
+  onSync,
+  syncing,
 }: {
   target: ListTarget;
   onChanged: (next: ListTarget) => void;
+  syncHint?: WishlistSyncHint | null;
+  onSync?: () => void;
+  syncing?: boolean;
 }) {
   const list = target.list;
   const item = target.item;
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const hubSyncable = isHubSyncableListId(list.id);
 
   const openMenu = (clientX: number, clientY: number) => {
     setMenu({ x: clientX, y: clientY });
   };
+
+  useEffect(() => {
+    if (!menu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || menuBtnRef.current?.contains(t)) return;
+      setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    const onScroll = () => setMenu(null);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [menu]);
 
   const cacheHint =
     target.cachedAt != null ? formatCacheAgeMs(Date.now() - target.cachedAt) : '';
 
   let body: ReactNode;
   if (!item) {
-    let message = 'No tradeable items found';
+    let message = 'No needed items left (or catalog empty)';
     if (target.error === 'loading') message = 'Loading…';
     else if (target.error === 'no-bridge') {
-      message = 'Install the Rayenz Dailies userscript to load wishlists';
+      message = 'Install the Rayenz Dailies userscript to load catalogs';
     } else if (target.error === 'waiting-for-cache') {
-      message = 'Wishlist not cached yet — will fetch on a later visit';
+      message = 'Catalog not cached yet — will fetch on a later visit';
     } else if (target.error) {
       message = target.error;
     }
@@ -223,16 +278,16 @@ function WishlistCard({
           ) : null}
           <div className="wishlist-card-actions">
             <ActionIcon
-              title="Next item"
-              iconSrc={WISHLIST_NEXT_ICON}
+              title={'Mark "' + item.name + '" acquired'}
+              iconSrc={WISHLIST_ACQUIRED_ICON}
               onClick={() => {
                 if (item.itemIid != null) {
-                  onChanged(skipCurrentItem(list, item.itemIid));
+                  void markItemAcquired(list, item.itemIid, 'manual').then(onChanged);
                 }
               }}
             />
             <ActionIcon title={'Shop Wizard: ' + item.name} href={sswUrl} iconSrc={SHOP_WIZARD_ICON} />
-            <ActionIcon title="Hide on ItemDB" href={itemdbUrl} iconSrc={ITEMDB_ICON} />
+            <ActionIcon title="Open on ItemDB" href={itemdbUrl} iconSrc={ITEMDB_ICON} />
             <ActionIcon title="Find in SDB" href={sdbUrl} iconSrc={SDB_ICON} />
           </div>
         </div>
@@ -240,8 +295,6 @@ function WishlistCard({
       </div>
     );
   }
-
-  const hasBlacklist = getBlacklistIds(list).length > 0;
 
   return (
     <article
@@ -265,13 +318,28 @@ function WishlistCard({
           {cacheHint ? (
             <span className="wishlist-cache-hint">Cached {cacheHint} ago</span>
           ) : null}
+          {syncHint ? (
+            <span
+              className="wishlist-cache-hint"
+              title={syncHint.detail || undefined}
+              aria-label={syncHint.detail || syncHint.visible}
+            >
+              {syncHint.visible}
+            </span>
+          ) : null}
         </div>
         <ActionIcon
           className="wishlist-card-menu-btn"
-          title="Wishlist options"
+          title="List options"
           iconSrc={WISHLIST_MENU_ICON}
+          ariaExpanded={!!menu}
+          buttonRef={menuBtnRef}
           onClick={(e) => {
             e.stopPropagation();
+            if (menu) {
+              setMenu(null);
+              return;
+            }
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
             openMenu(rect.left, rect.bottom + 4);
           }}
@@ -280,6 +348,7 @@ function WishlistCard({
       {body}
       {menu ? (
         <div
+          ref={menuRef}
           className="wishlist-context-menu"
           style={{ position: 'fixed', left: menu.x, top: menu.y, zIndex: 9999 }}
           role="menu"
@@ -289,25 +358,36 @@ function WishlistCard({
               type="button"
               className="wishlist-context-menu-item"
               onClick={() => {
-                onChanged(addToBlacklist(list, item.itemIid));
+                void markItemAcquired(list, item.itemIid, 'manual').then(onChanged);
                 setMenu(null);
               }}
             >
-              Blacklist &quot;{item.name}&quot;
+              Mark &quot;{item.name}&quot; acquired
             </button>
           ) : null}
-          {hasBlacklist ? (
+          {hubSyncable ? (
             <button
               type="button"
               className="wishlist-context-menu-item"
+              disabled={!!syncing}
               onClick={() => {
-                onChanged(clearBlacklist(list));
                 setMenu(null);
+                onSync?.();
               }}
             >
-              Clear blacklist
+              {syncing ? 'Syncing…' : 'Sync this list'}
             </button>
-          ) : null}
+          ) : (
+            <a
+              className="wishlist-context-menu-item"
+              href="https://www.neopets.com/stamps.phtml?type=progress"
+              target="_blank"
+              rel="noopener"
+              onClick={() => setMenu(null)}
+            >
+              Open Stamp Album to sync
+            </a>
+          )}
           <button
             type="button"
             className="wishlist-context-menu-item"
@@ -331,6 +411,9 @@ export function DailiesApp() {
   const [alerts, setAlerts] = useState(() => getActiveCards(settings));
   const [wishlistTargets, setWishlistTargets] = useState<ListTarget[]>([]);
   const [wishlistsLoading, setWishlistsLoading] = useState(false);
+  const [syncingListId, setSyncingListId] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncHints, setSyncHints] = useState<Record<string, WishlistSyncHint>>({});
   const [wish, setWish] = useState(() => loadWishingWellState().wish || '');
   const [donation, setDonation] = useState(() => String(loadWishingWellState().donation || 21));
   const wishlistReloadGen = useRef(0);
@@ -340,6 +423,59 @@ export function DailiesApp() {
 
   const refreshAlerts = useCallback(() => {
     setAlerts(getActiveCards(loadSettings()));
+  }, []);
+
+  const refreshSyncHints = useCallback(async () => {
+    const meta = await getProgressMeta();
+    const hints: Record<string, WishlistSyncHint> = {};
+    for (const list of wishlists) {
+      const catalog = meta.catalogCounts?.[list.id];
+      const unmatched = meta.unmatchedCounts?.[list.id];
+      if (catalog != null) {
+        const acquiredDoc = await getAcquired(list.id);
+        const acquired = acquiredIidSet(acquiredDoc).size;
+        const remaining = Math.max(0, catalog - acquired);
+        let detail = 'acquired ' + acquired + ' / catalog ' + catalog;
+        if (unmatched != null && unmatched > 0) {
+          detail += ' · unmatched ' + unmatched;
+        }
+        hints[list.id] = { visible: 'Remaining ' + remaining, detail };
+        continue;
+      }
+      const at = meta.lastSyncAt?.[list.id];
+      let visible = '';
+      if (at) {
+        visible = 'Synced ' + formatCacheAgeMs(Date.now() - at) + ' ago';
+      } else if (list.id === 'stamps-wishlist') {
+        const pages = Object.keys(meta.stampPagesSynced || {}).length;
+        visible = pages
+          ? pages + ' stamp page(s) synced (on-page)'
+          : 'Sync on Stamp Album pages only';
+      }
+      if (unmatched != null && unmatched > 0) {
+        visible = (visible ? visible + ' · ' : '') + unmatched + ' unmatched';
+      }
+      if (visible) {
+        hints[list.id] = { visible };
+      }
+    }
+    setSyncHints(hints);
+  }, [wishlists]);
+
+  const pushNeededToBridge = useCallback(() => {
+    const snapshot = buildNeededSnapshot(wishlists);
+    pushNeededSnapshotToBridge(snapshot);
+  }, [wishlists]);
+
+  const mergeBridgeDeltas = useCallback(async () => {
+    const deltas = pullAcquisitionDeltasFromBridge();
+    for (const delta of deltas) {
+      if (!delta?.listId || !Array.isArray(delta.itemIids) || !delta.itemIids.length) {
+        continue;
+      }
+      await markAcquired(delta.listId, delta.itemIids, 'action');
+      syncAcquiredMemory(delta.listId, delta.itemIids);
+    }
   }, []);
 
   const reloadWishlists = useCallback(
@@ -360,9 +496,12 @@ export function DailiesApp() {
         })),
       );
       try {
+        await mergeBridgeDeltas();
         const targets = await loadListTargets(wishlists, settings);
         if (gen === wishlistReloadGen.current) {
           setWishlistTargets(targets);
+          pushNeededToBridge();
+          void refreshSyncHints();
         }
       } finally {
         if (gen === wishlistReloadGen.current) {
@@ -370,8 +509,40 @@ export function DailiesApp() {
         }
       }
     },
-    [wishlists, settings],
+    [wishlists, settings, mergeBridgeDeltas, pushNeededToBridge, refreshSyncHints],
   );
+
+  async function handleSyncList(listId: string) {
+    const list = wishlists.find((w) => w.id === listId);
+    if (!list || !isHubSyncableListId(listId)) {
+      return;
+    }
+    setSyncingListId(listId);
+    setSyncStatus(null);
+    try {
+      const result = await syncProgressForList(list, { petName });
+      setSyncStatus(formatSyncResultSummary(result, list.label));
+      await reloadWishlists();
+    } finally {
+      setSyncingListId(null);
+    }
+  }
+
+  async function handleSyncAllHub() {
+    setSyncingListId('__all__');
+    setSyncStatus(null);
+    try {
+      const results = await syncAllHubProgressLists(wishlists, { petName });
+      const parts = results.map((r) => {
+        const list = wishlists.find((w) => w.id === r.listId);
+        return formatSyncResultSummary(r, list?.label);
+      });
+      setSyncStatus(parts.join(' · ') || 'Nothing to sync');
+      await reloadWishlists();
+    } finally {
+      setSyncingListId(null);
+    }
+  }
 
   useEffect(() => {
     void reloadWishlists({ clearSkips: true });
@@ -594,28 +765,44 @@ export function DailiesApp() {
         <section className="dailies-main" id="dailies-links">
           <section className="dailies-wishlists-section">
             <div className="dailies-wishlists-heading">
-              <h2 className="dailies-section-heading">Wishlists</h2>
-              <button
-                type="button"
-                className="wishlist-refresh-btn"
-                disabled={wishlistsLoading}
-                onClick={() => void reloadWishlists()}
-              >
-                Refresh
-              </button>
+              <h2 className="dailies-section-heading">Tracking lists</h2>
+              <div className="dailies-wishlists-heading-actions">
+                <button
+                  type="button"
+                  className="wishlist-refresh-btn"
+                  disabled={wishlistsLoading || syncingListId === '__all__'}
+                  onClick={() => void handleSyncAllHub()}
+                >
+                  Sync progress
+                </button>
+                <button
+                  type="button"
+                  className="wishlist-refresh-btn"
+                  disabled={wishlistsLoading}
+                  onClick={() => void reloadWishlists()}
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+            {syncStatus ? <p className="wishlist-sync-status">{syncStatus}</p> : null}
             <div className="wishlist-cards">
               {wishlistTargets.length === 0 ? (
-                <p className="wishlist-empty-note">No wishlists configured.</p>
+                <p className="wishlist-empty-note">No tracking lists enabled — turn them on in Settings.</p>
               ) : (
                 wishlistTargets.map((target) => (
                   <WishlistCard
                     key={target.list.id}
                     target={target}
+                    syncHint={syncHints[target.list.id]}
+                    syncing={syncingListId === target.list.id || syncingListId === '__all__'}
+                    onSync={() => void handleSyncList(target.list.id)}
                     onChanged={(next) => {
                       setWishlistTargets((prev) =>
                         prev.map((t) => (t.list.id === next.list.id ? next : t)),
                       );
+                      pushNeededToBridge();
+                      void refreshSyncHints();
                     }}
                   />
                 ))

@@ -41,41 +41,45 @@ describe('dailies settings filters', () => {
       expect(parsed).toEqual({ user: 'rayenz', slug: 'gourmet-food-checklist' });
    });
 
-   it('returns default wishlists when settings omit wishlists', () => {
+   it('returns official enabled lists when settings omit tracking overlays', () => {
       const wishlists = window.DailiesSettings.getWishlists({ faerieQuest: 'illusen' });
       expect(wishlists).toHaveLength(4);
-      expect(wishlists[0].slug).toBe('all-collectibles-checklist');
-      expect(wishlists[0].user).toBe('rayenz');
+      expect(wishlists[0].slug).toBe('gourmet-food');
+      expect(wishlists[0].user).toBe('official');
+      expect(wishlists[3].slug).toBe('all-collectibles');
    });
 
-   it('uses saved wishlists from settings', () => {
+   it('disables lists via trackingLists overlays', () => {
       const wishlists = window.DailiesSettings.getWishlists({
-         wishlists: [{
-            label: 'Custom',
-            listUrl: 'https://itemdb.com.br/lists/testuser/my-list',
-            img: 'https://example/icon.gif'
-         }]
+         trackingLists: {
+            'gourmet-food': { enabled: false },
+            'books-checklist': { enabled: true, img: 'https://example/book.gif' },
+         },
       });
-      expect(wishlists).toHaveLength(1);
-      expect(wishlists[0].label).toBe('Custom');
-      expect(wishlists[0].user).toBe('testuser');
-      expect(wishlists[0].slug).toBe('my-list');
+      expect(wishlists.map((w) => w.id)).toEqual([
+         'books-checklist',
+         'booktastic-checklist',
+         'stamps-wishlist',
+      ]);
+      expect(wishlists[0].img).toBe('https://example/book.gif');
    });
 
-   it('normalizes wishlists on save', () => {
+   it('migrates legacy personal checklist wishlists into overlays on save', () => {
       window.DailiesSettings.saveSettings({
          faerieQuest: 'illusen',
          schools: {},
          wishlists: [{
-            label: 'Custom',
-            listUrl: 'https://itemdb.com.br/lists/testuser/my-list',
-            img: 'https://example/icon.gif'
-         }]
+            id: 'gourmet-food',
+            label: 'Gourmet Food',
+            listUrl: 'https://itemdb.com.br/lists/rayenz/gourmet-food-checklist',
+            slug: 'gourmet-food-checklist',
+            user: 'rayenz',
+            img: 'https://example/icon.gif',
+         }],
       });
       const saved = window.HubStorage.loadDailiesSettings();
-      expect(saved.wishlists[0].user).toBe('testuser');
-      expect(saved.wishlists[0].slug).toBe('my-list');
-      expect(saved.wishlists[0].id).toBe('my-list');
+      expect(saved.wishlists).toBeUndefined();
+      expect(saved.trackingLists['gourmet-food'].img).toBe('https://example/icon.gif');
    });
 
    it('parseItemDbListUrl returns null for invalid URLs', () => {
@@ -84,21 +88,24 @@ describe('dailies settings filters', () => {
    });
 
    it('normalizeWishlist builds listUrl from slug when missing', () => {
-      const wishlist = DailiesSettings.normalizeWishlist({ label: 'Books', slug: 'book-list', user: 'rayenz' });
+      const wishlist = DailiesSettings.normalizeWishlist({ label: 'Books', slug: 'book-list', user: 'official' });
       expect(wishlist.listUrl).toContain('book-list');
       expect(wishlist.id).toBe('book-list');
    });
 
-   it('getWishlists keeps fully populated wishlists unchanged', () => {
-      const complete = [{
-         id: 'x',
-         label: 'X',
-         listUrl: 'https://itemdb.com.br/lists/u/s',
-         slug: 's',
-         user: 'u',
-         img: '',
-      }];
-      expect(DailiesSettings.getWishlists({ wishlists: complete })).toEqual(complete);
+   it('getWishlists ignores custom non-official entries', () => {
+      const wishlists = DailiesSettings.getWishlists({
+         wishlists: [{
+            id: 'x',
+            label: 'X',
+            listUrl: 'https://itemdb.com.br/lists/u/s',
+            slug: 's',
+            user: 'u',
+            img: '',
+         }],
+      });
+      expect(wishlists).toHaveLength(4);
+      expect(wishlists.every((w) => w.user === 'official')).toBe(true);
    });
 
    it('isSchoolEnabled and shouldShowLink respect settings', () => {

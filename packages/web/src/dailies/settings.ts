@@ -1,6 +1,10 @@
 import {
   DEFAULT_DAILIES_WISHLISTS,
+  enabledOfficialWishlists,
+  migrateTrackingLists,
+  resolveOfficialWishlists,
   type DailiesSettingsPayload,
+  type DailiesTrackingListOverlay,
   type DailiesWishlist,
 } from '@rayenz-hub/shared';
 import { getHubStorage } from '../lib/hub-storage';
@@ -10,6 +14,7 @@ export const MAIN_PET_KEY = 'rayenz-main-pet';
 export const MAIN_PET_SLUG_KEY = 'rayenz-main-pet-slug';
 
 export { DEFAULT_DAILIES_WISHLISTS as DEFAULT_WISHLISTS };
+export { resolveOfficialWishlists, enabledOfficialWishlists, migrateTrackingLists };
 
 export const SCHOOL_LABELS: Record<string, string> = {
   swashbuckling: 'Swashbuckling Academy',
@@ -38,6 +43,7 @@ export function parseItemDbListUrl(url: string): { user: string; slug: string } 
   };
 }
 
+/** @deprecated Official lists are fixed; prefer resolveOfficialWishlists. */
 export function normalizeWishlist(
   entry: Partial<DailiesWishlist> | null | undefined,
   index = 0,
@@ -45,7 +51,7 @@ export function normalizeWishlist(
   const e = entry || {};
   const parsed = parseItemDbListUrl(e.listUrl || '');
   const slug = e.slug || (parsed && parsed.slug) || '';
-  const user = e.user || (parsed && parsed.user) || 'rayenz';
+  const user = e.user || (parsed && parsed.user) || 'official';
   const listUrl =
     e.listUrl ||
     (slug
@@ -58,6 +64,7 @@ export function normalizeWishlist(
     slug,
     user,
     img: e.img || '',
+    enabled: e.enabled !== false,
   };
 }
 
@@ -68,18 +75,39 @@ export function normalizeWishlistsForSave(wishlists: unknown): DailiesWishlist[]
   return wishlists.map((entry, index) => normalizeWishlist(entry as Partial<DailiesWishlist>, index));
 }
 
+/** Enabled official lists for Dailies cards / ItemDB fetch. */
 export function getWishlists(
   settings: DailiesSettingsPayload | Record<string, never> | null | undefined,
 ): DailiesWishlist[] {
-  if (!settings || !Array.isArray(settings.wishlists)) {
-    return DEFAULT_DAILIES_WISHLISTS.map((wishlist, index) => normalizeWishlist(wishlist, index));
-  }
-  return settings.wishlists.map((wishlist, index) => {
-    if (wishlist && wishlist.slug && wishlist.user && wishlist.id && wishlist.listUrl) {
-      return wishlist;
-    }
-    return normalizeWishlist(wishlist, index);
-  });
+  return enabledOfficialWishlists(settings as DailiesSettingsPayload | null | undefined);
+}
+
+/** All four official lists with overlays (for settings UI). */
+export function getAllTrackingLists(
+  settings: DailiesSettingsPayload | Record<string, never> | null | undefined,
+): DailiesWishlist[] {
+  return resolveOfficialWishlists(settings as DailiesSettingsPayload | null | undefined);
+}
+
+export function stripSettingsForPersist(
+  settings: DailiesSettingsPayload,
+): DailiesSettingsPayload {
+  const trackingLists = migrateTrackingLists(settings);
+  const { wishlists: _drop, ...rest } = settings;
+  return {
+    ...rest,
+    trackingLists,
+  };
+}
+
+export function updateTrackingOverlay(
+  settings: DailiesSettingsPayload,
+  listId: string,
+  patch: Partial<DailiesTrackingListOverlay>,
+): DailiesSettingsPayload {
+  const trackingLists = { ...migrateTrackingLists(settings) };
+  trackingLists[listId] = { ...trackingLists[listId], ...patch };
+  return { ...settings, trackingLists, wishlists: undefined };
 }
 
 export function loadSettings(): DailiesSettingsPayload | Record<string, never> {
@@ -92,10 +120,7 @@ export function saveSettings(
 ): void {
   const storage = getHubStorage() || (window as Window & { HubStorage?: ReturnType<typeof getHubStorage> }).HubStorage;
   if (storage && settings) {
-    const payload = { ...settings };
-    if (Array.isArray(payload.wishlists)) {
-      payload.wishlists = normalizeWishlistsForSave(payload.wishlists);
-    }
+    const payload = stripSettingsForPersist(settings as DailiesSettingsPayload);
     storage.saveDailiesSettings(payload);
   }
 }

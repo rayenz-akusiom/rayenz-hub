@@ -130,6 +130,20 @@
    cursor: pointer;
 }
 
+.dailies-wishlists-heading-actions {
+   display: flex;
+   gap: 6px;
+   flex-wrap: wrap;
+}
+
+.wishlist-sync-status {
+   margin: 0;
+   padding: 0 0 4px;
+   font-size: 12px;
+   color: #555;
+}
+
+
 .wishlist-refresh-btn:hover:not(:disabled) {
    background: #f5f5f5;
    border-color: #999;
@@ -358,6 +372,13 @@
    font-size: 12px;
    color: #333;
    cursor: pointer;
+   text-decoration: none;
+   box-sizing: border-box;
+}
+
+.wishlist-context-menu-item:disabled {
+   opacity: 0.5;
+   cursor: default;
 }
 
 .wishlist-context-menu-item:hover {

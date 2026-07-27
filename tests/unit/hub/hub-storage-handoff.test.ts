@@ -206,7 +206,7 @@ describe('HubStorage settings loaders', () => {
     expect(HubStorage.loadDeckSuggestSettings()).toMatchObject({ rulesDebug: false });
     expect(HubStorage.loadDeckBuilderSettings()).toMatchObject({ allyThreeColourNames: 'shards' });
     expect(HubStorage.loadDailiesSettings()).toMatchObject({ faerieQuest: 'illusen' });
-    expect(HubStorage.loadDailiesSettings().wishlists).toHaveLength(4);
+    expect(HubStorage.loadDailiesSettings().trackingLists).toEqual({});
   });
 
   it('merges stored JSON and tolerates malformed data', () => {

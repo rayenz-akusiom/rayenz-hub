@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   DEFAULT_DAILIES_SCHOOLS,
   DEFAULT_DAILIES_SETTINGS,
-  DEFAULT_DAILIES_WISHLISTS,
+  OFFICIAL_DAILIES_LISTS,
+  migrateTrackingLists,
+  resolveOfficialWishlists,
   type DailiesSettingsPayload,
-  type DailiesWishlist,
 } from '@rayenz-hub/shared';
 import { getHubApiConfig, loadDailiesSettings, persistDailiesSettings } from '../api/hub-api';
 import { parsePetImageSlug } from '../lib/pet-image-slug';
+import { stripSettingsForPersist, updateTrackingOverlay } from '../dailies/settings';
 
 const SCHOOL_LABELS: Record<string, string> = {
   swashbuckling: 'Swashbuckling Academy',
@@ -20,43 +22,8 @@ const SCHOOL_LABELS: Record<string, string> = {
   'faerie-quests': 'Faerie Quests',
 };
 
-function parseItemDbListUrl(url: string): { user: string; slug: string } | null {
-  const match = String(url || '')
-    .trim()
-    .match(/itemdb\.com\.br\/lists\/([^/?#]+)\/([^/?#]+)/i);
-  if (!match) {
-    return null;
-  }
-  return {
-    user: decodeURIComponent(match[1]),
-    slug: decodeURIComponent(match[2]),
-  };
-}
-
-function normalizeWishlist(entry: Partial<DailiesWishlist>, index: number): DailiesWishlist {
-  const parsed = parseItemDbListUrl(entry.listUrl || '');
-  const slug = entry.slug || parsed?.slug || '';
-  const user = entry.user || parsed?.user || 'rayenz';
-  const listUrl =
-    entry.listUrl ||
-    (slug
-      ? `https://itemdb.com.br/lists/${encodeURIComponent(user)}/${encodeURIComponent(slug)}`
-      : '');
-  return {
-    id: entry.id || slug || `wishlist-${index}`,
-    label: String(entry.label || slug || 'Wishlist').trim(),
-    listUrl,
-    slug,
-    user,
-    img: entry.img || '',
-  };
-}
-
 function mergeSettings(remote: DailiesSettingsPayload | null): DailiesSettingsPayload {
-  const wishlists =
-    remote?.wishlists && remote.wishlists.length > 0
-      ? remote.wishlists.map((w, i) => normalizeWishlist(w, i))
-      : DEFAULT_DAILIES_WISHLISTS.map((w, i) => normalizeWishlist(w, i));
+  const trackingLists = migrateTrackingLists(remote);
   return {
     ...DEFAULT_DAILIES_SETTINGS,
     ...(remote || {}),
@@ -66,7 +33,8 @@ function mergeSettings(remote: DailiesSettingsPayload | null): DailiesSettingsPa
       ...DEFAULT_DAILIES_SCHOOLS,
       ...(remote?.schools || {}),
     },
-    wishlists,
+    trackingLists,
+    wishlists: undefined,
   };
 }
 
@@ -85,6 +53,8 @@ export function DailiesSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [petLookupStatus, setPetLookupStatus] = useState<string | null>(null);
   const committedPetRef = useRef({ name: '', slug: '' });
+
+  const trackingRows = resolveOfficialWishlists(settings);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,13 +135,11 @@ export function DailiesSettingsPage() {
     setError(null);
     setStatus(null);
     try {
-      const wishlists = (settings.wishlists || []).map((w, i) => normalizeWishlist(w, i));
-      const payload: DailiesSettingsPayload = {
+      const payload = stripSettingsForPersist({
         ...settings,
         mainPetName: petName,
         mainPetSlug: settings.mainPetSlug || undefined,
-        wishlists,
-      };
+      });
       const dest = await persistDailiesSettings(payload);
       setSettings(payload);
       committedPetRef.current = {
@@ -197,49 +165,19 @@ export function DailiesSettingsPage() {
     }));
   }
 
-  function updateWishlist(index: number, patch: Partial<DailiesWishlist>) {
-    setSettings((prev) => {
-      const list = [...(prev.wishlists || [])];
-      list[index] = normalizeWishlist({ ...list[index], ...patch }, index);
-      return { ...prev, wishlists: list };
-    });
+  function setListEnabled(listId: string, enabled: boolean) {
+    setSettings((prev) => updateTrackingOverlay(prev, listId, { enabled }));
   }
 
-  function moveWishlist(index: number, delta: number) {
-    setSettings((prev) => {
-      const list = [...(prev.wishlists || [])];
-      const next = index + delta;
-      if (next < 0 || next >= list.length) {
-        return prev;
-      }
-      const tmp = list[index];
-      list[index] = list[next];
-      list[next] = tmp;
-      return { ...prev, wishlists: list };
-    });
+  function setListImg(listId: string, img: string) {
+    setSettings((prev) => updateTrackingOverlay(prev, listId, { img }));
   }
 
-  function removeWishlist(index: number) {
+  function resetTrackingDefaults() {
     setSettings((prev) => ({
       ...prev,
-      wishlists: (prev.wishlists || []).filter((_, i) => i !== index),
-    }));
-  }
-
-  function addWishlist() {
-    setSettings((prev) => ({
-      ...prev,
-      wishlists: [
-        ...(prev.wishlists || []),
-        normalizeWishlist({ label: 'New wishlist', listUrl: '', img: '' }, (prev.wishlists || []).length),
-      ],
-    }));
-  }
-
-  function resetWishlists() {
-    setSettings((prev) => ({
-      ...prev,
-      wishlists: DEFAULT_DAILIES_WISHLISTS.map((w, i) => normalizeWishlist(w, i)),
+      trackingLists: {},
+      wishlists: undefined,
     }));
   }
 
@@ -378,54 +316,48 @@ export function DailiesSettingsPage() {
         </fieldset>
 
         <fieldset>
-          <legend>Wishlists</legend>
+          <legend>Tracking lists</legend>
+          <p className="hub-web-hint">
+            Official ItemDB catalogs. Toggle cards on the Dailies page and optionally override the icon.
+          </p>
           <div className="hub-web-wishlist-actions">
-            <button type="button" className="hub-web-button hub-web-button--secondary" onClick={addWishlist}>
-              Add wishlist
-            </button>
-            <button type="button" className="hub-web-button hub-web-button--secondary" onClick={resetWishlists}>
-              Reset defaults
+            <button
+              type="button"
+              className="hub-web-button hub-web-button--secondary"
+              onClick={resetTrackingDefaults}
+            >
+              Reset icons &amp; enable all
             </button>
           </div>
-          {(settings.wishlists || []).map((w, index) => (
-            <div key={w.id || index} className="hub-web-wishlist-row">
-              <label className="hub-web-field">
-                Label
-                <input
-                  type="text"
-                  value={w.label}
-                  onChange={(e) => updateWishlist(index, { label: e.target.value })}
-                />
-              </label>
-              <label className="hub-web-field">
-                ItemDB list URL
-                <input
-                  type="url"
-                  value={w.listUrl}
-                  onChange={(e) => updateWishlist(index, { listUrl: e.target.value })}
-                />
-              </label>
-              <label className="hub-web-field">
-                Icon URL
-                <input
-                  type="url"
-                  value={w.img || ''}
-                  onChange={(e) => updateWishlist(index, { img: e.target.value })}
-                />
-              </label>
-              <div className="hub-web-wishlist-row-actions">
-                <button type="button" className="hub-web-button hub-web-button--secondary" onClick={() => moveWishlist(index, -1)}>
-                  Up
-                </button>
-                <button type="button" className="hub-web-button hub-web-button--secondary" onClick={() => moveWishlist(index, 1)}>
-                  Down
-                </button>
-                <button type="button" className="hub-web-button hub-web-button--secondary" onClick={() => removeWishlist(index)}>
-                  Remove
-                </button>
+          {trackingRows.map((row) => {
+            const def = OFFICIAL_DAILIES_LISTS.find((d) => d.id === row.id);
+            return (
+              <div key={row.id} className="hub-web-wishlist-row">
+                <label className="hub-web-check">
+                  <input
+                    type="checkbox"
+                    checked={row.enabled !== false}
+                    onChange={(e) => setListEnabled(row.id, e.target.checked)}
+                  />
+                  {row.label}
+                </label>
+                <p className="hub-web-hint">
+                  <a href={row.listUrl} target="_blank" rel="noopener">
+                    {row.listUrl}
+                  </a>
+                </p>
+                <label className="hub-web-field">
+                  Icon URL
+                  <input
+                    type="url"
+                    value={row.img || ''}
+                    placeholder={def?.defaultImg || ''}
+                    onChange={(e) => setListImg(row.id, e.target.value)}
+                  />
+                </label>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </fieldset>
 
         <div className="hub-web-actions">

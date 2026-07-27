@@ -355,41 +355,6 @@ export function consumeReviewHandoff(): unknown {
   }
 }
 
-const DEFAULT_WISHLISTS = [
-  {
-    id: 'stamps-wishlist',
-    label: 'Stamps Wishlist',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/all-collectibles-checklist',
-    slug: 'all-collectibles-checklist',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/d3cf0h2ki5.gif',
-  },
-  {
-    id: 'gourmet-food',
-    label: 'Gourmet Food',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/gourmet-food-checklist',
-    slug: 'gourmet-food-checklist',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/food_acara_cone.gif',
-  },
-  {
-    id: 'books-checklist',
-    label: 'Books',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/book-award-checklist-2',
-    slug: 'book-award-checklist-2',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/boo_acy15vii_neotradbeg.gif',
-  },
-  {
-    id: 'booktastic-checklist',
-    label: 'Booktastic',
-    listUrl: 'https://itemdb.com.br/lists/rayenz/booktastic-book-award-checklist-2',
-    slug: 'booktastic-book-award-checklist-2',
-    user: 'rayenz',
-    img: 'https://images.neopets.com/items/boo_stuck_in_space.gif',
-  },
-];
-
 const DEFAULT_DAILIES_SETTINGS = {
   faerieQuest: 'illusen',
   schools: {
@@ -404,7 +369,7 @@ const DEFAULT_DAILIES_SETTINGS = {
   },
   magmaPoolLocalTime: '14:47',
   magmaPoolBufferMinutes: 15,
-  wishlists: DEFAULT_WISHLISTS,
+  trackingLists: {} as Record<string, { enabled?: boolean; img?: string }>,
 };
 
 export function loadDailiesSettings(): Record<string, unknown> {
@@ -413,7 +378,7 @@ export function loadDailiesSettings(): Record<string, unknown> {
     return {
       ...DEFAULT_DAILIES_SETTINGS,
       schools: { ...DEFAULT_DAILIES_SETTINGS.schools },
-      wishlists: DEFAULT_WISHLISTS.map((w) => ({ ...w })),
+      trackingLists: {},
     };
   }
   try {
@@ -425,15 +390,18 @@ export function loadDailiesSettings(): Record<string, unknown> {
         ...DEFAULT_DAILIES_SETTINGS.schools,
         ...((parsed.schools as Record<string, boolean>) || {}),
       },
-      wishlists: Array.isArray(parsed.wishlists)
-        ? (parsed.wishlists as typeof DEFAULT_WISHLISTS).map((w) => ({ ...w }))
-        : DEFAULT_WISHLISTS.map((w) => ({ ...w })),
+      trackingLists:
+        parsed.trackingLists && typeof parsed.trackingLists === 'object'
+          ? (parsed.trackingLists as Record<string, { enabled?: boolean; img?: string }>)
+          : {},
+      // Keep legacy wishlists for migrateTrackingLists on read
+      wishlists: Array.isArray(parsed.wishlists) ? parsed.wishlists : undefined,
     };
   } catch {
     return {
       ...DEFAULT_DAILIES_SETTINGS,
       schools: { ...DEFAULT_DAILIES_SETTINGS.schools },
-      wishlists: DEFAULT_WISHLISTS.map((w) => ({ ...w })),
+      trackingLists: {},
     };
   }
 }

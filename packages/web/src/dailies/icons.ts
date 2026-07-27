@@ -3,9 +3,9 @@ import { svgDataUri } from './string-utils';
 export const SHOP_WIZARD_ICON = 'https://images.neopets.com/shopkeepers/shopwizard.gif';
 export const ITEMDB_ICON = 'https://itemdb.com.br/favicon.ico';
 
-export const WISHLIST_NEXT_ICON = svgDataUri(
+export const WISHLIST_ACQUIRED_ICON = svgDataUri(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<polyline points="9 6 15 12 9 18"/><line x1="4" y1="12" x2="14" y2="12"/>' +
+    '<polyline points="4 12 9 17 20 6"/>' +
     '</svg>',
 );
 

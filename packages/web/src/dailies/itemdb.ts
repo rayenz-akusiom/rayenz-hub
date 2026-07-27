@@ -1,74 +1,63 @@
 /*
- * ItemDB wishlist picker — custom API + localStorage cache.
+ * ItemDB catalog picker — official lists as catalog SoT; local acquired filters picks.
  *
- * Why not embed widgets: ItemDB list widgets returned 500 during trial; the public
- * API is GET-only (no documented hide endpoint). Rate limits apply to items pulled,
- * so we fetch full lists and normalize client-side into a compact cache.
+ * Catalog cache: IndexedDB (rayenz-dailies) with sync memory mirror; migrates legacy localStorage.
+ * Refresh meta: localStorage rayenz-itemdb-refresh-meta
+ * Acquired: IndexedDB — source of truth for already done.
  *
- * localStorage keys:
- *   rayenz-itemdb-cache:{user}:{slug}  — v2: { formatVersion, fetchedAt, fetches, items[] }
- *   rayenz-itemdb-blacklist            — { formatVersion, byList: { [listId]: itemIid[] } }
- *   rayenz-itemdb-refresh-meta         — { lastAnyRefreshAt, lastRefreshAt, rateLimitedUntil }
- *
- * WishlistItem (cached items[], pre-sorted cheapest-first):
- *   itemIid, name, priceNp, image, shopWizardUrl, description
- *
- * Refresh policy (CACHE_TTL_MS = 24h, MIN_REFRESH_GAP_MS = 2h):
- *   Per list — serve from cache when present (zero network).
- *   At most one network fetch per visit: uncached lists first, then TTL refresh.
- *   Skip network when rateLimitedUntil is active (429 backoff).
- *   On fetch failure, fall back to stale cache when available.
- *
- * Pick: first cached item not in session skip or persistent blacklist.
- *
+ * Pick: first cached item not in session skip or acquired set.
  * Next item: session-only skip (re-pick until reload).
- * Blacklist: persistent via context menu; survives cache refresh.
- *
- * Legacy v1 caches (info + itemdata) are ignored — lists re-fetch one at a time.
  *
  * Debug: localStorage['dailies-itemdb-debug'] = '1' for verbose picker trace.
  */
 
 import type { DailiesWishlist } from '@rayenz-hub/shared';
 import { bridgeFetch, hasItemdbBridge } from '../lib/neopets-bridge';
+import {
+  acquiredIidSet,
+  getAcquired,
+  getCatalog,
+  markAcquired,
+  putCatalog,
+  type AcquisitionSource,
+} from './acquisition-store';
 import { toUriEncodedKebabCase } from './string-utils';
+import type { ListCache, WishlistItem } from './types';
+
+export type { ListCache, WishlistItem } from './types';
 
 export const ITEMDB_DEBUG_KEY = 'dailies-itemdb-debug';
 const CACHE_KEY_PREFIX = 'rayenz-itemdb-cache:';
 export const REFRESH_META_KEY = 'rayenz-itemdb-refresh-meta';
+/** @deprecated Removed — cleared on hydrate. */
 export const BLACKLIST_KEY = 'rayenz-itemdb-blacklist';
 const BLACKLIST_MIGRATED_KEY = 'rayenz-itemdb-blacklist-migrated';
 const LOCAL_HIDDEN_KEY = 'rayenz-itemdb-local-hidden';
-const BLACKLIST_FORMAT_VERSION = 1;
 export const CACHE_FORMAT_VERSION = 2;
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export const MIN_REFRESH_GAP_MS = 2 * 60 * 60 * 1000;
 export const RATE_LIMIT_BACKOFF_MS = 30 * 60 * 1000;
-const SEED_GOURMET_BLACKLIST = [34756, 8781, 16232, 32402];
 
 const sessionSkipIds: Record<string, number[]> = {};
+/** Sync mirrors hydrated from IndexedDB / localStorage migration. */
+const catalogMemory = new Map<string, ListCache>();
+const acquiredMemory = new Map<string, Set<number>>();
 
-export type WishlistItem = {
-  itemIid: number;
-  name: string;
-  priceNp: number | null;
-  image: string | null;
-  shopWizardUrl: string | null;
-  description: string | null;
-};
+let legacyKeysCleared = false;
 
-export type ListCache = {
-  formatVersion: number;
-  fetchedAt: number;
-  fetches: string[];
-  items: WishlistItem[];
-  localSkipIds?: number[];
-};
-
-export type BlacklistDoc = {
-  formatVersion: number;
-  byList: Record<string, number[]>;
-};
+function clearLegacyBlacklistKeys(): void {
+  if (legacyKeysCleared) {
+    return;
+  }
+  legacyKeysCleared = true;
+  try {
+    localStorage.removeItem(BLACKLIST_KEY);
+    localStorage.removeItem(BLACKLIST_MIGRATED_KEY);
+    localStorage.removeItem(LOCAL_HIDDEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export type RefreshMeta = {
   lastAnyRefreshAt: number;
@@ -141,12 +130,17 @@ function storageSet(key: string, value: string): void {
 }
 
 export function cacheListKey(list: DailiesWishlist | null | undefined): string {
-  const user = (list && list.user) || 'rayenz';
+  const user = (list && list.user) || 'official';
   const slug = list && list.slug;
   return CACHE_KEY_PREFIX + encodeURIComponent(user) + ':' + encodeURIComponent(slug || '');
 }
 
-export function loadListCache(list: DailiesWishlist | null | undefined): ListCache | null {
+function listMemoryKey(list: DailiesWishlist | null | undefined): string {
+  return (list && list.id) || cacheListKey(list);
+}
+
+/** Migrate one legacy localStorage catalog into IDB + memory. */
+async function migrateLegacyListCache(list: DailiesWishlist): Promise<ListCache | null> {
   const raw = storageGet(cacheListKey(list));
   if (!raw) {
     return null;
@@ -156,7 +150,77 @@ export function loadListCache(list: DailiesWishlist | null | undefined): ListCac
     if (!cache || cache.formatVersion !== CACHE_FORMAT_VERSION || !Array.isArray(cache.items)) {
       return null;
     }
-    return list ? migrateCacheLocalSkips(list, cache) : cache;
+    const migrated = list ? migrateCacheLocalSkips(list, cache) : cache;
+    catalogMemory.set(listMemoryKey(list), migrated);
+    await putCatalog({
+      listId: list.id,
+      formatVersion: migrated.formatVersion,
+      fetchedAt: migrated.fetchedAt,
+      fetches: migrated.fetches || [],
+      items: migrated.items,
+    });
+    try {
+      localStorage.removeItem(cacheListKey(list));
+    } catch {
+      /* ignore */
+    }
+    return migrated;
+  } catch {
+    return null;
+  }
+}
+
+export async function hydrateListState(lists: DailiesWishlist[]): Promise<void> {
+  clearLegacyBlacklistKeys();
+  for (const list of lists) {
+    if (!list?.id) {
+      continue;
+    }
+    const fromIdb = await getCatalog(list.id);
+    if (fromIdb && Array.isArray(fromIdb.items)) {
+      catalogMemory.set(list.id, {
+        formatVersion: fromIdb.formatVersion || CACHE_FORMAT_VERSION,
+        fetchedAt: fromIdb.fetchedAt,
+        fetches: fromIdb.fetches || [],
+        items: fromIdb.items,
+      });
+    } else {
+      await migrateLegacyListCache(list);
+    }
+    const acquired = await getAcquired(list.id);
+    acquiredMemory.set(list.id, acquiredIidSet(acquired));
+  }
+}
+
+export function getAcquiredIdsSync(listId: string | undefined): number[] {
+  if (!listId) {
+    return [];
+  }
+  const set = acquiredMemory.get(listId);
+  return set ? Array.from(set) : [];
+}
+
+export function loadListCache(list: DailiesWishlist | null | undefined): ListCache | null {
+  if (!list) {
+    return null;
+  }
+  const mem = catalogMemory.get(listMemoryKey(list));
+  if (mem && Array.isArray(mem.items)) {
+    return list ? migrateCacheLocalSkips(list, mem) : mem;
+  }
+  // Sync fallback: legacy localStorage (pre-hydrate)
+  const raw = storageGet(cacheListKey(list));
+  if (!raw) {
+    return null;
+  }
+  try {
+    const cache = JSON.parse(raw) as ListCache;
+    if (!cache || cache.formatVersion !== CACHE_FORMAT_VERSION || !Array.isArray(cache.items)) {
+      return null;
+    }
+    const migrated = migrateCacheLocalSkips(list, cache);
+    catalogMemory.set(listMemoryKey(list), migrated);
+    return migrated;
   } catch {
     return null;
   }
@@ -183,115 +247,26 @@ function buildCachePayload(items: WishlistItem[], fetchedAt: number, fetches?: s
 }
 
 function persistListCache(list: DailiesWishlist, payload: ListCache): void {
-  localStorage.setItem(cacheListKey(list), JSON.stringify(payload));
+  catalogMemory.set(listMemoryKey(list), payload);
+  void putCatalog({
+    listId: list.id,
+    formatVersion: payload.formatVersion,
+    fetchedAt: payload.fetchedAt,
+    fetches: payload.fetches || [],
+    items: payload.items,
+  });
 }
 
 function writeListCache(list: DailiesWishlist, cache: ListCache): void {
   persistListCache(list, cache);
 }
 
-function emptyBlacklistDoc(): BlacklistDoc {
-  return { formatVersion: BLACKLIST_FORMAT_VERSION, byList: {} };
-}
-
-export function loadBlacklist(): BlacklistDoc {
-  ensureBlacklistMigrated();
-  const raw = storageGet(BLACKLIST_KEY);
-  if (!raw) {
-    return emptyBlacklistDoc();
+/** Drop obsolete localSkipIds from legacy cache payloads (blacklist removed). */
+function migrateCacheLocalSkips(_list: DailiesWishlist, cache: ListCache): ListCache {
+  if (cache && cache.localSkipIds) {
+    delete cache.localSkipIds;
   }
-  try {
-    const doc = JSON.parse(raw) as BlacklistDoc;
-    if (!doc || doc.formatVersion !== BLACKLIST_FORMAT_VERSION || !doc.byList) {
-      return emptyBlacklistDoc();
-    }
-    return doc;
-  } catch {
-    return emptyBlacklistDoc();
-  }
-}
-
-function saveBlacklist(doc: BlacklistDoc): void {
-  storageSet(BLACKLIST_KEY, JSON.stringify(doc));
-}
-
-function mergeBlacklistIds(doc: BlacklistDoc, listId: string, ids: number[]): void {
-  if (!listId || !Array.isArray(ids) || !ids.length) {
-    return;
-  }
-  const existing = doc.byList[listId] ? doc.byList[listId].slice() : [];
-  for (const id of ids) {
-    if (id != null && !existing.includes(id)) {
-      existing.push(id);
-    }
-  }
-  if (existing.length) {
-    doc.byList[listId] = existing;
-  }
-}
-
-function ensureBlacklistMigrated(): void {
-  if (storageGet(BLACKLIST_MIGRATED_KEY)) {
-    return;
-  }
-  const doc = loadBlacklistRaw() || emptyBlacklistDoc();
-  const legacyRaw = storageGet(LOCAL_HIDDEN_KEY);
-  if (legacyRaw) {
-    try {
-      const map = JSON.parse(legacyRaw) as Record<string, number[]>;
-      if (map && typeof map === 'object') {
-        for (const listId of Object.keys(map)) {
-          mergeBlacklistIds(doc, listId, map[listId]);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      localStorage.removeItem(LOCAL_HIDDEN_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
-  mergeBlacklistIds(doc, 'gourmet-food', SEED_GOURMET_BLACKLIST);
-  saveBlacklist(doc);
-  storageSet(BLACKLIST_MIGRATED_KEY, '1');
-}
-
-function loadBlacklistRaw(): BlacklistDoc | null {
-  const raw = storageGet(BLACKLIST_KEY);
-  if (!raw) {
-    return null;
-  }
-  try {
-    return JSON.parse(raw) as BlacklistDoc;
-  } catch {
-    return null;
-  }
-}
-
-function migrateCacheLocalSkips(list: DailiesWishlist, cache: ListCache): ListCache {
-  if (!cache || !Array.isArray(cache.localSkipIds) || !cache.localSkipIds.length) {
-    if (cache && cache.localSkipIds) {
-      delete cache.localSkipIds;
-    }
-    return cache;
-  }
-  const doc = loadBlacklist();
-  mergeBlacklistIds(doc, list.id, cache.localSkipIds);
-  saveBlacklist(doc);
-  delete cache.localSkipIds;
-  writeListCache(list, cache);
   return cache;
-}
-
-export function getBlacklistIds(list: DailiesWishlist | null | undefined): number[] {
-  if (!list || !list.id) {
-    return [];
-  }
-  const doc = loadBlacklist();
-  const ids = doc.byList[list.id];
-  return Array.isArray(ids) ? ids.slice() : [];
 }
 
 function getSessionSkipIds(listId: string | undefined): number[] {
@@ -313,29 +288,38 @@ function addSessionSkip(listId: string | undefined, itemIid: number): void {
 }
 
 function getPickSkipIds(list: DailiesWishlist | null | undefined): number[] {
-  return getSessionSkipIds(list?.id).concat(getBlacklistIds(list));
+  return getSessionSkipIds(list?.id).concat(getAcquiredIdsSync(list?.id));
 }
 
-export function addToBlacklist(list: DailiesWishlist, itemIid: number): ListTarget {
-  if (!list || !list.id || itemIid == null) {
+export async function markItemAcquired(
+  list: DailiesWishlist,
+  itemIid: number,
+  source: AcquisitionSource = 'manual',
+): Promise<ListTarget> {
+  if (!list?.id || itemIid == null) {
     return pickNextForList(list);
   }
-  const doc = loadBlacklist();
-  mergeBlacklistIds(doc, list.id, [itemIid]);
-  saveBlacklist(doc);
+  await markAcquired(list.id, [itemIid], source);
+  const set = acquiredMemory.get(list.id) || new Set<number>();
+  set.add(itemIid);
+  acquiredMemory.set(list.id, set);
   return pickNextForList(list);
 }
 
-export function clearBlacklist(list: DailiesWishlist): ListTarget {
-  if (!list || !list.id) {
-    return pickNextForList(list);
+export function syncAcquiredMemory(listId: string, iids: number[]): void {
+  const set = acquiredMemory.get(listId) || new Set<number>();
+  for (const iid of iids) {
+    set.add(iid);
   }
-  const doc = loadBlacklist();
-  if (doc.byList[list.id]) {
-    delete doc.byList[list.id];
-    saveBlacklist(doc);
-  }
-  return pickNextForList(list);
+  acquiredMemory.set(listId, set);
+}
+
+/** Test helper — clear sync catalog/acquired mirrors. */
+export function resetItemdbMemoryForTests(): void {
+  catalogMemory.clear();
+  acquiredMemory.clear();
+  clearSessionSkips();
+  legacyKeysCleared = false;
 }
 
 export function clearSessionSkips(): void {
@@ -616,10 +600,8 @@ function priceNpFromItemdata(item: ItemdbItemdata | undefined): number | null {
   return null;
 }
 
-function isEligibleForCache(row: ItemdbListRow, item: ItemdbItemdata | undefined): boolean {
-  if (isListItemHidden(row)) {
-    return false;
-  }
+function isEligibleForCache(_row: ItemdbListRow, item: ItemdbItemdata | undefined): boolean {
+  // Catalog includes all list members; isHidden is NOT treated as acquired.
   if (!item) {
     return false;
   }
@@ -773,7 +755,6 @@ function buildTargetFromListData(
   logItemdbSummary(list, cache, wishlistItem, fetches, null, {
     source,
     cacheAge,
-    blacklist: getBlacklistIds(list).length,
     sessionSkips: getSessionSkipIds(list?.id).length,
   });
   if (debug) {
@@ -816,7 +797,6 @@ function logItemdbSummary(
   logMeta?: {
     source?: string;
     cacheAge?: string | null;
-    blacklist?: number;
     sessionSkips?: number;
   },
 ): void {
@@ -834,7 +814,6 @@ function logItemdbSummary(
     : 'none';
   const sourceNote = meta.source ? ' source=' + meta.source : '';
   const cacheNote = meta.cacheAge != null ? ' cacheAge=' + meta.cacheAge : '';
-  const skipNote = meta.blacklist != null ? ' blacklist=' + meta.blacklist : '';
   const sessionNote = meta.sessionSkips != null ? ' sessionSkips=' + meta.sessionSkips : '';
   console.info(
     '[Dailies ItemDB] ' +
@@ -848,7 +827,6 @@ function logItemdbSummary(
       pickLabel +
       sourceNote +
       cacheNote +
-      skipNote +
       sessionNote +
       ' | fetches: ' +
       fetchNote,
@@ -900,6 +878,8 @@ export async function loadListTargets(
   options?: { now?: number },
 ): Promise<ListTarget[]> {
   const now = options?.now != null ? options.now : Date.now();
+
+  await hydrateListState(lists);
 
   if (!hasBridge()) {
     return lists.map((list) => ({

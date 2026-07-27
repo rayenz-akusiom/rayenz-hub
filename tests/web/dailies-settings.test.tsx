@@ -100,7 +100,7 @@ describe('DailiesSettingsPage', () => {
     delete (window as Window & { __neopetsFetch?: unknown }).__neopetsFetch;
   });
 
-  it('loads settings and shows main pet and wishlists', async () => {
+  it('loads settings and shows main pet and official tracking lists', async () => {
     const user = userEvent.setup();
     render(<DailiesSettingsPage />);
 
@@ -108,7 +108,9 @@ describe('DailiesSettingsPage', () => {
       expect(screen.getByLabelText('Jhudora')).toBeChecked();
     });
     expect(screen.getByDisplayValue('Test_Pet')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Stamps')).toBeInTheDocument();
+    expect(screen.getByLabelText('Gourmet Food')).toBeChecked();
+    expect(screen.getByLabelText('Stamps')).toBeChecked();
+    expect(screen.getByText(/itemdb\.com\.br\/lists\/official\/gourmet-food/)).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Illusen'));
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -118,8 +120,13 @@ describe('DailiesSettingsPage', () => {
     });
 
     expect(persistDailiesSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ faerieQuest: 'illusen', mainPetName: 'Test_Pet' }),
+      expect.objectContaining({
+        faerieQuest: 'illusen',
+        mainPetName: 'Test_Pet',
+        trackingLists: expect.any(Object),
+      }),
     );
+    expect(persistDailiesSettings.mock.calls[0][0].wishlists).toBeUndefined();
   });
 
   it('shows localStorage and defaults load banners', async () => {
@@ -183,33 +190,24 @@ describe('DailiesSettingsPage', () => {
     });
   });
 
-  it('toggles schools and manages wishlists', async () => {
+  it('toggles schools and tracking list enable/icons', async () => {
     const user = userEvent.setup();
     render(<DailiesSettingsPage />);
-    await waitFor(() => expect(screen.getByDisplayValue('Stamps')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Stamps')).toBeInTheDocument());
 
     const battledome = screen.getByLabelText('Battledome');
     await user.click(battledome);
 
-    await user.click(screen.getByRole('button', { name: 'Add wishlist' }));
-    expect(screen.getByDisplayValue('New wishlist')).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Gourmet Food'));
+    expect(screen.getByLabelText('Gourmet Food')).not.toBeChecked();
 
-    const downButtons = screen.getAllByRole('button', { name: 'Down' });
-    await user.click(downButtons[0]!);
-    const upButtons = screen.getAllByRole('button', { name: 'Up' });
-    await user.click(upButtons[1]!);
-
-    fireEvent.change(screen.getAllByLabelText(/ItemDB list URL/i)[0]!, {
-      target: { value: 'https://itemdb.com.br/lists/rayenz/stamps2' },
+    const iconInputs = screen.getAllByLabelText(/Icon URL/i);
+    fireEvent.change(iconInputs[0]!, {
+      target: { value: 'https://images.neopets.com/items/custom.gif' },
     });
 
-    const removeButtons = screen.getAllByRole('button', { name: 'Remove' });
-    await user.click(removeButtons[removeButtons.length - 1]!);
-
-    await user.click(screen.getByRole('button', { name: 'Reset defaults' }));
-    await waitFor(() => {
-      expect(screen.queryByDisplayValue('New wishlist')).not.toBeInTheDocument();
-    });
+    await user.click(screen.getByRole('button', { name: /Reset icons/i }));
+    expect(screen.getByLabelText('Gourmet Food')).toBeChecked();
   });
 
   it('looks up pet slug on blur with and without the Neopets bridge', async () => {

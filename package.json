@@ -34,7 +34,8 @@
     "deploy:api:guided": "npm run build:api && sam deploy --guided --config-file infra/samconfig.toml",
     "test:api:deployed": "vitest run tests/api/deployed.contract.test.ts",
     "migrate:user-partition": "tsx scripts/migrate-user-partition.ts",
-    "seed:local-library": "tsx scripts/seed-local-library.ts"
+    "seed:local-library": "tsx scripts/seed-local-library.ts",
+    "stage:sl-limitless": "tsx scripts/stage-sl-limitless-swaps.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

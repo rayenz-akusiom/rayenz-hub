@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addCardsToSwapQueueAsOut,
   applyFormalSwapsToCards,
+  finalizeFormalSwap,
   formalSwapInIds,
   incompleteEntryCount,
   normalizeFormalEntries,
@@ -291,6 +292,122 @@ describe('formal swaps', () => {
       const card = cleared.cards.find((c) => c.instanceId === outId)!;
       expect(card.primaryCategory).toBe(originalPrimary);
       expect(card.primaryCategory).not.toBe('Queued Out');
+    });
+  });
+
+  describe('finalizeFormalSwap', () => {
+    const baseDeck = commander as unknown as DeckDocument;
+
+    it('deletes Out, keeps In in target category, and drops the entry', () => {
+      const inId = baseDeck.cards[2]!.instanceId;
+      const outId = baseDeck.cards[0]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: inId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      const done = finalizeFormalSwap(staged, 's1');
+      expect(done).not.toBeNull();
+      expect(done!.formalSwapEntries).toHaveLength(0);
+      expect(done!.cards.find((c) => c.instanceId === outId)).toBeUndefined();
+      const inCard = done!.cards.find((c) => c.instanceId === inId)!;
+      expect(inCard.primaryCategory).toBe('Creature');
+    });
+
+    it('returns null for incomplete entries', () => {
+      const outId = baseDeck.cards[0]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: null,
+          outInstanceId: outId,
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      expect(finalizeFormalSwap(staged, 's1')).toBeNull();
+      expect(finalizeFormalSwap(staged, 'missing')).toBeNull();
+    });
+
+    it('deletes only the peeled Out singleton from a multi-qty stack', () => {
+      const deck = plainsStackDeck(6);
+      const inId = deck.cards[0]!.instanceId;
+      let n = 0;
+      const staged = syncCardsWithFormalSwaps(
+        deck,
+        [
+          {
+            id: 's1',
+            inInstanceId: inId,
+            outInstanceId: 'plains-stack',
+            inTargetCategory: 'Land',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+        { nextId: () => `out-${++n}` },
+      );
+      const outId = staged.formalSwapEntries[0]!.outInstanceId!;
+      expect(outId).toBe('out-1');
+      expect(staged.cards.find((c) => c.instanceId === 'plains-stack')!.quantity).toBe(5);
+
+      const done = finalizeFormalSwap(staged, 's1')!;
+      expect(done.cards.find((c) => c.instanceId === outId)).toBeUndefined();
+      expect(done.cards.find((c) => c.instanceId === 'plains-stack')!.quantity).toBe(5);
+      expect(done.formalSwapEntries).toHaveLength(0);
+    });
+
+    it('leaves other formal entries untouched', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        cards: [
+          ...baseDeck.cards.map((c) => ({ ...c, foil: false, proxy: false })),
+          {
+            ...baseDeck.cards[2]!,
+            instanceId: 'c4',
+            name: 'Extra In',
+            primaryCategory: 'Sorcery',
+            categories: ['Sorcery'],
+            foil: false,
+            proxy: false,
+          },
+        ],
+        categories: [
+          ...baseDeck.categories,
+          { name: 'Sorcery', includedInDeck: true, includedInPrice: true },
+        ],
+      };
+      const staged = syncCardsWithFormalSwaps(deck, [
+        {
+          id: 's1',
+          inInstanceId: 'c3',
+          outInstanceId: 'c1',
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+        {
+          id: 's2',
+          inInstanceId: 'c4',
+          outInstanceId: 'c2',
+          inTargetCategory: 'Instant',
+          sortIndex: 1,
+          notes: null,
+        },
+      ]);
+      const done = finalizeFormalSwap(staged, 's1')!;
+      expect(done.formalSwapEntries).toHaveLength(1);
+      expect(done.formalSwapEntries[0]!.id).toBe('s2');
+      expect(done.formalSwapEntries[0]!.sortIndex).toBe(0);
+      expect(done.cards.find((c) => c.instanceId === 'c1')).toBeUndefined();
+      expect(done.cards.find((c) => c.instanceId === 'c2')!.primaryCategory).toBe('Queued Out');
+      expect(done.cards.find((c) => c.instanceId === 'c4')!.primaryCategory).toBe('Instant');
     });
   });
 });

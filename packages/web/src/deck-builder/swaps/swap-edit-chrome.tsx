@@ -21,6 +21,8 @@ export type SwapEditDraft = {
   notes: string;
 };
 
+export type SwapEditDeckOption = { deckId: string; deckName: string };
+
 export function draftFromFormalEntry(entry: {
   id: string;
   inInstanceId: string | null;
@@ -93,6 +95,11 @@ export function SwapEditChrome({
   onClose,
   onSave,
   onRemove,
+  onFinalize,
+  finalizeDisabled,
+  deckOptions,
+  onDeckChange,
+  inLookupDeck,
 }: {
   deck: DeckDocument;
   draft: SwapEditDraft;
@@ -101,13 +108,30 @@ export function SwapEditChrome({
   onClose: () => void;
   onSave: () => void;
   onRemove: () => void;
+  /** Commit the swap: remove Out, keep In, drop the queue entry. */
+  onFinalize?: () => void;
+  /** When true, Finalize is shown but disabled (e.g. retarget deck differs from origin). */
+  finalizeDisabled?: boolean;
+  /** When set, shows a Deck select for retargeting (Swap Queue). */
+  deckOptions?: SwapEditDeckOption[];
+  onDeckChange?: (deckId: string) => void;
+  /** Extra deck used to resolve In when it still lives on the origin after a retarget. */
+  inLookupDeck?: DeckDocument | null;
 }) {
   const [phase, setPhase] = useState<'edit' | 'in-search'>('edit');
   useModalScrollLock(true);
 
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
+  if (inLookupDeck && inLookupDeck.deckId !== deck.deckId) {
+    for (const c of resolveDeckCards(inLookupDeck)) {
+      if (!byId.has(c.instanceId)) byId.set(c.instanceId, c);
+    }
+  }
   const inCard = draft.inInstanceId ? byId.get(draft.inInstanceId) || null : null;
   const outCard = draft.outInstanceId ? byId.get(draft.outInstanceId) || null : null;
+  const canFinalize = Boolean(
+    onFinalize && draft.inInstanceId && draft.outInstanceId && !finalizeDisabled,
+  );
 
   const targetOptions = (deck.categories || [])
     .filter((c) => categoryIncluded(deck.categories, c.name) && !isSwapQueueCategory(c.name))
@@ -144,6 +168,23 @@ export function SwapEditChrome({
         <div className="db-modal-card db-modal-wide db-swap-edit-chrome" data-testid="swap-queue-edit">
           <h3>Edit swap</h3>
           <div className="db-swap-edit-scroll">
+            {deckOptions?.length && onDeckChange ? (
+              <label>
+                Deck
+                <select
+                  className="db-select"
+                  aria-label="Target deck"
+                  value={deck.deckId}
+                  onChange={(e) => onDeckChange(e.target.value)}
+                >
+                  {deckOptions.map((opt) => (
+                    <option key={opt.deckId} value={opt.deckId}>
+                      {opt.deckName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <div className="db-swap-edit-slots">
               <SwapEditSlot card={outCard} role="out" onChange={pickOut} />
               <SwapArrow />
@@ -180,9 +221,26 @@ export function SwapEditChrome({
             <button type="button" className="db-btn" onClick={onClose}>
               Cancel
             </button>
-            <button type="button" className="db-btn is-active" onClick={onSave}>
+            <button type="button" className="db-btn" onClick={onSave}>
               Save
             </button>
+            {onFinalize ? (
+              <button
+                type="button"
+                className="db-btn is-active"
+                disabled={!canFinalize}
+                title={
+                  finalizeDisabled
+                    ? 'Save the deck change before finalizing'
+                    : !draft.inInstanceId || !draft.outInstanceId
+                      ? 'Both In and Out are required to finalize'
+                      : 'Remove Out and keep In in its target category'
+                }
+                onClick={onFinalize}
+              >
+                Finalize
+              </button>
+            ) : null}
           </div>
         </div>
       )}

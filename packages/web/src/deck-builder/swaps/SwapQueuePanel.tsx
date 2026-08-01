@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   incompleteEntryCount,
+  newFormalSwapEntry,
   resolveDeckCards,
   syncCardsWithFormalSwaps,
   type CardView,
@@ -20,17 +21,6 @@ import { SwapPairFaces } from './swap-pair-faces';
 export type { SwapEditDraft };
 export { SwapEditChrome, draftFromFormalEntry };
 export { SwapPairFaces, SwapPairTile, MiniCard, SwapArrow } from './swap-pair-faces';
-
-function newEntry(sortIndex: number): FormalSwapEntry {
-  return {
-    id: `swap-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    inInstanceId: null,
-    outInstanceId: null,
-    inTargetCategory: null,
-    sortIndex,
-    notes: null,
-  };
-}
 
 function blockDrag(e: React.DragEvent) {
   e.preventDefault();
@@ -141,6 +131,7 @@ export function SwapQueuePanel({
   onCancelEdit,
   onSaveEdit,
   onRemoveEdit,
+  onFinalizeEdit,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
@@ -151,6 +142,7 @@ export function SwapQueuePanel({
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onRemoveEdit: () => void;
+  onFinalizeEdit?: () => void;
 }) {
   const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const incomplete = incompleteEntryCount(entries);
@@ -172,7 +164,7 @@ export function SwapQueuePanel({
         <button
           type="button"
           className="db-btn"
-          onClick={() => updateEntries([...entries, newEntry(entries.length)])}
+          onClick={() => updateEntries([...entries, newFormalSwapEntry(entries.length)])}
         >
           Add
         </button>
@@ -209,6 +201,7 @@ export function SwapQueuePanel({
           onClose={onCancelEdit}
           onSave={onSaveEdit}
           onRemove={onRemoveEdit}
+          onFinalize={onFinalizeEdit}
         />
       ) : null}
     </div>

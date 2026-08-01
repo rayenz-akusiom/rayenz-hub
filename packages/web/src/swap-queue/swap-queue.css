@@ -37,6 +37,94 @@
   width: 5.5rem;
 }
 
+.sq-menu-deck-filter {
+  min-width: 12rem;
+  max-width: 18rem;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.sq-menu-deck-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--db-border, #ddd);
+}
+
+.sq-menu-deck-action {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.25rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sq-menu-deck-action:hover {
+  opacity: 0.85;
+}
+
+.sq-menu-deck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sq-menu-deck-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  padding: 0.2rem 0.15rem;
+  cursor: pointer;
+}
+
+.sq-menu-deck-option input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.sq-menu-deck-empty {
+  margin: 0;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.sq-add-deck-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.sq-add-deck-list .db-btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.sq-seeking-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
 .sq-swimlanes {
   display: flex;
   flex-direction: column;
@@ -95,6 +183,23 @@
 
 .swap-queue-app .db-swap-pair .db-swap-pair-stack {
   margin: 0.75rem auto 0.85rem;
+}
+
+.sq-pair-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.sq-pair-tile .db-swap-pair {
+  width: 100%;
+}
+
+.sq-pair-finalize {
+  align-self: stretch;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
 }
 
 .sq-face-tile {

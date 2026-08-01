@@ -16,6 +16,7 @@ import { BrowseShell } from '../browse/BrowseShell';
 import { FormatFilteredLibrary } from './library/FormatFilteredLibrary';
 import * as store from '../store/deck-store';
 import * as deckApi from '../store/deck-api';
+import { pullRemoteLibraryUpdates } from '../store/library-sync';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import {
   SAMPLE_COMMANDER_DECK_NAME,
@@ -296,35 +297,12 @@ export function BuilderApp({
       setLoading(true);
       setError(null);
       try {
-        let list = await store.listDecks();
-        if (isApiConfigured()) {
-          try {
-            const remote = await deckApi.apiListDecks();
-            const byId = new Map(list.map((d) => [d.deckId, d]));
-            for (const r of remote) {
-              if (isSampleDeckId(r.deckId)) continue;
-              const local = byId.get(r.deckId);
-              if (!local || r.updatedAt >= local.updatedAt) {
-                byId.set(r.deckId, {
-                  ...r,
-                  coverImageUrl: r.coverImageUrl || local?.coverImageUrl || null,
-                  coverImageUrlSecondary:
-                    r.coverImageUrlSecondary || local?.coverImageUrlSecondary || null,
-                  coverPartnerStatus: r.coverPartnerStatus ?? local?.coverPartnerStatus ?? null,
-                });
-                const full = await deckApi.apiGetDeck(r.deckId);
-                if (full && !isSampleDeckId(full.deckId)) {
-                  const merged = store.mergeDeckDocuments(await store.getDeck(r.deckId), full);
-                  if (merged) await store.saveDeck(merged);
-                }
-              }
-            }
-            list = [...byId.values()].sort(
-              (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name),
-            );
-          } catch (e) {
-            setApiWarning(e instanceof Error ? e.message : String(e));
-          }
+        let list: DeckSummary[];
+        try {
+          list = await pullRemoteLibraryUpdates();
+        } catch (e) {
+          setApiWarning(e instanceof Error ? e.message : String(e));
+          list = await store.listDecks();
         }
 
         const realList = list.filter((d) => !isSampleDeckId(d.deckId));

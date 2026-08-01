@@ -79,6 +79,7 @@ export function SwapPairQueueTile({
   actionLabel,
   cardWidthPx,
   onClick,
+  onFinalize,
 }: {
   outCard: CardView | null;
   inCard: CardView | null;
@@ -88,11 +89,14 @@ export function SwapPairQueueTile({
   actionLabel: string;
   cardWidthPx: number;
   onClick?: () => void;
+  /** Commit complete pair without opening edit. */
+  onFinalize?: () => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const popoutWidthPx = swapPairHoverPopoutWidthPx(cardWidthPx);
+  const showFinalize = Boolean(onFinalize && !incomplete && outCard && inCard);
 
   useLayoutEffect(() => {
     if (!hover || popoutWidthPx == null || !triggerRef.current) {
@@ -124,7 +128,7 @@ export function SwapPairQueueTile({
   } as CSSProperties;
 
   return (
-    <>
+    <div className="sq-pair-tile">
       <button
         ref={triggerRef}
         type="button"
@@ -141,6 +145,20 @@ export function SwapPairQueueTile({
         <TileCategoryBar deck={deckLabel} category={categoryLabel} />
         <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
       </button>
+      {showFinalize ? (
+        <button
+          type="button"
+          className="db-btn sq-pair-finalize"
+          aria-label={`Finalize swap, ${deckLabel || 'deck'}`}
+          title="Remove Out and keep In in its target category"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFinalize?.();
+          }}
+        >
+          Finalize
+        </button>
+      ) : null}
       {hover && popoutWidthPx != null && pos
         ? createPortal(
             <div
@@ -155,6 +173,6 @@ export function SwapPairQueueTile({
             document.body,
           )
         : null}
-    </>
+    </div>
   );
 }

@@ -11,6 +11,8 @@ import {
 import { CardTile } from '../deck-builder/browse/CardTile';
 import { ScryfallSearchModal } from '../deck-builder/scryfall/ScryfallSearchModal';
 
+export type LookingForDeckOption = { deckId: string; deckName: string };
+
 function useModalScrollLock(active: boolean) {
   useEffect(() => {
     if (!active) return;
@@ -32,12 +34,16 @@ export function LookingForEditChrome({
   onClose,
   onRemove,
   onReplace,
+  deckOptions,
+  onRetarget,
 }: {
   deck: DeckDocument;
   source: WantSource;
   onClose: () => void;
   onRemove: () => void;
   onReplace: (printing: PrintingFields, meta?: { proxy: boolean }) => void;
+  deckOptions?: LookingForDeckOption[];
+  onRetarget?: (deckId: string) => void;
 }) {
   const [phase, setPhase] = useState<'edit' | 'replace'>('edit');
   useModalScrollLock(true);
@@ -63,7 +69,28 @@ export function LookingForEditChrome({
       ) : (
         <div className="db-modal-card db-swap-edit-chrome" data-testid="swap-queue-edit">
           <h3>Seeking · {name}</h3>
-          <p className="hub-muted">{deck.name}</p>
+          {deckOptions?.length && onRetarget ? (
+            <label className="sq-seeking-deck">
+              Deck
+              <select
+                className="db-select"
+                aria-label="Target deck"
+                value={deck.deckId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next && next !== deck.deckId) onRetarget(next);
+                }}
+              >
+                {deckOptions.map((opt) => (
+                  <option key={opt.deckId} value={opt.deckId}>
+                    {opt.deckName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="hub-muted">{deck.name}</p>
+          )}
           <div className="db-swap-edit-scroll">
             {card ? <CardTile card={card} selected={false} /> : null}
           </div>

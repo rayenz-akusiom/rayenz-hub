@@ -19,6 +19,10 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
   saveDeck: vi.fn(),
 }));
 
+vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
+  pullRemoteLibraryUpdates: vi.fn(async () => []),
+}));
+
 vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
   enrichWantSourcesUsd: async (sources: unknown) => sources,
 }));

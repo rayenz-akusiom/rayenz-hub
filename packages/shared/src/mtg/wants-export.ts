@@ -3,6 +3,8 @@ import { unifyWantSources, type WantSource } from './wants-aggregate.js';
 export type WantsPriceFilter = {
   /** null = filter off */
   minUsd: number | null;
+  /** null or empty = filter off (show all decks) */
+  deckIds?: string[] | null;
 };
 
 /**
@@ -14,11 +16,22 @@ export function passesPriceFilter(source: WantSource, filter: WantsPriceFilter):
   return source.usd >= filter.minUsd;
 }
 
+/**
+ * Deck filter: null/empty deckIds = off. When set, only matching deckId passes.
+ */
+export function passesDeckFilter(source: WantSource, filter: WantsPriceFilter): boolean {
+  const ids = filter.deckIds;
+  if (ids == null || ids.length === 0) return true;
+  return ids.includes(source.deckId);
+}
+
 export function filterWantSources(
   sources: WantSource[],
   filter: WantsPriceFilter,
 ): WantSource[] {
-  return (sources || []).filter((s) => passesPriceFilter(s, filter));
+  return (sources || []).filter(
+    (s) => passesPriceFilter(s, filter) && passesDeckFilter(s, filter),
+  );
 }
 
 function exportLines(sources: WantSource[]): string[] {

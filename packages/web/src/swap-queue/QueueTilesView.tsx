@@ -22,6 +22,7 @@ type Props = {
   unified: boolean;
   onSelect?: (source: WantSource) => void;
   onActivateUnified?: (row: UnifiedWantRow) => void;
+  onFinalizePair?: (deckId: string, entryId: string) => void;
 };
 
 function deckMap(decks: DeckDocument[]) {
@@ -256,12 +257,14 @@ function TilesView({
   queuedOut,
   decks,
   onSelect,
+  onFinalizePair,
 }: {
   seeking: WantSource[];
   queuedIn: WantSource[];
   queuedOut: WantSource[];
   decks: DeckDocument[];
   onSelect?: (source: WantSource) => void;
+  onFinalizePair?: (deckId: string, entryId: string) => void;
 }) {
   const { widthPx } = useCardSize();
   const byDeck = deckMap(decks);
@@ -309,6 +312,11 @@ function TilesView({
                   actionLabel={`Swap, ${unit.deckName}`}
                   cardWidthPx={widthPx}
                   onClick={() => onSelect?.(openSrc)}
+                  onFinalize={
+                    onFinalizePair && !unit.incomplete
+                      ? () => onFinalizePair(unit.deckId, unit.entryId)
+                      : undefined
+                  }
                 />
               </li>
             );
@@ -353,6 +361,7 @@ export function QueueTilesView({
   unified,
   onSelect,
   onActivateUnified,
+  onFinalizePair,
 }: Props) {
   if (layout === 'tiles') {
     return (
@@ -362,6 +371,7 @@ export function QueueTilesView({
         queuedOut={queuedOut}
         decks={decks}
         onSelect={onSelect}
+        onFinalizePair={onFinalizePair}
       />
     );
   }

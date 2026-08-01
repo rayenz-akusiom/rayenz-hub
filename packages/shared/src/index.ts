@@ -10,6 +10,7 @@ export * from './schemas/deck-builder';
 export * from './deck-builder/colour-identity';
 export * from './deck-builder/formal-swaps';
 export * from './deck-builder/looking-for';
+export * from './deck-builder/swap-retarget';
 export * from './deck-builder/scryfall-images';
 export * from './deck-builder/deck-cover';
 export * from './deck-builder/partner';

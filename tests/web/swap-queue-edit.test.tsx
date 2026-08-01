@@ -20,6 +20,10 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
   saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
 }));
 
+vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
+  pullRemoteLibraryUpdates: vi.fn(async () => []),
+}));
+
 vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
   enrichWantSourcesUsd: async (sources: unknown) => sources,
 }));
@@ -182,5 +186,80 @@ describe('SwapQueueApp edit chrome', () => {
     await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
     const saved = mockSaveDeck.mock.calls[0]![0]!;
     expect(saved.formalSwapEntries).toHaveLength(0);
+  });
+
+  it('finalizes a complete pair from the edit modal', async () => {
+    const deck = pairDeck();
+    deck.formalSwapEntries[0]!.inTargetCategory = 'Other';
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+    await user.click(document.querySelector('.db-swap-pair')!);
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
+    );
+    const finalize = screen.getByRole('button', { name: 'Finalize' });
+    expect(finalize).toBeEnabled();
+    await user.click(finalize);
+
+    await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
+    const saved = mockSaveDeck.mock.calls[0]![0]!;
+    expect(saved.formalSwapEntries).toHaveLength(0);
+    expect(saved.cards.find((c) => c.instanceId === 'out1')).toBeUndefined();
+    const inCard = saved.cards.find((c) => c.instanceId === 'in1')!;
+    expect(inCard.primaryCategory).toBe('Other');
+  });
+
+  it('finalizes a complete pair from the tile Finalize control', async () => {
+    const deck = pairDeck();
+    deck.formalSwapEntries[0]!.inTargetCategory = 'Other';
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Finalize swap, Commander Deck/ }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: /Finalize swap, Commander Deck/ }));
+
+    await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
+    const saved = mockSaveDeck.mock.calls[0]![0]!;
+    expect(saved.formalSwapEntries).toHaveLength(0);
+    expect(saved.cards.find((c) => c.instanceId === 'out1')).toBeUndefined();
+    expect(saved.cards.find((c) => c.instanceId === 'in1')!.primaryCategory).toBe('Other');
+  });
+
+  it('disables Finalize in the modal when the pair is incomplete', async () => {
+    const deck = pairDeck();
+    deck.formalSwapEntries[0]!.inInstanceId = null;
+    deck.cards = deck.cards.filter((c) => c.instanceId !== 'in1');
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+    expect(
+      screen.queryByRole('button', { name: /Finalize swap, Commander Deck/ }),
+    ).not.toBeInTheDocument();
+
+    await user.click(document.querySelector('.db-swap-pair')!);
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Finalize' })).toBeDisabled();
   });
 });

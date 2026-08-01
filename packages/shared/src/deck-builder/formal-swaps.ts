@@ -24,6 +24,18 @@ export function incompleteEntryCount(entries: FormalSwapEntry[]): number {
   return (entries || []).filter((e) => !e.inInstanceId || !e.outInstanceId).length;
 }
 
+/** Empty formal swap pair (Deck Builder / Swap Queue Add). */
+export function newFormalSwapEntry(sortIndex: number): FormalSwapEntry {
+  return {
+    id: `swap-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    inInstanceId: null,
+    outInstanceId: null,
+    inTargetCategory: null,
+    sortIndex,
+    notes: null,
+  };
+}
+
 export function normalizeFormalEntries(entries: FormalSwapEntry[]): FormalSwapEntry[] {
   const list = (entries || []).map((e) => ({ ...e }));
   list.sort((a, b) => a.sortIndex - b.sortIndex || a.id.localeCompare(b.id));
@@ -326,6 +338,60 @@ export function addCardsToSwapQueueAsOut(
 export function queueCardsAsOut(deck: DeckDocument, instanceIds: string[]): DeckDocument {
   const entries = addCardsToSwapQueueAsOut(deck.formalSwapEntries, instanceIds);
   return syncCardsWithFormalSwaps(deck, entries);
+}
+
+/**
+ * Permanently commit a complete formal swap: delete Out, keep In in its target
+ * category, and drop the queue entry. Returns null if the entry is missing,
+ * incomplete, or either instance is not on the deck.
+ *
+ * Must delete Out before dropping the entry — removing the entry alone via sync
+ * would restore Out into the counted deck.
+ */
+export function finalizeFormalSwap(
+  deck: DeckDocument,
+  entryId: string,
+): DeckDocument | null {
+  const entry = (deck.formalSwapEntries || []).find((e) => e.id === entryId);
+  if (!entry?.inInstanceId || !entry?.outInstanceId) return null;
+
+  const cards = deck.cards || [];
+  const inCard = cards.find((c) => c.instanceId === entry.inInstanceId);
+  const outCard = cards.find((c) => c.instanceId === entry.outInstanceId);
+  if (!inCard || !outCard) return null;
+
+  const format = deck.format;
+  const cleared = clearSwapCategories(inCard, format);
+  const target =
+    (entry.inTargetCategory && String(entry.inTargetCategory).trim()) ||
+    (!isSwapQueueCategoryName(cleared.primaryCategory) ? cleared.primaryCategory : null) ||
+    defaultAddCategory(deck);
+  let categories = ensureCategoryDef(deck.categories || [], target);
+  categories = ensureSwapCategoryDefs(categories);
+  const placedIn = setPrimaryCategory(cleared, target);
+
+  const nextCards = cards
+    .filter((c) => c.instanceId !== entry.outInstanceId)
+    .map((c) => (c.instanceId === entry.inInstanceId ? placedIn : c));
+
+  const remaining = (deck.formalSwapEntries || [])
+    .filter((e) => e.id !== entryId)
+    .map((e, i) => ({ ...e, sortIndex: i }));
+
+  const nextDeck: DeckDocument = {
+    ...deck,
+    cards: nextCards,
+    categories,
+    formalSwapEntries: remaining,
+    coverInstanceId:
+      deck.coverInstanceId === entry.outInstanceId ? null : deck.coverInstanceId ?? null,
+    lookingForEntries: (deck.lookingForEntries || []).filter(
+      (e) => e.instanceId !== entry.outInstanceId,
+    ),
+    updatedAt: new Date().toISOString(),
+  };
+
+  return syncCardsWithFormalSwaps(nextDeck, remaining);
 }
 
 /**

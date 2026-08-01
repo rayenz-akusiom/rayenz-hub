@@ -35,6 +35,7 @@ import {
   setCardsFoil,
   setCardsProxy,
   syncCardsWithFormalSwaps,
+  finalizeFormalSwap,
   upsertOracle,
   type BrowseView,
   type CardView,
@@ -482,6 +483,31 @@ export function BrowseShell({
     clearSwapEdit();
   }
 
+  function finalizeSwapEdit() {
+    if (!draft) return;
+    if (!draft.inInstanceId || !draft.outInstanceId) return;
+    const current = deckRef.current;
+    const entries = [...current.formalSwapEntries]
+      .sort((a, b) => a.sortIndex - b.sortIndex)
+      .map((e, i) =>
+        e.id === draft.entryId
+          ? {
+              ...e,
+              inInstanceId: draft.inInstanceId,
+              outInstanceId: draft.outInstanceId,
+              inTargetCategory: draft.inTargetCategory,
+              notes: draft.notes.trim() || null,
+              sortIndex: i,
+            }
+          : { ...e, sortIndex: i },
+      );
+    const staged = syncCardsWithFormalSwaps(current, entries);
+    const done = finalizeFormalSwap(staged, draft.entryId);
+    if (!done) return;
+    commit(done);
+    clearSwapEdit();
+  }
+
   function onAddCard(
     printing: PrintingFields,
     category: string,
@@ -768,6 +794,7 @@ export function BrowseShell({
               onCancelEdit={clearSwapEdit}
               onSaveEdit={saveSwapEdit}
               onRemoveEdit={removeSwapEdit}
+              onFinalizeEdit={finalizeSwapEdit}
             />
             <CategoryBrowse
               deck={deck}

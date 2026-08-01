@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   buildArchidektWantsText,
   buildNameQtyWantsText,
+  filterWantSources,
+  passesDeckFilter,
   passesPriceFilter,
 } from '../../../packages/shared/src/mtg/wants-export.ts';
 import type { WantSource } from '../../../packages/shared/src/mtg/wants-aggregate.ts';
@@ -36,6 +38,48 @@ describe('wants-export', () => {
     expect(passesPriceFilter(src({ cardName: 'D', mergeKey: 'd', quantity: 1, usd: 1 }), { minUsd: null })).toBe(
       true,
     );
+  });
+
+  it('passes deck filter when deckIds null or empty', () => {
+    const s = src({ cardName: 'A', mergeKey: 'a', quantity: 1, deckId: 'd1' });
+    expect(passesDeckFilter(s, { minUsd: null })).toBe(true);
+    expect(passesDeckFilter(s, { minUsd: null, deckIds: null })).toBe(true);
+    expect(passesDeckFilter(s, { minUsd: null, deckIds: [] })).toBe(true);
+  });
+
+  it('restricts to selected deckIds', () => {
+    const a = src({ cardName: 'A', mergeKey: 'a', quantity: 1, deckId: 'd1' });
+    const b = src({ cardName: 'B', mergeKey: 'b', quantity: 1, deckId: 'd2' });
+    expect(passesDeckFilter(a, { minUsd: null, deckIds: ['d1'] })).toBe(true);
+    expect(passesDeckFilter(b, { minUsd: null, deckIds: ['d1'] })).toBe(false);
+    expect(filterWantSources([a, b], { minUsd: null, deckIds: ['d2'] })).toEqual([b]);
+  });
+
+  it('applies price and deck filters together', () => {
+    const cheap = src({
+      cardName: 'Cheap',
+      mergeKey: 'cheap',
+      quantity: 1,
+      deckId: 'd1',
+      usd: 1,
+    });
+    const pricey = src({
+      cardName: 'Pricey',
+      mergeKey: 'pricey',
+      quantity: 1,
+      deckId: 'd1',
+      usd: 20,
+    });
+    const other = src({
+      cardName: 'Other',
+      mergeKey: 'other',
+      quantity: 1,
+      deckId: 'd2',
+      usd: 20,
+    });
+    expect(
+      filterWantSources([cheap, pricey, other], { minUsd: 5, deckIds: ['d1'] }).map((s) => s.cardName),
+    ).toEqual(['Pricey']);
   });
 
   it('combines by mergeKey and omits outs (sources are acquire-only)', () => {

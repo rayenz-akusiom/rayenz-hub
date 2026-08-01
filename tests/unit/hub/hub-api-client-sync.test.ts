@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertApiNotPageOrigin,
   clientApiFetch,
+  clearHubApiConfig,
   getHubApiConfig,
   HubApiClient,
   isApiConfigured,
@@ -9,6 +10,7 @@ import {
   pullProfileYaml,
   pullSettings,
   pushSettingsDomain,
+  setHubApiConfig,
   syncDailiesSettingsFromApi,
 } from '../../../packages/web/src/api/hub-api-client.ts';
 import { installHubGlobals, resetHubGlobalsInstalled } from '../../../packages/web/src/hub/install-hub-globals.ts';
@@ -63,6 +65,38 @@ describe('HubApiClient config and parsing', () => {
       enabled: true,
     });
     expect(isApiConfigured()).toBe(true);
+  });
+
+  it('setHubApiConfig writes and strips trailing slash; empty clears keys', () => {
+    expect(setHubApiConfig({ url: 'http://127.0.0.1:3000/', key: 'test-api-key-local' })).toEqual({
+      url: 'http://127.0.0.1:3000',
+      key: 'test-api-key-local',
+      enabled: true,
+    });
+    expect(localStorage.getItem('rayenz-hub-api-url')).toBe('http://127.0.0.1:3000');
+    expect(localStorage.getItem('rayenz-hub-api-key')).toBe('test-api-key-local');
+
+    expect(setHubApiConfig({ url: 'http://127.0.0.1:3000', key: '' })).toEqual({
+      url: 'http://127.0.0.1:3000',
+      key: '',
+      enabled: false,
+    });
+    expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
+
+    expect(setHubApiConfig({ url: '', key: 'x' })).toEqual({
+      url: '',
+      key: 'x',
+      enabled: false,
+    });
+    expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
+  });
+
+  it('clearHubApiConfig removes both keys', () => {
+    enableApi();
+    clearHubApiConfig();
+    expect(getHubApiConfig()).toEqual({ url: '', key: '', enabled: false });
+    expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
+    expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
   });
 
   it('assertApiNotPageOrigin throws when api url matches page origin', () => {

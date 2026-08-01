@@ -1,5 +1,6 @@
 import { spawn, execFile } from 'node:child_process';
 import { createConnection } from 'node:net';
+import { networkInterfaces } from 'node:os';
 import {
   readFileSync,
   writeFileSync,
@@ -21,6 +22,69 @@ export const STATE_PATH = join(__dirname, '.state.json');
 export const SERVICES_PATH = join(__dirname, 'services.json');
 
 const IS_WIN = process.platform === 'win32';
+
+/** Services whose ports phones/tablets should hit on the LAN. */
+const LAN_SERVICE_IDS = new Set(['web', 'api']);
+
+/**
+ * Primary non-internal IPv4 for LAN device access.
+ * Prefers RFC1918 private ranges and skips common virtual adapters (WSL, Hyper-V, Docker).
+ * @returns {string | null}
+ */
+export function getLanIPv4() {
+  const ifaces = networkInterfaces();
+  /** @type {{ address: string; score: number }[]} */
+  const candidates = [];
+
+  for (const [name, entries] of Object.entries(ifaces)) {
+    if (!entries) continue;
+    const lower = name.toLowerCase();
+    // Virtual / container bridges are private but unreachable from phones on Wi‑Fi.
+    if (
+      /wsl|hyper-v|vethernet|docker|vbox|vmware|virtualbox|loopback|bluetooth|isatap|teredo/.test(
+        lower,
+      )
+    ) {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.internal || (entry.family !== 'IPv4' && entry.family !== 4)) continue;
+      const address = entry.address;
+      let score = 0;
+      if (address.startsWith('192.168.')) score = 30;
+      else if (address.startsWith('10.')) score = 20;
+      else if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(address)) score = 10;
+      else score = 1; // public / other — last resort
+      // Prefer names that look like real NICs
+      if (/wi-?fi|wlan|ethernet|eth|en0|en1|local area/.test(lower)) score += 5;
+      candidates.push({ address, score });
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.address ?? null;
+}
+
+/**
+ * Build a LAN URL for a service openUrl / port, or null if no LAN IP.
+ * @param {string | null} openUrl
+ * @param {number | undefined} port
+ * @param {string | null} lanIp
+ */
+function toLanUrl(openUrl, port, lanIp) {
+  if (!lanIp) return null;
+  if (openUrl) {
+    try {
+      const u = new URL(openUrl);
+      u.hostname = lanIp;
+      return u.href;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (port != null) return `http://${lanIp}:${port}`;
+  return null;
+}
 
 /** @type {Map<string, 'starting' | 'stopping'>} */
 const transitions = new Map();
@@ -339,7 +403,7 @@ async function processStop(svc) {
   return { ok: true, message: `killed pid ${pid}` };
 }
 
-export async function getServiceStatus(svc) {
+export async function getServiceStatus(svc, lanIp = getLanIPv4()) {
   const transition = transitions.get(svc.id) ?? null;
   const healthy = await probeHealth(svc);
 
@@ -368,12 +432,16 @@ export async function getServiceStatus(svc) {
       ? containerStatus === 'running' || healthy
       : Boolean(ownedPid) || healthy;
 
+  const openUrl = svc.openUrl ?? null;
+  const lanUrl = LAN_SERVICE_IDS.has(svc.id) ? toLanUrl(openUrl, svc.port, lanIp) : null;
+
   return {
     id: svc.id,
     name: svc.name,
     kind: svc.kind,
     port: svc.port,
-    openUrl: svc.openUrl ?? null,
+    openUrl,
+    lanUrl,
     status,
     healthy,
     ownedPid,
@@ -384,8 +452,10 @@ export async function getServiceStatus(svc) {
 }
 
 export async function listStatuses() {
+  const lanIp = getLanIPv4();
   const services = loadServices();
-  return Promise.all(services.map((s) => getServiceStatus(s)));
+  const list = await Promise.all(services.map((s) => getServiceStatus(s, lanIp)));
+  return { lanIp, services: list };
 }
 
 async function waitFor(predicate, { timeoutMs = 120_000, intervalMs = 1000 } = {}) {

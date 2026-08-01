@@ -108,6 +108,8 @@ function pagesFallbackPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), hubStaticPlugin(), pagesFallbackPlugin()],
   base: './',
+  server: { host: true },
+  preview: { host: true },
   resolve: {
     alias: {
       '@rayenz-hub/shared': path.resolve(rootDir, '../shared/src/index.ts'),

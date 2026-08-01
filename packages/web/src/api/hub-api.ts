@@ -14,13 +14,22 @@ import { getDailiesSettingsApi, getHubStorage } from '../lib/hub-storage';
 import {
   assertApiNotPageOrigin,
   getHubApiConfig,
+  setHubApiConfig,
+  clearHubApiConfig,
   isApiConfigured,
   HubApiClient,
   parseHubApiJsonBody,
 } from './hub-api-client';
 
 export type { HubApiConfig } from './hub-api-client';
-export { getHubApiConfig, isApiConfigured, HubApiClient };
+export {
+  getHubApiConfig,
+  setHubApiConfig,
+  clearHubApiConfig,
+  isApiConfigured,
+  assertApiNotPageOrigin,
+  HubApiClient,
+};
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   const cfg = getHubApiConfig();

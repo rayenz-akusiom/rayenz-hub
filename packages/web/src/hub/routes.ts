@@ -10,6 +10,7 @@ export type HubPath =
   | '/swap-queue'
   | '/wishlist'
   | '/settings'
+  | '/settings/hub-api'
   | '/settings/dailies'
   | '/settings/deck-builder'
   | '/settings/deck-suggest'
@@ -77,6 +78,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/swap-queue',
   '/wishlist',
   '/settings',
+  '/settings/hub-api',
   '/settings/dailies',
   '/settings/deck-builder',
   '/settings/deck-suggest',

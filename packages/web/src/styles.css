@@ -156,6 +156,32 @@
   font-size: 0.9rem;
 }
 
+.hub-web-field-label {
+  display: block;
+  font-weight: 600;
+}
+
+.hub-web-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin-top: 0.25rem;
+}
+
+.hub-web-secret-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: auto;
+  margin-top: 0;
+}
+
+.hub-web-secret-toggle {
+  flex: 0 0 auto;
+  margin-top: 0;
+  margin-right: 0;
+}
+
 .hub-web-field input,
 .hub-web-field select,
 .hub-web-field textarea {
@@ -193,6 +219,13 @@
 
 .hub-web-actions {
   margin-top: 1.5rem;
+}
+
+.hub-web-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
 }
 
 .hub-web-button {

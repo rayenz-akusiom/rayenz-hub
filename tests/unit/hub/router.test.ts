@@ -20,6 +20,7 @@ describe('hub routes', () => {
   it('parses known paths', () => {
     expect(pathFromHash('#/deck-review')).toBe('/deck-review');
     expect(pathFromHash('#/settings/dailies')).toBe('/settings/dailies');
+    expect(pathFromHash('#/settings/hub-api')).toBe('/settings/hub-api');
     expect(pathFromHash('#/deck-builder')).toBe('/deck-builder');
   });
 
@@ -64,6 +65,7 @@ describe('hub routes', () => {
   it('detects settings paths', () => {
     expect(isSettingsPath('/settings')).toBe(true);
     expect(isSettingsPath('/settings/dailies')).toBe(true);
+    expect(isSettingsPath('/settings/hub-api')).toBe(true);
     expect(isSettingsPath('/dailies')).toBe(false);
     expect(isLegacyPath('/deck-review')).toBe(false);
     expect(isLegacyPath('/dailies')).toBe(false);

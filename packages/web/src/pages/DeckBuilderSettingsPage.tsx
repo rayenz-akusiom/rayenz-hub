@@ -75,7 +75,8 @@ export function DeckBuilderSettingsPage() {
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Saves go to localStorage only until the Hub API is configured.
+          Saves go to localStorage only until the Hub API is configured.{' '}
+          <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
         </div>
       )}
       {error && (

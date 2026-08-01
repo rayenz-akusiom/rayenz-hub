@@ -196,8 +196,8 @@ export function DailiesSettingsPage() {
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Hub API is not configured — saves go to localStorage only. Optionally set{' '}
-          <code>rayenz-hub-api-url</code> and <code>rayenz-hub-api-key</code>.
+          Hub API is not configured — saves go to localStorage only.{' '}
+          <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
         </div>
       )}
 

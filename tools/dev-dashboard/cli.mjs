@@ -9,6 +9,7 @@ import {
   getServiceStatus,
   getService,
   listStatuses,
+  getLanIPv4,
 } from './lib.mjs';
 
 const [action, id] = process.argv.slice(2);
@@ -23,9 +24,11 @@ if (!action) usage();
 
 try {
   if (action === 'status' && !id) {
-    const list = await listStatuses();
-    for (const s of list) {
-      console.log(`${s.id.padEnd(10)} ${s.status.padEnd(10)} :${s.port}`);
+    const { lanIp, services } = await listStatuses();
+    if (lanIp) console.log(`lanIp      ${lanIp}`);
+    for (const s of services) {
+      const lan = s.lanUrl ? `  LAN ${s.lanUrl}` : '';
+      console.log(`${s.id.padEnd(10)} ${s.status.padEnd(10)} :${s.port}${lan}`);
     }
     process.exit(0);
   }
@@ -44,7 +47,10 @@ try {
     console.log(r.message || 'restarted');
   } else if (action === 'status') {
     const s = await getServiceStatus(getService(id));
-    console.log(`${s.id} ${s.status} :${s.port}`);
+    const lan = s.lanUrl ? `  LAN ${s.lanUrl}` : '';
+    console.log(`${s.id} ${s.status} :${s.port}${lan}`);
+    const ip = getLanIPv4();
+    if (ip && !s.lanUrl) console.log(`lanIp ${ip}`);
   } else {
     usage();
   }

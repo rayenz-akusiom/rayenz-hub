@@ -83,6 +83,7 @@ describe('HubShell AppOutlet', () => {
     ['/swap-queue', 'swap-queue', undefined],
     ['/wishlist', 'swap-queue', undefined],
     ['/settings', 'settings', 'dailies'],
+    ['/settings/hub-api', 'settings', 'hub-api'],
     ['/settings/dailies', 'settings', 'dailies'],
     ['/settings/deck-builder', 'settings', 'deck-builder'],
     ['/settings/deck-suggest', 'settings', 'deck-suggest'],

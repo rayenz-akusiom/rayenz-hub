@@ -72,7 +72,7 @@ async function readBody(req) {
 
 async function handleApi(req, res, pathname) {
   if (req.method === 'GET' && pathname === '/api/services') {
-    sendJson(res, 200, { services: await listStatuses() });
+    sendJson(res, 200, await listStatuses());
     return;
   }
 

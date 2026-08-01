@@ -24,6 +24,31 @@ export function getHubApiConfig(): HubApiConfig {
   return { url, key, enabled: !!(url && key) };
 }
 
+/** Persist Hub API base URL and key to localStorage (device-local). Empty values remove that key. */
+export function setHubApiConfig(input: { url?: string; key?: string }): HubApiConfig {
+  const url = (input.url ?? '').trim().replace(/\/$/, '');
+  const key = (input.key ?? '').trim();
+  try {
+    if (url) localStorage.setItem(API_URL_KEY, url);
+    else localStorage.removeItem(API_URL_KEY);
+    if (key) localStorage.setItem(API_KEY_KEY, key);
+    else localStorage.removeItem(API_KEY_KEY);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  return getHubApiConfig();
+}
+
+/** Remove Hub API URL and key from localStorage. */
+export function clearHubApiConfig(): void {
+  try {
+    localStorage.removeItem(API_URL_KEY);
+    localStorage.removeItem(API_KEY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function isApiConfigured(): boolean {
   return getHubApiConfig().enabled;
 }
@@ -232,6 +257,8 @@ export function syncDailiesSettingsFromApi(fallbackLoader?: () => unknown): Prom
 
 export const HubApiClient = {
   getConfig: getHubApiConfig,
+  setConfig: setHubApiConfig,
+  clearConfig: clearHubApiConfig,
   apiFetch: clientApiFetch,
   pullSettings,
   pushSettings: pushSettingsDomain,

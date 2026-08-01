@@ -23,6 +23,13 @@ const getHubApiConfig = vi.fn(() => ({
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   getHubApiConfig: (...args: unknown[]) => getHubApiConfig(...args),
+  setHubApiConfig: vi.fn((input: { url?: string; key?: string }) => {
+    const url = (input.url ?? '').replace(/\/$/, '');
+    const key = input.key ?? '';
+    return { url, key, enabled: !!(url && key) };
+  }),
+  clearHubApiConfig: vi.fn(),
+  assertApiNotPageOrigin: vi.fn(),
   loadDailiesSettings: (...args: unknown[]) => loadDailiesSettings(...args),
   persistDailiesSettings: (...args: unknown[]) => persistDailiesSettings(...args),
   loadDeckBuilderSettings: (...args: unknown[]) => loadDeckBuilderSettings(...args),
@@ -53,9 +60,21 @@ describe('SettingsShell', () => {
   it('renders settings tabs', async () => {
     render(<SettingsShell />);
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hub API' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dailies' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Order Reconcile' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Main pet')).toBeInTheDocument();
+    });
+  });
+
+  it('opens Hub API tab', async () => {
+    const user = userEvent.setup();
+    render(<SettingsShell tab="hub-api" />);
+    expect(screen.getByRole('button', { name: 'Hub API' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByLabelText('API base URL')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dailies' }));
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();
     });
@@ -158,6 +177,10 @@ describe('DailiesSettingsPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/Hub API is not configured/i)).toBeInTheDocument();
     });
+    expect(screen.getByRole('link', { name: /Configure Hub API in Settings/i })).toHaveAttribute(
+      'href',
+      '#/settings/hub-api',
+    );
   });
 
   it('requires a main pet name before saving', async () => {

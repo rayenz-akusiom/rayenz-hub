@@ -74,14 +74,14 @@ npm run test:web
 
 ## 2b. Local development dashboard (recommended)
 
-Instead of four terminals, run a localhost-only control panel that can start/stop/restart DynamoDB, MinIO, SAM API, and Vite:
+Instead of four terminals, run a control panel that can start/stop/restart DynamoDB, MinIO, SAM API, and Vite. The panel itself is on localhost; Vite and SAM bind on the LAN so phones/tablets can reach them.
 
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run dev:dashboard
 ```
 
-Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
+Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The **Device access (LAN)** panel shows Hub Web / Hub API URLs (with copy) and an iPad `localStorage` snippet when the API is running. On the device, prefer **Settings → Hub API** in the Hub SPA. The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
 
 CLI equivalents (same named Docker containers the dashboard uses):
 
@@ -93,7 +93,7 @@ npm run stop:minio
 node tools/dev-dashboard/cli.mjs status
 ```
 
-One-time setup (`init:local-db`, MinIO bucket) is still required — see below.
+One-time setup (`init:local-db`, MinIO bucket) is still required — see below. For phone/iPad testing details, see [mobile-local-testing.md](./mobile-local-testing.md).
 
 ---
 
@@ -232,7 +232,7 @@ Serve `rayenz-hub/rayenz-hub/` over **HTTP** (not `file://`). Options:
 - `npx serve rayenz-hub/rayenz-hub`
 - Playwright static server (used by `npm run test:e2e`)
 
-Configure the client in DevTools:
+Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`), or in DevTools:
 
 ```javascript
 localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
@@ -244,13 +244,14 @@ Try:
 
 | Route                | Behavior                                   |
 | -------------------- | ------------------------------------------ |
-| `#/dailies`          | Settings pull/push via `hub-api-client.js` |
-| `#/settings` | Hub Settings shell (tabs: Dailies, Deck Suggest, Order Reconcile) |
+| `#/dailies`          | Settings pull/push via `hub-api-client` |
+| `#/settings` | Hub Settings shell (tabs: Hub API, Dailies, Deck Suggest, Order Reconcile) |
+| `#/settings/hub-api` | API base URL and key (device localStorage) |
 | `#/settings/dailies` | Deep-link to Dailies settings tab |
 | `#/deck-review`      | Profile reads from API when configured     |
 
 
-Disable API mode (Hub falls back to `localStorage` only):
+Disable API mode (Hub falls back to `localStorage` only) via **Clear** on the Hub API settings tab, or:
 
 ```javascript
 localStorage.removeItem('rayenz-hub-api-url');
@@ -339,7 +340,7 @@ Need real HTTP?
 
 ## Related docs
 
-- [mobile-local-testing.md](./mobile-local-testing.md) — phone testing via PC LAN (Vite `--host`, SAM `--host 0.0.0.0`)
+- [mobile-local-testing.md](./mobile-local-testing.md) — phone/iPad via LAN (dashboard Device access panel; Vite/SAM bind LAN by default)
 - [quickstart.md](./quickstart.md) — prerequisites, deploy, free-tier, migration
 - [../../rayenz-hub/rayenz-hub/docs/hub-api-production.md](../../rayenz-hub/rayenz-hub/docs/hub-api-production.md) — production `localStorage` keys
 - [../../rayenz-hub/tests/README.md](../../rayenz-hub/tests/README.md) — test layout and fixtures

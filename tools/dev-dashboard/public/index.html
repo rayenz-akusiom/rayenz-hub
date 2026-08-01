@@ -21,8 +21,24 @@
     <p class="hint">
       Status refreshes every 2s. API start runs <code>sam build</code> first and can take a minute.
       One-time: <code>npm run init:local-db</code> and create MinIO bucket
-      <code>rayenz-hub-data-local</code>.
+      <code>rayenz-hub-data-local</code>. Vite and SAM bind on the LAN by default.
     </p>
+
+    <section id="device-access" class="device-access" aria-label="Device access on LAN" hidden>
+      <h2>Device access (LAN)</h2>
+      <p class="device-note">
+        Same Wi‑Fi as this PC. Windows Firewall may need inbound TCP <strong>5173</strong> and
+        <strong>3000</strong>. On the phone use Settings → Hub API (or the snippet below) — not this PC.
+      </p>
+      <div class="device-rows" id="device-rows"></div>
+      <div class="device-snippet" id="device-snippet" hidden>
+        <div class="device-snippet-head">
+          <span>iPad / phone console (API mode)</span>
+          <button type="button" class="btn ghost" id="btn-copy-snippet">Copy</button>
+        </div>
+        <pre id="device-snippet-pre"></pre>
+      </div>
+    </section>
 
     <main id="services" class="services" aria-live="polite"></main>
 

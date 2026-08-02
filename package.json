@@ -14,6 +14,8 @@
     "test:coverage:full": "vitest run --config vitest.coverage.full.config.ts --coverage",
     "test:web:coverage": "vitest run --config vitest.web.config.ts --coverage",
     "dev:web": "npm run dev -w @rayenz-hub/web",
+    "dev:mcp": "npm run dev -w @rayenz-hub/mcp",
+    "start:mcp": "npm run start -w @rayenz-hub/mcp",
     "dev:dashboard": "node tools/dev-dashboard/server.mjs",
     "build:web": "npm run build -w @rayenz-hub/web",
     "publish:hub": "npm run build:web && node scripts/publish-hub-hint.mjs",

@@ -99,6 +99,48 @@ One-time setup (`init:local-db`, MinIO bucket) is still required — see below. 
 
 
 
+## 2c. Hub MTG MCP (Cursor agents / skills)
+
+Stdio MCP server for MTG deck/profile/swap tools. **Hub is source of truth**; Archidekt is export/mirror only. Package: [`packages/mcp`](../packages/mcp/README.md).
+
+With the API up (`npm run start:api` or the dashboard):
+
+```powershell
+cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
+$env:HUB_API_URL = "http://127.0.0.1:3000"
+$env:HUB_API_KEY = "test-api-key-local"
+npm run start:mcp
+```
+
+Cursor MCP config (stdio; cwd = monorepo root):
+
+```json
+{
+  "mcpServers": {
+    "rayenz-hub": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub/packages/mcp/src/index.ts"
+      ],
+      "cwd": "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub",
+      "env": {
+        "HUB_API_URL": "http://127.0.0.1:3000",
+        "HUB_API_KEY": "test-api-key-local"
+      }
+    }
+  }
+}
+```
+
+Absolute path to `index.ts` is required: Cursor may resolve relative paths from the Hub workspace root (`Hub/packages/...`) rather than `rayenz-hub/`.
+
+A project copy lives at [`.cursor/mcp.json`](../../.cursor/mcp.json) (workspace Hub root). MTG skills (`mtg-deck-profile-builder`, `mtg-deck-set-updates`, `mtg-buy-trade-list`) call this server via `GetMcpTools` / `CallMcpTool`.
+
+---
+
+
+
 ## 3. Full stack — local API (SAM + Docker)
 
 Use when you want a real HTTP server at `http://127.0.0.1:3000` (manual curls, browser + `hub-api-client`). Prefer [§2b](#2b-local-development-dashboard-recommended) when you want one UI for the whole stack.

@@ -48,6 +48,7 @@ import {
 import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { UnifiedListBrowse } from './UnifiedListBrowse';
+import { useDragAutoScroll } from './useDragAutoScroll';
 import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
 import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chrome';
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
@@ -128,6 +129,7 @@ export function BrowseShell({
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const setFilter = useSetMembershipFilter();
+  useDragAutoScroll();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
   const visibleOrder = useMemo(

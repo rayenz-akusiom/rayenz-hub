@@ -150,8 +150,41 @@ describe('CardGroup and DropSection', () => {
 });
 
 describe('DeckHeaderRow', () => {
+  function asHeaderCard(
+    overrides: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'name' | 'primaryCategory'>,
+  ) {
+    const { categories: categoryOverride, ...rest } = overrides;
+    return {
+      ...cardAt(0),
+      layout: 'normal' as const,
+      colourIdentity: [] as string[],
+      typeLine: 'Creature',
+      keywords: null,
+      partnerWith: null,
+      oracleText: null,
+      printedName: null,
+      flavorName: null,
+      manaValue: null,
+      imageUrl: null,
+      foil: false,
+      ...rest,
+      categories: categoryOverride || [overrides.primaryCategory],
+    };
+  }
+
   it('renders commander slots for commander format', () => {
-    const commanders = commanderDoc.cards.filter((c) => c.category === 'Commander').slice(0, 2);
+    const commanders = [
+      asHeaderCard({
+        instanceId: 'cmd-1',
+        name: 'Test Commander',
+        primaryCategory: 'Commander',
+      }),
+      asHeaderCard({
+        instanceId: 'cmd-2',
+        name: 'Partner Commander',
+        primaryCategory: 'Commander',
+      }),
+    ];
     render(
       <DeckHeaderRow
         format="commander"
@@ -167,25 +200,68 @@ describe('DeckHeaderRow', () => {
     expect(screen.getByText('3 cards')).toBeInTheDocument();
   });
 
-  it('makes lieutenant tiles draggable when onDropCard is provided', () => {
-    const lt = {
-      ...cardAt(0),
+  it('keeps a solo commander as one slot until the partner row is drag-targeted', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    const lt = asHeaderCard({
       instanceId: 'lt-1',
       name: 'Test Lieutenant',
       primaryCategory: 'Lieutenants',
-      categories: ['Lieutenants'],
-      layout: 'normal',
-      colourIdentity: [],
-      typeLine: 'Creature',
-      keywords: null,
-      partnerWith: null,
-      oracleText: null,
-      printedName: null,
-      flavorName: null,
-      manaValue: null,
-      imageUrl: null,
-      foil: false,
-    };
+    });
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [lt] }}
+        headerKeys={['Commander', 'Lieutenants']}
+        onDropCard={vi.fn()}
+      />,
+    );
+
+    const pair = screen.getByLabelText('Commanders');
+    expect(pair).toBeInTheDocument();
+    expect(screen.queryByText('Drop commander')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.db-commander-slot')).toHaveLength(1);
+
+    const ltTile = screen.getByRole('button', { name: /Test Lieutenant/i });
+    fireEvent.dragStart(ltTile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData: vi.fn(),
+        effectAllowed: 'move',
+      },
+    });
+    expect(screen.queryByText('Drop commander')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.db-commander-slot')).toHaveLength(1);
+
+    fireEvent.dragEnter(pair, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    fireEvent.dragOver(pair, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    expect(screen.getByText('Drop commander')).toBeInTheDocument();
+    expect(document.querySelectorAll('.db-commander-slot')).toHaveLength(2);
+  });
+
+  it('makes lieutenant tiles draggable when onDropCard is provided', () => {
+    const lt = asHeaderCard({
+      instanceId: 'lt-1',
+      name: 'Test Lieutenant',
+      primaryCategory: 'Lieutenants',
+    });
     render(
       <DeckHeaderRow
         format="commander"

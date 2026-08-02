@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import {
   pickCommanderPair,
   partitionCategories,
@@ -357,7 +364,6 @@ function CommanderSlots({
   onSelectCard,
   onDropCard,
   onCardContextMenu,
-  dragging,
 }: {
   commanders: CardView[];
   selectedId?: string | null;
@@ -365,21 +371,44 @@ function CommanderSlots({
   onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
-  dragging: boolean;
 }) {
   const canDrop = Boolean(onDropCard);
   const slot0 = commanders[0] ?? null;
   const slot1 = commanders[1] ?? null;
+  /** Empty partner slot only while a deck-builder drag is over this row (not on global dragstart). */
+  const [partnerDropArmed, setPartnerDropArmed] = useState(false);
   const showSecond =
-    commanders.length >= 2 || (commanders.length === 1 && dragging);
+    commanders.length >= 2 || (commanders.length === 1 && partnerDropArmed);
   const pair = pickCommanderPair(commanders);
   const bothFilled = Boolean(slot0 && slot1);
   const illegal = bothFilled && pair.status === 'illegal';
+
+  useEffect(() => {
+    function clearArmed() {
+      setPartnerDropArmed(false);
+    }
+    document.addEventListener('dragend', clearArmed);
+    document.addEventListener('drop', clearArmed);
+    return () => {
+      document.removeEventListener('dragend', clearArmed);
+      document.removeEventListener('drop', clearArmed);
+    };
+  }, []);
+
+  function armPartnerDrop(e: ReactDragEvent) {
+    if (!canDrop || commanders.length !== 1) return;
+    if (!isDeckBuilderDragTypes(e.dataTransfer.types)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setPartnerDropArmed(true);
+  }
 
   return (
     <div
       className={`db-partner-pair${illegal ? ' is-illegal' : ''}`}
       aria-label={illegal ? 'Commanders (illegal partner pair)' : 'Commanders'}
+      onDragEnter={armPartnerDrop}
+      onDragOver={armPartnerDrop}
     >
       <h3 className="db-partner-pair-title">
         Commander{commanders.length !== 1 ? 's' : ''}{' '}
@@ -472,7 +501,6 @@ export function DeckHeaderRow({
             onSelectCard={onSelectCard}
             onDropCard={onDropCard}
             onCardContextMenu={onCardContextMenu}
-            dragging={dragging}
           />
         </div>
         {showLieutenants ? (

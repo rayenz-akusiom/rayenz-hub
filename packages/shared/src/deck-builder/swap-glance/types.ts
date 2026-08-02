@@ -2,7 +2,7 @@ import type { GlanceCard } from '../glance/types.js';
 import type { WantSourceKind } from '../../mtg/wants-aggregate.js';
 
 /** Bump when layout, art tier, or render pipeline changes — invalidates cache. */
-export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-2';
+export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-3';
 
 export const SWAP_GLANCE_CANVAS_WIDTH = 1920;
 export const SWAP_GLANCE_CANVAS_HEIGHT = 1080;

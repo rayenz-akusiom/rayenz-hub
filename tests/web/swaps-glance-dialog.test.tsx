@@ -10,7 +10,7 @@ const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postSwapsGlance = vi.fn(async () => ({
   blob: new Blob(['png'], { type: 'image/png' }),
   cache: 'MISS',
-  generation: 'swap-glance-gen-2',
+  generation: 'swap-glance-gen-3',
   delivery: 'inline' as const,
 }));
 

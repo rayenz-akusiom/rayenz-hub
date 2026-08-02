@@ -67,7 +67,7 @@ describe('swaps glance API', () => {
     expect(first.headers?.['content-type']).toBe('image/png');
     expect(first.headers?.['x-glance-cache']).toBe('MISS');
     expect(first.headers?.['x-glance-generation']).toBe(SWAP_GLANCE_GENERATION_VERSION);
-    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-2');
+    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-3');
     expect(first.isBase64Encoded).toBe(true);
 
     const second = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
@@ -106,7 +106,7 @@ describe('swaps glance API', () => {
       { ...renderOptions, blobStore: blob },
     );
     expect(filtered.statusCode).toBe(200);
-    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-2');
+    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-3');
     expect(filtered.headers?.['x-glance-cache']).toBe('MISS');
     expect(filtered.body).not.toBe(plain.body);
   });

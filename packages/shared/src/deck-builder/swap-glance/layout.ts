@@ -11,7 +11,6 @@ import type {
 import {
   SWAP_GLANCE_CANVAS_HEIGHT,
   SWAP_GLANCE_CANVAS_WIDTH,
-  SWAP_GLANCE_CARD_HEIGHT,
   SWAP_GLANCE_CARD_WIDTH,
   SWAP_GLANCE_GENERATION_VERSION,
 } from './types.js';
@@ -23,6 +22,7 @@ export const SWAP_GLANCE_WATERMARK_HEIGHT = 48;
 const CONTENT_MARGIN_X = 24;
 const CONTENT_MARGIN_Y = 16;
 const SECTION_GAP = 14;
+const COL_GAP = 16;
 const SECTION_HEADER_HEIGHT = 32;
 const CARD_GAP = 8;
 /** Gap between Out and In faces inside a pair (connector sits in this slot). */
@@ -31,12 +31,21 @@ const PAIR_INNER_GAP = 32;
 const PAIR_GROUP_GAP = 28;
 const CARD_ASPECT = 61 / 85;
 const MIN_CARD_WIDTH = 56;
+/** Reserved band for a bottom "+N more decks" overflow label. */
+const SECTION_OVERFLOW_LABEL_H = 22;
 
 type FaceSlot = {
   card: SwapGlanceCard;
   pairRole: 'out' | 'in' | 'single';
   showQuantity: boolean;
   showProxy: boolean;
+};
+
+type LayoutAttempt = {
+  labels: SwapGlanceLabel[];
+  placements: SwapGlancePlacement[];
+  connectors: SwapGlanceConnector[];
+  fits: boolean;
 };
 
 function facesFromRow(row: SwapGlanceRow): FaceSlot[] {
@@ -124,6 +133,19 @@ function packRows(
   return { units, omitted: 0 };
 }
 
+/** Height of the card band when all rows pack into `bandWidth` (no height cap). */
+function measurePackedHeight(rows: SwapGlanceRow[], bandWidth: number, cardW: number): number {
+  if (!rows.length) return 0;
+  const cardH = cardHeightForWidth(cardW);
+  const packed = packRows(rows, 0, 0, bandWidth, Number.POSITIVE_INFINITY, cardW);
+  if (!packed.units.length) return cardH;
+  let maxBottom = 0;
+  for (const unit of packed.units) {
+    maxBottom = Math.max(maxBottom, unit.y + cardH);
+  }
+  return maxBottom;
+}
+
 function placementsFromUnits(
   units: PackedUnit[],
   cardW: number,
@@ -162,23 +184,8 @@ function placementsFromUnits(
   return { placements, connectors };
 }
 
-function tryLayout(
-  includeSet: SwapGlanceIncludeSet,
-  cardW: number,
-): {
-  labels: SwapGlanceLabel[];
-  placements: SwapGlancePlacement[];
-  connectors: SwapGlanceConnector[];
-  fits: boolean;
-} | null {
-  const contentTop = SWAP_GLANCE_TITLE_HEIGHT + CONTENT_MARGIN_Y;
-  const contentBottom = SWAP_GLANCE_CANVAS_HEIGHT - SWAP_GLANCE_WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
-  const contentLeft = CONTENT_MARGIN_X;
-  const contentWidth = SWAP_GLANCE_CANVAS_WIDTH - CONTENT_MARGIN_X * 2;
-  const contentHeight = contentBottom - contentTop;
-  if (contentHeight < SECTION_HEADER_HEIGHT + cardHeightForWidth(cardW)) return null;
-
-  const labels: SwapGlanceLabel[] = [
+function titleLabels(): SwapGlanceLabel[] {
+  return [
     {
       text: 'Swaps at a glance',
       x: CONTENT_MARGIN_X,
@@ -186,100 +193,191 @@ function tryLayout(
       role: 'title',
     },
   ];
-  const placements: SwapGlancePlacement[] = [];
-  const connectors: SwapGlanceConnector[] = [];
+}
 
-  // Equal vertical budget per section (simple + predictable)
-  const sectionCount = includeSet.sections.length;
-  const totalGap = SECTION_GAP * Math.max(0, sectionCount - 1);
-  const sectionBudget = (contentHeight - totalGap) / sectionCount;
-  if (sectionBudget < SECTION_HEADER_HEIGHT + cardHeightForWidth(cardW)) {
-    return null;
+function maxColumnsFor(contentWidth: number, cardW: number): number {
+  return Math.max(1, Math.floor((contentWidth + COL_GAP) / (cardW + COL_GAP)));
+}
+
+function shortestColumnIndex(heights: number[]): number {
+  let best = 0;
+  for (let i = 1; i < heights.length; i++) {
+    if (heights[i]! < heights[best]!) best = i;
+  }
+  return best;
+}
+
+/**
+ * Multi-column masonry: each deck is a header + card block assigned to the
+ * shortest column. When `allowOmit` is false, every section must fit fully.
+ */
+function tryMasonryLayout(
+  includeSet: SwapGlanceIncludeSet,
+  cardW: number,
+  colCount: number,
+  allowOmit: boolean,
+): LayoutAttempt | null {
+  const contentTop = SWAP_GLANCE_TITLE_HEIGHT + CONTENT_MARGIN_Y;
+  const contentBottom = SWAP_GLANCE_CANVAS_HEIGHT - SWAP_GLANCE_WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
+  const contentLeft = CONTENT_MARGIN_X;
+  const contentWidth = SWAP_GLANCE_CANVAS_WIDTH - CONTENT_MARGIN_X * 2;
+  const contentHeight = contentBottom - contentTop;
+  const cardH = cardHeightForWidth(cardW);
+  const minSectionH = SECTION_HEADER_HEIGHT + cardH;
+  if (contentHeight < minSectionH) return null;
+  if (colCount < 1) return null;
+
+  const allSections = includeSet.sections;
+  const labels = titleLabels();
+  if (!allSections.length) {
+    return { labels, placements: [], connectors: [], fits: false };
   }
 
-  let cursorY = contentTop;
-  let anyOmitted = false;
+  const colWidth = (contentWidth - COL_GAP * (colCount - 1)) / colCount;
+  if (colWidth < cardW) return null;
 
-  for (const section of includeSet.sections) {
+  const usableHeight = allowOmit ? contentHeight - SECTION_OVERFLOW_LABEL_H : contentHeight;
+  const colHeights = Array.from({ length: colCount }, () => 0);
+  const placements: SwapGlancePlacement[] = [];
+  const connectors: SwapGlanceConnector[] = [];
+  let placedSections = 0;
+  let anyRowOmitted = false;
+
+  for (const section of allSections) {
+    const ci = shortestColumnIndex(colHeights);
+    const colX = contentLeft + ci * (colWidth + COL_GAP);
+    const used = colHeights[ci]!;
+    const gapBefore = used > 0 ? SECTION_GAP : 0;
+    const blockTop = contentTop + used + gapBefore;
+    const remaining = contentTop + usableHeight - blockTop;
+    if (remaining < minSectionH) {
+      if (!allowOmit) return null;
+      break;
+    }
+
+    const fullBlockH = SECTION_HEADER_HEIGHT + measurePackedHeight(section.rows, colWidth, cardW);
+    const needsTruncate = fullBlockH > remaining;
+    if (needsTruncate && !allowOmit) return null;
+
+    const bandHeight = remaining - SECTION_HEADER_HEIGHT;
+    const bandTop = blockTop + SECTION_HEADER_HEIGHT;
+    const packed = packRows(section.rows, colX, bandTop, colWidth, bandHeight, cardW);
+    if (section.rows.length > 0 && packed.units.length === 0) {
+      if (!allowOmit) return null;
+      break;
+    }
+    if (packed.omitted > 0) {
+      if (!allowOmit) return null;
+      anyRowOmitted = true;
+    }
+
     labels.push({
       text: section.headerText,
-      x: contentLeft,
-      y: Math.round(cursorY),
+      x: Math.round(colX),
+      y: Math.round(blockTop),
       role: 'section',
     });
-    const bandTop = cursorY + SECTION_HEADER_HEIGHT;
-    const bandHeight = sectionBudget - SECTION_HEADER_HEIGHT;
-    const packed = packRows(
-      section.rows,
-      contentLeft,
-      bandTop,
-      contentWidth,
-      bandHeight,
-      cardW,
-    );
     const placed = placementsFromUnits(packed.units, cardW);
     placements.push(...placed.placements);
     connectors.push(...placed.connectors);
     if (packed.omitted > 0) {
-      anyOmitted = true;
       labels.push({
         text: `+${packed.omitted} more`,
-        x: contentLeft,
+        x: Math.round(colX),
         y: Math.round(bandTop + bandHeight - 22),
         role: 'more',
       });
     }
-    cursorY += sectionBudget + SECTION_GAP;
+
+    let cardsBottom = bandTop;
+    if (packed.units.length) {
+      for (const unit of packed.units) {
+        cardsBottom = Math.max(cardsBottom, unit.y + cardH);
+      }
+    }
+    const blockH =
+      packed.units.length > 0
+        ? cardsBottom - blockTop
+        : SECTION_HEADER_HEIGHT;
+    colHeights[ci] = blockTop + blockH - contentTop;
+    placedSections += 1;
   }
 
-  return { labels, placements, connectors, fits: !anyOmitted && placements.length > 0 };
+  const omittedSections = allSections.length - placedSections;
+  if (omittedSections > 0) {
+    if (!allowOmit) return null;
+    labels.push({
+      text: `+${omittedSections} more decks`,
+      x: contentLeft,
+      y: Math.round(contentBottom - SECTION_OVERFLOW_LABEL_H),
+      role: 'more',
+    });
+  }
+
+  const fits = omittedSections === 0 && !anyRowOmitted && placements.length > 0;
+  return { labels, placements, connectors, fits };
+}
+
+/** Absolute fallback overflow path when no full fit exists. */
+function tryLayoutAllowOmit(
+  includeSet: SwapGlanceIncludeSet,
+  cardW: number,
+): LayoutAttempt | null {
+  const contentWidth = SWAP_GLANCE_CANVAS_WIDTH - CONTENT_MARGIN_X * 2;
+  const maxCols = maxColumnsFor(contentWidth, cardW);
+  let best: LayoutAttempt | null = null;
+  for (let colCount = maxCols; colCount >= 1; colCount--) {
+    const attempt = tryMasonryLayout(includeSet, cardW, colCount, true);
+    if (!attempt) continue;
+    if (
+      !best ||
+      attempt.placements.length > best.placements.length ||
+      (attempt.placements.length === best.placements.length && attempt.fits && !best.fits)
+    ) {
+      best = attempt;
+    }
+    if (attempt.fits) break;
+  }
+  return best;
 }
 
 /**
- * Build a 1920×1080 layout: title bar, per-deck text headers, scaled card grid.
+ * Build a 1920×1080 layout: title bar, multi-column deck-block masonry.
  * Shrinks cards until everything fits; if still overflowing at min size, shows +N more.
  */
 export function buildSwapGlanceLayoutPlan(
   includeSet: SwapGlanceIncludeSet,
 ): SwapGlanceLayoutPlan {
-  let best: {
-    labels: SwapGlanceLabel[];
-    placements: SwapGlancePlacement[];
-    connectors: SwapGlanceConnector[];
-  } | null = null;
+  const contentWidth = SWAP_GLANCE_CANVAS_WIDTH - CONTENT_MARGIN_X * 2;
+  let best: LayoutAttempt | null = null;
 
   for (let cardW = SWAP_GLANCE_CARD_WIDTH; cardW >= MIN_CARD_WIDTH; cardW -= 4) {
-    const attempt = tryLayout(includeSet, cardW);
-    if (!attempt) continue;
-    best = {
-      labels: attempt.labels,
-      placements: attempt.placements,
-      connectors: attempt.connectors,
-    };
-    if (attempt.fits) break;
+    const maxCols = maxColumnsFor(contentWidth, cardW);
+    for (let colCount = maxCols; colCount >= 1; colCount--) {
+      const attempt = tryMasonryLayout(includeSet, cardW, colCount, false);
+      if (!attempt) continue;
+      if (attempt.fits) {
+        best = attempt;
+        break;
+      }
+    }
+    if (best?.fits) break;
+  }
+
+  if (!best?.fits) {
+    const overflow = tryLayoutAllowOmit(includeSet, MIN_CARD_WIDTH);
+    if (overflow && (!best || overflow.placements.length >= best.placements.length)) {
+      best = overflow;
+    }
   }
 
   if (!best) {
-    // Absolute fallback: title only + first few faces at min size
-    const attempt = tryLayout(includeSet, MIN_CARD_WIDTH);
-    best = attempt
-      ? {
-          labels: attempt.labels,
-          placements: attempt.placements,
-          connectors: attempt.connectors,
-        }
-      : {
-          labels: [
-            {
-              text: 'Swaps at a glance',
-              x: CONTENT_MARGIN_X,
-              y: Math.round((SWAP_GLANCE_TITLE_HEIGHT - 40) / 2),
-              role: 'title',
-            },
-          ],
-          placements: [],
-          connectors: [],
-        };
+    best = {
+      labels: titleLabels(),
+      placements: [],
+      connectors: [],
+      fits: false,
+    };
   }
 
   return {

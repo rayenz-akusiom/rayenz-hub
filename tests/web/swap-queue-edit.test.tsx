@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
@@ -208,6 +208,10 @@ describe('SwapQueueApp edit chrome', () => {
     expect(finalize).toBeEnabled();
     await user.click(finalize);
 
+    const confirm = await screen.findByTestId('swap-finalize-confirm');
+    expect(confirm).toHaveTextContent(/Remove “Cut Card” from the deck and keep “Sol Ring” in Other/);
+    await user.click(within(confirm).getByRole('button', { name: 'Finalize' }));
+
     await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
     const saved = mockSaveDeck.mock.calls[0]![0]!;
     expect(saved.formalSwapEntries).toHaveLength(0);
@@ -232,6 +236,10 @@ describe('SwapQueueApp edit chrome', () => {
       ).toBeInTheDocument(),
     );
     await user.click(screen.getByRole('button', { name: /Finalize swap, Commander Deck/ }));
+
+    const confirm = await screen.findByTestId('swap-finalize-confirm');
+    expect(confirm).toHaveTextContent(/Remove “Cut Card” from the deck and keep “Sol Ring” in Other/);
+    await user.click(within(confirm).getByRole('button', { name: 'Finalize' }));
 
     await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
     const saved = mockSaveDeck.mock.calls[0]![0]!;
@@ -261,5 +269,32 @@ describe('SwapQueueApp edit chrome', () => {
       expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
     );
     expect(screen.getByRole('button', { name: 'Finalize' })).toBeDisabled();
+  });
+
+  it('autosaves notes without a Save button', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const deck = pairDeck();
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+    await user.click(document.querySelector('.db-swap-pair')!);
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+
+    await user.type(screen.getByDisplayValue(''), 'hello notes');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await waitFor(() => expect(mockSaveDeck).toHaveBeenCalled());
+    const saved = mockSaveDeck.mock.calls.at(-1)![0]!;
+    expect(saved.formalSwapEntries[0]!.notes).toBe('hello notes');
+    expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  cardDisplayName,
   categoryIncluded,
   defaultAddCategory,
   isSwapQueueCategory,
@@ -10,6 +11,7 @@ import {
 } from '@rayenz-hub/shared';
 import { CardTile } from '../browse/CardTile';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
+import { FinalizeSwapConfirmDialog } from './FinalizeSwapConfirm';
 import { openOutCardPicker } from './swap-pickers';
 import { SwapArrow } from './swap-pair-faces';
 
@@ -93,7 +95,6 @@ export function SwapEditChrome({
   onDraftChange,
   onConfirmIn,
   onClose,
-  onSave,
   onRemove,
   onFinalize,
   finalizeDisabled,
@@ -106,11 +107,10 @@ export function SwapEditChrome({
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
   onConfirmIn: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
   onClose: () => void;
-  onSave: () => void;
   onRemove: () => void;
   /** Commit the swap: remove Out, keep In, drop the queue entry. */
   onFinalize?: () => void;
-  /** When true, Finalize is shown but disabled (e.g. retarget deck differs from origin). */
+  /** When true, Finalize is shown but disabled (e.g. retarget in progress). */
   finalizeDisabled?: boolean;
   /** When set, shows a Deck select for retargeting (Swap Queue). */
   deckOptions?: SwapEditDeckOption[];
@@ -118,7 +118,7 @@ export function SwapEditChrome({
   /** Extra deck used to resolve In when it still lives on the origin after a retarget. */
   inLookupDeck?: DeckDocument | null;
 }) {
-  const [phase, setPhase] = useState<'edit' | 'in-search'>('edit');
+  const [phase, setPhase] = useState<'edit' | 'in-search' | 'finalize-confirm'>('edit');
   useModalScrollLock(true);
 
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
@@ -146,7 +146,12 @@ export function SwapEditChrome({
     });
   }
 
-  const dialogLabel = phase === 'in-search' ? 'Choose In card from Scryfall' : 'Edit swap';
+  const dialogLabel =
+    phase === 'in-search'
+      ? 'Choose In card from Scryfall'
+      : phase === 'finalize-confirm'
+        ? 'Confirm finalize swap'
+        : 'Edit swap';
 
   return createPortal(
     <div className="db-modal" role="dialog" aria-modal="true" aria-label={dialogLabel}>
@@ -162,6 +167,18 @@ export function SwapEditChrome({
           onAdd={(printing, category, meta) => {
             onConfirmIn(printing, category, meta);
             setPhase('edit');
+          }}
+        />
+      ) : phase === 'finalize-confirm' ? (
+        <FinalizeSwapConfirmDialog
+          embedded
+          outName={outCard ? cardDisplayName(outCard) : 'Out'}
+          inName={inCard ? cardDisplayName(inCard) : 'In'}
+          category={draft.inTargetCategory}
+          onCancel={() => setPhase('edit')}
+          onConfirm={() => {
+            setPhase('edit');
+            onFinalize?.();
           }}
         />
       ) : (
@@ -219,10 +236,7 @@ export function SwapEditChrome({
               Remove
             </button>
             <button type="button" className="db-btn" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="button" className="db-btn" onClick={onSave}>
-              Save
+              Close
             </button>
             {onFinalize ? (
               <button
@@ -231,12 +245,12 @@ export function SwapEditChrome({
                 disabled={!canFinalize}
                 title={
                   finalizeDisabled
-                    ? 'Save the deck change before finalizing'
+                    ? 'Finish the deck change before finalizing'
                     : !draft.inInstanceId || !draft.outInstanceId
                       ? 'Both In and Out are required to finalize'
                       : 'Remove Out and keep In in its target category'
                 }
-                onClick={onFinalize}
+                onClick={() => setPhase('finalize-confirm')}
               >
                 Finalize
               </button>

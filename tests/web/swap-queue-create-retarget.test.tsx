@@ -157,7 +157,7 @@ describe('SwapQueueApp create and retarget', () => {
     );
   });
 
-  it('retargets a formal pair to another deck and clears Out on Save', async () => {
+  it('retargets a formal pair to another deck and clears Out immediately', async () => {
     const a = pairDeckA();
     const b = emptyLibraryDeck('deck-b', 'Beta Deck');
     mockLoadSwapWantSources.mockResolvedValue({
@@ -173,7 +173,6 @@ describe('SwapQueueApp create and retarget', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Edit swap' });
     const deckSelect = within(dialog).getByLabelText('Target deck');
     await user.selectOptions(deckSelect, 'deck-b');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(2));
     const savedById = Object.fromEntries(
@@ -187,6 +186,12 @@ describe('SwapQueueApp create and retarget', () => {
     expect(savedById['deck-b']!.formalSwapEntries).toHaveLength(1);
     expect(savedById['deck-b']!.formalSwapEntries[0]!.outInstanceId).toBeNull();
     expect(savedById['deck-b']!.formalSwapEntries[0]!.inInstanceId).toBeTruthy();
+
+    // Dialog stays open on the new deck with Out cleared.
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
+    );
+    expect(within(dialog).getByLabelText('Target deck')).toHaveValue('deck-b');
   });
 
   it('retargets Seeking to another deck immediately', async () => {

@@ -16,6 +16,7 @@ import {
   SwapEditChrome,
   type SwapEditDraft,
 } from './swap-edit-chrome';
+import { canShowHoverPopout } from './swap-confirm';
 import { SwapPairFaces } from './swap-pair-faces';
 
 export type { SwapEditDraft };
@@ -51,7 +52,8 @@ function SwapPairButton({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const popoutWidthPx = ASIDE_POPOUT_WIDTH_PX;
+  const popoutEligible = canShowHoverPopout();
+  const popoutWidthPx = popoutEligible ? ASIDE_POPOUT_WIDTH_PX : null;
 
   useLayoutEffect(() => {
     if (!hover || popoutWidthPx == null || !triggerRef.current) {
@@ -90,9 +92,13 @@ function SwapPairButton({
         className={`db-swap-pair${incompleteEntry ? ' is-draft' : ''}${isEditing ? ' is-editing' : ''}`}
         onClick={() => onStartEdit(entry)}
         onDragStart={blockDrag}
-        onMouseEnter={() => setHover(true)}
+        onMouseEnter={() => {
+          if (popoutEligible) setHover(true);
+        }}
         onMouseLeave={() => setHover(false)}
-        onFocus={() => setHover(true)}
+        onFocus={() => {
+          if (popoutEligible) setHover(true);
+        }}
         onBlur={() => setHover(false)}
         title="Click to edit swap"
       >
@@ -129,7 +135,6 @@ export function SwapQueuePanel({
   onDraftChange,
   onConfirmIn,
   onCancelEdit,
-  onSaveEdit,
   onRemoveEdit,
   onFinalizeEdit,
 }: {
@@ -140,7 +145,6 @@ export function SwapQueuePanel({
   onDraftChange: (patch: Partial<SwapEditDraft>) => void;
   onConfirmIn: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
   onCancelEdit: () => void;
-  onSaveEdit: () => void;
   onRemoveEdit: () => void;
   onFinalizeEdit?: () => void;
 }) {
@@ -199,7 +203,6 @@ export function SwapQueuePanel({
           onDraftChange={onDraftChange}
           onConfirmIn={onConfirmIn}
           onClose={onCancelEdit}
-          onSave={onSaveEdit}
           onRemove={onRemoveEdit}
           onFinalize={onFinalizeEdit}
         />

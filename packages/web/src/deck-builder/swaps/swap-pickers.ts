@@ -2,6 +2,7 @@ import {
   cardDisplayName,
   cardHasBackFace,
   cardImageUrl,
+  isSeekingCategory,
   resolveDeckCards,
   type CardInstance,
   type CardView,
@@ -35,6 +36,21 @@ function printingLine(card: CardView): string {
   return '';
 }
 
+/** Cards eligible as Out: deck cards including Queued Out; exclude formal Ins and Seeking. */
+export function outPickerCards(deck: DeckDocument): CardView[] {
+  const inIds = new Set(
+    (deck.formalSwapEntries || [])
+      .map((e) => e.inInstanceId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  return resolveDeckCards(deck).filter((card) => {
+    if (inIds.has(card.instanceId)) return false;
+    if (isSeekingCategory(card.primaryCategory)) return false;
+    if ((card.categories || []).some((c) => isSeekingCategory(c))) return false;
+    return true;
+  });
+}
+
 export function buildOutPickerItems(cards: CardView[]): CardPickerItem[] {
   return cards.map((card) => {
     const doubleFaced = cardHasBackFace(card.layout);
@@ -64,7 +80,7 @@ export function openOutCardPicker(
   picker.open({
     title: 'Select Out card',
     groupByCategory: true,
-    items: buildOutPickerItems(resolveDeckCards(deck)),
+    items: buildOutPickerItems(outPickerCards(deck)),
     selectedValue: selectedInstanceId,
     onPick: (value) => {
       const id = String(value || '');

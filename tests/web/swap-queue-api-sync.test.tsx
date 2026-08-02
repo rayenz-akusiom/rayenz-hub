@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WantSource } from '@rayenz-hub/shared';
+import { aggregateSwapWants, type DeckDocument, type WantSource } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 
 const mockLoadSwapWantSources = vi.fn();
 const mockPullRemoteLibraryUpdates = vi.fn(async () => []);
+const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
+const mockApiPutDeck = vi.fn(async (doc: DeckDocument) => doc);
+const mockIsApiConfigured = vi.fn(() => false);
 
 vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
   const actual =
@@ -16,8 +19,20 @@ vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) =>
   };
 });
 
+vi.mock('../../packages/web/src/api/hub-api', () => ({
+  isApiConfigured: () => mockIsApiConfigured(),
+}));
+
+vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
+  apiPutDeck: (doc: DeckDocument) => mockApiPutDeck(doc),
+  apiGetDeck: vi.fn(),
+  apiListDecks: vi.fn(),
+  apiDeleteDeck: vi.fn(),
+}));
+
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: vi.fn(),
+  saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
+  reconcileDeckAfterApiPut: (local: DeckDocument) => local,
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
@@ -47,9 +62,50 @@ function source(over: Partial<WantSource> = {}): WantSource {
   };
 }
 
+function lookingForDeck(): DeckDocument {
+  return {
+    schemaVersion: 1,
+    deckId: 'cmd1',
+    name: 'Commander Deck',
+    format: 'commander',
+    archidektId: null,
+    archidektUrl: null,
+    categories: [],
+    cards: [
+      {
+        instanceId: 'c1',
+        name: 'Counterspell',
+        quantity: 1,
+        primaryCategory: 'Seeking',
+        categories: ['Seeking'],
+        stack: null,
+        setCode: null,
+        collectorNumber: null,
+        scryfallId: null,
+        archidektCardId: null,
+        foil: false,
+        proxy: false,
+      },
+    ],
+    oracle: {},
+    formalSwapEntries: [],
+    lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
+    coverInstanceId: null,
+    browseViewDefault: null,
+    cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    lastArchidektSyncAt: null,
+    lastArchidektImportAt: null,
+    cubeTargetSize: null,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mockIsApiConfigured.mockReturnValue(false);
 });
 
 describe('SwapQueueApp Hub API sync', () => {
@@ -57,7 +113,6 @@ describe('SwapQueueApp Hub API sync', () => {
     const order: string[] = [];
     mockPullRemoteLibraryUpdates.mockImplementation(async () => {
       order.push('pull');
-      return [];
     });
     mockLoadSwapWantSources.mockImplementation(async () => {
       order.push('load');
@@ -95,5 +150,27 @@ describe('SwapQueueApp Hub API sync', () => {
 
     await waitFor(() => expect(screen.getByText(/Sol Ring/)).toBeInTheDocument());
     expect(screen.getByText(/Hub API unreachable/)).toBeInTheDocument();
+  });
+
+  it('pushes decks via apiPutDeck when Hub API is configured', async () => {
+    mockIsApiConfigured.mockReturnValue(true);
+    const deck = lookingForDeck();
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Counterspell/ })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: /Counterspell/ }));
+    await waitFor(() => expect(screen.getByTestId('swap-queue-edit')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockApiPutDeck).toHaveBeenCalledTimes(1));
+    expect(mockApiPutDeck.mock.calls[0]![0]!.lookingForEntries).toHaveLength(0);
   });
 });

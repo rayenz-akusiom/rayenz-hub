@@ -3,6 +3,7 @@ import type { CardInstance, DeckDocument, PrintingFields } from '@rayenz-hub/sha
 import {
   buildOutPickerItems,
   findMatchingPrintingInstance,
+  outPickerCards,
 } from '../../../packages/web/src/deck-builder/swaps/swap-pickers.ts';
 import commanderFixture from '../../fixtures/deck-builder/commander-slice.json';
 
@@ -31,6 +32,61 @@ describe('buildOutPickerItems', () => {
     } as CardInstance;
     const items = buildOutPickerItems([stack]);
     expect(items[0]!.lines?.[0]).toBe('Plains ×6');
+  });
+});
+
+describe('outPickerCards', () => {
+  it('excludes formal-swap Ins and Seeking, keeps Queued Out', () => {
+    const withSwap: DeckDocument = {
+      ...deck,
+      cards: [
+        {
+          ...deck.cards[0]!,
+          instanceId: 'in-card',
+          name: 'In Card',
+          primaryCategory: 'Ramp',
+          categories: ['Ramp'],
+        },
+        {
+          ...deck.cards[0]!,
+          instanceId: 'out-card',
+          name: 'Out Card',
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out'],
+        },
+        {
+          ...deck.cards[0]!,
+          instanceId: 'seek-card',
+          name: 'Seek Card',
+          primaryCategory: 'Seeking',
+          categories: ['Seeking'],
+        },
+        {
+          ...deck.cards[0]!,
+          instanceId: 'normal',
+          name: 'Normal Card',
+          primaryCategory: 'Other',
+          categories: ['Other'],
+        },
+      ],
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: 'in-card',
+          outInstanceId: 'out-card',
+          inTargetCategory: 'Ramp',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [{ id: 'lf1', instanceId: 'seek-card', sortIndex: 0, notes: null }],
+    };
+
+    const ids = outPickerCards(withSwap).map((c) => c.instanceId);
+    expect(ids).toContain('out-card');
+    expect(ids).toContain('normal');
+    expect(ids).not.toContain('in-card');
+    expect(ids).not.toContain('seek-card');
   });
 });
 

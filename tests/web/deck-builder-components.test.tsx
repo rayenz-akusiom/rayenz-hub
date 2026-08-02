@@ -505,7 +505,6 @@ describe('SwapQueuePanel', () => {
     onDraftChange: vi.fn(),
     onConfirmIn: vi.fn(),
     onCancelEdit: vi.fn(),
-    onSaveEdit: vi.fn(),
     onRemoveEdit: vi.fn(),
   };
 
@@ -691,7 +690,6 @@ describe('SwapQueuePanel', () => {
     const onDraftChange = vi.fn();
     const onConfirmIn = vi.fn();
     const onCancelEdit = vi.fn();
-    const onSaveEdit = vi.fn();
     const onRemoveEdit = vi.fn();
     const openPicker = vi.fn();
     (window as Window & { HubCardPicker?: { open: typeof openPicker } }).HubCardPicker = {
@@ -708,7 +706,6 @@ describe('SwapQueuePanel', () => {
         onDraftChange={onDraftChange}
         onConfirmIn={onConfirmIn}
         onCancelEdit={onCancelEdit}
-        onSaveEdit={onSaveEdit}
         onRemoveEdit={onRemoveEdit}
       />,
     );
@@ -725,6 +722,9 @@ describe('SwapQueuePanel', () => {
         selectedValue: commanderDoc.cards[1]!.instanceId,
       }),
     );
+    const pickerItems = openPicker.mock.calls[0]![0]!.items as { value: unknown }[];
+    expect(pickerItems.map((i) => i.value)).not.toContain(foilCard.instanceId);
+    expect(pickerItems.map((i) => i.value)).toContain(commanderDoc.cards[1]!.instanceId);
 
     await user.click(screen.getByRole('button', { name: 'Change In' }));
     expect(screen.getByRole('dialog', { name: 'Choose In card from Scryfall' })).toBeInTheDocument();
@@ -745,9 +745,8 @@ describe('SwapQueuePanel', () => {
     fireEvent.change(screen.getByDisplayValue('updated note'), { target: { value: 'new notes' } });
     expect(onDraftChange).toHaveBeenCalledWith({ notes: 'new notes' });
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onSaveEdit).toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(onCancelEdit).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(onRemoveEdit).toHaveBeenCalled();

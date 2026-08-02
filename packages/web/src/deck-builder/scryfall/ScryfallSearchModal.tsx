@@ -14,6 +14,7 @@ import {
 import { PrintingPickerModal } from './PrintingPickerModal';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
+import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
 
 export function ScryfallSearchModal({
   deck,
@@ -44,6 +45,7 @@ export function ScryfallSearchModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<ScryfallCard | null>(null);
+  const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
 
   const categories = deckCategoryOptions(deck);
   const printingHint = pending
@@ -55,13 +57,14 @@ export function ScryfallSearchModal({
     : null;
   const defaultCat = defaultCategory || defaultAddCategory(deck, printingHint);
 
-  async function runSearch(e?: FormEvent) {
+  async function runSearch(e?: FormEvent, overrideQuery?: string) {
     e?.preventDefault();
-    const q = query.trim();
+    const q = (overrideQuery ?? query).trim();
     if (!q) {
       setError('Enter a Scryfall search query.');
       return;
     }
+    if (overrideQuery != null) setQuery(q);
     setLoading(true);
     setError(null);
     setPending(null);
@@ -71,6 +74,7 @@ export function ScryfallSearchModal({
       setHasMore(page1.has_more);
       setNextPage(page1.next_page);
       setPage(1);
+      setRecent(rememberScryfallSearch(q));
       if (!page1.data.length) {
         setError('No cards matched that search.');
       }
@@ -123,6 +127,8 @@ export function ScryfallSearchModal({
     );
   }
 
+  const showRecent = !query.trim() && !results.length && recent.length > 0;
+
   const card = (
     <div className="db-modal-card db-modal-picker">
       <div className="db-picker-header">
@@ -136,7 +142,7 @@ export function ScryfallSearchModal({
       </div>
 
       <div className="db-picker-scroll">
-        <form className="db-search-form" onSubmit={runSearch}>
+        <form className="db-search-form" onSubmit={(e) => void runSearch(e)}>
           <label className="db-search-label">
             Scryfall query
             <input
@@ -156,6 +162,25 @@ export function ScryfallSearchModal({
         <p className="db-muted db-search-hint">
           Uses Scryfall search syntax. Pick a card, then choose a printing.
         </p>
+
+        {showRecent ? (
+          <div className="db-search-recent" aria-label="Recent searches">
+            <p className="db-muted db-search-recent-label">Recent</p>
+            <ul className="db-search-recent-list">
+              {recent.map((q) => (
+                <li key={q}>
+                  <button
+                    type="button"
+                    className="db-btn db-search-recent-chip"
+                    onClick={() => void runSearch(undefined, q)}
+                  >
+                    {q}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {error ? <p className="db-error">{error}</p> : null}
         {loading && !results.length ? <p className="db-muted">Searching…</p> : null}
@@ -194,7 +219,7 @@ export function ScryfallSearchModal({
 
       {hasMore ? (
         <div className="db-modal-actions">
-          <button type="button" className="db-btn" disabled={loading} onClick={loadMore}>
+          <button type="button" className="db-btn" disabled={loading} onClick={() => void loadMore()}>
             {loading ? 'Loading…' : 'Load more'}
           </button>
         </div>

@@ -1,8 +1,10 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { CardView } from '@rayenz-hub/shared';
+import { cardDisplayName, type CardView } from '@rayenz-hub/shared';
 import { swapPairHoverPopoutWidthPx } from '../deck-builder/card-size';
 import { CardTile } from '../deck-builder/browse/CardTile';
+import { FinalizeSwapConfirmDialog } from '../deck-builder/swaps/FinalizeSwapConfirm';
+import { canShowHoverPopout } from '../deck-builder/swaps/swap-confirm';
 import { SwapPairFaces } from '../deck-builder/swaps/swap-pair-faces';
 
 function clamp(n: number, min: number, max: number) {
@@ -94,8 +96,10 @@ export function SwapPairQueueTile({
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const popoutWidthPx = swapPairHoverPopoutWidthPx(cardWidthPx);
+  const popoutEligible = canShowHoverPopout();
+  const popoutWidthPx = popoutEligible ? swapPairHoverPopoutWidthPx(cardWidthPx) : null;
   const showFinalize = Boolean(onFinalize && !incomplete && outCard && inCard);
 
   useLayoutEffect(() => {
@@ -135,9 +139,13 @@ export function SwapPairQueueTile({
         className={`db-swap-pair${incomplete ? ' is-draft' : ''}`}
         onClick={onClick}
         onDragStart={blockDrag}
-        onMouseEnter={() => setHover(true)}
+        onMouseEnter={() => {
+          if (popoutEligible) setHover(true);
+        }}
         onMouseLeave={() => setHover(false)}
-        onFocus={() => setHover(true)}
+        onFocus={() => {
+          if (popoutEligible) setHover(true);
+        }}
         onBlur={() => setHover(false)}
         title={actionLabel}
         aria-label={actionLabel}
@@ -153,11 +161,23 @@ export function SwapPairQueueTile({
           title="Remove Out and keep In in its target category"
           onClick={(e) => {
             e.stopPropagation();
-            onFinalize?.();
+            setConfirmOpen(true);
           }}
         >
           Finalize
         </button>
+      ) : null}
+      {confirmOpen && outCard && inCard ? (
+        <FinalizeSwapConfirmDialog
+          outName={cardDisplayName(outCard)}
+          inName={cardDisplayName(inCard)}
+          category={categoryLabel}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            onFinalize?.();
+          }}
+        />
       ) : null}
       {hover && popoutWidthPx != null && pos
         ? createPortal(

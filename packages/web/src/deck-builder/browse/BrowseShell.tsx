@@ -172,6 +172,7 @@ export function BrowseShell({
   const deckRef = useRef(deck);
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const swapAutosaveTimer = useRef(0);
 
   /** Apply a full document; keeps deckRef ahead of React props so rapid edits don't clobber each other. */
   const commit = useCallback(
@@ -450,59 +451,81 @@ export function BrowseShell({
   }
 
   function clearSwapEdit() {
+    window.clearTimeout(swapAutosaveTimer.current);
     setDraft(null);
   }
 
-  function saveSwapEdit() {
-    if (!draft) return;
+  function persistSwapDraft(currentDraft: SwapEditDraft) {
     const current = deckRef.current;
     const entries = [...current.formalSwapEntries]
       .sort((a, b) => a.sortIndex - b.sortIndex)
       .map((e, i) =>
-        e.id === draft.entryId
+        e.id === currentDraft.entryId
           ? {
               ...e,
-              inInstanceId: draft.inInstanceId,
-              outInstanceId: draft.outInstanceId,
-              inTargetCategory: draft.inTargetCategory,
-              notes: draft.notes.trim() || null,
+              inInstanceId: currentDraft.inInstanceId,
+              outInstanceId: currentDraft.outInstanceId,
+              inTargetCategory: currentDraft.inTargetCategory,
+              notes: currentDraft.notes.trim() || null,
               sortIndex: i,
             }
           : { ...e, sortIndex: i },
       );
     commit(syncCardsWithFormalSwaps(current, entries));
-    clearSwapEdit();
+  }
+
+  function patchSwapDraft(patch: Partial<SwapEditDraft>) {
+    setDraft((d) => {
+      if (!d) return d;
+      const next = { ...d, ...patch };
+      draftRef.current = next;
+      window.clearTimeout(swapAutosaveTimer.current);
+      swapAutosaveTimer.current = window.setTimeout(() => {
+        persistSwapDraft(next);
+      }, 300);
+      return next;
+    });
+  }
+
+  function flushSwapAutosave() {
+    window.clearTimeout(swapAutosaveTimer.current);
+    const currentDraft = draftRef.current;
+    if (currentDraft) persistSwapDraft(currentDraft);
   }
 
   function removeSwapEdit() {
-    if (!draft) return;
+    flushSwapAutosave();
+    if (!draftRef.current) return;
+    const currentDraft = draftRef.current;
     const entries = deckRef.current.formalSwapEntries
-      .filter((e) => e.id !== draft.entryId)
+      .filter((e) => e.id !== currentDraft.entryId)
       .map((e, i) => ({ ...e, sortIndex: i }));
     commit(syncCardsWithFormalSwaps(deckRef.current, entries));
     clearSwapEdit();
   }
 
   function finalizeSwapEdit() {
-    if (!draft) return;
-    if (!draft.inInstanceId || !draft.outInstanceId) return;
+    flushSwapAutosave();
+    const currentDraft = draftRef.current;
+    if (!currentDraft) return;
+    if (!currentDraft.inInstanceId || !currentDraft.outInstanceId) return;
     const current = deckRef.current;
     const entries = [...current.formalSwapEntries]
       .sort((a, b) => a.sortIndex - b.sortIndex)
       .map((e, i) =>
-        e.id === draft.entryId
+        e.id === currentDraft.entryId
           ? {
               ...e,
-              inInstanceId: draft.inInstanceId,
-              outInstanceId: draft.outInstanceId,
-              inTargetCategory: draft.inTargetCategory,
-              notes: draft.notes.trim() || null,
+              inInstanceId: currentDraft.inInstanceId,
+              outInstanceId: currentDraft.outInstanceId,
+              inTargetCategory: currentDraft.inTargetCategory,
+              notes: currentDraft.notes.trim() || null,
               sortIndex: i,
             }
           : { ...e, sortIndex: i },
       );
     const staged = syncCardsWithFormalSwaps(current, entries);
-    const done = finalizeFormalSwap(staged, draft.entryId);
+    const done = finalizeFormalSwap(staged, currentDraft.entryId);
     if (!done) return;
     commit(done);
     clearSwapEdit();
@@ -537,7 +560,10 @@ export function BrowseShell({
       proxy: meta?.proxy,
     });
     if (existing) {
-      setDraft({ ...currentDraft, inInstanceId: existing.instanceId });
+      patchSwapDraft({
+        inInstanceId: existing.instanceId,
+        inTargetCategory: category,
+      });
       return;
     }
     const before = new Set(currentDeck.cards.map((c) => c.instanceId));
@@ -545,7 +571,10 @@ export function BrowseShell({
     const added = next.cards.find((c) => !before.has(c.instanceId));
     commit(next);
     if (added) {
-      setDraft({ ...currentDraft, inInstanceId: added.instanceId });
+      patchSwapDraft({
+        inInstanceId: added.instanceId,
+        inTargetCategory: category,
+      });
     }
   }
 
@@ -789,10 +818,12 @@ export function BrowseShell({
               onStartEdit={(entry) => {
                 setDraft(draftFromFormalEntry(entry));
               }}
-              onDraftChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
+              onDraftChange={patchSwapDraft}
               onConfirmIn={onConfirmSwapIn}
-              onCancelEdit={clearSwapEdit}
-              onSaveEdit={saveSwapEdit}
+              onCancelEdit={() => {
+                flushSwapAutosave();
+                clearSwapEdit();
+              }}
               onRemoveEdit={removeSwapEdit}
               onFinalizeEdit={finalizeSwapEdit}
             />

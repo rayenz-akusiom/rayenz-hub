@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   addCardToDeck,
+  aggregateSwapWants,
   categoryIncluded,
-  defaultAddCategory,
   filterAcquireSources,
   filterWantSources,
   finalizeFormalSwap,
@@ -12,7 +12,6 @@ import {
   retargetFormalSwap,
   retargetLookingFor,
   syncCardsWithFormalSwaps,
-  transplantCardInstance,
   type DeckDocument,
   type PrintingFields,
   type UnifiedWantRow,
@@ -36,7 +35,7 @@ import {
   addLookingForCard,
   removeLookingForEntry,
 } from '../deck-builder/swaps/useSwapQueue';
-import { saveDeck } from '../deck-builder/store/deck-store';
+import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
 import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import '../deck-builder/deck-builder.css';
@@ -220,10 +219,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const pairDraftRef = useRef(pairDraft);
   const pairOriginDeckIdRef = useRef(pairOriginDeckId);
   const originDeckWorkingRef = useRef(originDeckWorking);
+  const decksRef = useRef(decks);
+  const autosaveTimerRef = useRef(0);
   editingDeckRef.current = editingDeck;
   pairDraftRef.current = pairDraft;
   pairOriginDeckIdRef.current = pairOriginDeckId;
   originDeckWorkingRef.current = originDeckWorking;
+  decksRef.current = decks;
 
   useEffect(() => {
     setBrowse(defaultBrowseForSwapQueuePath(pathKey));
@@ -300,6 +302,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   }
 
   function clearEdit() {
+    window.clearTimeout(autosaveTimerRef.current);
     setEditing(null);
     setEditingDeck(null);
     setPairDraft(null);
@@ -308,9 +311,47 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setAddPickerOpen(false);
   }
 
+  function applyLocalDecks(savedDocs: DeckDocument[]) {
+    const byId = new Map(decksRef.current.map((d) => [d.deckId, d]));
+    for (const doc of savedDocs) {
+      byId.set(doc.deckId, doc);
+    }
+    const nextDecks = [...byId.values()];
+    decksRef.current = nextDecks;
+    setDecks(nextDecks);
+    const nextSources = aggregateSwapWants(nextDecks);
+    setSources(nextSources);
+    void enrichWantSourcesUsd(nextSources).then((enriched) => {
+      setSources(enriched);
+    });
+    return nextDecks;
+  }
+
+  async function persistDecks(
+    docs: DeckDocument[],
+    opts?: { closeEdit?: boolean },
+  ): Promise<DeckDocument[]> {
+    const savedDocs: DeckDocument[] = [];
+    let apiError: string | undefined;
+    for (const doc of docs) {
+      const { saved, apiError: err } = await saveDualMode(doc);
+      savedDocs.push(saved);
+      if (err) apiError = err;
+    }
+    applyLocalDecks(savedDocs);
+    if (opts?.closeEdit) clearEdit();
+    setStatus(apiError ? `Saved locally (${apiError})` : 'Saved');
+    return savedDocs;
+  }
+
+  async function persistDeck(next: DeckDocument, opts?: { closeEdit?: boolean }) {
+    return persistDecks([next], opts);
+  }
+
   function openSource(source: WantSource) {
+    window.clearTimeout(autosaveTimerRef.current);
     setInterstitial(null);
-    const deck = findDeck(decks, source.deckId);
+    const deck = findDeck(decksRef.current, source.deckId);
     if (!deck) return;
     setEditing(source);
     setEditingDeck(deck);
@@ -333,19 +374,6 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setInterstitial(row);
   }
 
-  async function persistDecks(docs: DeckDocument[]) {
-    for (const doc of docs) {
-      await saveDeck(doc);
-    }
-    clearEdit();
-    setStatus('Saved');
-    await refresh();
-  }
-
-  async function persistDeck(next: DeckDocument) {
-    await persistDecks([next]);
-  }
-
   function categoryValidOnDeck(deck: DeckDocument, category: string | null): string | null {
     if (!category) return null;
     if (!categoryIncluded(deck.categories || [], category)) return null;
@@ -353,132 +381,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     return category;
   }
 
-  function onPairDeckChange(nextDeckId: string) {
-    const draft = pairDraftRef.current;
-    const current = editingDeckRef.current;
-    const originId = pairOriginDeckIdRef.current;
-    if (!draft || !current || !originId || nextDeckId === current.deckId) return;
-
-    const nextBase =
-      nextDeckId === originId
-        ? originDeckWorkingRef.current?.deckId === originId
-          ? originDeckWorkingRef.current
-          : findDeck(decks, originId)
-        : findDeck(decks, nextDeckId);
-    if (!nextBase) return;
-
-    let next = nextBase;
-    let from = current;
-    let nextDraft: SwapEditDraft = {
-      ...draft,
-      outInstanceId: null,
-      inTargetCategory: categoryValidOnDeck(nextBase, draft.inTargetCategory),
-    };
-
-    const inId = nextDraft.inInstanceId;
-    const inOnCurrent = Boolean(inId && (from.cards || []).some((c) => c.instanceId === inId));
-    const inOnNext = Boolean(inId && (next.cards || []).some((c) => c.instanceId === inId));
-
-    // In still on origin is left there until Save; only move Ins added after leaving origin.
-    if (inOnCurrent && !inOnNext && from.deckId !== originId && inId) {
-      const cat = nextDraft.inTargetCategory || defaultAddCategory(next);
-      const moved = transplantCardInstance(from, next, inId, cat);
-      if (moved) {
-        from = moved.from;
-        next = moved.to;
-        nextDraft = {
-          ...nextDraft,
-          inInstanceId: moved.newInstanceId,
-          inTargetCategory: cat,
-        };
-      }
-    }
-
-    if (from.deckId === originId) setOriginDeckWorking(from);
-    if (next.deckId === originId) setOriginDeckWorking(next);
-
-    setEditingDeck(next);
-    setPairDraft(nextDraft);
-  }
-
-  function savePairEdit() {
-    const deck = editingDeckRef.current;
-    const draft = pairDraftRef.current;
-    const originId = pairOriginDeckIdRef.current;
-    if (!deck || !draft || !originId) return;
-
-    if (deck.deckId === originId) {
-      const entries = [...deck.formalSwapEntries]
-        .sort((a, b) => a.sortIndex - b.sortIndex)
-        .map((e, i) =>
-          e.id === draft.entryId
-            ? {
-                ...e,
-                inInstanceId: draft.inInstanceId,
-                outInstanceId: draft.outInstanceId,
-                inTargetCategory: draft.inTargetCategory,
-                notes: draft.notes.trim() || null,
-                sortIndex: i,
-              }
-            : { ...e, sortIndex: i },
-        );
-      void persistDeck(syncCardsWithFormalSwaps(deck, entries));
-      return;
-    }
-
-    const origin =
-      originDeckWorkingRef.current?.deckId === originId
-        ? originDeckWorkingRef.current
-        : findDeck(decks, originId);
-    if (!origin) return;
-
-    // Prefer origin that still has the entry (working copy may have drifted).
-    const sourceWithEntry =
-      origin.formalSwapEntries.some((e) => e.id === draft.entryId)
-        ? origin
-        : findDeck(decks, originId);
-    if (!sourceWithEntry?.formalSwapEntries.some((e) => e.id === draft.entryId)) return;
-
-    const moved = retargetFormalSwap(sourceWithEntry, deck, draft.entryId, {
-      inInstanceId: draft.inInstanceId,
-      inTargetCategory: draft.inTargetCategory,
-      notes: draft.notes,
-    });
-    if (!moved) return;
-    void persistDecks([moved.source, moved.target]);
-  }
-
-  function removePairEdit() {
-    const deck = editingDeckRef.current;
-    const draft = pairDraftRef.current;
-    const originId = pairOriginDeckIdRef.current;
-    if (!deck || !draft || !originId) return;
-
-    if (deck.deckId === originId) {
-      const entries = deck.formalSwapEntries
-        .filter((e) => e.id !== draft.entryId)
-        .map((e, i) => ({ ...e, sortIndex: i }));
-      void persistDeck(syncCardsWithFormalSwaps(deck, entries));
-      return;
-    }
-
-    // Retargeted away but not saved: remove from origin only.
-    const origin = findDeck(decks, originId);
-    if (!origin) return;
-    const entries = origin.formalSwapEntries
-      .filter((e) => e.id !== draft.entryId)
-      .map((e, i) => ({ ...e, sortIndex: i }));
-    void persistDeck(syncCardsWithFormalSwaps(origin, entries));
-  }
-
-  function finalizePairEdit() {
-    const deck = editingDeckRef.current;
-    const draft = pairDraftRef.current;
-    const originId = pairOriginDeckIdRef.current;
-    if (!deck || !draft || !originId) return;
-    if (deck.deckId !== originId) return;
-    if (!draft.inInstanceId || !draft.outInstanceId) return;
-
+  function syncedFromDraft(deck: DeckDocument, draft: SwapEditDraft): DeckDocument {
     const entries = [...deck.formalSwapEntries]
       .sort((a, b) => a.sortIndex - b.sortIndex)
       .map((e, i) =>
@@ -493,18 +396,151 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
             }
           : { ...e, sortIndex: i },
       );
-    const staged = syncCardsWithFormalSwaps(deck, entries);
+    return syncCardsWithFormalSwaps(deck, entries);
+  }
+
+  async function autosavePairEdit(draftOverride?: SwapEditDraft) {
+    const deck = editingDeckRef.current;
+    const draft = draftOverride ?? pairDraftRef.current;
+    const originId = pairOriginDeckIdRef.current;
+    if (!deck || !draft || !originId) return;
+    if (deck.deckId !== originId) return;
+
+    const next = syncedFromDraft(deck, draft);
+    const saved = await persistDeck(next, { closeEdit: false });
+    const savedDeck = saved[0];
+    if (!savedDeck) return;
+    editingDeckRef.current = savedDeck;
+    originDeckWorkingRef.current = savedDeck;
+    setEditingDeck(savedDeck);
+    setOriginDeckWorking(savedDeck);
+  }
+
+  function schedulePairAutosave(nextDraft: SwapEditDraft) {
+    window.clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void autosavePairEdit(nextDraft);
+    }, 300);
+  }
+
+  function patchPairDraft(patch: Partial<SwapEditDraft>) {
+    setPairDraft((d) => {
+      if (!d) return d;
+      const next = { ...d, ...patch };
+      pairDraftRef.current = next;
+      schedulePairAutosave(next);
+      return next;
+    });
+  }
+
+  async function onPairDeckChange(nextDeckId: string) {
+    window.clearTimeout(autosaveTimerRef.current);
+    const draft = pairDraftRef.current;
+    const current = editingDeckRef.current;
+    const originId = pairOriginDeckIdRef.current;
+    if (!draft || !current || !originId || nextDeckId === current.deckId) return;
+
+    const target = findDeck(decksRef.current, nextDeckId);
+    if (!target) return;
+
+    // Flush same-deck draft onto current before retarget when still on origin.
+    let source = current;
+    if (current.deckId === originId) {
+      source = syncedFromDraft(current, draft);
+    }
+
+    const sourceWithEntry =
+      source.formalSwapEntries.some((e) => e.id === draft.entryId)
+        ? source
+        : findDeck(decksRef.current, originId);
+    if (!sourceWithEntry?.formalSwapEntries.some((e) => e.id === draft.entryId)) return;
+
+    const moved = retargetFormalSwap(sourceWithEntry, target, draft.entryId, {
+      inInstanceId: draft.inInstanceId,
+      inTargetCategory: categoryValidOnDeck(target, draft.inTargetCategory),
+      notes: draft.notes,
+    });
+    if (!moved) return;
+
+    const saved = await persistDecks([moved.source, moved.target], { closeEdit: false });
+    const newTarget =
+      saved.find((d) => d.deckId === nextDeckId) ||
+      findDeck(decksRef.current, nextDeckId) ||
+      moved.target;
+    const entry = newTarget.formalSwapEntries.find((e) => e.id === draft.entryId);
+    const nextDraft = entry
+      ? draftFromFormalEntry(entry)
+      : {
+          ...draft,
+          outInstanceId: null,
+          inTargetCategory: categoryValidOnDeck(newTarget, draft.inTargetCategory),
+        };
+
+    setEditingDeck(newTarget);
+    setPairOriginDeckId(newTarget.deckId);
+    setOriginDeckWorking(newTarget);
+    setPairDraft(nextDraft);
+    setEditing({
+      deckId: newTarget.deckId,
+      deckName: newTarget.name,
+      format: newTarget.format,
+      kind: nextDraft.inInstanceId ? 'queued_in' : 'queued_out',
+      entryId: draft.entryId,
+      cardInstanceId: nextDraft.inInstanceId || nextDraft.outInstanceId || '',
+      cardName: '',
+      mergeKey: draft.entryId,
+      quantity: 1,
+      usd: null,
+      outInstanceId: nextDraft.outInstanceId,
+      inInstanceId: nextDraft.inInstanceId,
+      pairIncomplete: !nextDraft.inInstanceId || !nextDraft.outInstanceId,
+    });
+  }
+
+  function removePairEdit() {
+    window.clearTimeout(autosaveTimerRef.current);
+    const deck = editingDeckRef.current;
+    const draft = pairDraftRef.current;
+    const originId = pairOriginDeckIdRef.current;
+    if (!deck || !draft || !originId) return;
+
+    if (deck.deckId === originId) {
+      const entries = deck.formalSwapEntries
+        .filter((e) => e.id !== draft.entryId)
+        .map((e, i) => ({ ...e, sortIndex: i }));
+      void persistDeck(syncCardsWithFormalSwaps(deck, entries), { closeEdit: true });
+      return;
+    }
+
+    const origin = findDeck(decksRef.current, originId);
+    if (!origin) return;
+    const entries = origin.formalSwapEntries
+      .filter((e) => e.id !== draft.entryId)
+      .map((e, i) => ({ ...e, sortIndex: i }));
+    void persistDeck(syncCardsWithFormalSwaps(origin, entries), { closeEdit: true });
+  }
+
+  function finalizePairEdit() {
+    window.clearTimeout(autosaveTimerRef.current);
+    const deck = editingDeckRef.current;
+    const draft = pairDraftRef.current;
+    const originId = pairOriginDeckIdRef.current;
+    if (!deck || !draft || !originId) return;
+    if (deck.deckId !== originId) return;
+    if (!draft.inInstanceId || !draft.outInstanceId) return;
+
+    const staged = syncedFromDraft(deck, draft);
     const done = finalizeFormalSwap(staged, draft.entryId);
     if (!done) return;
-    void persistDeck(done);
+    void persistDeck(done, { closeEdit: true });
   }
 
   async function finalizePair(deckId: string, entryId: string) {
-    const deck = findDeck(decks, deckId);
+    const deck = findDeck(decksRef.current, deckId);
     if (!deck) return;
     const done = finalizeFormalSwap(deck, entryId);
     if (!done) return;
-    await persistDeck(done);
+    await persistDeck(done, { closeEdit: true });
   }
 
   function onConfirmSwapIn(
@@ -518,39 +554,45 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     if (!draft || !deck) return;
     const existing = findMatchingPrintingInstance(deck, printing, { proxy: meta?.proxy });
     if (existing) {
-      setPairDraft({ ...draft, inInstanceId: existing.instanceId, inTargetCategory: category });
+      patchPairDraft({
+        inInstanceId: existing.instanceId,
+        inTargetCategory: category,
+      });
       return;
     }
     const before = new Set(deck.cards.map((c) => c.instanceId));
     const next = addCardToDeck(deck, printing, category, { proxy: meta?.proxy });
     const added = next.cards.find((c) => !before.has(c.instanceId));
+    editingDeckRef.current = next;
     setEditingDeck(next);
     if (originId && next.deckId === originId) {
+      originDeckWorkingRef.current = next;
       setOriginDeckWorking(next);
     }
     if (added) {
-      setPairDraft({ ...draft, inInstanceId: added.instanceId, inTargetCategory: category });
+      const nextDraft = {
+        ...draft,
+        inInstanceId: added.instanceId,
+        inTargetCategory: category,
+      };
+      pairDraftRef.current = nextDraft;
+      setPairDraft(nextDraft);
+      schedulePairAutosave(nextDraft);
     }
   }
 
   async function createEmptySwap(deckId: string) {
-    const deck = findDeck(decks, deckId);
+    const deck = findDeck(decksRef.current, deckId);
     if (!deck) return;
     const entry = newFormalSwapEntry(deck.formalSwapEntries.length);
     const next = syncCardsWithFormalSwaps(deck, [...deck.formalSwapEntries, entry]);
-    await saveDeck(next);
+    const saved = await persistDeck(next, { closeEdit: false });
+    const savedDeck = saved[0] || next;
     setAddPickerOpen(false);
-    setDecks((prev) => {
-      const idx = prev.findIndex((d) => d.deckId === next.deckId);
-      if (idx < 0) return [...prev, next];
-      const copy = [...prev];
-      copy[idx] = next;
-      return copy;
-    });
     setEditing({
-      deckId: next.deckId,
-      deckName: next.name,
-      format: next.format,
+      deckId: savedDeck.deckId,
+      deckName: savedDeck.name,
+      format: savedDeck.format,
       kind: 'queued_in',
       entryId: entry.id,
       cardInstanceId: '',
@@ -562,9 +604,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       inInstanceId: null,
       pairIncomplete: true,
     });
-    setEditingDeck(next);
-    setPairOriginDeckId(next.deckId);
-    setOriginDeckWorking(next);
+    setEditingDeck(savedDeck);
+    setPairOriginDeckId(savedDeck.deckId);
+    setOriginDeckWorking(savedDeck);
     setPairDraft(draftFromFormalEntry(entry));
     setStatus('Added swap');
   }
@@ -573,7 +615,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     const deck = editingDeckRef.current;
     const source = editing;
     if (!deck || !source || source.kind !== 'seeking') return;
-    void persistDeck(removeLookingForEntry(deck, source.entryId));
+    void persistDeck(removeLookingForEntry(deck, source.entryId), { closeEdit: true });
   }
 
   function replaceLookingFor(printing: PrintingFields, meta?: { proxy: boolean }) {
@@ -581,7 +623,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     const source = editing;
     if (!deck || !source || source.kind !== 'seeking') return;
     const without = removeLookingForEntry(deck, source.entryId);
-    void persistDeck(addLookingForCard(without, printing, meta));
+    void persistDeck(addLookingForCard(without, printing, meta), { closeEdit: true });
   }
 
   function retargetSeeking(nextDeckId: string) {
@@ -589,11 +631,11 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     const source = editing;
     if (!deck || !source || source.kind !== 'seeking') return;
     if (nextDeckId === deck.deckId) return;
-    const target = findDeck(decks, nextDeckId);
+    const target = findDeck(decksRef.current, nextDeckId);
     if (!target) return;
     const moved = retargetLookingFor(deck, target, source.entryId);
     if (!moved) return;
-    void persistDecks([moved.source, moved.target]);
+    void persistDecks([moved.source, moved.target], { closeEdit: true });
   }
 
   async function onExportArchidekt() {
@@ -772,17 +814,21 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         <SwapEditChrome
           deck={editingDeck}
           draft={pairDraft}
-          onDraftChange={(patch) => setPairDraft((d) => (d ? { ...d, ...patch } : d))}
+          onDraftChange={patchPairDraft}
           onConfirmIn={onConfirmSwapIn}
-          onClose={clearEdit}
-          onSave={savePairEdit}
+          onClose={() => {
+            window.clearTimeout(autosaveTimerRef.current);
+            const draft = pairDraftRef.current;
+            if (draft) void autosavePairEdit(draft).finally(() => clearEdit());
+            else clearEdit();
+          }}
           onRemove={removePairEdit}
           onFinalize={finalizePairEdit}
           finalizeDisabled={Boolean(
             pairOriginDeckId && editingDeck.deckId !== pairOriginDeckId,
           )}
           deckOptions={libraryDeckOptions}
-          onDeckChange={onPairDeckChange}
+          onDeckChange={(deckId) => void onPairDeckChange(deckId)}
           inLookupDeck={
             pairOriginDeckId && pairOriginDeckId !== editingDeck.deckId
               ? originDeckWorking || findDeck(decks, pairOriginDeckId)

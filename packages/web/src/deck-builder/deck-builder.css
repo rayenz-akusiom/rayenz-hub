@@ -2086,6 +2086,32 @@ body,
   margin: 0;
 }
 
+.db-search-recent {
+  margin: 0.65rem 0 0.85rem;
+}
+
+.db-search-recent-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+}
+
+.db-search-recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.db-search-recent-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
 .db-modal-picker {
   width: min(52rem, 100%);
   max-height: min(90vh, 56rem);

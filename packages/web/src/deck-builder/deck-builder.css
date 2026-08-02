@@ -2451,9 +2451,15 @@ body,
 
 .db-swap-edit-chrome > .db-modal-actions {
   flex-shrink: 0;
+  justify-content: space-between;
   padding-top: 0.65rem;
   border-top: 1px solid var(--db-border);
   background: var(--db-panel);
+}
+
+.db-swap-edit-actions-secondary {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .db-swap-edit-scroll {

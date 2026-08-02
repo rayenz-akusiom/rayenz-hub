@@ -154,7 +154,15 @@ export function SwapEditChrome({
         : 'Edit swap';
 
   return createPortal(
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label={dialogLabel}>
+    <div
+      className="db-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={dialogLabel}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       {phase === 'in-search' ? (
         <ScryfallSearchModal
           embedded
@@ -231,30 +239,32 @@ export function SwapEditChrome({
               />
             </label>
           </div>
-          <div className="db-modal-actions">
-            <button type="button" className="db-btn db-btn-danger" onClick={onRemove}>
-              Remove
-            </button>
-            <button type="button" className="db-btn" onClick={onClose}>
+          <div className="db-modal-actions db-swap-edit-actions">
+            <div className="db-swap-edit-actions-secondary">
+              <button type="button" className="db-btn db-btn-danger" onClick={onRemove}>
+                Remove
+              </button>
+              {onFinalize ? (
+                <button
+                  type="button"
+                  className="db-btn"
+                  disabled={!canFinalize}
+                  title={
+                    finalizeDisabled
+                      ? 'Finish the deck change before finalizing'
+                      : !draft.inInstanceId || !draft.outInstanceId
+                        ? 'Both In and Out are required to finalize'
+                        : 'Remove Out and keep In in its target category'
+                  }
+                  onClick={() => setPhase('finalize-confirm')}
+                >
+                  Finalize
+                </button>
+              ) : null}
+            </div>
+            <button type="button" className="db-btn is-active" onClick={onClose}>
               Close
             </button>
-            {onFinalize ? (
-              <button
-                type="button"
-                className="db-btn is-active"
-                disabled={!canFinalize}
-                title={
-                  finalizeDisabled
-                    ? 'Finish the deck change before finalizing'
-                    : !draft.inInstanceId || !draft.outInstanceId
-                      ? 'Both In and Out are required to finalize'
-                      : 'Remove Out and keep In in its target category'
-                }
-                onClick={() => setPhase('finalize-confirm')}
-              >
-                Finalize
-              </button>
-            ) : null}
           </div>
         </div>
       )}

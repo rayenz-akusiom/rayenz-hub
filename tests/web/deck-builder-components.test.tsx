@@ -820,4 +820,53 @@ describe('SwapQueuePanel', () => {
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(onRemoveEdit).toHaveBeenCalled();
   });
+
+  it('closes edit chrome on backdrop click, not on card click', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const draft = {
+      entryId: 'swap-1',
+      inInstanceId: commanderDoc.cards[0]!.instanceId,
+      outInstanceId: commanderDoc.cards[1]!.instanceId,
+      inTargetCategory: 'Creature',
+      notes: '',
+    };
+    const onCancelEdit = vi.fn();
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={draft}
+        onStartEdit={vi.fn()}
+        onDraftChange={vi.fn()}
+        onConfirmIn={vi.fn()}
+        onCancelEdit={onCancelEdit}
+        onRemoveEdit={vi.fn()}
+        onFinalizeEdit={vi.fn()}
+      />,
+    );
+
+    const closeBtn = screen.getByRole('button', { name: 'Close' });
+    const finalizeBtn = screen.getByRole('button', { name: 'Finalize' });
+    expect(closeBtn.classList.contains('is-active')).toBe(true);
+    expect(finalizeBtn.classList.contains('is-active')).toBe(false);
+
+    fireEvent.click(screen.getByTestId('swap-queue-edit'));
+    expect(onCancelEdit).not.toHaveBeenCalled();
+
+    fireEvent.click(document.body.querySelector('.db-modal')!);
+    expect(onCancelEdit).toHaveBeenCalledTimes(1);
+  });
 });

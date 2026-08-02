@@ -1,6 +1,7 @@
 import { swapGlanceFingerprint } from './fingerprint.js';
 import type {
   SwapGlanceCard,
+  SwapGlanceConnector,
   SwapGlanceIncludeSet,
   SwapGlanceLabel,
   SwapGlanceLayoutPlan,
@@ -24,8 +25,10 @@ const CONTENT_MARGIN_Y = 16;
 const SECTION_GAP = 14;
 const SECTION_HEADER_HEIGHT = 32;
 const CARD_GAP = 8;
-const PAIR_INNER_GAP = 6;
-const PAIR_GROUP_GAP = 16;
+/** Gap between Out and In faces inside a pair (connector sits in this slot). */
+const PAIR_INNER_GAP = 32;
+/** Gap between adjacent pair groups. */
+const PAIR_GROUP_GAP = 28;
 const CARD_ASPECT = 61 / 85;
 const MIN_CARD_WIDTH = 56;
 
@@ -33,6 +36,7 @@ type FaceSlot = {
   card: SwapGlanceCard;
   pairRole: 'out' | 'in' | 'single';
   showQuantity: boolean;
+  showProxy: boolean;
 };
 
 function facesFromRow(row: SwapGlanceRow): FaceSlot[] {
@@ -42,6 +46,7 @@ function facesFromRow(row: SwapGlanceRow): FaceSlot[] {
         card: row.card,
         pairRole: 'single',
         showQuantity: row.card.quantity > 1,
+        showProxy: false,
       },
     ];
   }
@@ -51,6 +56,7 @@ function facesFromRow(row: SwapGlanceRow): FaceSlot[] {
       card: row.out,
       pairRole: 'out',
       showQuantity: row.out.quantity > 1,
+      showProxy: Boolean(row.out.proxy),
     });
   }
   if (row.in) {
@@ -58,6 +64,7 @@ function facesFromRow(row: SwapGlanceRow): FaceSlot[] {
       card: row.in,
       pairRole: 'in',
       showQuantity: row.in.quantity > 1,
+      showProxy: false,
     });
   }
   return faces;
@@ -120,13 +127,15 @@ function packRows(
 function placementsFromUnits(
   units: PackedUnit[],
   cardW: number,
-): SwapGlancePlacement[] {
+): { placements: SwapGlancePlacement[]; connectors: SwapGlanceConnector[] } {
   const cardH = cardHeightForWidth(cardW);
   const placements: SwapGlancePlacement[] = [];
+  const connectors: SwapGlanceConnector[] = [];
   for (const unit of units) {
     const faces = facesFromRow(unit.row);
     let fx = unit.x;
-    for (const face of faces) {
+    for (let i = 0; i < faces.length; i++) {
+      const face = faces[i]!;
       placements.push({
         card: face.card,
         x: Math.round(fx),
@@ -134,18 +143,34 @@ function placementsFromUnits(
         width: cardW,
         height: cardH,
         showQuantity: face.showQuantity,
+        showProxy: face.showProxy,
         pairRole: face.pairRole,
       });
-      fx += cardW + (faces.length > 1 ? PAIR_INNER_GAP : 0);
+      const next = faces[i + 1];
+      if (!next) continue;
+      if (face.pairRole === 'out' && next.pairRole === 'in') {
+        connectors.push({
+          x: Math.round(fx + cardW),
+          y: Math.round(unit.y),
+          width: PAIR_INNER_GAP,
+          height: cardH,
+        });
+      }
+      fx += cardW + PAIR_INNER_GAP;
     }
   }
-  return placements;
+  return { placements, connectors };
 }
 
 function tryLayout(
   includeSet: SwapGlanceIncludeSet,
   cardW: number,
-): { labels: SwapGlanceLabel[]; placements: SwapGlancePlacement[]; fits: boolean } | null {
+): {
+  labels: SwapGlanceLabel[];
+  placements: SwapGlancePlacement[];
+  connectors: SwapGlanceConnector[];
+  fits: boolean;
+} | null {
   const contentTop = SWAP_GLANCE_TITLE_HEIGHT + CONTENT_MARGIN_Y;
   const contentBottom = SWAP_GLANCE_CANVAS_HEIGHT - SWAP_GLANCE_WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
   const contentLeft = CONTENT_MARGIN_X;
@@ -162,6 +187,7 @@ function tryLayout(
     },
   ];
   const placements: SwapGlancePlacement[] = [];
+  const connectors: SwapGlanceConnector[] = [];
 
   // Equal vertical budget per section (simple + predictable)
   const sectionCount = includeSet.sections.length;
@@ -191,7 +217,9 @@ function tryLayout(
       bandHeight,
       cardW,
     );
-    placements.push(...placementsFromUnits(packed.units, cardW));
+    const placed = placementsFromUnits(packed.units, cardW);
+    placements.push(...placed.placements);
+    connectors.push(...placed.connectors);
     if (packed.omitted > 0) {
       anyOmitted = true;
       labels.push({
@@ -204,7 +232,7 @@ function tryLayout(
     cursorY += sectionBudget + SECTION_GAP;
   }
 
-  return { labels, placements, fits: !anyOmitted && placements.length > 0 };
+  return { labels, placements, connectors, fits: !anyOmitted && placements.length > 0 };
 }
 
 /**
@@ -214,12 +242,20 @@ function tryLayout(
 export function buildSwapGlanceLayoutPlan(
   includeSet: SwapGlanceIncludeSet,
 ): SwapGlanceLayoutPlan {
-  let best: { labels: SwapGlanceLabel[]; placements: SwapGlancePlacement[] } | null = null;
+  let best: {
+    labels: SwapGlanceLabel[];
+    placements: SwapGlancePlacement[];
+    connectors: SwapGlanceConnector[];
+  } | null = null;
 
   for (let cardW = SWAP_GLANCE_CARD_WIDTH; cardW >= MIN_CARD_WIDTH; cardW -= 4) {
     const attempt = tryLayout(includeSet, cardW);
     if (!attempt) continue;
-    best = { labels: attempt.labels, placements: attempt.placements };
+    best = {
+      labels: attempt.labels,
+      placements: attempt.placements,
+      connectors: attempt.connectors,
+    };
     if (attempt.fits) break;
   }
 
@@ -227,7 +263,11 @@ export function buildSwapGlanceLayoutPlan(
     // Absolute fallback: title only + first few faces at min size
     const attempt = tryLayout(includeSet, MIN_CARD_WIDTH);
     best = attempt
-      ? { labels: attempt.labels, placements: attempt.placements }
+      ? {
+          labels: attempt.labels,
+          placements: attempt.placements,
+          connectors: attempt.connectors,
+        }
       : {
           labels: [
             {
@@ -238,6 +278,7 @@ export function buildSwapGlanceLayoutPlan(
             },
           ],
           placements: [],
+          connectors: [],
         };
   }
 
@@ -245,10 +286,12 @@ export function buildSwapGlanceLayoutPlan(
     layoutVersion: SWAP_GLANCE_GENERATION_VERSION,
     canvasWidth: SWAP_GLANCE_CANVAS_WIDTH,
     canvasHeight: SWAP_GLANCE_CANVAS_HEIGHT,
+    filterSetCodes: includeSet.filterSetCodes || [],
     labels: best.labels,
     placements: best.placements,
+    connectors: best.connectors,
     fingerprint: swapGlanceFingerprint(includeSet),
   };
 }
 
-export { SECTION_HEADER_HEIGHT, MIN_CARD_WIDTH };
+export { SECTION_HEADER_HEIGHT, MIN_CARD_WIDTH, PAIR_INNER_GAP, PAIR_GROUP_GAP };

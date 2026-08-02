@@ -3,13 +3,14 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument, WantSource } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import { SwapsGlanceDialog } from '../../packages/web/src/swap-queue/SwapsGlanceDialog';
 import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postSwapsGlance = vi.fn(async () => ({
   blob: new Blob(['png'], { type: 'image/png' }),
   cache: 'MISS',
-  generation: 'swap-glance-gen-1',
+  generation: 'swap-glance-gen-2',
   delivery: 'inline' as const,
 }));
 
@@ -161,5 +162,28 @@ describe('Swaps at a glance dialog', () => {
       await screen.findByRole('img', { name: 'Swaps at a glance preview' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+  });
+
+  it('posts setCodes when provided', async () => {
+    const user = userEvent.setup();
+    const deck = buildGlanceSwapCommanderDeck({ deckId: 'sq-glance-sets' });
+    const sources = sourcesFromDeck(deck).filter((s) => s.kind === 'queued_in');
+    render(
+      <SwapsGlanceDialog
+        open
+        sources={sources}
+        setCodes={['MH3', 'MSC']}
+        onClose={() => undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(postSwapsGlance).toHaveBeenCalled());
+    expect(postSwapsGlance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setCodes: ['MH3', 'MSC'],
+        mode: 'in_only',
+      }),
+    );
   });
 });

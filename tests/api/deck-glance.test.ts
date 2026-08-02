@@ -16,6 +16,7 @@ const TEST_CARD_IMAGE = Buffer.from(
 
 const renderOptions = {
   skipArtEnrichment: true,
+  fastPng: true,
   imageLoader: async () => new Uint8Array(TEST_CARD_IMAGE),
 };
 

@@ -31,6 +31,8 @@ export type GlanceCard = {
   imageUrl: string | null;
   isBasicLand: boolean;
   isLand: boolean;
+  /** Unofficial / proxy copy; used by swap glance Out badges. */
+  proxy?: boolean;
 };
 
 export type GlanceIncludeSet = {

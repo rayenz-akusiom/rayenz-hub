@@ -1,6 +1,7 @@
 import {
   buildSwapGlanceIncludeSet,
   buildSwapGlanceLayoutPlan,
+  normalizeSetCodes,
   SWAP_GLANCE_GENERATION_VERSION,
   type DeckDocument,
   type SwapGlanceMode,
@@ -43,6 +44,7 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
       ok: true;
       mode: SwapGlanceMode;
       includeSeeking: boolean;
+      setCodes: string[];
       items: SwapGlanceRequestItem[];
     }
   | { ok: false; message: string } {
@@ -61,6 +63,7 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
   const raw = parsed as {
     mode?: unknown;
     includeSeeking?: unknown;
+    setCodes?: unknown;
     items?: unknown;
   };
   if (raw.mode !== 'full' && raw.mode !== 'in_only') {
@@ -71,6 +74,13 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
   }
   if (!Array.isArray(raw.items)) {
     return { ok: false, message: 'items must be an array' };
+  }
+  let setCodes: string[] = [];
+  if (raw.setCodes != null) {
+    if (!Array.isArray(raw.setCodes) || raw.setCodes.some((c) => typeof c !== 'string')) {
+      return { ok: false, message: 'setCodes must be an array of strings' };
+    }
+    setCodes = normalizeSetCodes(raw.setCodes as string[]);
   }
   const items: SwapGlanceRequestItem[] = [];
   for (const entry of raw.items) {
@@ -100,6 +110,7 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
     ok: true,
     mode: raw.mode,
     includeSeeking: raw.includeSeeking,
+    setCodes,
     items,
   };
 }
@@ -130,6 +141,7 @@ export async function handleSwapsGlance(
     const includeResult = buildSwapGlanceIncludeSet(decks, request.items, {
       mode: request.mode,
       includeSeeking: request.includeSeeking,
+      filterSetCodes: request.setCodes,
     });
     if (!includeResult.ok) {
       return errorResponse(400, includeResult.message, includeResult.code);
@@ -157,7 +169,10 @@ export async function handleSwapsGlance(
         : await enrichSwapGlancePlanArt(plan, allCards, fetchImpl);
       const imageCache = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
       const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
-      png = await renderSwapGlancePng(renderPlan, { imageLoader });
+      png = await renderSwapGlancePng(renderPlan, {
+        imageLoader,
+        fastPng: options.fastPng,
+      });
       await cache.put(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint, png);
     }
 

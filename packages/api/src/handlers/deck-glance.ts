@@ -108,7 +108,10 @@ export async function handleDeckGlance(
         : await enrichGlancePlanArt(plan, deck.cards || [], fetchImpl);
       const imageCache = await prefetchGlanceImages(renderPlan, fetchImpl);
       const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
-      png = await renderGlancePng(renderPlan, { imageLoader });
+      png = await renderGlancePng(renderPlan, {
+        imageLoader,
+        fastPng: options.fastPng,
+      });
       await cache.put(GLANCE_GENERATION_VERSION, plan.fingerprint, png);
     }
 

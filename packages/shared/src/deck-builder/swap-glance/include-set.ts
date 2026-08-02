@@ -61,6 +61,7 @@ function toSwapGlanceCard(card: CardInstance, doc: DeckDocument): SwapGlanceCard
     imageUrl,
     isBasicLand: basic,
     isLand: isLandType(typeLine, basic),
+    proxy: Boolean(card.proxy),
   };
 }
 
@@ -119,6 +120,9 @@ export function buildSwapGlanceIncludeSet(
   options: BuildSwapGlanceOptions,
 ): BuildSwapGlanceIncludeSetResult {
   const { mode, includeSeeking } = options;
+  const filterSetCodes = Array.isArray(options.filterSetCodes)
+    ? options.filterSetCodes.map((c) => String(c || '').trim().toUpperCase()).filter(Boolean)
+    : [];
   const deckById = new Map((decks || []).map((d) => [d.deckId, d]));
 
   for (const item of items || []) {
@@ -235,7 +239,7 @@ export function buildSwapGlanceIncludeSet(
 
   return {
     ok: true,
-    includeSet: { mode, includeSeeking, sections },
+    includeSet: { mode, includeSeeking, filterSetCodes, sections },
   };
 }
 

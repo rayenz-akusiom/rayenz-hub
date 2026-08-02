@@ -8,6 +8,7 @@ function cardIdentity(card: {
   setCode: string | null;
   collectorNumber: string | null;
   quantity: number;
+  proxy?: boolean;
 }): string {
   return [
     card.instanceId,
@@ -15,13 +16,18 @@ function cardIdentity(card: {
     (card.setCode || '').toLowerCase(),
     card.collectorNumber || '',
     String(card.quantity),
+    card.proxy ? '1' : '0',
   ].join('|');
 }
 
 export function canonicalSwapGlanceMaterial(includeSet: SwapGlanceIncludeSet): string {
+  const codes = (includeSet.filterSetCodes || [])
+    .map((c) => String(c || '').trim().toUpperCase())
+    .filter(Boolean);
   const lines: string[] = [
     `mode:${includeSet.mode}`,
     `seeking:${includeSet.includeSeeking ? '1' : '0'}`,
+    `sets:${codes.join(',')}`,
   ];
   for (const section of includeSet.sections) {
     lines.push(`section:${section.deckId}|${section.headerText}`);

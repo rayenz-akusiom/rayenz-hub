@@ -11,10 +11,12 @@ import { apiPostSwapsGlance } from './swaps-glance-api';
 type Props = {
   open: boolean;
   sources: WantSource[];
+  /** Active Scryfall set-filter codes (shown on the PNG footer). */
+  setCodes?: string[];
   onClose: () => void;
 };
 
-export function SwapsGlanceDialog({ open, sources, onClose }: Props) {
+export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Props) {
   const [mode, setMode] = useState<SwapGlanceMode>('in_only');
   const [includeSeeking, setIncludeSeeking] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,12 @@ export function SwapsGlanceDialog({ open, sources, onClose }: Props) {
     resetPreview();
     try {
       const items = selectSwapGlanceItems(sources, { mode, includeSeeking });
-      const result = await apiPostSwapsGlance({ mode, includeSeeking, items });
+      const result = await apiPostSwapsGlance({
+        mode,
+        includeSeeking,
+        setCodes: setCodes.length ? setCodes : undefined,
+        items,
+      });
       const url = URL.createObjectURL(result.blob);
       setPngBlob(result.blob);
       setPreviewUrl(url);
@@ -71,7 +78,7 @@ export function SwapsGlanceDialog({ open, sources, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [apiReady, includeSeeking, itemCount, mode, resetPreview, sources]);
+  }, [apiReady, includeSeeking, itemCount, mode, resetPreview, setCodes, sources]);
 
   const onDownload = useCallback(() => {
     if (!pngBlob) return;

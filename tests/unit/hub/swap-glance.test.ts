@@ -4,10 +4,12 @@ import {
   buildSwapGlanceIncludeSet,
   buildSwapGlanceLayoutPlan,
   countSwapGlanceItems,
+  PAIR_INNER_GAP,
   selectSwapGlanceItems,
   SWAP_GLANCE_CANVAS_HEIGHT,
   SWAP_GLANCE_CANVAS_WIDTH,
   SWAP_GLANCE_GENERATION_VERSION,
+  swapGlanceFingerprint,
   swapGlanceHeaderText,
   type DeckDocument,
 } from '@rayenz-hub/shared';
@@ -23,6 +25,15 @@ function withSeeking(deck: DeckDocument, instanceId: string, entryId = 'seek-1')
       ...(deck.lookingForEntries || []),
       { id: entryId, instanceId, sortIndex: 0, notes: null },
     ],
+  };
+}
+
+function withProxyOut(deck: DeckDocument): DeckDocument {
+  return {
+    ...deck,
+    cards: (deck.cards || []).map((c) =>
+      c.instanceId === 'spell-0' ? { ...c, proxy: true } : c,
+    ),
   };
 }
 
@@ -126,6 +137,94 @@ describe('swap glance include-set + layout', () => {
     expect(a.labels.some((l) => l.role === 'title')).toBe(true);
     expect(a.labels.some((l) => l.role === 'section')).toBe(true);
     expect(a.placements.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('full mode packs Out→In with a connector slot and pair gap', () => {
+    const deck = buildGlanceSwapCommanderDeck();
+    const items = selectSwapGlanceItems(aggregateSwapWants([deck]), {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    const include = buildSwapGlanceIncludeSet([deck], items, {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+
+    const plan = buildSwapGlanceLayoutPlan(include.includeSet);
+    expect(plan.connectors.length).toBeGreaterThanOrEqual(1);
+    expect(plan.connectors[0]!.width).toBe(PAIR_INNER_GAP);
+
+    const out = plan.placements.find((p) => p.pairRole === 'out');
+    const inn = plan.placements.find((p) => p.pairRole === 'in');
+    expect(out).toBeTruthy();
+    expect(inn).toBeTruthy();
+    expect(inn!.x - (out!.x + out!.width)).toBe(PAIR_INNER_GAP);
+  });
+
+  it('shows proxy badge on Out faces only when card.proxy', () => {
+    const deck = withProxyOut(buildGlanceSwapCommanderDeck());
+    const items = selectSwapGlanceItems(aggregateSwapWants([deck]), {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    const include = buildSwapGlanceIncludeSet([deck], items, {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+
+    const pair = include.includeSet.sections[0]!.rows.find((r) => r.kind === 'pair');
+    expect(pair?.kind === 'pair' && pair.out?.proxy).toBe(true);
+    expect(pair?.kind === 'pair' && pair.in?.proxy).toBe(false);
+
+    const plan = buildSwapGlanceLayoutPlan(include.includeSet);
+    const out = plan.placements.find((p) => p.pairRole === 'out');
+    const inn = plan.placements.find((p) => p.pairRole === 'in');
+    expect(out?.showProxy).toBe(true);
+    expect(inn?.showProxy).toBe(false);
+  });
+
+  it('fingerprint changes when filterSetCodes or Out proxy flips', () => {
+    const deck = buildGlanceSwapCommanderDeck();
+    const items = selectSwapGlanceItems(aggregateSwapWants([deck]), {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    const base = buildSwapGlanceIncludeSet([deck], items, {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    expect(base.ok).toBe(true);
+    if (!base.ok) return;
+
+    const withSets = buildSwapGlanceIncludeSet([deck], items, {
+      mode: 'full',
+      includeSeeking: false,
+      filterSetCodes: ['mh3', 'msc'],
+    });
+    expect(withSets.ok).toBe(true);
+    if (!withSets.ok) return;
+    expect(withSets.includeSet.filterSetCodes).toEqual(['MH3', 'MSC']);
+    expect(swapGlanceFingerprint(withSets.includeSet)).not.toBe(
+      swapGlanceFingerprint(base.includeSet),
+    );
+
+    const plan = buildSwapGlanceLayoutPlan(withSets.includeSet);
+    expect(plan.filterSetCodes).toEqual(['MH3', 'MSC']);
+
+    const proxied = withProxyOut(deck);
+    const withProxy = buildSwapGlanceIncludeSet([proxied], items, {
+      mode: 'full',
+      includeSeeking: false,
+    });
+    expect(withProxy.ok).toBe(true);
+    if (!withProxy.ok) return;
+    expect(swapGlanceFingerprint(withProxy.includeSet)).not.toBe(
+      swapGlanceFingerprint(base.includeSet),
+    );
   });
 
   it('returns SWAP_GLANCE_EMPTY when items resolve to nothing', () => {

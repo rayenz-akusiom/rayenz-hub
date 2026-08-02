@@ -389,6 +389,104 @@ async function drawWatermark(canvasWidth: number): Promise<Buffer> {
   return sharp(strip).composite([{ input: text, left: 0, top: 0 }]).png().toBuffer();
 }
 
+/** Swap-glance footer: optional set codes on the left, Rayenz on the right. */
+async function drawSwapWatermark(
+  canvasWidth: number,
+  filterSetCodes: string[],
+): Promise<Buffer> {
+  const sharp = await loadSharp();
+  const strip = await sharp({
+    create: {
+      width: canvasWidth,
+      height: SWAP_GLANCE_WATERMARK_HEIGHT,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0.35 },
+    },
+  })
+    .png()
+    .toBuffer();
+
+  ensureFontconfig();
+  const fontPath = watermarkFontPath();
+  let fontB64 = fontBase64Cache.get(fontPath);
+  if (!fontB64 && existsSync(fontPath)) {
+    fontB64 = readFileSync(fontPath).toString('base64');
+    fontBase64Cache.set(fontPath, fontB64);
+  }
+  const family = 'GlanceWatermark';
+  const codes = (filterSetCodes || [])
+    .map((c) => String(c || '').trim().toUpperCase())
+    .filter(Boolean);
+  const leftText = codes.length ? codes.join(', ') : '';
+  const textSvg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${SWAP_GLANCE_WATERMARK_HEIGHT}">` +
+    (fontB64
+      ? `<defs><style><![CDATA[@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${fontB64}) format('truetype');}]]></style></defs>`
+      : '') +
+    (leftText
+      ? `<text x="${TITLE_PAD_X}" y="36" text-anchor="start" ` +
+        `font-family="${family}" font-size="28" fill="${TEXT_INK_LIGHT}">${escapeXml(leftText)}</text>`
+      : '') +
+    `<text x="${canvasWidth - TITLE_PAD_X}" y="36" text-anchor="end" ` +
+    `font-family="${family}" font-size="32" fill="${TEXT_INK_LIGHT}">Rayenz</text></svg>`;
+  const text = await sharp(Buffer.from(textSvg)).png().toBuffer();
+  return sharp(strip).composite([{ input: text, left: 0, top: 0 }]).png().toBuffer();
+}
+
+/** Mirrors web `.db-badge-proxy` + ProxyIcon (filled sketch card). */
+async function drawProxyBadge(cardWidth: number): Promise<{ input: Buffer; width: number; height: number }> {
+  const sharp = await loadSharp();
+  const height = Math.max(18, Math.round(cardWidth * 0.19));
+  const width = height;
+  const pad = Math.max(2, Math.round(height * 0.18));
+  const icon = height - pad * 2;
+  const iconX = pad;
+  const iconY = pad;
+  // Scale ProxyIcon 16×16 viewBox into icon box
+  const s = icon / 16;
+  const badgeSvg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1">` +
+      `<stop offset="0%" stop-color="#6b7280"/>` +
+      `<stop offset="45%" stop-color="#d1d5db"/>` +
+      `<stop offset="100%" stop-color="#4b5563"/>` +
+      `</linearGradient></defs>` +
+      `<rect x="0" y="0" width="${width}" height="${height}" rx="${Math.round(height * 0.22)}" fill="url(#pg)"/>` +
+      `<g transform="translate(${iconX},${iconY}) scale(${s})" fill="none" stroke="#111827">` +
+      `<rect x="3.25" y="1.75" width="9.5" height="12.5" rx="1.2" fill="#111827" fill-opacity="0.18" ` +
+      `stroke-width="1.15" stroke-dasharray="2.2 1.4"/>` +
+      `<path stroke-width="1" stroke-linecap="round" opacity="0.7" d="M5.5 5.2h5M5.5 7.5h3.8M5.5 9.8h4.2"/>` +
+      `<path stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" d="M11.2 11.6 12.6 13.4l1.1-.35"/>` +
+      `</g></svg>`,
+  );
+  const input = await sharp(badgeSvg).png().toBuffer();
+  return { input, width, height };
+}
+
+async function drawPairConnector(
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const sharp = await loadSharp();
+  const arrowW = Math.max(14, Math.min(width - 4, Math.round(width * 0.7)));
+  const arrowH = Math.max(10, Math.round(Math.min(height * 0.12, arrowW * 0.55)));
+  const cx = width / 2;
+  const cy = height / 2;
+  const left = cx - arrowW / 2;
+  const right = cx + arrowW / 2;
+  const tip = Math.max(6, Math.round(arrowH * 0.55));
+  const stroke = Math.max(2, Math.round(arrowH * 0.28));
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<line x1="${left}" y1="${cy}" x2="${right - tip * 0.35}" y2="${cy}" ` +
+      `stroke="${TEXT_INK_DARK}" stroke-width="${stroke}" stroke-linecap="round"/>` +
+      `<polygon points="${right},${cy} ${right - tip},${cy - tip * 0.65} ${right - tip},${cy + tip * 0.65}" ` +
+      `fill="${TEXT_INK_DARK}"/>` +
+      `</svg>`,
+  );
+  return sharp(svg).png().toBuffer();
+}
+
 async function drawLabel(text: string): Promise<Buffer> {
   return drawTextRaster({
     text,
@@ -414,7 +512,19 @@ async function drawBackdrop(backdrop: GlanceBackdrop): Promise<Buffer> {
 
 export type RenderGlanceOptions = {
   imageLoader?: GlanceImageLoader;
+  /**
+   * Low-effort PNG encode for unit/API tests. Production keeps max quality.
+   * Does not change pixels for a given composite tree — only encode speed/size.
+   */
+  fastPng?: boolean;
 };
+
+const PROD_PNG = { compressionLevel: 9, effort: 10, adaptiveFiltering: true } as const;
+const FAST_PNG = { compressionLevel: 1, effort: 1, adaptiveFiltering: false } as const;
+
+function pngEncodeOptions(fastPng?: boolean) {
+  return fastPng ? FAST_PNG : PROD_PNG;
+}
 
 export async function renderGlancePng(
   plan: GlanceLayoutPlan,
@@ -477,7 +587,7 @@ export async function renderGlancePng(
     },
   })
     .composite(composites)
-    .png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true })
+    .png(pngEncodeOptions(options.fastPng))
     .toBuffer();
 
   return new Uint8Array(png);
@@ -561,6 +671,15 @@ export async function renderSwapGlancePng(
     });
   }
 
+  for (const connector of plan.connectors || []) {
+    const arrow = await drawPairConnector(connector.width, connector.height);
+    composites.push({
+      input: arrow,
+      left: connector.x,
+      top: connector.y,
+    });
+  }
+
   for (const placement of plan.placements) {
     const tile = await loadTile(placement.card, placement.width, placement.height, loader);
     composites.push({
@@ -578,9 +697,19 @@ export async function renderSwapGlancePng(
         top: placement.y + inset,
       });
     }
+
+    if (placement.showProxy) {
+      const badge = await drawProxyBadge(placement.width);
+      const inset = Math.max(2, Math.round(placement.width * 0.03));
+      composites.push({
+        input: badge.input,
+        left: placement.x + inset,
+        top: placement.y + placement.height - badge.height - inset,
+      });
+    }
   }
 
-  const watermark = await drawWatermark(plan.canvasWidth);
+  const watermark = await drawSwapWatermark(plan.canvasWidth, plan.filterSetCodes || []);
   composites.push({
     input: watermark,
     left: 0,
@@ -596,7 +725,7 @@ export async function renderSwapGlancePng(
     },
   })
     .composite(composites)
-    .png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true })
+    .png(pngEncodeOptions(options.fastPng))
     .toBuffer();
 
   return new Uint8Array(png);

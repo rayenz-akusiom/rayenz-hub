@@ -10,6 +10,8 @@ export type SwapsGlanceResult = {
 export type SwapsGlanceRequest = {
   mode: SwapGlanceMode;
   includeSeeking: boolean;
+  /** Active set-filter codes for the plate footer (uppercase). */
+  setCodes?: string[];
   items: SwapGlanceRequestItem[];
 };
 

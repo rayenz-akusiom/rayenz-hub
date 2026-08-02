@@ -2,7 +2,7 @@ import type { GlanceCard } from '../glance/types.js';
 import type { WantSourceKind } from '../../mtg/wants-aggregate.js';
 
 /** Bump when layout, art tier, or render pipeline changes — invalidates cache. */
-export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-1';
+export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-2';
 
 export const SWAP_GLANCE_CANVAS_WIDTH = 1920;
 export const SWAP_GLANCE_CANVAS_HEIGHT = 1080;
@@ -50,6 +50,8 @@ export type SwapGlanceSection = {
 export type SwapGlanceIncludeSet = {
   mode: SwapGlanceMode;
   includeSeeking: boolean;
+  /** Active Scryfall set-filter codes shown on the footer (uppercase). */
+  filterSetCodes: string[];
   sections: SwapGlanceSection[];
 };
 
@@ -68,20 +70,35 @@ export type SwapGlancePlacement = {
   width: number;
   height: number;
   showQuantity: boolean;
+  /** Proxy badge on Out faces when the Hub card is marked proxy. */
+  showProxy: boolean;
   /** Visual pairing hint for full swaps (drawn as adjacent faces). */
   pairRole?: 'out' | 'in' | 'single';
+};
+
+/** Out → In connector between paired faces. */
+export type SwapGlanceConnector = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 export type SwapGlanceLayoutPlan = {
   layoutVersion: string;
   canvasWidth: number;
   canvasHeight: number;
+  /** Uppercase set codes for the left watermark (empty = omit). */
+  filterSetCodes: string[];
   labels: SwapGlanceLabel[];
   placements: SwapGlancePlacement[];
+  connectors: SwapGlanceConnector[];
   fingerprint: string;
 };
 
 export type BuildSwapGlanceOptions = {
   mode: SwapGlanceMode;
   includeSeeking: boolean;
+  /** Active set-filter codes to stamp on the plate footer. */
+  filterSetCodes?: string[];
 };

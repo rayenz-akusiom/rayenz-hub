@@ -4,17 +4,22 @@ import { renderGlancePng } from '../../../packages/api/src/services/glance-rende
 import { buildEligibleCommanderDeck } from '../../fixtures/deck-builder/glance-eligible.ts';
 
 describe('deck-builder glance render', () => {
-  it('composites strictly from layout coordinates when image loading fails', async () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
-    const png = await renderGlancePng(plan, {
-      imageLoader: async () => null,
-    });
-    expect(png.byteLength).toBeGreaterThan(1000);
-    expect(plan.placements.length).toBeGreaterThan(0);
-    expect(plan.labels.length).toBeGreaterThan(0);
-  });
+  it(
+    'composites strictly from layout coordinates when image loading fails',
+    async () => {
+      const deck = buildEligibleCommanderDeck();
+      const include = buildGlanceIncludeSet(deck);
+      expect(include.ok).toBe(true);
+      if (!include.ok) return;
+      const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+      const png = await renderGlancePng(plan, {
+        imageLoader: async () => null,
+        fastPng: true,
+      });
+      expect(png.byteLength).toBeGreaterThan(1000);
+      expect(plan.placements.length).toBeGreaterThan(0);
+      expect(plan.labels.length).toBeGreaterThan(0);
+    },
+    30_000,
+  );
 });

@@ -13,6 +13,7 @@ const TEST_CARD_IMAGE = Buffer.from(
 
 const renderOptions = {
   skipArtEnrichment: true,
+  fastPng: true,
   imageLoader: async () => new Uint8Array(TEST_CARD_IMAGE),
 };
 
@@ -66,6 +67,7 @@ describe('swaps glance API', () => {
     expect(first.headers?.['content-type']).toBe('image/png');
     expect(first.headers?.['x-glance-cache']).toBe('MISS');
     expect(first.headers?.['x-glance-generation']).toBe(SWAP_GLANCE_GENERATION_VERSION);
+    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-2');
     expect(first.isBase64Encoded).toBe(true);
 
     const second = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
@@ -75,6 +77,38 @@ describe('swaps glance API', () => {
     expect(second.statusCode).toBe(200);
     expect(second.headers?.['x-glance-cache']).toBe('HIT');
     expect(second.body).toBe(first.body);
+  });
+
+  it('accepts setCodes and uses a distinct cache key from no-filter', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildGlanceSwapCommanderDeck({ deckId: 'swap-glance-sets' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const blob = asBlobStore(s3);
+    const items = [{ deckId: deck.deckId, kind: 'queued_in', entryId: 'swap-1' }];
+
+    const plain = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ mode: 'full', includeSeeking: false, items }),
+      services,
+      { ...renderOptions, blobStore: blob },
+    );
+    expect(plain.statusCode).toBe(200);
+
+    const filtered = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        mode: 'full',
+        includeSeeking: false,
+        setCodes: ['mh3', 'msc'],
+        items,
+      }),
+      services,
+      { ...renderOptions, blobStore: blob },
+    );
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-2');
+    expect(filtered.headers?.['x-glance-cache']).toBe('MISS');
+    expect(filtered.body).not.toBe(plain.body);
   });
 
   it('returns 400 SWAP_GLANCE_EMPTY when entry cannot be resolved', async () => {

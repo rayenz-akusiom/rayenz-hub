@@ -8,6 +8,7 @@ import type {
 import {
   SWAP_IN,
   SWAP_OUT,
+  isSeekingCategory,
   isSwapInCategory,
   isSwapOutCategory,
   isSwapQueueCategoryName,
@@ -18,6 +19,30 @@ const MAYBEBOARD = 'Maybeboard';
 
 function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function isUsableInTargetCategory(name: string | null | undefined): boolean {
+  const n = String(name || '').trim();
+  if (!n) return false;
+  if (isSwapQueueCategoryName(n) || isSeekingCategory(n)) return false;
+  return true;
+}
+
+/**
+ * Prefer the Out card's Hub category for Place In defaults.
+ * After sync, primary may be Queued Out — fall back to the first usable secondary.
+ */
+export function inTargetCategoryFromOutCard(
+  card: CardInstance | null | undefined,
+): string | null {
+  if (!card) return null;
+  if (isUsableInTargetCategory(card.primaryCategory)) {
+    return String(card.primaryCategory).trim();
+  }
+  for (const c of card.categories || []) {
+    if (isUsableInTargetCategory(c)) return String(c).trim();
+  }
+  return null;
 }
 
 export function incompleteEntryCount(entries: FormalSwapEntry[]): number {
@@ -312,21 +337,29 @@ function newSwapEntry(sortIndex: number, outInstanceId: string | null = null): F
 /**
  * Queue card instance IDs as Out: fill the first empty out slots (by sortIndex), then
  * append uneven pairs. Skips IDs already used as an outInstanceId.
+ * When `categoryForOut` is provided and an entry's inTargetCategory is null, set it
+ * from that callback for newly assigned Outs.
  */
 export function addCardsToSwapQueueAsOut(
   entries: FormalSwapEntry[],
   instanceIds: string[],
+  opts?: { categoryForOut?: (instanceId: string) => string | null },
 ): FormalSwapEntry[] {
   const next = normalizeFormalEntries(entries);
   const usedOut = new Set(next.map((e) => e.outInstanceId).filter(Boolean) as string[]);
+  const categoryForOut = opts?.categoryForOut;
 
   for (const id of instanceIds || []) {
     if (!id || usedOut.has(id)) continue;
     const emptyIdx = next.findIndex((e) => !e.outInstanceId);
     if (emptyIdx >= 0) {
-      next[emptyIdx] = { ...next[emptyIdx]!, outInstanceId: id };
+      const prev = next[emptyIdx]!;
+      const inTargetCategory =
+        prev.inTargetCategory ?? (categoryForOut ? categoryForOut(id) : null) ?? null;
+      next[emptyIdx] = { ...prev, outInstanceId: id, inTargetCategory };
     } else {
-      next.push(newSwapEntry(next.length, id));
+      const inTargetCategory = (categoryForOut ? categoryForOut(id) : null) ?? null;
+      next.push({ ...newSwapEntry(next.length, id), inTargetCategory });
     }
     usedOut.add(id);
   }
@@ -336,7 +369,10 @@ export function addCardsToSwapQueueAsOut(
 
 /** Queue cards as Out and sync live deck categories (Outs leave the counted deck). */
 export function queueCardsAsOut(deck: DeckDocument, instanceIds: string[]): DeckDocument {
-  const entries = addCardsToSwapQueueAsOut(deck.formalSwapEntries, instanceIds);
+  const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));
+  const entries = addCardsToSwapQueueAsOut(deck.formalSwapEntries, instanceIds, {
+    categoryForOut: (id) => inTargetCategoryFromOutCard(byId.get(id)),
+  });
   return syncCardsWithFormalSwaps(deck, entries);
 }
 

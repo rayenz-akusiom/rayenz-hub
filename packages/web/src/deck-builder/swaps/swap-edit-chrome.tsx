@@ -4,6 +4,7 @@ import {
   cardDisplayName,
   categoryIncluded,
   defaultAddCategory,
+  inTargetCategoryFromOutCard,
   isSwapQueueCategory,
   resolveDeckCards,
   type DeckDocument,
@@ -142,7 +143,13 @@ export function SwapEditChrome({
 
   function pickOut() {
     openOutCardPicker(deck, draft.outInstanceId, (instanceId) => {
-      onDraftChange({ outInstanceId: instanceId });
+      const patch: Partial<SwapEditDraft> = { outInstanceId: instanceId };
+      if (!draft.inTargetCategory) {
+        const card = deck.cards.find((c) => c.instanceId === instanceId);
+        const category = inTargetCategoryFromOutCard(card);
+        if (category) patch.inTargetCategory = category;
+      }
+      onDraftChange(patch);
     });
   }
 

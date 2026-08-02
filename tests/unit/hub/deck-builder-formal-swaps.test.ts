@@ -5,6 +5,7 @@ import {
   finalizeFormalSwap,
   formalSwapInIds,
   incompleteEntryCount,
+  inTargetCategoryFromOutCard,
   normalizeFormalEntries,
   queueCardsAsOut,
   seedFormalSwapsFromCategories,
@@ -150,6 +151,91 @@ describe('formal swaps', () => {
       expect(next[0]!.outInstanceId).toBe('out1');
       expect(next[1]!.outInstanceId).toBe('out2');
     });
+
+    it('sets inTargetCategory from categoryForOut when unset', () => {
+      const next = addCardsToSwapQueueAsOut([], ['c1'], {
+        categoryForOut: (id) => (id === 'c1' ? 'Ramp' : null),
+      });
+      expect(next[0]!.inTargetCategory).toBe('Ramp');
+    });
+
+    it('preserves an existing inTargetCategory when filling an empty Out slot', () => {
+      const next = addCardsToSwapQueueAsOut(
+        [
+          {
+            id: 's1',
+            inInstanceId: 'in1',
+            outInstanceId: null,
+            inTargetCategory: 'Instant',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+        ['out1'],
+        { categoryForOut: () => 'Creature' },
+      );
+      expect(next[0]!.outInstanceId).toBe('out1');
+      expect(next[0]!.inTargetCategory).toBe('Instant');
+    });
+  });
+
+  describe('inTargetCategoryFromOutCard', () => {
+    it('returns primary when it is a real Hub category', () => {
+      expect(
+        inTargetCategoryFromOutCard({
+          instanceId: 'c1',
+          name: 'Sol Ring',
+          quantity: 1,
+          primaryCategory: 'Ramp',
+          categories: ['Ramp'],
+          stack: null,
+          setCode: null,
+          collectorNumber: null,
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        }),
+      ).toBe('Ramp');
+    });
+
+    it('falls back to the first non-swap secondary after Queued Out', () => {
+      expect(
+        inTargetCategoryFromOutCard({
+          instanceId: 'c1',
+          name: 'Sol Ring',
+          quantity: 1,
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out', 'Artifact'],
+          stack: null,
+          setCode: null,
+          collectorNumber: null,
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        }),
+      ).toBe('Artifact');
+    });
+
+    it('returns null when only swap/Seeking categories remain', () => {
+      expect(
+        inTargetCategoryFromOutCard({
+          instanceId: 'c1',
+          name: 'Sol Ring',
+          quantity: 1,
+          primaryCategory: 'Queued Out',
+          categories: ['Queued Out'],
+          stack: null,
+          setCode: null,
+          collectorNumber: null,
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        }),
+      ).toBeNull();
+    });
   });
 
   describe('formalSwapInIds', () => {
@@ -192,14 +278,36 @@ describe('formal swaps', () => {
 
     it('moves Out to Queued Out and drops deck size by one', () => {
       const before = deckSize(baseDeck);
-      const outId = baseDeck.cards[0]!.instanceId;
+      const outCard = baseDeck.cards[0]!;
+      const outId = outCard.instanceId;
       const next = queueCardsAsOut(baseDeck, [outId]);
-      const outCard = next.cards.find((c) => c.instanceId === outId)!;
-      expect(outCard.primaryCategory).toBe('Queued Out');
+      const queued = next.cards.find((c) => c.instanceId === outId)!;
+      expect(queued.primaryCategory).toBe('Queued Out');
+      expect(next.formalSwapEntries[0]!.inTargetCategory).toBe(outCard.primaryCategory);
       expect(next.categories.some((c) => c.name === 'Queued Out' && c.includedInDeck === false)).toBe(
         true,
       );
       expect(deckSize(next)).toBe(before - 1);
+    });
+
+    it('does not overwrite a pre-set inTargetCategory when filling an empty Out slot', () => {
+      const outCard = baseDeck.cards[0]!;
+      const staged: DeckDocument = {
+        ...baseDeck,
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: null,
+            outInstanceId: null,
+            inTargetCategory: 'Instant',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      };
+      const next = queueCardsAsOut(staged, [outCard.instanceId]);
+      expect(next.formalSwapEntries[0]!.outInstanceId).toBe(outCard.instanceId);
+      expect(next.formalSwapEntries[0]!.inTargetCategory).toBe('Instant');
     });
 
     it('splits a basic land stack so only one copy leaves the deck', () => {

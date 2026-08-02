@@ -358,6 +358,7 @@ describe('BrowseShell selection and context menu', () => {
     const onChange = vi.fn();
     const deck = foilDeck();
     const card = deck.cards[0]!;
+    const expectedCategory = card.primaryCategory;
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
 
@@ -371,6 +372,7 @@ describe('BrowseShell selection and context menu', () => {
           expect.objectContaining({
             inInstanceId: null,
             outInstanceId: card.instanceId,
+            inTargetCategory: expectedCategory,
             sortIndex: 0,
           }),
         ],
@@ -566,8 +568,8 @@ describe('SwapQueuePanel', () => {
   });
 
   it('keeps a pair when only Out matches set membership and hides non-matching pairs', () => {
-    const inCard = commanderDoc.cards[0]!;
-    const outCard = commanderDoc.cards[1]!;
+    const inCard = commanderDoc.cards[1]!; // Forest — ignored by set membership
+    const outCard = commanderDoc.cards[0]!; // Birds of Paradise
     const otherCard = commanderDoc.cards[2]!;
     const deck: DeckDocument = {
       ...commanderDoc,
@@ -819,6 +821,59 @@ describe('SwapQueuePanel', () => {
     expect(onCancelEdit).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(onRemoveEdit).toHaveBeenCalled();
+  });
+
+  it('defaults Place In category from the Out card when picking Out with category unset', async () => {
+    const outCard = commanderDoc.cards[1]!;
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: null,
+          outInstanceId: null,
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const draft = {
+      entryId: 'swap-1',
+      inInstanceId: null,
+      outInstanceId: null,
+      inTargetCategory: null,
+      notes: '',
+    };
+    const onDraftChange = vi.fn();
+    const openPicker = vi.fn();
+    (window as Window & { HubCardPicker?: { open: typeof openPicker } }).HubCardPicker = {
+      open: openPicker,
+    };
+    const user = userEvent.setup();
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={draft}
+        onStartEdit={vi.fn()}
+        onDraftChange={onDraftChange}
+        onConfirmIn={vi.fn()}
+        onCancelEdit={vi.fn()}
+        onRemoveEdit={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Choose Out' }));
+    expect(openPicker).toHaveBeenCalled();
+    const onPick = openPicker.mock.calls[0]![0]!.onPick as (value: unknown) => void;
+    onPick(outCard.instanceId);
+
+    expect(onDraftChange).toHaveBeenCalledWith({
+      outInstanceId: outCard.instanceId,
+      inTargetCategory: outCard.primaryCategory,
+    });
   });
 
   it('closes edit chrome on backdrop click, not on card click', () => {

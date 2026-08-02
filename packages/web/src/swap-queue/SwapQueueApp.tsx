@@ -12,7 +12,9 @@ import {
   retargetFormalSwap,
   retargetLookingFor,
   syncCardsWithFormalSwaps,
+  toDeckSummary,
   type DeckDocument,
+  type DeckSummary,
   type PrintingFields,
   type UnifiedWantRow,
   type WantSource,
@@ -25,6 +27,7 @@ import {
 } from '../hub/routes';
 import { CardSizePicker } from '../deck-builder/CardSizePicker';
 import { useCardSize, type CardSizeKey } from '../deck-builder/card-size';
+import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
 import {
   draftFromFormalEntry,
   SwapEditChrome,
@@ -38,6 +41,7 @@ import {
 import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
 import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
+import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import '../deck-builder/deck-builder.css';
 import { findDeck, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
@@ -71,6 +75,50 @@ function HamburgerIcon() {
         fill="currentColor"
         d="M3 4.5h12v1.5H3V4.5zm0 4h12v1.5H3V8.5zm0 4h12V14H3v-1.5z"
       />
+    </svg>
+  );
+}
+
+/** Two fanned cards with “+” on the front (right) card — Add swap FAB icon. */
+function SwapAddFabIcon() {
+  return (
+    <svg
+      className="sq-add-fab-icon"
+      width="26"
+      height="26"
+      viewBox="0 0 26 26"
+      aria-hidden="true"
+    >
+      {/* Back / left card */}
+      <g transform="rotate(-12 11 13)">
+        <rect
+          x="4.5"
+          y="5.5"
+          width="11"
+          height="15"
+          rx="1.2"
+          fill="rgba(255, 255, 255, 0.85)"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+      </g>
+      {/* Front / right card with + */}
+      <g transform="rotate(12 15 13)">
+        <rect
+          x="10.5"
+          y="5.5"
+          width="11"
+          height="15"
+          rx="1.2"
+          fill="rgba(255, 255, 255, 0.95)"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          fill="currentColor"
+          d="M15.2 10.2h1.6v2.4h2.4v1.6h-2.4v2.4h-1.6v-2.4h-2.4v-1.6h2.4z"
+        />
+      </g>
     </svg>
   );
 }
@@ -273,6 +321,12 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     return [...decks]
       .map((d) => ({ deckId: d.deckId, deckName: d.name }))
       .sort((a, b) => a.deckName.localeCompare(b.deckName));
+  }, [decks]);
+
+  const libraryDeckSummaries = useMemo((): DeckSummary[] => {
+    return [...decks]
+      .map((d) => toDeckSummary(d))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [decks]);
 
   const visible = useMemo(
@@ -706,14 +760,6 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
             />
           </DbMenu>
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
-          <button
-            type="button"
-            className="db-btn"
-            disabled={!libraryDeckOptions.length}
-            onClick={() => setAddPickerOpen(true)}
-          >
-            Add
-          </button>
         </div>
         <DbMenu
           icon={<HamburgerIcon />}
@@ -782,21 +828,39 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           aria-modal="true"
           aria-label="Choose deck for new swap"
         >
-          <div className="db-modal-card" data-testid="swap-queue-add-deck">
+          <div className="db-modal-card db-modal-wide" data-testid="swap-queue-add-deck">
             <h3>Add swap</h3>
             <p className="hub-muted">Choose which deck gets the new empty pair.</p>
-            <ul className="sq-add-deck-list">
-              {libraryDeckOptions.map((opt) => (
-                <li key={opt.deckId}>
-                  <button
-                    type="button"
-                    className="db-btn"
-                    onClick={() => void createEmptySwap(opt.deckId)}
+            <ul className="sq-add-deck-grid db-library-grid">
+              {libraryDeckSummaries.map((d) => {
+                const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
+                return (
+                  <li
+                    key={d.deckId}
+                    className={`db-library-tile${dual ? ' is-partner-pair' : ''}${
+                      d.coverPartnerStatus === 'illegal' ? ' is-illegal-pair' : ''
+                    }`}
                   >
-                    {opt.deckName}
-                  </button>
-                </li>
-              ))}
+                    <button
+                      type="button"
+                      className="db-library-tile-open"
+                      aria-label={d.name}
+                      title={
+                        d.coverPartnerStatus === 'illegal'
+                          ? `${d.name} — These commanders can’t partner`
+                          : d.name
+                      }
+                      onClick={() => void createEmptySwap(d.deckId)}
+                    >
+                      <LibraryCoverArt deck={d} />
+                      <span className="db-library-tile-caption">
+                        <FormatBadge format={d.format} />
+                        <span className="db-library-tile-name">{d.name}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
             <div className="db-modal-actions">
               <button type="button" className="db-btn" onClick={() => setAddPickerOpen(false)}>
@@ -848,6 +912,17 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           onRetarget={retargetSeeking}
         />
       ) : null}
+
+      <button
+        type="button"
+        className="db-add-fab"
+        aria-label="Add swap"
+        title="Add swap"
+        disabled={!libraryDeckOptions.length}
+        onClick={() => setAddPickerOpen(true)}
+      >
+        <SwapAddFabIcon />
+      </button>
     </div>
   );
 }

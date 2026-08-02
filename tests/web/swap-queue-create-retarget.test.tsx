@@ -53,6 +53,82 @@ function emptyLibraryDeck(id: string, name: string): DeckDocument {
   };
 }
 
+/** Two classic Partner commanders with cover image URLs (library dual-tile). */
+function partnerLibraryDeck(): DeckDocument {
+  const base = emptyLibraryDeck('deck-partners', 'Partner Pair Deck');
+  return {
+    ...base,
+    categories: [
+      { name: 'Commander', includedInDeck: true, includedInPrice: true, target: null },
+      { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+    ],
+    cards: [
+      {
+        instanceId: 'cmd-a',
+        name: 'Ikra Shidiqi, the Usurper',
+        quantity: 1,
+        primaryCategory: 'Commander',
+        categories: ['Commander'],
+        stack: null,
+        setCode: null,
+        collectorNumber: null,
+        scryfallId: 'aaaa0000-0000-0000-0000-000000000001',
+        archidektCardId: null,
+        foil: false,
+        proxy: false,
+      },
+      {
+        instanceId: 'cmd-b',
+        name: 'Tymna the Weaver',
+        quantity: 1,
+        primaryCategory: 'Commander',
+        categories: ['Commander'],
+        stack: null,
+        setCode: null,
+        collectorNumber: null,
+        scryfallId: 'bbbb0000-0000-0000-0000-000000000002',
+        archidektCardId: null,
+        foil: false,
+        proxy: false,
+      },
+    ],
+    oracle: {
+      'id:aaaa0000-0000-0000-0000-000000000001': {
+        scryfallId: 'aaaa0000-0000-0000-0000-000000000001',
+        colourIdentity: ['B', 'G'],
+        colours: null,
+        typeLine: 'Legendary Creature — Naga Wizard',
+        layout: 'normal',
+        keywords: ['Partner'],
+        partnerWith: null,
+        oracleText: null,
+        printedName: null,
+        flavorName: null,
+        manaValue: 5,
+        imageUrl: 'https://example.com/ikra.jpg',
+        finishes: null,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'id:bbbb0000-0000-0000-0000-000000000002': {
+        scryfallId: 'bbbb0000-0000-0000-0000-000000000002',
+        colourIdentity: ['W', 'B'],
+        colours: null,
+        typeLine: 'Legendary Creature — Human Cleric',
+        layout: 'normal',
+        keywords: ['Partner'],
+        partnerWith: null,
+        oracleText: null,
+        printedName: null,
+        flavorName: null,
+        manaValue: 3,
+        imageUrl: 'https://example.com/tymna.jpg',
+        finishes: null,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    },
+  };
+}
+
 function pairDeckA(): DeckDocument {
   const base = emptyLibraryDeck('deck-a', 'Alpha Deck');
   return syncCardsWithFormalSwaps(
@@ -140,8 +216,8 @@ describe('SwapQueueApp create and retarget', () => {
     const user = userEvent.setup();
     render(<SwapQueueApp />);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add swap' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Add swap' }));
 
     const picker = await screen.findByTestId('swap-queue-add-deck');
     await user.click(within(picker).getByRole('button', { name: 'Alpha Deck' }));
@@ -155,6 +231,30 @@ describe('SwapQueueApp create and retarget', () => {
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
     );
+  });
+
+  it('Add swap picker shows partner-pair library tiles', async () => {
+    const partners = partnerLibraryDeck();
+    const solo = emptyLibraryDeck('deck-solo', 'Solo Deck');
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [partners, solo],
+      sources: [],
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add swap' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Add swap' }));
+
+    const picker = await screen.findByTestId('swap-queue-add-deck');
+    const partnerTile = within(picker)
+      .getByRole('button', { name: 'Partner Pair Deck' })
+      .closest('li');
+    expect(partnerTile).toHaveClass('is-partner-pair');
+    expect(partnerTile?.querySelector('.db-library-tile-art.is-partner-pair')).toBeTruthy();
+
+    const soloTile = within(picker).getByRole('button', { name: 'Solo Deck' }).closest('li');
+    expect(soloTile).not.toHaveClass('is-partner-pair');
   });
 
   it('retargets a formal pair to another deck and clears Out immediately', async () => {

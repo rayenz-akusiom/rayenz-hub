@@ -565,6 +565,75 @@ describe('SwapQueuePanel', () => {
     expect(onStartEdit).toHaveBeenCalledWith(deck.formalSwapEntries[0]);
   });
 
+  it('keeps a pair when only Out matches set membership and hides non-matching pairs', () => {
+    const inCard = commanderDoc.cards[0]!;
+    const outCard = commanderDoc.cards[1]!;
+    const otherCard = commanderDoc.cards[2]!;
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-keep',
+          inInstanceId: inCard.instanceId,
+          outInstanceId: outCard.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+        {
+          id: 'swap-drop',
+          inInstanceId: otherCard.instanceId,
+          outInstanceId: null,
+          inTargetCategory: 'Instant',
+          sortIndex: 1,
+          notes: null,
+        },
+      ],
+    };
+    const membership = new Set([String(outCard.name).toLowerCase()]);
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={null}
+        {...panelProps}
+        setMembership={membership}
+      />,
+    );
+
+    expect(screen.getByText('→ Creature')).toBeInTheDocument();
+    expect(screen.queryByText('→ Instant')).not.toBeInTheDocument();
+  });
+
+  it('shows set-filter empty hint when no pairs match', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={null}
+        {...panelProps}
+        setMembership={new Set(['not-a-real-card-name'])}
+      />,
+    );
+
+    expect(screen.getByText('No swap pairings match the set filter.')).toBeInTheDocument();
+  });
+
   it('freezes preview pair tiles to aside size while popout stays at Medium', async () => {
     localStorage.setItem('rayenzHubPickerCardSize', 'L');
     window.dispatchEvent(new CustomEvent('rayenz-hub-card-size', { detail: 'L' }));

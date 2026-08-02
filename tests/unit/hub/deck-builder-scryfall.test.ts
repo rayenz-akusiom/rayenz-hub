@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addCardToDeck,
   applyPrintingToCard,
+  buildInSetQuery,
   buildPrintingsSearchUrl,
   buildSearchUrl,
   changeCardPrinting,
+  clearInSetMembershipCache,
   clearScryfallPrintCache,
   collectionIdentifierForCard,
   defaultAddCategory,
   fetchCardsCollection,
+  fetchInSetMembership,
   fetchPrintings,
   getOracle,
   mapScryfallCardToPrinting,
@@ -30,6 +33,7 @@ const sampleCard = {
 
 beforeEach(() => {
   clearScryfallPrintCache();
+  clearInSetMembershipCache();
 });
 
 afterEach(() => {
@@ -43,10 +47,57 @@ describe('scryfall URL builders', () => {
     expect(buildSearchUrl('sol ring', 1)).not.toContain('page=');
   });
 
+  it('builds search urls with unique=cards for in-set membership', () => {
+    const url = buildSearchUrl(buildInSetQuery(['CMM']), 1, { unique: 'cards' });
+    expect(url).toContain('unique=cards');
+    expect(url).toContain('in%3Acmm');
+  });
+
   it('builds exact-name printings search', () => {
     const url = buildPrintingsSearchUrl('Sol Ring');
     expect(url).toContain('unique=prints');
     expect(url).toMatch(/q=%21%22Sol[+%20]Ring%22/);
+  });
+});
+
+describe('fetchInSetMembership', () => {
+  it('pages unique=cards results into a name set and caches', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: '1', name: 'Sol Ring', set: 'cmm', collector_number: '1' },
+            {
+              id: '2',
+              name: 'Delver of Secrets // Insectile Aberration',
+              set: 'cmm',
+              collector_number: '2',
+            },
+          ],
+          has_more: true,
+          next_page: 'https://api.scryfall.com/cards/search?page=2',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: '3', name: 'Ponder', set: 'cmm', collector_number: '3' }],
+          has_more: false,
+          next_page: null,
+        }),
+      });
+
+    const first = await fetchInSetMembership('cmm', { fetchImpl, delayMs: 0 });
+    expect(first.has('sol ring')).toBe(true);
+    expect(first.has('ponder')).toBe(true);
+    expect(first.has('delver of secrets')).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    const cached = await fetchInSetMembership('CMM', { fetchImpl, delayMs: 0 });
+    expect(cached).toBe(first);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
 

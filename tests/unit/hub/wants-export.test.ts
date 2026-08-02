@@ -3,9 +3,16 @@ import {
   buildArchidektWantsText,
   buildNameQtyWantsText,
   filterWantSources,
+  formalSwapMatchesSetMembership,
   passesDeckFilter,
   passesPriceFilter,
+  passesSetFilter,
 } from '../../../packages/shared/src/mtg/wants-export.ts';
+import {
+  buildInSetQuery,
+  cardMatchesSetMembership,
+  normalizeSetCodes,
+} from '../../../packages/shared/src/deck-builder/scryfall-api.ts';
 import type { WantSource } from '../../../packages/shared/src/mtg/wants-aggregate.ts';
 
 function src(over: Partial<WantSource> & Pick<WantSource, 'cardName' | 'mergeKey' | 'quantity'>): WantSource {
@@ -97,5 +104,148 @@ describe('wants-export', () => {
     const nameQty = buildNameQtyWantsText(sources);
     expect(nameQty).toContain('3 Sol Ring');
     expect(nameQty).not.toContain('//');
+  });
+
+  it('passes set filter when membership null or empty', () => {
+    const s = src({ cardName: 'Sol Ring', mergeKey: 'sol ring', quantity: 1 });
+    expect(passesSetFilter(s, null)).toBe(true);
+    expect(passesSetFilter(s, new Set())).toBe(true);
+  });
+
+  it('keeps both sides of a swap when either face matches set membership', () => {
+    const membership = new Set(['sol ring']);
+    const queuedIn = src({
+      kind: 'queued_in',
+      entryId: 'pair-1',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const queuedOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-1',
+      cardName: 'Worn Powerstone',
+      mergeKey: 'worn powerstone',
+      quantity: 1,
+      cardInstanceId: 'out1',
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const otherOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-2',
+      cardName: 'Island',
+      mergeKey: 'island',
+      quantity: 1,
+      cardInstanceId: 'out2',
+    });
+    const visible = filterWantSources([queuedIn, queuedOut, otherOut], {
+      minUsd: null,
+      setMembership: membership,
+    });
+    expect(visible.map((s) => `${s.kind}:${s.cardName}`).sort()).toEqual([
+      'queued_in:Sol Ring',
+      'queued_out:Worn Powerstone',
+    ]);
+  });
+
+  it('filters seeking individually by set membership', () => {
+    const membership = new Set(['counterspell']);
+    const a = src({
+      kind: 'seeking',
+      cardName: 'Counterspell',
+      mergeKey: 'counterspell',
+      quantity: 1,
+      entryId: 's1',
+    });
+    const b = src({
+      kind: 'seeking',
+      cardName: 'Ponder',
+      mergeKey: 'ponder',
+      quantity: 1,
+      entryId: 's2',
+    });
+    expect(
+      filterWantSources([a, b], { minUsd: null, setMembership: membership }).map((s) => s.cardName),
+    ).toEqual(['Counterspell']);
+  });
+
+  it('matches formal swaps when either side is in membership', () => {
+    const membership = new Set(['sol ring']);
+    const names: Record<string, string> = {
+      in1: 'Ponder',
+      out1: 'Sol Ring',
+    };
+    expect(
+      formalSwapMatchesSetMembership(
+        { inInstanceId: 'in1', outInstanceId: 'out1' },
+        (id) => (id ? names[id] : null),
+        membership,
+      ),
+    ).toBe(true);
+    expect(
+      formalSwapMatchesSetMembership(
+        { inInstanceId: 'in1', outInstanceId: null },
+        (id) => (id ? names[id] : null),
+        membership,
+      ),
+    ).toBe(false);
+    expect(
+      formalSwapMatchesSetMembership(
+        { inInstanceId: 'in1', outInstanceId: 'out1' },
+        (id) => (id ? names[id] : null),
+        null,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('scryfall in-set helpers', () => {
+  it('normalizes set codes and builds in: query', () => {
+    expect(normalizeSetCodes('mh3, MSC mh3')).toEqual(['MH3', 'MSC']);
+    expect(buildInSetQuery(['MH3'])).toBe('in:mh3');
+    expect(buildInSetQuery(['MH3', 'MSC'])).toBe('(in:mh3 OR in:msc)');
+  });
+
+  it('matches card names and DFC front faces against membership', () => {
+    const membership = new Set(['delver of secrets', 'insectile aberration']);
+    expect(cardMatchesSetMembership('Delver of Secrets', membership)).toBe(true);
+    expect(cardMatchesSetMembership('Delver of Secrets // Insectile Aberration', membership)).toBe(
+      true,
+    );
+    expect(cardMatchesSetMembership('Ponder', membership)).toBe(false);
+    expect(cardMatchesSetMembership('Ponder', null)).toBe(true);
+  });
+
+  it('ignores basic lands even when they appear in membership', () => {
+    const membership = new Set(['forest', 'sol ring', 'snow-covered island']);
+    expect(cardMatchesSetMembership('Forest', membership)).toBe(false);
+    expect(cardMatchesSetMembership('Snow-Covered Island', membership)).toBe(false);
+    expect(cardMatchesSetMembership('Sol Ring', membership)).toBe(true);
+    expect(cardMatchesSetMembership('Forest', null)).toBe(true);
+  });
+
+  it('does not keep a swap pair that only matches via a basic land', () => {
+    const membership = new Set(['forest', 'island']);
+    const queuedIn = src({
+      kind: 'queued_in',
+      entryId: 'pair-land',
+      cardName: 'Ponder',
+      mergeKey: 'ponder',
+      quantity: 1,
+    });
+    const queuedOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-land',
+      cardName: 'Forest',
+      mergeKey: 'forest',
+      quantity: 1,
+      cardInstanceId: 'out1',
+    });
+    expect(
+      filterWantSources([queuedIn, queuedOut], { minUsd: null, setMembership: membership }),
+    ).toEqual([]);
   });
 });

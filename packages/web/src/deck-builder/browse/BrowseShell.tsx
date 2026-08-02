@@ -13,6 +13,7 @@ import {
   addCardToDeck,
   addSecondaryCategory,
   cardDisplayName,
+  cardMatchesSetMembership,
   cardSupportsFoilToggle,
   categoryTargetsMismatchCubeSize,
   changeCardPrinting,
@@ -65,6 +66,7 @@ import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
+import { useSetMembershipFilter } from '../ui/SetFilterControl';
 
 function BookIcon() {
   return (
@@ -125,6 +127,7 @@ export function BrowseShell({
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
+  const setFilter = useSetMembershipFilter();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
   const visibleOrder = useMemo(
@@ -164,6 +167,16 @@ export function BrowseShell({
   const selectionCount = selectedCards.length;
   const multi = selectionCount > 1;
   const primarySelected = selectedCards[0] || null;
+
+  /** Browse-only view with set membership applied; mutations still use full `deck`. */
+  const browseDeck = useMemo((): DeckDocument => {
+    if (!setFilter.active || !setFilter.membership) return deck;
+    const membership = setFilter.membership;
+    return {
+      ...deck,
+      cards: deck.cards.filter((c) => cardMatchesSetMembership(c.name, membership)),
+    };
+  }, [deck, setFilter.active, setFilter.membership]);
 
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
@@ -646,6 +659,7 @@ export function BrowseShell({
           cardSize={cardSize}
           onCardSizeChange={setCardSize}
           onOpenCategories={() => setCategoriesOpen(true)}
+          setFilter={setFilter}
         />
         <DeckActionsMenu
           deck={deck}
@@ -736,9 +750,11 @@ export function BrowseShell({
               </div>
             </div>
           ) : null}
+          {setFilter.error ? <p className="db-warn">{setFilter.error}</p> : null}
+          {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
           {isUnifiedListView ? (
             <UnifiedListBrowse
-              deck={deck}
+              deck={browseDeck}
               onSelectInstance={onSelectUnifiedInstance}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
@@ -746,7 +762,7 @@ export function BrowseShell({
             />
           ) : isColourIdentityView ? (
             <ColourIdentityBrowse
-              deck={deck}
+              deck={browseDeck}
               selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout={layout}
@@ -761,7 +777,7 @@ export function BrowseShell({
             />
           ) : (
             <CategoryBrowse
-              deck={deck}
+              deck={browseDeck}
               selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout={layout}
@@ -811,6 +827,7 @@ export function BrowseShell({
           >
             <SwapQueuePanel
               deck={deck}
+              setMembership={setFilter.active ? setFilter.membership : null}
               onChange={(next) => {
                 commit(syncCardsWithFormalSwaps(deckRef.current, next.formalSwapEntries));
               }}
@@ -828,7 +845,7 @@ export function BrowseShell({
               onFinalizeEdit={finalizeSwapEdit}
             />
             <CategoryBrowse
-              deck={deck}
+              deck={browseDeck}
               selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               layout="stacked"

@@ -1,5 +1,6 @@
 import type { CardInstance } from '../schemas/deck-builder.js';
 import { normalizeColourIdentity, type ColourLetter } from './color-identity-map.js';
+import { isBasicLand } from './quantities.js';
 import { scryfallImageFromId } from './scryfall-images.js';
 
 const SCYFALL_API = 'https://api.scryfall.com';
@@ -63,6 +64,7 @@ export type PrintingFields = {
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};
+const inSetMembershipCache = new Map<string, ReadonlySet<string>>();
 
 export function clearScryfallPrintCache(): void {
   for (const key of Object.keys(printCache)) {
@@ -70,10 +72,71 @@ export function clearScryfallPrintCache(): void {
   }
 }
 
-export function buildSearchUrl(query: string, page = 1): string {
+export function clearInSetMembershipCache(): void {
+  inSetMembershipCache.clear();
+}
+
+/** Parse comma/whitespace set codes → uppercase unique list. */
+export function normalizeSetCodes(input: string | string[] | null | undefined): string[] {
+  const raw = Array.isArray(input)
+    ? input.join(' ')
+    : String(input || '');
+  const seen = new Set<string>();
+  const codes: string[] = [];
+  for (const part of raw.split(/[,\s]+/)) {
+    const code = part.trim().toUpperCase();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    codes.push(code);
+  }
+  return codes;
+}
+
+export function normalizeSetCodesKey(codes: string[]): string {
+  return [...normalizeSetCodes(codes)].sort().join(',');
+}
+
+/** Scryfall `in:` OR query for one or more set codes. */
+export function buildInSetQuery(codes: string[]): string {
+  const normalized = normalizeSetCodes(codes);
+  if (!normalized.length) return '';
+  if (normalized.length === 1) return `in:${normalized[0]!.toLowerCase()}`;
+  return `(${normalized.map((c) => `in:${c.toLowerCase()}`).join(' OR ')})`;
+}
+
+export function normalizeCardNameForSetMatch(name: string): string {
+  return String(name || '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * True when filter is off, or when the card's English name (or DFC front face)
+ * appears in the Scryfall `in:` membership set.
+ * Basic lands never match — they appear in nearly every set, so they are not useful.
+ */
+export function cardMatchesSetMembership(
+  cardName: string,
+  membership: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (membership == null || membership.size === 0) return true;
+  if (isBasicLand({ name: cardName })) return false;
+  const full = normalizeCardNameForSetMatch(cardName);
+  if (!full) return false;
+  if (membership.has(full)) return true;
+  const front = full.split(' // ')[0]?.trim() || '';
+  return Boolean(front && membership.has(front));
+}
+
+export function buildSearchUrl(
+  query: string,
+  page = 1,
+  opts?: { unique?: 'cards' | 'prints' | 'art' },
+): string {
   const q = String(query || '').trim();
   const url = new URL(`${SCYFALL_API}/cards/search`);
   url.searchParams.set('q', q);
+  if (opts?.unique) url.searchParams.set('unique', opts.unique);
   if (page > 1) url.searchParams.set('page', String(page));
   return url.toString();
 }
@@ -242,7 +305,11 @@ export async function fetchCardsCollection(
 export async function searchCards(
   query: string,
   page = 1,
-  opts?: { fetchImpl?: typeof fetch; delayMs?: number },
+  opts?: {
+    fetchImpl?: typeof fetch;
+    delayMs?: number;
+    unique?: 'cards' | 'prints' | 'art';
+  },
 ): Promise<ScryfallSearchPage> {
   const q = String(query || '').trim();
   if (!q) {
@@ -252,7 +319,7 @@ export async function searchCards(
   if (page > 1) {
     await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
   }
-  const res = await fetchImpl(buildSearchUrl(q, page), {
+  const res = await fetchImpl(buildSearchUrl(q, page, { unique: opts?.unique }), {
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
@@ -273,6 +340,61 @@ export async function searchCards(
     next_page: json.next_page || null,
     total_cards: json.total_cards,
   };
+}
+
+function addNameToMembership(names: Set<string>, rawName: string): void {
+  const full = normalizeCardNameForSetMatch(rawName);
+  if (!full) return;
+  names.add(full);
+  const front = full.split(' // ')[0]?.trim() || '';
+  if (front) names.add(front);
+}
+
+/**
+ * Fetch oracle card names that appear in the given sets via Scryfall `in:<set>`.
+ * Results are cached by normalized codes key for the session.
+ */
+export async function fetchInSetMembership(
+  codes: string | string[],
+  opts?: {
+    fetchImpl?: typeof fetch;
+    delayMs?: number;
+    forceRefresh?: boolean;
+    signal?: AbortSignal;
+  },
+): Promise<ReadonlySet<string>> {
+  const normalized = normalizeSetCodes(codes);
+  if (!normalized.length) return new Set();
+  const key = normalizeSetCodesKey(normalized);
+  if (!opts?.forceRefresh) {
+    const cached = inSetMembershipCache.get(key);
+    if (cached) return cached;
+  }
+
+  const query = buildInSetQuery(normalized);
+  const names = new Set<string>();
+  const searchOpts = {
+    fetchImpl: opts?.fetchImpl,
+    delayMs: opts?.delayMs,
+    unique: 'cards' as const,
+  };
+
+  let page = await searchCards(query, 1, searchOpts);
+  for (const card of page.data) addNameToMembership(names, card.name);
+
+  while (page.has_more && page.next_page) {
+    if (opts?.signal?.aborted) {
+      throw new Error('Set membership fetch aborted.');
+    }
+    page = await searchCardsNextPage(page.next_page, {
+      fetchImpl: opts?.fetchImpl,
+      delayMs: opts?.delayMs,
+    });
+    for (const card of page.data) addNameToMembership(names, card.name);
+  }
+
+  inSetMembershipCache.set(key, names);
+  return names;
 }
 
 export async function searchCardsNextPage(

@@ -42,6 +42,7 @@ import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
 import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
+import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
 import '../deck-builder/deck-builder.css';
 import { findDeck, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
@@ -254,6 +255,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [minUsd, setMinUsd] = useState<number | null>(null);
   const [minUsdInput, setMinUsdInput] = useState('');
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>([]);
+  const setFilter = useSetMembershipFilter();
   const [status, setStatus] = useState('');
   const [interstitial, setInterstitial] = useState<UnifiedWantRow | null>(null);
   const [editing, setEditing] = useState<WantSource | null>(null);
@@ -334,8 +336,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       filterWantSources(sources, {
         minUsd,
         deckIds: selectedDeckIds.length ? selectedDeckIds : null,
+        setMembership: setFilter.active ? setFilter.membership : null,
       }),
-    [sources, minUsd, selectedDeckIds],
+    [sources, minUsd, selectedDeckIds, setFilter.active, setFilter.membership],
   );
 
   const lanes = useMemo(() => partitionWantSourcesBySwimlane(visible), [visible]);
@@ -710,7 +713,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const hasAny =
     lanes.seeking.length + lanes.queued_in.length + lanes.queued_out.length > 0;
   const hasUnfiltered = sources.length > 0;
-  const filtersActive = minUsd != null || selectedDeckIds.length > 0;
+  const filtersActive =
+    minUsd != null || selectedDeckIds.length > 0 || setFilter.active;
 
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
@@ -759,6 +763,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               onChange={setSelectedDeckIds}
             />
           </DbMenu>
+          <SetFilterMenu filter={setFilter} />
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
         </div>
         <DbMenu
@@ -788,6 +793,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
       {status ? <p className="hub-muted" role="status">{status}</p> : null}
       {apiWarning ? <p className="db-warn">{apiWarning}</p> : null}
+      {setFilter.error ? <p className="hub-error">{setFilter.error}</p> : null}
+      {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
       {error ? <p className="hub-error">{error}</p> : null}
       {loading ? <p className="hub-muted">Loading library…</p> : null}
 

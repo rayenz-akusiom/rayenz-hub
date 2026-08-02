@@ -1631,6 +1631,46 @@ body,
   cursor: not-allowed;
 }
 
+.db-set-filter {
+  min-width: 12rem;
+  max-width: 16rem;
+  padding: 0.45rem 0.65rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.db-set-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.db-set-filter-label input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+}
+
+.db-set-filter-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--db-muted, #666);
+}
+
+.db-set-filter-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.db-set-filter-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--db-danger, #b00020);
+}
+
 .db-selection-bar {
   display: flex;
   gap: 0.5rem;

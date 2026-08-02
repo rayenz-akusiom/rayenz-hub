@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  formalSwapMatchesSetMembership,
   incompleteEntryCount,
   newFormalSwapEntry,
   resolveDeckCards,
@@ -137,6 +138,7 @@ export function SwapQueuePanel({
   onCancelEdit,
   onRemoveEdit,
   onFinalizeEdit,
+  setMembership = null,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
@@ -147,10 +149,23 @@ export function SwapQueuePanel({
   onCancelEdit: () => void;
   onRemoveEdit: () => void;
   onFinalizeEdit?: () => void;
+  /** Scryfall `in:` membership; pairs show when either side matches. */
+  setMembership?: ReadonlySet<string> | null;
 }) {
-  const entries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
-  const incomplete = incompleteEntryCount(entries);
+  const allEntries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
+  const entries = allEntries.filter((entry) =>
+    formalSwapMatchesSetMembership(
+      entry,
+      (instanceId) => {
+        if (!instanceId) return null;
+        return byId.get(instanceId)?.name ?? null;
+      },
+      setMembership,
+    ),
+  );
+  const incomplete = incompleteEntryCount(allEntries);
+  const filteredOut = allEntries.length > 0 && entries.length === 0;
 
   function updateEntries(next: FormalSwapEntry[]) {
     onChange(syncCardsWithFormalSwaps(deck, next));
@@ -168,7 +183,9 @@ export function SwapQueuePanel({
         <button
           type="button"
           className="db-btn"
-          onClick={() => updateEntries([...entries, newFormalSwapEntry(entries.length)])}
+          onClick={() =>
+            updateEntries([...allEntries, newFormalSwapEntry(allEntries.length)])
+          }
         >
           Add
         </button>
@@ -194,7 +211,11 @@ export function SwapQueuePanel({
           );
         })}
       </ul>
-      {!entries.length ? <p className="db-empty">No swap pairings yet.</p> : null}
+      {filteredOut ? (
+        <p className="db-empty">No swap pairings match the set filter.</p>
+      ) : !entries.length ? (
+        <p className="db-empty">No swap pairings yet.</p>
+      ) : null}
 
       {draft ? (
         <SwapEditChrome

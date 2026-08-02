@@ -3,6 +3,7 @@ import { CARD_SORT_MODE_LABELS } from '@rayenz-hub/shared';
 import { CardSizePicker } from '../CardSizePicker';
 import type { CardSizeKey } from '../card-size';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
+import { SetFilterMenu, type SetMembershipFilterState } from '../ui/SetFilterControl';
 
 const VIEW_LABELS: Record<BrowseView, string> = {
   category: 'Categories',
@@ -36,6 +37,7 @@ export function ExportBar({
   cardSize,
   onCardSizeChange,
   onOpenCategories,
+  setFilter,
 }: {
   view: BrowseView;
   onViewChange: (next: BrowseView) => void;
@@ -46,6 +48,7 @@ export function ExportBar({
   cardSize: CardSizeKey;
   onCardSizeChange: (next: CardSizeKey) => void;
   onOpenCategories?: () => void;
+  setFilter?: SetMembershipFilterState;
 }) {
   return (
     <div className="db-toolbar-controls">
@@ -100,6 +103,7 @@ export function ExportBar({
           </DbMenuItem>
         ))}
       </DbMenu>
+      {setFilter ? <SetFilterMenu filter={setFilter} /> : null}
       <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
       {onOpenCategories ? (
         <button type="button" className="db-btn" onClick={onOpenCategories}>

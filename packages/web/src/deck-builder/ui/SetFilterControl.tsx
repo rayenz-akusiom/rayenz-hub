@@ -25,7 +25,7 @@ export type SetMembershipFilterState = {
   active: boolean;
 };
 
-/** Session-only Scryfall `in:` membership filter state. */
+/** Session-only Scryfall `in:` / `set:` membership filter state. */
 export function useSetMembershipFilter(): SetMembershipFilterState {
   const [setCodesInput, setSetCodesInput] = useState('');
   const [appliedCodes, setAppliedCodes] = useState<string[]>([]);
@@ -123,7 +123,7 @@ export function SetFilterMenuControl({
           }}
         />
       </label>
-      <p className="db-set-filter-hint">Scryfall in: — card appears in set</p>
+      <p className="db-set-filter-hint">Scryfall in:/set: — appears in or printed in set</p>
       <div className="db-set-filter-actions">
         <button type="button" className="db-btn" disabled={loading} onClick={onApply}>
           {loading ? 'Loading…' : 'Apply'}

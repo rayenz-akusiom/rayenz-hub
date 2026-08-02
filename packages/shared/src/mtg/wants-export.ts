@@ -11,7 +11,7 @@ export type WantsPriceFilter = {
   /** null or empty = filter off (show all decks) */
   deckIds?: string[] | null;
   /**
-   * Scryfall `in:` membership (normalized card names). null/empty = filter off.
+   * Scryfall set membership (`in:` ∪ `set:` normalized card names). null/empty = filter off.
    * Pair filtering uses {@link filterWantSources} either-side rule for queued faces.
    */
   setMembership?: ReadonlySet<string> | null;
@@ -57,7 +57,7 @@ function pairKey(source: WantSource): string {
 }
 
 /**
- * Filter wants by price/deck, then by Scryfall `in:` membership.
+ * Filter wants by price/deck, then by Scryfall set membership (`in:` ∪ `set:`).
  * For queued_in/queued_out pairs, keep **both** sides when either face matches.
  * Seeking rows must match individually.
  */

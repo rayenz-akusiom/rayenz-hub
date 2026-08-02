@@ -51,6 +51,7 @@ describe('scryfall URL builders', () => {
     const url = buildSearchUrl(buildInSetQuery(['CMM']), 1, { unique: 'cards' });
     expect(url).toContain('unique=cards');
     expect(url).toContain('in%3Acmm');
+    expect(url).toContain('set%3Acmm');
   });
 
   it('builds exact-name printings search', () => {

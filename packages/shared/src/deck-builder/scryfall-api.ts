@@ -96,12 +96,19 @@ export function normalizeSetCodesKey(codes: string[]): string {
   return [...normalizeSetCodes(codes)].sort().join(',');
 }
 
-/** Scryfall `in:` OR query for one or more set codes. */
+/**
+ * Scryfall membership query for one or more set codes.
+ * Uses `(in:code OR set:code)` per code so spoiler-season gaps in the `in:`
+ * index still match via `set:` printings.
+ */
 export function buildInSetQuery(codes: string[]): string {
   const normalized = normalizeSetCodes(codes);
   if (!normalized.length) return '';
-  if (normalized.length === 1) return `in:${normalized[0]!.toLowerCase()}`;
-  return `(${normalized.map((c) => `in:${c.toLowerCase()}`).join(' OR ')})`;
+  const parts = normalized.flatMap((c) => {
+    const code = c.toLowerCase();
+    return [`in:${code}`, `set:${code}`];
+  });
+  return `(${parts.join(' OR ')})`;
 }
 
 export function normalizeCardNameForSetMatch(name: string): string {
@@ -112,7 +119,7 @@ export function normalizeCardNameForSetMatch(name: string): string {
 
 /**
  * True when filter is off, or when the card's English name (or DFC front face)
- * appears in the Scryfall `in:` membership set.
+ * appears in the Scryfall set-membership name set (`in:` ∪ `set:`).
  * Basic lands never match — they appear in nearly every set, so they are not useful.
  */
 export function cardMatchesSetMembership(
@@ -351,7 +358,7 @@ function addNameToMembership(names: Set<string>, rawName: string): void {
 }
 
 /**
- * Fetch oracle card names that appear in the given sets via Scryfall `in:<set>`.
+ * Fetch oracle card names for the given sets via Scryfall `(in:|set:)` per code.
  * Results are cached by normalized codes key for the session.
  */
 export async function fetchInSetMembership(

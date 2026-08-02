@@ -203,10 +203,10 @@ describe('wants-export', () => {
 });
 
 describe('scryfall in-set helpers', () => {
-  it('normalizes set codes and builds in: query', () => {
+  it('normalizes set codes and builds in:/set: query', () => {
     expect(normalizeSetCodes('mh3, MSC mh3')).toEqual(['MH3', 'MSC']);
-    expect(buildInSetQuery(['MH3'])).toBe('in:mh3');
-    expect(buildInSetQuery(['MH3', 'MSC'])).toBe('(in:mh3 OR in:msc)');
+    expect(buildInSetQuery(['MH3'])).toBe('(in:mh3 OR set:mh3)');
+    expect(buildInSetQuery(['MH3', 'MSC'])).toBe('(in:mh3 OR set:mh3 OR in:msc OR set:msc)');
   });
 
   it('matches card names and DFC front faces against membership', () => {

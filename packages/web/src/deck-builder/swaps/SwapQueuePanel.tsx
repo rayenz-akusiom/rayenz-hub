@@ -149,7 +149,7 @@ export function SwapQueuePanel({
   onCancelEdit: () => void;
   onRemoveEdit: () => void;
   onFinalizeEdit?: () => void;
-  /** Scryfall `in:` membership; pairs show when either side matches. */
+  /** Scryfall set membership (`in:`/`set:`); pairs show when either side matches. */
   setMembership?: ReadonlySet<string> | null;
 }) {
   const allEntries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);

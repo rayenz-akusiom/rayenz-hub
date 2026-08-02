@@ -1,0 +1,97 @@
+import { describe, expect, it } from 'vitest';
+import { SWAP_GLANCE_GENERATION_VERSION } from '@rayenz-hub/shared';
+import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
+import { handleSwapsGlance } from '../../packages/api/src/handlers/swaps-glance.ts';
+import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
+import { asBlobStore } from './helpers/test-blob-store.ts';
+import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
+
+const TEST_CARD_IMAGE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+const renderOptions = {
+  skipArtEnrichment: true,
+  imageLoader: async () => new Uint8Array(TEST_CARD_IMAGE),
+};
+
+describe('swaps glance API', () => {
+  it('returns 400 for invalid body', async () => {
+    const { services, s3 } = createMemoryStores();
+    const opts = { ...renderOptions, blobStore: asBlobStore(s3) };
+    const badJson = await handleSwapsGlance(TEST_AUTH_HEADERS, '{oops', services, opts);
+    expect(badJson.statusCode).toBe(400);
+
+    const badShape = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ mode: 'nope', includeSeeking: true, items: [] }),
+      services,
+      opts,
+    );
+    expect(badShape.statusCode).toBe(400);
+  });
+
+  it('returns 404 when a referenced deck is missing', async () => {
+    const { services, s3 } = createMemoryStores();
+    const res = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        mode: 'in_only',
+        includeSeeking: false,
+        items: [{ deckId: 'missing', kind: 'queued_in', entryId: 'e1' }],
+      }),
+      services,
+      { ...renderOptions, blobStore: asBlobStore(s3) },
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns PNG bytes and cache HIT on second call', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildGlanceSwapCommanderDeck({ deckId: 'swap-glance-1' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const blob = asBlobStore(s3);
+    const body = JSON.stringify({
+      mode: 'full',
+      includeSeeking: false,
+      items: [{ deckId: deck.deckId, kind: 'queued_in', entryId: 'swap-1' }],
+    });
+
+    const first = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
+      ...renderOptions,
+      blobStore: blob,
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers?.['content-type']).toBe('image/png');
+    expect(first.headers?.['x-glance-cache']).toBe('MISS');
+    expect(first.headers?.['x-glance-generation']).toBe(SWAP_GLANCE_GENERATION_VERSION);
+    expect(first.isBase64Encoded).toBe(true);
+
+    const second = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
+      ...renderOptions,
+      blobStore: blob,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.headers?.['x-glance-cache']).toBe('HIT');
+    expect(second.body).toBe(first.body);
+  });
+
+  it('returns 400 SWAP_GLANCE_EMPTY when entry cannot be resolved', async () => {
+    const { services, s3 } = createMemoryStores();
+    const deck = buildGlanceSwapCommanderDeck({ deckId: 'swap-glance-empty' });
+    await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    const res = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        mode: 'in_only',
+        includeSeeking: false,
+        items: [{ deckId: deck.deckId, kind: 'queued_in', entryId: 'nope' }],
+      }),
+      services,
+      { ...renderOptions, blobStore: asBlobStore(s3) },
+    );
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body)).code).toBe('SWAP_GLANCE_EMPTY');
+  });
+});

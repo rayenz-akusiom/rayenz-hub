@@ -1,5 +1,17 @@
-import type { GlanceBackdrop, GlanceCard, GlanceLayoutPlan } from '@rayenz-hub/shared';
-import { BACKGROUND, HEADER_HEIGHT, WATERMARK_HEIGHT } from '@rayenz-hub/shared';
+import type {
+  GlanceBackdrop,
+  GlanceCard,
+  GlanceLayoutPlan,
+  SwapGlanceLayoutPlan,
+} from '@rayenz-hub/shared';
+import {
+  BACKGROUND,
+  HEADER_HEIGHT,
+  SWAP_GLANCE_BACKGROUND,
+  SWAP_GLANCE_TITLE_HEIGHT,
+  SWAP_GLANCE_WATERMARK_HEIGHT,
+  WATERMARK_HEIGHT,
+} from '@rayenz-hub/shared';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -462,6 +474,125 @@ export async function renderGlancePng(
       height: plan.canvasHeight,
       channels: 3,
       background: BACKGROUND,
+    },
+  })
+    .composite(composites)
+    .png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true })
+    .toBuffer();
+
+  return new Uint8Array(png);
+}
+
+async function drawSwapGlanceLabel(
+  text: string,
+  role: 'title' | 'section' | 'more',
+  maxWidth: number,
+): Promise<Buffer> {
+  if (role === 'title') {
+    return drawTextRaster({
+      text,
+      fontPath: sansFontPath(),
+      width: Math.max(200, maxWidth),
+      height: 56,
+      ink: TEXT_INK_LIGHT,
+      fontFamily: 'GlanceSans',
+      fontSize: TITLE_FONT_SIZE,
+    });
+  }
+  if (role === 'section') {
+    return drawTextRaster({
+      text,
+      fontPath: sansFontPath(),
+      width: Math.max(200, maxWidth),
+      height: 28,
+      ink: TEXT_INK_DARK,
+      fontFamily: 'GlanceSans',
+      fontSize: 22,
+    });
+  }
+  return drawTextRaster({
+    text,
+    fontPath: sansFontPath(),
+    width: Math.max(80, maxWidth),
+    height: 22,
+    ink: TEXT_INK_DARK,
+    fontFamily: 'GlanceSans',
+    fontSize: 16,
+  });
+}
+
+async function drawSwapTitleStrip(canvasWidth: number): Promise<Buffer> {
+  const sharp = await loadSharp();
+  return sharp({
+    create: {
+      width: canvasWidth,
+      height: SWAP_GLANCE_TITLE_HEIGHT,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0.35 },
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+/** Render a multi-deck swaps-at-a-glance plate. */
+export async function renderSwapGlancePng(
+  plan: SwapGlanceLayoutPlan,
+  options: RenderGlanceOptions = {},
+): Promise<Uint8Array> {
+  ensureFontconfig();
+  const sharp = await loadSharp();
+  const loader = options.imageLoader ?? defaultImageLoader;
+  const composites: import('sharp').OverlayOptions[] = [];
+
+  const titleStrip = await drawSwapTitleStrip(plan.canvasWidth);
+  composites.push({ input: titleStrip, left: 0, top: 0 });
+
+  for (const label of plan.labels) {
+    const maxWidth =
+      label.role === 'title'
+        ? plan.canvasWidth - label.x - 24
+        : plan.canvasWidth - label.x - 24;
+    const tile = await drawSwapGlanceLabel(label.text, label.role, maxWidth);
+    composites.push({
+      input: tile,
+      left: label.x,
+      top: label.y,
+    });
+  }
+
+  for (const placement of plan.placements) {
+    const tile = await loadTile(placement.card, placement.width, placement.height, loader);
+    composites.push({
+      input: tile,
+      left: placement.x,
+      top: placement.y,
+    });
+
+    if (placement.showQuantity) {
+      const badge = await drawQuantityBadge(placement.card.quantity, placement.width);
+      const inset = Math.max(2, Math.round(placement.width * 0.03));
+      composites.push({
+        input: badge.input,
+        left: placement.x + placement.width - badge.width - inset,
+        top: placement.y + inset,
+      });
+    }
+  }
+
+  const watermark = await drawWatermark(plan.canvasWidth);
+  composites.push({
+    input: watermark,
+    left: 0,
+    top: plan.canvasHeight - SWAP_GLANCE_WATERMARK_HEIGHT,
+  });
+
+  const png = await sharp({
+    create: {
+      width: plan.canvasWidth,
+      height: plan.canvasHeight,
+      channels: 3,
+      background: SWAP_GLANCE_BACKGROUND,
     },
   })
     .composite(composites)

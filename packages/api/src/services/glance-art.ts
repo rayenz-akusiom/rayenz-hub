@@ -6,6 +6,7 @@ import {
   scryfallImageFromId,
   type GlanceCard,
   type GlanceLayoutPlan,
+  type SwapGlanceLayoutPlan,
 } from '@rayenz-hub/shared';
 
 export const SCRYFALL_USER_AGENT = 'RayenzHub/1.0 (deck-glance; +https://github.com/rayenz-hub)';
@@ -116,6 +117,75 @@ export async function enrichGlancePlanArt(
   });
 
   return { ...plan, placements };
+}
+
+/** Enrich swap-glance placements via the same Scryfall CDN / collection path as deck glance. */
+export async function enrichSwapGlancePlanArt(
+  plan: SwapGlanceLayoutPlan,
+  deckCards: Array<{
+    instanceId: string;
+    name: string;
+    setCode: string | null;
+    collectorNumber: string | null;
+    scryfallId?: string | null;
+  }>,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SwapGlanceLayoutPlan> {
+  const asGlance: GlanceLayoutPlan = {
+    layoutVersion: plan.layoutVersion,
+    canvasWidth: plan.canvasWidth,
+    canvasHeight: plan.canvasHeight,
+    deckName: null,
+    titlePips: [],
+    labels: [],
+    backdrops: [],
+    placements: plan.placements.map((p) => ({
+      card: p.card,
+      region: 'nonland' as const,
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+      zIndex: 0,
+      showQuantity: p.showQuantity,
+    })),
+    fingerprint: plan.fingerprint,
+  };
+  const enriched = await enrichGlancePlanArt(asGlance, deckCards, fetchImpl);
+  return {
+    ...plan,
+    placements: plan.placements.map((p, i) => ({
+      ...p,
+      card: enriched.placements[i]?.card ?? p.card,
+    })),
+  };
+}
+
+export async function prefetchSwapGlanceImages(
+  plan: SwapGlanceLayoutPlan,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Map<string, Uint8Array>> {
+  const asGlance: GlanceLayoutPlan = {
+    layoutVersion: plan.layoutVersion,
+    canvasWidth: plan.canvasWidth,
+    canvasHeight: plan.canvasHeight,
+    deckName: null,
+    titlePips: [],
+    labels: [],
+    backdrops: [],
+    placements: plan.placements.map((p) => ({
+      card: p.card,
+      region: 'nonland' as const,
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+      zIndex: 0,
+      showQuantity: p.showQuantity,
+    })),
+    fingerprint: plan.fingerprint,
+  };
+  return prefetchGlanceImages(asGlance, fetchImpl);
 }
 
 export async function fetchImageBytes(

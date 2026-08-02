@@ -49,6 +49,11 @@ export async function route(
     return handleDeckGlance(decodeURIComponent(glanceMatch[1]), headers, event.body);
   }
 
+  if (method === 'POST' && path === '/v1/swaps/glance') {
+    const { handleSwapsGlance } = await import('./handlers/swaps-glance.js');
+    return handleSwapsGlance(headers, event.body);
+  }
+
   const reviewMatch = /^\/v1\/review-progress\/([^/]+)$/.exec(path);
   if (reviewMatch) {
     return handleReviewProgress(method, decodeURIComponent(reviewMatch[1]), headers, event.body);

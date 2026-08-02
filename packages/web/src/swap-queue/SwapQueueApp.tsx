@@ -50,6 +50,7 @@ import { copyArchidektWants, copyNameQtyWants } from './export-ui';
 import { LookingForEditChrome } from './LookingForEditChrome';
 import { QueueTilesView } from './QueueTilesView';
 import { SourceInterstitial } from './SourceInterstitial';
+import { SwapsGlanceDialog } from './SwapsGlanceDialog';
 import './swap-queue.css';
 
 export type SwapQueueEntryPath = 'swap-queue' | 'wishlist';
@@ -264,6 +265,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [pairOriginDeckId, setPairOriginDeckId] = useState<string | null>(null);
   const [originDeckWorking, setOriginDeckWorking] = useState<DeckDocument | null>(null);
   const [addPickerOpen, setAddPickerOpen] = useState(false);
+  const [swapsGlanceOpen, setSwapsGlanceOpen] = useState(false);
   const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
   const editingDeckRef = useRef(editingDeck);
   const pairDraftRef = useRef(pairDraft);
@@ -774,6 +776,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         >
           <DbMenuItem onSelect={() => void onExportArchidekt()}>Export Archidekt</DbMenuItem>
           <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
+          <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
           <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
           <MinUsdMenuControl
             value={minUsdInput}
@@ -930,6 +933,12 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       >
         <SwapAddFabIcon />
       </button>
+
+      <SwapsGlanceDialog
+        open={swapsGlanceOpen}
+        sources={visible}
+        onClose={() => setSwapsGlanceOpen(false)}
+      />
     </div>
   );
 }

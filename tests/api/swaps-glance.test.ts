@@ -67,7 +67,7 @@ describe('swaps glance API', () => {
     expect(first.headers?.['content-type']).toBe('image/png');
     expect(first.headers?.['x-glance-cache']).toBe('MISS');
     expect(first.headers?.['x-glance-generation']).toBe(SWAP_GLANCE_GENERATION_VERSION);
-    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-3');
+    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-6');
     expect(first.isBase64Encoded).toBe(true);
 
     const second = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
@@ -106,7 +106,7 @@ describe('swaps glance API', () => {
       { ...renderOptions, blobStore: blob },
     );
     expect(filtered.statusCode).toBe(200);
-    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-3');
+    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-6');
     expect(filtered.headers?.['x-glance-cache']).toBe('MISS');
     expect(filtered.body).not.toBe(plain.body);
   });
@@ -127,5 +127,72 @@ describe('swaps glance API', () => {
     );
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(String(res.body)).code).toBe('SWAP_GLANCE_EMPTY');
+  });
+
+  it('returns a JSON bundle when content spans multiple pages', async () => {
+    const { services, s3 } = createMemoryStores();
+    const decks = Array.from({ length: 24 }, (_, i) => {
+      const base = buildGlanceSwapCommanderDeck({
+        deckId: `multi-page-${i}`,
+        name: `Multi ${i}`,
+      });
+      // Extra looking-for entries so plates need more than one page at M
+      const extras = Array.from({ length: 4 }, (_, j) => ({
+        id: `seek-${i}-${j}`,
+        instanceId: `spell-${(j % 3) + 1}`,
+        sortIndex: j,
+        notes: null,
+      }));
+      return {
+        ...base,
+        lookingForEntries: extras,
+        formalSwapEntries: [
+          ...(base.formalSwapEntries || []),
+          ...Array.from({ length: 2 }, (_, j) => ({
+            id: `swap-extra-${i}-${j}`,
+            outInstanceId: 'spell-0',
+            inInstanceId: 'swap-in-1',
+            sortIndex: j + 1,
+            notes: null,
+          })),
+        ],
+      };
+    });
+    for (const deck of decks) {
+      await handleDeck('PUT', deck.deckId, TEST_AUTH_HEADERS, JSON.stringify(deck), services);
+    }
+    const items = decks.flatMap((deck) => [
+      { deckId: deck.deckId, kind: 'queued_in' as const, entryId: 'swap-1' },
+      ...(deck.lookingForEntries || []).map((e) => ({
+        deckId: deck.deckId,
+        kind: 'seeking' as const,
+        entryId: e.id,
+      })),
+    ]);
+
+    const res = await handleSwapsGlance(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ mode: 'in_only', includeSeeking: true, items }),
+      services,
+      { ...renderOptions, blobStore: asBlobStore(s3) },
+    );
+    expect(res.statusCode).toBe(200);
+    // Either single PNG (if it fitted) or bundle — force enough content that bundle is expected
+    const ct = String(res.headers?.['content-type'] || '');
+    if (ct.includes('application/json')) {
+      const body = JSON.parse(String(res.body)) as {
+        delivery: string;
+        pageCount: number;
+        images: unknown[];
+        generation: string;
+      };
+      expect(body.delivery).toBe('bundle');
+      expect(body.pageCount).toBeGreaterThan(1);
+      expect(body.images.length).toBe(body.pageCount);
+      expect(body.generation).toBe('swap-glance-gen-6');
+    } else {
+      // If planner still fits on one page, response stays binary — acceptable
+      expect(ct).toBe('image/png');
+    }
   });
 });

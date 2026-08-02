@@ -3,11 +3,13 @@ import {
   aggregateSwapWants,
   buildSwapGlanceIncludeSet,
   buildSwapGlanceLayoutPlan,
+  buildSwapGlanceLayoutPlans,
   countSwapGlanceItems,
   PAIR_INNER_GAP,
   selectSwapGlanceItems,
   SWAP_GLANCE_CANVAS_HEIGHT,
   SWAP_GLANCE_CANVAS_WIDTH,
+  SWAP_GLANCE_CARD_WIDTH,
   SWAP_GLANCE_GENERATION_VERSION,
   swapGlanceFingerprint,
   swapGlanceHeaderText,
@@ -262,13 +264,19 @@ describe('swap glance include-set + layout', () => {
       })),
     };
 
-    const plan = buildSwapGlanceLayoutPlan(includeSet);
-    expect(plan.placements).toHaveLength(sectionCount);
-    expect(plan.labels.filter((l) => l.role === 'section')).toHaveLength(sectionCount);
-    expect(plan.labels.some((l) => l.role === 'more' && /more decks/.test(l.text))).toBe(false);
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    const placed = result.plans.reduce((n, p) => n + p.placements.length, 0);
+    expect(placed).toBe(sectionCount);
+    expect(result.omittedCardCount).toBe(0);
+    expect(result.plans.every((p) => p.placements.every((c) => c.width === SWAP_GLANCE_CARD_WIDTH))).toBe(
+      true,
+    );
+    expect(result.plans.some((p) => p.labels.some((l) => l.role === 'more' && /more decks/.test(l.text)))).toBe(
+      false,
+    );
   });
 
-  it('masonry fits 10 decks with 16 looking-for cards', () => {
+  it('masonry fits 10 decks with 16 looking-for cards at fixed M size', () => {
     const cardCounts = [2, 2, 2, 2, 2, 2, 1, 1, 1, 1]; // 16 cards, 10 decks
     const includeSet: SwapGlanceIncludeSet = {
       mode: 'in_only',
@@ -300,10 +308,223 @@ describe('swap glance include-set + layout', () => {
       })),
     };
 
-    const plan = buildSwapGlanceLayoutPlan(includeSet);
-    expect(plan.placements).toHaveLength(16);
-    expect(plan.labels.filter((l) => l.role === 'section')).toHaveLength(10);
-    expect(plan.labels.some((l) => l.role === 'more' && /more decks/.test(l.text))).toBe(false);
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    const placed = result.plans.reduce((n, p) => n + p.placements.length, 0);
+    expect(placed).toBe(16);
+    expect(result.omittedCardCount).toBe(0);
+    expect(result.pageCount).toBeGreaterThanOrEqual(1);
+    expect(result.pageCount).toBeLessThanOrEqual(5);
+    for (const plan of result.plans) {
+      expect(plan.placements.every((p) => p.width === SWAP_GLANCE_CARD_WIDTH)).toBe(true);
+      expect(plan.placements.every((p) => p.height === Math.round(SWAP_GLANCE_CARD_WIDTH / (61 / 85)))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('groups seeking onto later pages after formal content', () => {
+    const formalSections = Array.from({ length: 12 }, (_, i) => ({
+      deckId: `formal-${i}`,
+      deckName: `Formal ${i}`,
+      headerText: `Formal ${i}`,
+      rows: [
+        {
+          kind: 'single' as const,
+          entryId: `in-${i}`,
+          sourceKind: 'queued_in' as const,
+          card: {
+            instanceId: `f-${i}`,
+            name: `Formal Card ${i}`,
+            setCode: 'MH3',
+            collectorNumber: String(i),
+            typeLine: 'Creature',
+            colours: [],
+            colourIdentity: [],
+            primaryCategory: null,
+            quantity: 1,
+            imageUrl: null,
+            isBasicLand: false,
+            isLand: false,
+          },
+        },
+      ],
+    }));
+    const seekingSections = Array.from({ length: 12 }, (_, i) => ({
+      deckId: `seek-${i}`,
+      deckName: `Seek ${i}`,
+      headerText: `Seek ${i}`,
+      rows: [
+        {
+          kind: 'single' as const,
+          entryId: `seek-${i}`,
+          sourceKind: 'seeking' as const,
+          card: {
+            instanceId: `s-${i}`,
+            name: `Seek Card ${i}`,
+            setCode: 'MH3',
+            collectorNumber: String(i + 100),
+            typeLine: 'Creature',
+            colours: [],
+            colourIdentity: [],
+            primaryCategory: null,
+            quantity: 1,
+            imageUrl: null,
+            isBasicLand: false,
+            isLand: false,
+          },
+        },
+      ],
+    }));
+    // Merge by deck so include set has both kinds — alternate by concatenating sections
+    const includeSet: SwapGlanceIncludeSet = {
+      mode: 'in_only',
+      includeSeeking: true,
+      filterSetCodes: [],
+      sections: [...formalSections, ...seekingSections],
+    };
+
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    expect(result.pageCount).toBeGreaterThan(1);
+    expect(result.omittedCardCount).toBe(0);
+
+    // Find first page that has a seeking card and last page that has a formal card
+    const pageHasSeeking = result.plans.map((p) =>
+      p.labels.some((l) => l.role === 'section' && l.text.startsWith('Seek ')),
+    );
+    const pageHasFormal = result.plans.map((p) =>
+      p.labels.some((l) => l.role === 'section' && l.text.startsWith('Formal ')),
+    );
+    const lastFormal = pageHasFormal.lastIndexOf(true);
+    const firstSeeking = pageHasSeeking.indexOf(true);
+    expect(lastFormal).toBeGreaterThanOrEqual(0);
+    expect(firstSeeking).toBeGreaterThanOrEqual(0);
+    expect(firstSeeking).toBeGreaterThanOrEqual(lastFormal);
+  });
+
+  it('converts full pairs to looking-for when densifying', () => {
+    // Many full pairs that cannot fit as Out→In at M across 5 pages without densify
+    const sections = Array.from({ length: 40 }, (_, i) => ({
+      deckId: `deck-${i}`,
+      deckName: `Deck ${i}`,
+      headerText: `Deck ${i}`,
+      rows: [
+        {
+          kind: 'pair' as const,
+          entryId: `swap-${i}`,
+          out: {
+            instanceId: `out-${i}`,
+            name: `Out ${i}`,
+            setCode: 'MH3',
+            collectorNumber: String(i),
+            typeLine: 'Creature',
+            colours: [],
+            colourIdentity: [],
+            primaryCategory: null,
+            quantity: 1,
+            imageUrl: null,
+            isBasicLand: false,
+            isLand: false,
+            proxy: false,
+          },
+          in: {
+            instanceId: `in-${i}`,
+            name: `In ${i}`,
+            setCode: 'MH3',
+            collectorNumber: String(i + 50),
+            typeLine: 'Creature',
+            colours: [],
+            colourIdentity: [],
+            primaryCategory: null,
+            quantity: 1,
+            imageUrl: null,
+            isBasicLand: false,
+            isLand: false,
+          },
+        },
+      ],
+    }));
+    const includeSet: SwapGlanceIncludeSet = {
+      mode: 'full',
+      includeSeeking: false,
+      filterSetCodes: [],
+      sections,
+    };
+
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    expect(result.pageCount).toBeLessThanOrEqual(5);
+    // After densify to looking-for, no connectors / out faces (or truncate with +X)
+    const allConnectors = result.plans.reduce((n, p) => n + p.connectors.length, 0);
+    const outFaces = result.plans.reduce(
+      (n, p) => n + p.placements.filter((c) => c.pairRole === 'out').length,
+      0,
+    );
+    if (
+      result.densifyStage === 'swaps_to_looking_for_grid' ||
+      result.densifyStage === 'swaps_to_looking_for_stacked' ||
+      result.densifyStage === 'truncate'
+    ) {
+      expect(allConnectors).toBe(0);
+      expect(outFaces).toBe(0);
+    }
+    expect(result.plans.every((p) => p.placements.every((c) => c.width === SWAP_GLANCE_CARD_WIDTH))).toBe(
+      true,
+    );
+    // Pair columns must be wide enough — no colliding faces across masonry columns.
+    for (const plan of result.plans) {
+      for (let i = 0; i < plan.placements.length; i++) {
+        const a = plan.placements[i]!;
+        for (let j = i + 1; j < plan.placements.length; j++) {
+          const b = plan.placements[j]!;
+          const intersect =
+            a.x < b.x + b.width &&
+            a.x + a.width > b.x &&
+            a.y < b.y + b.height &&
+            a.y + a.height > b.y;
+          if (!intersect) continue;
+          const stackedPeek = a.x === b.x && Math.abs(a.y - b.y) < a.height;
+          expect(stackedPeek).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('titles multi-page plates with page index', () => {
+    const sections = Array.from({ length: 30 }, (_, i) => ({
+      deckId: `deck-${i}`,
+      deckName: `Deck ${i}`,
+      headerText: `Deck ${i}`,
+      rows: Array.from({ length: 3 }, (_, j) => ({
+        kind: 'single' as const,
+        entryId: `in-${i}-${j}`,
+        sourceKind: 'queued_in' as const,
+        card: {
+          instanceId: `card-${i}-${j}`,
+          name: `Card ${i}-${j}`,
+          setCode: 'MH3',
+          collectorNumber: `${i}${j}`,
+          typeLine: 'Creature',
+          colours: [],
+          colourIdentity: [],
+          primaryCategory: null,
+          quantity: 1,
+          imageUrl: null,
+          isBasicLand: false,
+          isLand: false,
+        },
+      })),
+    }));
+    const includeSet: SwapGlanceIncludeSet = {
+      mode: 'in_only',
+      includeSeeking: false,
+      filterSetCodes: [],
+      sections,
+    };
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    expect(result.pageCount).toBeGreaterThan(1);
+    for (let i = 0; i < result.plans.length; i++) {
+      const title = result.plans[i]!.labels.find((l) => l.role === 'title');
+      expect(title?.text).toBe(`Swaps at a glance (${i + 1}/${result.pageCount})`);
+    }
   });
 
   it('returns SWAP_GLANCE_EMPTY when items resolve to nothing', () => {

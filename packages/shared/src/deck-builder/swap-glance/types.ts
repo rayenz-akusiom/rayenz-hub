@@ -2,7 +2,7 @@ import type { GlanceCard } from '../glance/types.js';
 import type { WantSourceKind } from '../../mtg/wants-aggregate.js';
 
 /** Bump when layout, art tier, or render pipeline changes — invalidates cache. */
-export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-3';
+export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-6';
 
 export const SWAP_GLANCE_CANVAS_WIDTH = 1920;
 export const SWAP_GLANCE_CANVAS_HEIGHT = 1080;
@@ -12,7 +12,24 @@ export const SWAP_GLANCE_CARD_WIDTH = 213;
 /** M height at Scryfall 61∶85 aspect. */
 export const SWAP_GLANCE_CARD_HEIGHT = 297;
 
+/** Max PNG pages a swaps glance may span. */
+export const SWAP_GLANCE_MAX_PAGES = 5;
+
 export type SwapGlanceMode = 'full' | 'in_only';
+
+export type SwapGlancePackMode = 'grid' | 'stacked';
+
+/**
+ * Progressive densify stages when content cannot fit at M across ≤5 pages.
+ * Stages that are no-ops for the request are skipped by the planner.
+ */
+export type SwapGlanceDensifyStage =
+  | 'base'
+  | 'seeking_stacked'
+  | 'looking_for_stacked'
+  | 'swaps_to_looking_for_grid'
+  | 'swaps_to_looking_for_stacked'
+  | 'truncated';
 
 export type SwapGlanceRequestItem = {
   deckId: string;
@@ -61,6 +78,8 @@ export type SwapGlanceLabel = {
   y: number;
   /** Larger section headers vs overflow "+N more". */
   role: 'title' | 'section' | 'more';
+  /** Clip width for rasterized text (section headers should match column width). */
+  maxWidth?: number;
 };
 
 export type SwapGlancePlacement = {
@@ -94,6 +113,18 @@ export type SwapGlanceLayoutPlan = {
   placements: SwapGlancePlacement[];
   connectors: SwapGlanceConnector[];
   fingerprint: string;
+  /** 1-based page index when spanning multiple images. */
+  pageIndex?: number;
+  /** Total pages in this glance render. */
+  pageCount?: number;
+  densifyStage?: SwapGlanceDensifyStage;
+};
+
+export type SwapGlanceLayoutResult = {
+  plans: SwapGlanceLayoutPlan[];
+  densifyStage: SwapGlanceDensifyStage;
+  omittedCardCount: number;
+  pageCount: number;
 };
 
 export type BuildSwapGlanceOptions = {

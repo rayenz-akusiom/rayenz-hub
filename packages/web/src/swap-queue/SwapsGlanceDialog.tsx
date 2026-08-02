@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   countSwapGlanceItems,
   selectSwapGlanceItems,
@@ -21,8 +21,9 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   const [includeSeeking, setIncludeSeeking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [pngBlob, setPngBlob] = useState<Blob | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [pngBlobs, setPngBlobs] = useState<Blob[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [statusLine, setStatusLine] = useState<string | null>(null);
 
   const apiReady = isApiConfigured();
@@ -32,11 +33,12 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   );
 
   const resetPreview = useCallback(() => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPngBlob(null);
+    for (const url of previewUrls) URL.revokeObjectURL(url);
+    setPreviewUrls([]);
+    setPngBlobs([]);
+    setPageIndex(0);
     setStatusLine(null);
-  }, [previewUrl]);
+  }, [previewUrls]);
 
   const close = useCallback(() => {
     setError(null);
@@ -65,13 +67,17 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
         setCodes: setCodes.length ? setCodes : undefined,
         items,
       });
-      const url = URL.createObjectURL(result.blob);
-      setPngBlob(result.blob);
-      setPreviewUrl(url);
+      const urls = result.blobs.map((b) => URL.createObjectURL(b));
+      setPngBlobs(result.blobs);
+      setPreviewUrls(urls);
+      setPageIndex(0);
       const parts = ['Generated'];
+      if (result.pageCount > 1) parts.push(`${result.pageCount} images`);
       if (result.generation) parts.push(`gen ${result.generation}`);
       if (result.cache) parts.push(`cache ${result.cache}`);
       if (result.delivery === 'presigned') parts.push('presigned fetch');
+      if (result.delivery === 'bundle') parts.push('bundle');
+      if (result.omittedCardCount > 0) parts.push(`+${result.omittedCardCount} omitted`);
       setStatusLine(parts.join(' · '));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate swaps glance image.');
@@ -80,24 +86,49 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     }
   }, [apiReady, includeSeeking, itemCount, mode, resetPreview, setCodes, sources]);
 
+  const pageCount = pngBlobs.length;
+  const currentBlob = pngBlobs[pageIndex] ?? null;
+  const currentUrl = previewUrls[pageIndex] ?? null;
+
+  useEffect(() => {
+    if (pageIndex >= pageCount && pageCount > 0) {
+      setPageIndex(pageCount - 1);
+    }
+  }, [pageCount, pageIndex]);
+
   const onDownload = useCallback(() => {
-    if (!pngBlob) return;
+    if (!currentBlob) return;
     const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(pngBlob);
-    anchor.download = 'swaps-at-a-glance.png';
+    anchor.href = URL.createObjectURL(currentBlob);
+    const name =
+      pageCount > 1
+        ? `swaps-at-a-glance-${pageIndex + 1}.png`
+        : 'swaps-at-a-glance.png';
+    anchor.download = name;
     anchor.click();
     URL.revokeObjectURL(anchor.href);
-  }, [pngBlob]);
+  }, [currentBlob, pageCount, pageIndex]);
+
+  const onDownloadAll = useCallback(() => {
+    if (pngBlobs.length <= 1) return;
+    pngBlobs.forEach((blob, i) => {
+      const anchor = document.createElement('a');
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = `swaps-at-a-glance-${i + 1}.png`;
+      anchor.click();
+      URL.revokeObjectURL(anchor.href);
+    });
+  }, [pngBlobs]);
 
   const onCopy = useCallback(async () => {
-    if (!pngBlob || !navigator.clipboard?.write) return;
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-  }, [pngBlob]);
+    if (!currentBlob || !navigator.clipboard?.write) return;
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': currentBlob })]);
+  }, [currentBlob]);
 
   const canCopy =
     typeof ClipboardItem !== 'undefined' &&
     Boolean(navigator.clipboard?.write) &&
-    Boolean(pngBlob);
+    Boolean(currentBlob);
 
   if (!open) return null;
 
@@ -163,14 +194,45 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
           ) : null}
         </div>
         <div className="db-glance-slot">
-          {previewUrl ? (
-            <img src={previewUrl} alt="Swaps at a glance preview" className="db-glance-preview" />
+          {currentUrl ? (
+            <img
+              src={currentUrl}
+              alt={
+                pageCount > 1
+                  ? `Swaps at a glance preview ${pageIndex + 1} of ${pageCount}`
+                  : 'Swaps at a glance preview'
+              }
+              className="db-glance-preview"
+            />
           ) : (
             <div className="db-glance-skeleton" aria-hidden="true">
               {loading ? <span className="db-glance-spinner" /> : null}
             </div>
           )}
         </div>
+        {pageCount > 1 ? (
+          <div className="sq-glance-carousel" role="group" aria-label="Glance pages">
+            <button
+              type="button"
+              className="db-btn"
+              disabled={pageIndex <= 0}
+              onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+            >
+              Previous
+            </button>
+            <span className="hub-muted" aria-live="polite">
+              {pageIndex + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              className="db-btn"
+              disabled={pageIndex >= pageCount - 1}
+              onClick={() => setPageIndex((i) => Math.min(pageCount - 1, i + 1))}
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
         <div className="db-modal-actions">
           <button type="button" className="db-btn" onClick={close}>
             Close
@@ -184,9 +246,14 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
           >
             Generate
           </button>
-          <button type="button" className="db-btn" disabled={!pngBlob} onClick={onDownload}>
+          <button type="button" className="db-btn" disabled={!currentBlob} onClick={onDownload}>
             Download
           </button>
+          {pageCount > 1 ? (
+            <button type="button" className="db-btn" disabled={!pngBlobs.length} onClick={onDownloadAll}>
+              Download all
+            </button>
+          ) : null}
           <button type="button" className="db-btn" disabled={!canCopy} onClick={() => void onCopy()}>
             Copy image
           </button>

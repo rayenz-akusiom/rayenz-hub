@@ -1,9 +1,10 @@
 import {
   buildSwapGlanceIncludeSet,
-  buildSwapGlanceLayoutPlan,
+  buildSwapGlanceLayoutPlans,
   normalizeSetCodes,
   SWAP_GLANCE_GENERATION_VERSION,
   type DeckDocument,
+  type SwapGlanceLayoutPlan,
   type SwapGlanceMode,
   type SwapGlanceRequestItem,
   type WantSourceKind,
@@ -115,6 +116,58 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
   };
 }
 
+function uint8ToBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64');
+}
+
+type PageImageResult = {
+  index: number;
+  fingerprint: string;
+  cache: 'HIT' | 'MISS';
+  png: Uint8Array;
+};
+
+async function renderCachedPage(
+  plan: SwapGlanceLayoutPlan,
+  cache: GlanceCacheRepository,
+  decks: DeckDocument[],
+  options: SwapsGlanceOptions,
+  fetchImpl: typeof fetch,
+  sharedImageCache: Map<string, Uint8Array> | null,
+): Promise<{ page: PageImageResult; imageCache: Map<string, Uint8Array> }> {
+  let png = await cache.get(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint);
+  let cacheStatus: 'HIT' | 'MISS' = 'HIT';
+  let imageCache = sharedImageCache;
+  if (!png) {
+    cacheStatus = 'MISS';
+    const allCards = decks.flatMap((d) => d.cards || []);
+    const renderPlan = options.skipArtEnrichment
+      ? plan
+      : await enrichSwapGlancePlanArt(plan, allCards, fetchImpl);
+    if (!imageCache) {
+      imageCache = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
+    } else {
+      const extra = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
+      for (const [k, v] of extra) imageCache.set(k, v);
+    }
+    const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
+    png = await renderSwapGlancePng(renderPlan, {
+      imageLoader,
+      fastPng: options.fastPng,
+    });
+    await cache.put(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint, png);
+  }
+  return {
+    page: {
+      index: plan.pageIndex ?? 1,
+      fingerprint: plan.fingerprint,
+      cache: cacheStatus,
+      png,
+    },
+    imageCache: imageCache ?? new Map(),
+  };
+}
+
 export async function handleSwapsGlance(
   headers: Record<string, string | undefined>,
   body: string | null | undefined = null,
@@ -147,7 +200,8 @@ export async function handleSwapsGlance(
       return errorResponse(400, includeResult.message, includeResult.code);
     }
 
-    const plan = buildSwapGlanceLayoutPlan(includeResult.includeSet);
+    const layout = buildSwapGlanceLayoutPlans(includeResult.includeSet);
+    const plans = layout.plans;
     const bucket = env.HUB_BUCKET_NAME || 'rayenz-hub-data-local';
     const s3Client = createS3Client(env);
     const blob = options.blobStore ?? new S3BlobStore(s3Client, bucket);
@@ -159,41 +213,71 @@ export async function handleSwapsGlance(
     const fetchImpl = options.fetchImpl ?? fetch;
     const inlineMaxBytes = options.inlineMaxBytes ?? GLANCE_INLINE_MAX_BYTES;
 
-    let png = await cache.get(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint);
-    let cacheStatus: 'HIT' | 'MISS' = 'HIT';
-    if (!png) {
-      cacheStatus = 'MISS';
-      const allCards = decks.flatMap((d) => d.cards || []);
-      const renderPlan = options.skipArtEnrichment
-        ? plan
-        : await enrichSwapGlancePlanArt(plan, allCards, fetchImpl);
-      const imageCache = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
-      const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
-      png = await renderSwapGlancePng(renderPlan, {
-        imageLoader,
-        fastPng: options.fastPng,
-      });
-      await cache.put(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint, png);
+    const pages: PageImageResult[] = [];
+    let sharedImageCache: Map<string, Uint8Array> | null = null;
+    for (const plan of plans) {
+      const rendered = await renderCachedPage(
+        plan,
+        cache,
+        decks,
+        options,
+        fetchImpl,
+        sharedImageCache,
+      );
+      sharedImageCache = rendered.imageCache;
+      pages.push(rendered.page);
     }
 
-    if (png.byteLength > inlineMaxBytes) {
-      const presigned = options.presignGet
-        ? await options.presignGet(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint)
-        : await cache.presignGet(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint);
-      return jsonResponse(200, {
-        delivery: 'presigned',
-        url: presigned.url,
-        expiresAt: presigned.expiresAt,
-        generation: SWAP_GLANCE_GENERATION_VERSION,
-        cache: cacheStatus,
+    const pageCount = pages.length;
+    const allInline = pages.every((p) => p.png.byteLength <= inlineMaxBytes);
+    const overallCache =
+      pages.every((p) => p.cache === 'HIT') ? 'HIT' : pages.some((p) => p.cache === 'HIT') ? 'PARTIAL' : 'MISS';
+
+    // Single page under inline limit: keep binary PNG response for compatibility.
+    if (pageCount === 1 && allInline) {
+      const only = pages[0]!;
+      return binaryResponse(200, only.png, {
+        'content-type': 'image/png',
+        'content-disposition': 'attachment; filename="swaps-at-a-glance.png"',
+        'x-glance-cache': only.cache,
+        'x-glance-generation': SWAP_GLANCE_GENERATION_VERSION,
+        'x-glance-page-count': '1',
+        'x-glance-densify': layout.densifyStage,
       });
     }
 
-    return binaryResponse(200, png, {
-      'content-type': 'image/png',
-      'content-disposition': 'attachment; filename="swaps-at-a-glance.png"',
-      'x-glance-cache': cacheStatus,
-      'x-glance-generation': SWAP_GLANCE_GENERATION_VERSION,
+    // Multi-page or oversized: JSON bundle.
+    const images: Array<Record<string, unknown>> = [];
+    for (const page of pages) {
+      if (page.png.byteLength > inlineMaxBytes) {
+        const presigned = options.presignGet
+          ? await options.presignGet(SWAP_GLANCE_GENERATION_VERSION, page.fingerprint)
+          : await cache.presignGet(SWAP_GLANCE_GENERATION_VERSION, page.fingerprint);
+        images.push({
+          index: page.index,
+          delivery: 'presigned',
+          url: presigned.url,
+          expiresAt: presigned.expiresAt,
+          cache: page.cache,
+        });
+      } else {
+        images.push({
+          index: page.index,
+          delivery: 'inline',
+          pngBase64: uint8ToBase64(page.png),
+          cache: page.cache,
+        });
+      }
+    }
+
+    return jsonResponse(200, {
+      delivery: 'bundle',
+      pageCount,
+      densifyStage: layout.densifyStage,
+      omittedCardCount: layout.omittedCardCount,
+      images,
+      generation: SWAP_GLANCE_GENERATION_VERSION,
+      cache: overallCache,
     });
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);

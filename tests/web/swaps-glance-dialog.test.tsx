@@ -8,9 +8,12 @@ import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-el
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postSwapsGlance = vi.fn(async () => ({
-  blob: new Blob(['png'], { type: 'image/png' }),
+  blobs: [new Blob(['png'], { type: 'image/png' })],
+  pageCount: 1,
+  densifyStage: 'base',
+  omittedCardCount: 0,
   cache: 'MISS',
-  generation: 'swap-glance-gen-3',
+  generation: 'swap-glance-gen-6',
   delivery: 'inline' as const,
 }));
 
@@ -185,5 +188,43 @@ describe('Swaps at a glance dialog', () => {
         mode: 'in_only',
       }),
     );
+  });
+
+  it('shows a carousel and Download all for multi-image results', async () => {
+    postSwapsGlance.mockResolvedValueOnce({
+      blobs: [
+        new Blob(['png1'], { type: 'image/png' }),
+        new Blob(['png2'], { type: 'image/png' }),
+      ],
+      pageCount: 2,
+      densifyStage: 'base',
+      omittedCardCount: 0,
+      cache: 'MISS',
+      generation: 'swap-glance-gen-6',
+      delivery: 'bundle' as const,
+    });
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn((blob: Blob) => `blob:preview-${blob.size}`),
+      revokeObjectURL: vi.fn(),
+    });
+
+    const user = userEvent.setup();
+    const deck = buildGlanceSwapCommanderDeck({ deckId: 'sq-glance-multi' });
+    const sources = sourcesFromDeck(deck).filter((s) => s.kind === 'queued_in');
+    render(<SwapsGlanceDialog open sources={sources} onClose={() => undefined} />);
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(
+      await screen.findByRole('img', { name: /Swaps at a glance preview 1 of 2/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download all' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(
+      screen.getByRole('img', { name: /Swaps at a glance preview 2 of 2/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
   });
 });

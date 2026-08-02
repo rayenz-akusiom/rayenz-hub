@@ -1,10 +1,13 @@
 import type { SwapGlanceMode, SwapGlanceRequestItem } from '@rayenz-hub/shared';
 
 export type SwapsGlanceResult = {
-  blob: Blob;
+  blobs: Blob[];
+  pageCount: number;
+  densifyStage: string | null;
+  omittedCardCount: number;
   cache: string | null;
   generation: string | null;
-  delivery: 'inline' | 'presigned';
+  delivery: 'inline' | 'presigned' | 'bundle';
 };
 
 export type SwapsGlanceRequest = {
@@ -14,6 +17,21 @@ export type SwapsGlanceRequest = {
   setCodes?: string[];
   items: SwapGlanceRequestItem[];
 };
+
+function base64ToBlob(b64: string, type = 'image/png'): Blob {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+async function fetchImageBlob(url: string): Promise<Blob> {
+  const imageRes = await fetch(url);
+  if (!imageRes.ok) {
+    throw new Error(`Failed to fetch swaps glance image (${imageRes.status}).`);
+  }
+  return imageRes.blob();
+}
 
 export async function apiPostSwapsGlance(
   request: SwapsGlanceRequest,
@@ -50,6 +68,7 @@ export async function apiPostSwapsGlance(
 
   const cache = res.headers.get('x-glance-cache');
   const generation = res.headers.get('x-glance-generation');
+  const densifyHeader = res.headers.get('x-glance-densify');
   const contentType = res.headers.get('content-type') || '';
 
   if (contentType.includes('application/json')) {
@@ -58,15 +77,51 @@ export async function apiPostSwapsGlance(
       url?: string;
       cache?: string;
       generation?: string;
+      pageCount?: number;
+      densifyStage?: string;
+      omittedCardCount?: number;
+      images?: Array<{
+        index?: number;
+        delivery?: string;
+        url?: string;
+        pngBase64?: string;
+        cache?: string;
+      }>;
     };
-    if (body.delivery === 'presigned' && body.url) {
-      const imageRes = await fetch(body.url);
-      if (!imageRes.ok) {
-        throw new Error(`Failed to fetch swaps glance image (${imageRes.status}).`);
+
+    if (body.delivery === 'bundle' && Array.isArray(body.images)) {
+      const sorted = [...body.images].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+      const blobs: Blob[] = [];
+      for (const img of sorted) {
+        if (img.delivery === 'presigned' && img.url) {
+          blobs.push(await fetchImageBlob(img.url));
+        } else if (img.delivery === 'inline' && img.pngBase64) {
+          blobs.push(base64ToBlob(img.pngBase64));
+        } else {
+          throw new Error('Unexpected swaps glance bundle image entry.');
+        }
       }
-      const blob = await imageRes.blob();
+      if (!blobs.length) {
+        throw new Error('Swaps glance bundle contained no images.');
+      }
       return {
-        blob,
+        blobs,
+        pageCount: body.pageCount ?? blobs.length,
+        densifyStage: body.densifyStage ?? null,
+        omittedCardCount: body.omittedCardCount ?? 0,
+        cache: body.cache ?? null,
+        generation: body.generation ?? null,
+        delivery: 'bundle',
+      };
+    }
+
+    if (body.delivery === 'presigned' && body.url) {
+      const blob = await fetchImageBlob(body.url);
+      return {
+        blobs: [blob],
+        pageCount: 1,
+        densifyStage: body.densifyStage ?? densifyHeader,
+        omittedCardCount: body.omittedCardCount ?? 0,
         cache: body.cache ?? null,
         generation: body.generation ?? null,
         delivery: 'presigned',
@@ -77,7 +132,10 @@ export async function apiPostSwapsGlance(
 
   const blob = await res.blob();
   return {
-    blob,
+    blobs: [blob],
+    pageCount: 1,
+    densifyStage: densifyHeader,
+    omittedCardCount: 0,
     cache,
     generation,
     delivery: 'inline',

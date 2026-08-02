@@ -142,7 +142,7 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
     }
     const family = options.fontFamily ?? 'GlanceEmbedded';
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${options.width}" height="${options.height}">` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${options.width}" height="${options.height}" overflow="hidden">` +
       `<defs><style><![CDATA[` +
       `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${fontB64}) format('truetype');}` +
       `]]></style></defs>` +
@@ -610,20 +610,23 @@ async function drawSwapGlanceLabel(
     });
   }
   if (role === 'section') {
+    const fontSize = 22;
+    const boxW = Math.max(40, maxWidth);
+    const maxChars = Math.max(8, Math.floor(boxW / (fontSize * 0.55)));
     return drawTextRaster({
-      text,
+      text: truncateName(text, maxChars),
       fontPath: sansFontPath(),
-      width: Math.max(200, maxWidth),
+      width: boxW,
       height: 28,
       ink: TEXT_INK_DARK,
       fontFamily: 'GlanceSans',
-      fontSize: 22,
+      fontSize,
     });
   }
   return drawTextRaster({
     text,
     fontPath: sansFontPath(),
-    width: Math.max(80, maxWidth),
+    width: Math.max(40, maxWidth),
     height: 22,
     ink: TEXT_INK_DARK,
     fontFamily: 'GlanceSans',
@@ -660,9 +663,10 @@ export async function renderSwapGlancePng(
 
   for (const label of plan.labels) {
     const maxWidth =
-      label.role === 'title'
+      label.maxWidth ??
+      (label.role === 'title'
         ? plan.canvasWidth - label.x - 24
-        : plan.canvasWidth - label.x - 24;
+        : plan.canvasWidth - label.x - 24);
     const tile = await drawSwapGlanceLabel(label.text, label.role, maxWidth);
     composites.push({
       input: tile,

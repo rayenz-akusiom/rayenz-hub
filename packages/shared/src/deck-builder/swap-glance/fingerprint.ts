@@ -1,5 +1,5 @@
 import { sha256Hex } from '../glance/sha256.js';
-import type { SwapGlanceIncludeSet } from './types.js';
+import type { SwapGlanceDensifyStage, SwapGlanceIncludeSet } from './types.js';
 import { SWAP_GLANCE_GENERATION_VERSION } from './types.js';
 
 function cardIdentity(card: {
@@ -44,9 +44,26 @@ export function canonicalSwapGlanceMaterial(includeSet: SwapGlanceIncludeSet): s
   return lines.join('\n');
 }
 
+export type SwapGlanceFingerprintExtras = {
+  pageIndex?: number;
+  pageCount?: number;
+  densifyStage?: SwapGlanceDensifyStage;
+};
+
 export function swapGlanceFingerprint(
   includeSet: SwapGlanceIncludeSet,
   generationVersion: string = SWAP_GLANCE_GENERATION_VERSION,
+  extras: SwapGlanceFingerprintExtras = {},
 ): string {
-  return sha256Hex(`${generationVersion}\n${canonicalSwapGlanceMaterial(includeSet)}`);
+  const pageIndex = extras.pageIndex ?? 1;
+  const pageCount = extras.pageCount ?? 1;
+  const densifyStage = extras.densifyStage ?? 'base';
+  return sha256Hex(
+    [
+      generationVersion,
+      `page:${pageIndex}/${pageCount}`,
+      `densify:${densifyStage}`,
+      canonicalSwapGlanceMaterial(includeSet),
+    ].join('\n'),
+  );
 }

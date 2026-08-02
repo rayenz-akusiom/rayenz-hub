@@ -145,4 +145,87 @@ describe('deck-builder glance include-set', () => {
     expect(result.includeSet.cards.some((c) => c.instanceId === 'forest-out-1')).toBe(false);
     expect(result.includeSet.cards.some((c) => c.instanceId === 'swap-in-basic')).toBe(true);
   });
+
+  it('includes same-name reprint In and excludes Out', () => {
+    const base = buildEligibleCommanderDeck();
+    const cards = base.cards.map((c) =>
+      c.instanceId === 'spell-0'
+        ? {
+            ...c,
+            name: 'Sol Ring',
+            setCode: 'cma',
+            collectorNumber: '1',
+            scryfallId: 'sf-sol-old',
+          }
+        : { ...c },
+    );
+    const reprintIn = {
+      instanceId: 'sol-reprint-in',
+      name: 'Sol Ring',
+      quantity: 1,
+      primaryCategory: 'Instant',
+      categories: ['Instant'],
+      stack: null,
+      setCode: 'sld',
+      collectorNumber: '2683',
+      scryfallId: 'sf-sol-new',
+      archidektCardId: null,
+      foil: false,
+      proxy: false,
+    };
+    const deck = {
+      ...base,
+      cards: [...cards, reprintIn],
+      formalSwapEntries: [
+        {
+          id: 'swap-reprint',
+          inInstanceId: 'sol-reprint-in',
+          outInstanceId: 'spell-0',
+          inTargetCategory: 'Instant',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const result = buildGlanceIncludeSet(deck);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.includeSet.quantitySum).toBe(100);
+    expect(result.includeSet.cards.some((c) => c.instanceId === 'sol-reprint-in')).toBe(true);
+    expect(result.includeSet.cards.some((c) => c.instanceId === 'spell-0')).toBe(false);
+  });
+
+  it('keeps pathological same-instance In/Out in the include set (In wins)', () => {
+    const base = buildEligibleCommanderDeck();
+    const cards = base.cards.map((c) =>
+      c.instanceId === 'spell-0'
+        ? {
+            ...c,
+            name: 'Sol Ring',
+            setCode: 'sld',
+            collectorNumber: '2683',
+            scryfallId: 'sf-sol-new',
+          }
+        : { ...c },
+    );
+    const deck = {
+      ...base,
+      cards,
+      formalSwapEntries: [
+        {
+          id: 'swap-same',
+          inInstanceId: 'spell-0',
+          outInstanceId: 'spell-0',
+          inTargetCategory: 'Instant',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const result = buildGlanceIncludeSet(deck);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.includeSet.quantitySum).toBe(100);
+    expect(result.includeSet.cards.some((c) => c.instanceId === 'spell-0')).toBe(true);
+  });
 });

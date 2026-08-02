@@ -165,4 +165,74 @@ describe('findMatchingPrintingInstance', () => {
       ),
     ).toBeNull();
   });
+
+  it('skips excluded instance ids (formal Outs)', () => {
+    const out = {
+      ...deck.cards[0]!,
+      instanceId: 'out-sol',
+      name: 'Sol Ring',
+      scryfallId: 'sf-new-print',
+      setCode: 'sld',
+      collectorNumber: '2683',
+      foil: false,
+      proxy: false,
+    } as CardInstance;
+    const other = {
+      ...deck.cards[0]!,
+      instanceId: 'other-sol',
+      name: 'Sol Ring',
+      scryfallId: 'sf-new-print',
+      setCode: 'sld',
+      collectorNumber: '2683',
+      foil: false,
+      proxy: false,
+    } as CardInstance;
+    const withOut: DeckDocument = {
+      ...deck,
+      cards: [out, other, ...deck.cards.slice(1)],
+    };
+    const want = printing({
+      name: 'Sol Ring',
+      scryfallId: 'sf-new-print',
+      setCode: 'sld',
+      collectorNumber: '2683',
+    });
+    expect(findMatchingPrintingInstance(withOut, want)?.instanceId).toBe('out-sol');
+    expect(
+      findMatchingPrintingInstance(withOut, want, {
+        excludeInstanceIds: ['out-sol'],
+      })?.instanceId,
+    ).toBe('other-sol');
+    expect(
+      findMatchingPrintingInstance(withOut, want, {
+        excludeInstanceIds: new Set(['out-sol', 'other-sol']),
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null vs Out when reprint differs by set/collector', () => {
+    const out = {
+      ...deck.cards[0]!,
+      instanceId: 'out-sol',
+      name: 'Sol Ring',
+      scryfallId: 'sf-old',
+      setCode: 'cma',
+      collectorNumber: '1',
+      foil: false,
+      proxy: false,
+    } as CardInstance;
+    const withOut: DeckDocument = { ...deck, cards: [out, ...deck.cards.slice(1)] };
+    expect(
+      findMatchingPrintingInstance(
+        withOut,
+        printing({
+          name: 'Sol Ring',
+          scryfallId: 'sf-new',
+          setCode: 'sld',
+          collectorNumber: '2683',
+        }),
+        { excludeInstanceIds: ['out-sol'] },
+      ),
+    ).toBeNull();
+  });
 });

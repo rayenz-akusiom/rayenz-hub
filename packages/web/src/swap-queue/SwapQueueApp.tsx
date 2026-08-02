@@ -611,7 +611,16 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     const deck = editingDeckRef.current;
     const originId = pairOriginDeckIdRef.current;
     if (!draft || !deck) return;
-    const existing = findMatchingPrintingInstance(deck, printing, { proxy: meta?.proxy });
+    const excludeOutIds = new Set(
+      (deck.formalSwapEntries || [])
+        .map((e) => e.outInstanceId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (draft.outInstanceId) excludeOutIds.add(draft.outInstanceId);
+    const existing = findMatchingPrintingInstance(deck, printing, {
+      proxy: meta?.proxy,
+      excludeInstanceIds: excludeOutIds,
+    });
     if (existing) {
       patchPairDraft({
         inInstanceId: existing.instanceId,
@@ -937,6 +946,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       <SwapsGlanceDialog
         open={swapsGlanceOpen}
         sources={visible}
+        setCodes={setFilter.active ? setFilter.appliedCodes : []}
         onClose={() => setSwapsGlanceOpen(false)}
       />
     </div>

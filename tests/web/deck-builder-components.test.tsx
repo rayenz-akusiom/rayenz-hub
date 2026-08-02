@@ -440,6 +440,63 @@ describe('CategoryBrowse swap-In ghosts', () => {
     expect(permIdx).toBeGreaterThanOrEqual(0);
     expect(ghostIdx).toBeGreaterThan(permIdx);
   });
+
+  it('ghosts same-name reprint Ins in the target category', () => {
+    const outPrint = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'sol-out',
+      name: 'Sol Ring',
+      setCode: 'cma',
+      collectorNumber: '1',
+      scryfallId: 'sf-sol-old',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+    };
+    const inPrint = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'sol-in',
+      name: 'Sol Ring',
+      setCode: 'sld',
+      collectorNumber: '2683',
+      scryfallId: 'sf-sol-new',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+    };
+    const synced = syncCardsWithFormalSwaps(
+      {
+        ...commanderDoc,
+        cardLayoutDefault: 'grid',
+        cards: [outPrint, inPrint, ...commanderDoc.cards.slice(1)],
+      },
+      [
+        {
+          id: 's-reprint',
+          inInstanceId: 'sol-in',
+          outInstanceId: 'sol-out',
+          inTargetCategory: 'Other',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    );
+
+    const { container } = render(
+      <CategoryBrowse deck={synced} layout="grid" cardSort="name_asc" />,
+    );
+
+    const ghosts = screen.getAllByRole('button', { name: /Sol Ring, swap in/i });
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]).toHaveClass('is-swap-in-ghost');
+
+    const otherSection = Array.from(
+      container.querySelectorAll('.db-section, .db-cat-column'),
+    ).find((el) => el.textContent?.includes('Other'));
+    expect(otherSection).toBeTruthy();
+    expect(
+      within(otherSection as HTMLElement).getByRole('button', { name: /Sol Ring, swap in/i }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Sol Ring$/i })).toBeNull();
+  });
 });
 
 describe('MoveSheet', () => {

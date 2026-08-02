@@ -90,17 +90,30 @@ export function openOutCardPicker(
   return true;
 }
 
+function toExcludeSet(
+  exclude?: ReadonlySet<string> | Iterable<string>,
+): ReadonlySet<string> {
+  if (!exclude) return new Set();
+  return exclude instanceof Set ? exclude : new Set(exclude);
+}
+
 /** Prefer existing deck instance that already matches this printing (+ foil/proxy). */
 export function findMatchingPrintingInstance(
   deck: DeckDocument,
   printing: PrintingFields,
-  opts?: { proxy?: boolean },
+  opts?: {
+    proxy?: boolean;
+    /** Skip these instance ids (e.g. formal Outs — never bind In to Out). */
+    excludeInstanceIds?: ReadonlySet<string> | Iterable<string>;
+  },
 ): CardInstance | null {
   const wantProxy = Boolean(opts?.proxy);
+  const exclude = toExcludeSet(opts?.excludeInstanceIds);
   const sid = printing.scryfallId || null;
   if (sid) {
     const byId = deck.cards.find(
       (c) =>
+        !exclude.has(c.instanceId) &&
         c.scryfallId === sid &&
         Boolean(c.foil) === Boolean(printing.foil) &&
         Boolean(c.proxy) === wantProxy,
@@ -113,6 +126,7 @@ export function findMatchingPrintingInstance(
   return (
     deck.cards.find(
       (c) =>
+        !exclude.has(c.instanceId) &&
         String(c.setCode || '').toLowerCase() === set &&
         String(c.collectorNumber || '') === num &&
         Boolean(c.foil) === Boolean(printing.foil) &&

@@ -569,8 +569,15 @@ export function BrowseShell({
     const currentDraft = draftRef.current;
     if (!currentDraft) return;
     const currentDeck = deckRef.current;
+    const excludeOutIds = new Set(
+      (currentDeck.formalSwapEntries || [])
+        .map((e) => e.outInstanceId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (currentDraft.outInstanceId) excludeOutIds.add(currentDraft.outInstanceId);
     const existing = findMatchingPrintingInstance(currentDeck, printing, {
       proxy: meta?.proxy,
+      excludeInstanceIds: excludeOutIds,
     });
     if (existing) {
       patchSwapDraft({

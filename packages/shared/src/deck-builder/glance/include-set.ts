@@ -104,10 +104,16 @@ function toGlanceCard(card: CardInstance, doc: DeckDocument): GlanceCard {
   };
 }
 
-function isExcludedFromInclude(card: CardInstance, deck: DeckDocument, outIds: Set<string>): boolean {
+function isExcludedFromInclude(
+  card: CardInstance,
+  deck: DeckDocument,
+  outIds: Set<string>,
+  inIds: Set<string>,
+): boolean {
   const primary = canonicalizeCategoryName(card.primaryCategory || 'Other');
-  if (outIds.has(card.instanceId)) return true;
-  if (isSwapOutCategory(primary)) return true;
+  // Formal Ins win over Out when the same instance is both (pathological reprint bind).
+  if (outIds.has(card.instanceId) && !inIds.has(card.instanceId)) return true;
+  if (isSwapOutCategory(primary) && !inIds.has(card.instanceId)) return true;
   if (isSeekingCategory(primary)) return true;
   if (primary === MAYBEBOARD) return true;
   if (!categoryIncluded(deck.categories || [], primary)) return true;
@@ -153,15 +159,14 @@ function eligibleGlanceCards(deck: DeckDocument): {
 
   const includedCards: CardInstance[] = [];
   for (const card of synced.cards || []) {
-    if (isExcludedFromInclude(card, synced, outIds)) continue;
+    if (isExcludedFromInclude(card, synced, outIds, inIds)) continue;
     includedCards.push(card);
   }
 
-  // Ensure formal swap Ins remain even if miscategorized.
+  // Ensure formal swap Ins remain even if miscategorized (In wins over Out).
   for (const card of synced.cards || []) {
     if (!inIds.has(card.instanceId)) continue;
     if (includedCards.some((c) => c.instanceId === card.instanceId)) continue;
-    if (outIds.has(card.instanceId)) continue;
     includedCards.push(card);
   }
 

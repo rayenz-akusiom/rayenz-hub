@@ -180,7 +180,6 @@ export function BrowseShell({
 
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
-  const editingSwap = Boolean(draft);
 
   const deckRef = useRef(deck);
   const draftRef = useRef(draft);
@@ -862,7 +861,6 @@ export function BrowseShell({
               onEditCategory={(cat) => setEditingCategory(cat)}
               onVisibleOrderChange={onAsideVisibleOrderChange}
               mode="aside"
-              includeSwapCategories={editingSwap}
               browseView={isCategoryBrowseView(view) ? view : 'category'}
             />
           </div>

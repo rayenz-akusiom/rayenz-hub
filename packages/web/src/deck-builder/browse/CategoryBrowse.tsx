@@ -562,7 +562,6 @@ export function CategoryBrowse({
   onEditCategory,
   onVisibleOrderChange,
   mode = 'main',
-  includeSwapCategories = false,
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
@@ -589,7 +588,6 @@ export function CategoryBrowse({
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   mode?: 'main' | 'aside';
-  includeSwapCategories?: boolean;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -613,9 +611,9 @@ export function CategoryBrowse({
     () =>
       partitionCategories(
         { ...deck, cards: resolved },
-        { includeSwapCategories, multi, keySort },
+        { multi, keySort },
       ),
-    [deck, resolved, includeSwapCategories, multi, keySort],
+    [deck, resolved, multi, keySort],
   );
   const deckName = 'name' in deck && typeof deck.name === 'string' ? deck.name : undefined;
   const categories = deck.categories || [];

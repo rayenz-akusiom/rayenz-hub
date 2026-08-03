@@ -33,12 +33,12 @@ For **live HTTP API** testing you also need:
 
 ## Glance image generation
 
-`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, exactly 100 cards after swaps). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured.
+`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, exactly 100 cards after swaps). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
 
+- **Layout strategies**: [glance-layout.md](./glance-layout.md) — deck packing regions, swap pack modes, densify ladder
 - **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.
 - **Cache**: Private S3 prefix `glance-cache/{GLANCE_GENERATION_VERSION}/{fingerprint}.png` (MinIO when using SAM local). Bump generation version to invalidate stale PNGs.
-- **Tests**: `npx vitest run tests/unit/hub/deck-builder-glance-*.test.ts tests/api/deck-glance.test.ts`
-- **Spec quickstart**: `documents/specs/006-commander-deck-glance/quickstart.md`
+- **Tests**: `npx vitest run tests/unit/hub/deck-builder-glance-*.test.ts tests/api/deck-glance.test.ts tests/unit/hub/swap-glance.test.ts tests/api/swaps-glance.test.ts`
 
 Client-only GitHub Pages deploy: glance control stays disabled without API; other Commander Builder flows unchanged.
 

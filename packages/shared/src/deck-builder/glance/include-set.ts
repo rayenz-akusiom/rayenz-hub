@@ -184,16 +184,40 @@ export function listGlanceLieutenants(deck: DeckDocument): GlanceCard[] {
   return roleCards(eligibleGlanceCards(deck).cards, 'lieutenant');
 }
 
+/** Synthetic empty faces so underfull decks still pack to `COMMANDER_DECK_TARGET`. */
+export function makeGlancePlaceholders(count: number): GlanceCard[] {
+  const n = Math.max(0, Math.floor(count));
+  const out: GlanceCard[] = [];
+  for (let i = 0; i < n; i++) {
+    out.push({
+      instanceId: `glance-placeholder:${i}`,
+      name: '',
+      setCode: null,
+      collectorNumber: null,
+      typeLine: null,
+      colours: [],
+      colourIdentity: [],
+      primaryCategory: null,
+      quantity: 1,
+      imageUrl: null,
+      isBasicLand: false,
+      isLand: false,
+      isPlaceholder: true,
+    });
+  }
+  return out;
+}
+
 export function buildGlanceIncludeSet(
   deck: DeckDocument,
   options: BuildGlanceIncludeSetOptions = {},
 ): GlanceIncludeSetResult {
   const { cards: glanceCards, quantitySum } = eligibleGlanceCards(deck);
-  if (quantitySum !== COMMANDER_DECK_TARGET) {
+  if (quantitySum > COMMANDER_DECK_TARGET) {
     return {
       ok: false,
       code: 'GLANCE_NOT_ELIGIBLE',
-      message: `Deck must contain exactly ${COMMANDER_DECK_TARGET} cards after swaps (found ${quantitySum}).`,
+      message: `Deck must contain at most ${COMMANDER_DECK_TARGET} cards after swaps (found ${quantitySum}).`,
     };
   }
 
@@ -235,15 +259,16 @@ export function buildGlanceIncludeSet(
   const remainder = glanceCards.filter((c) => !roleIds.has(c.instanceId));
   const lands = sortLands(remainder.filter((c) => c.isLand));
   const nonLands = sortNonLands(remainder.filter((c) => !c.isLand));
+  const placeholders = makeGlancePlaceholders(COMMANDER_DECK_TARGET - quantitySum);
 
   return {
     ok: true,
     includeSet: {
-      cards: glanceCards,
-      quantitySum,
+      cards: [...glanceCards, ...placeholders],
+      quantitySum: quantitySum + placeholders.length,
       commanders,
       lieutenants,
-      nonLands,
+      nonLands: [...nonLands, ...placeholders],
       lands,
     },
   };

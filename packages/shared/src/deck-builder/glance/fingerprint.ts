@@ -10,6 +10,7 @@ function cardIdentity(card: {
   quantity: number;
   colours: string[];
   primaryCategory: string | null;
+  isPlaceholder?: boolean;
 }): string {
   const colours = [...(card.colours || [])].sort().join('');
   return [
@@ -20,6 +21,7 @@ function cardIdentity(card: {
     String(card.quantity),
     colours,
     (card.primaryCategory || '').toLocaleLowerCase(),
+    card.isPlaceholder ? '1' : '0',
   ].join('|');
 }
 

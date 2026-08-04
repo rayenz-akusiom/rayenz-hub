@@ -11,6 +11,7 @@ describe('deck-builder glance include-set', () => {
     if (!result.ok) return;
     expect(result.includeSet.quantitySum).toBe(100);
     expect(result.includeSet.commanders).toHaveLength(1);
+    expect(result.includeSet.cards.every((c) => !c.isPlaceholder)).toBe(true);
     for (const card of result.includeSet.cards) {
       if (card.imageUrl?.includes('cards.scryfall.io')) {
         expect(card.imageUrl).toContain('/normal/');
@@ -18,11 +19,45 @@ describe('deck-builder glance include-set', () => {
     }
   });
 
-  it('rejects decks whose include-set is not exactly 100', () => {
+  it('pads underfull decks with placeholders to reach 100', () => {
     const result = buildGlanceIncludeSet(commander as never);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.includeSet.quantitySum).toBe(100);
+    const placeholders = result.includeSet.cards.filter((c) => c.isPlaceholder);
+    expect(placeholders.length).toBeGreaterThan(0);
+    expect(result.includeSet.nonLands.filter((c) => c.isPlaceholder)).toHaveLength(
+      placeholders.length,
+    );
+    expect(placeholders.every((c) => c.instanceId.startsWith('glance-placeholder:'))).toBe(true);
+  });
+
+  it('rejects decks whose include-set exceeds 100', () => {
+    const base = buildEligibleCommanderDeck();
+    const deck = buildEligibleCommanderDeck({
+      cards: [
+        ...base.cards,
+        {
+          instanceId: 'extra-1',
+          name: 'Extra Card',
+          quantity: 1,
+          primaryCategory: 'Creature',
+          categories: ['Creature'],
+          stack: null,
+          setCode: 'm12',
+          collectorNumber: '998',
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+      ],
+    });
+    const result = buildGlanceIncludeSet(deck);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe('GLANCE_NOT_ELIGIBLE');
+    expect(result.message).toMatch(/at most 100/);
   });
 
   it('excludes maybeboard from the include-set count', () => {

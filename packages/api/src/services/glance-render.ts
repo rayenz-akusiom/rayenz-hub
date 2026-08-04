@@ -221,12 +221,36 @@ async function drawNamedPlaceholder(
   return applyRoundedCorners(rect, width, height);
 }
 
+/**
+ * Mirrors web `.db-card-placeholder`: muted fill, dashed border, centered "+".
+ * Fixed RGB approx of color-mix(muted #5c6770 / #888, surface #fff).
+ */
+async function drawEmptySlotPlaceholder(width: number, height: number): Promise<Buffer> {
+  const sharp = await loadSharp();
+  const r = Math.max(1, Math.round(width * CARD_CORNER_RATIO));
+  const stroke = Math.max(2, Math.round(width * (2 / 213)));
+  const fontSize = Math.max(12, Math.round(width * 0.32));
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<rect x="${stroke / 2}" y="${stroke / 2}" width="${width - stroke}" height="${height - stroke}" ` +
+      `rx="${r}" ry="${r}" fill="#c5cacf" stroke="#757e86" stroke-width="${stroke}" ` +
+      `stroke-dasharray="${Math.max(4, Math.round(stroke * 2.5))} ${Math.max(3, Math.round(stroke * 1.8))}"/>` +
+      `<text x="${width / 2}" y="${height / 2}" text-anchor="middle" dominant-baseline="central" ` +
+      `font-family="DejaVu Sans, sans-serif" font-size="${fontSize}" font-weight="600" fill="#6b747c">+</text>` +
+      `</svg>`,
+  );
+  return sharp(svg, { density: 72 }).resize(width, height).ensureAlpha().png().toBuffer();
+}
+
 async function loadTile(
   card: GlanceCard,
   width: number,
   height: number,
   loader: GlanceImageLoader,
 ): Promise<Buffer> {
+  if (card.isPlaceholder) {
+    return drawEmptySlotPlaceholder(width, height);
+  }
   const sharp = await loadSharp();
   const url = card.imageUrl;
   const raw = url ? await loader(url, card) : null;

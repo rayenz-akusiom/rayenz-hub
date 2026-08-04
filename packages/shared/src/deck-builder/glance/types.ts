@@ -1,5 +1,5 @@
 /** Bump when layout, art tier, render pipeline, or delivery changes — invalidates S3 cache. */
-export const GLANCE_GENERATION_VERSION = 'glance-gen-8';
+export const GLANCE_GENERATION_VERSION = 'glance-gen-9';
 
 /** Maximum commanders/lieutenants shown on their highlight plates. */
 export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;
@@ -31,6 +31,8 @@ export type GlanceCard = {
   imageUrl: string | null;
   isBasicLand: boolean;
   isLand: boolean;
+  /** Synthetic empty slot padding underfull decks to 100 faces. */
+  isPlaceholder?: boolean;
   /** Unofficial / proxy copy; used by swap glance Out badges. */
   proxy?: boolean;
 };

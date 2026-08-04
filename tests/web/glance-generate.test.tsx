@@ -13,7 +13,7 @@ const postGlance = vi.fn(
   async (_deckId: string, _request?: { lieutenantInstanceIds?: string[] }) => ({
     blob: new Blob(['png'], { type: 'image/png' }),
     cache: 'MISS',
-    generation: 'glance-gen-8',
+    generation: 'glance-gen-9',
     delivery: 'inline' as const,
   }),
 );
@@ -67,7 +67,7 @@ describe('GlanceGenerateButton', () => {
     await user.click(screen.getByRole('button', { name: 'Generate glance' }));
     await waitFor(() => expect(postGlance).toHaveBeenCalledWith(deck.deckId, {}));
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(/gen glance-gen-8 · cache MISS/i)).toBeInTheDocument();
+    expect(screen.getByText(/gen glance-gen-9 · cache MISS/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 

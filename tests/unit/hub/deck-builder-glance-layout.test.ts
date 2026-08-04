@@ -218,4 +218,18 @@ describe('deck-builder glance layout', () => {
     const landsUnderRole = lands.some((p) => p.x < roleRight - 1 && p.y >= roleBottom - 1);
     expect(landsUnderRole).toBe(false);
   });
+
+  it('places underfull-deck placeholders in the nonland region', () => {
+    const deck = buildEligibleCommanderDeck();
+    deck.cards = deck.cards.slice(0, 20);
+    const include = buildGlanceIncludeSet(deck);
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.cards.filter((c) => c.isPlaceholder).length).toBe(80);
+    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const placeholderPlacements = plan.placements.filter((p) => p.card.isPlaceholder);
+    expect(placeholderPlacements).toHaveLength(80);
+    expect(placeholderPlacements.every((p) => p.region === 'nonland')).toBe(true);
+    expect(plan.placements).toHaveLength(100);
+  });
 });

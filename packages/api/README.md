@@ -26,4 +26,4 @@ Before compositing, `deck-glance.ts` calls `enrichGlancePlanArt` + `prefetchGlan
 - Batches **`/cards/collection`** for printings missing `scryfallId`.
 - Falls back to **named neutral placeholders** when art is still unavailable (coordinates unchanged).
 
-Layout version **`glance-gen-8`** bumps the S3 cache prefix (selectable lieutenant highlights, CardFace-style `×n` qty badges, official Scryfall mana pips + vertical-rule title separator, content margins vs header/footer, main deck wraps under the role block, front-face-only land detection, fixed title-peek stacking with balanced columns); regenerate after deploy to drop older cached PNGs.
+Layout version **`glance-gen-9`** bumps the S3 cache prefix (underfull decks pad with dashed “+” placeholders, selectable lieutenant highlights, CardFace-style `×n` qty badges, official Scryfall mana pips + vertical-rule title separator, content margins vs header/footer, main deck wraps under the role block, front-face-only land detection, fixed title-peek stacking with balanced columns); regenerate after deploy to drop older cached PNGs.

@@ -33,7 +33,7 @@ For **live HTTP API** testing you also need:
 
 ## Glance image generation
 
-`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, exactly 100 cards after swaps). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
+`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, at most 100 cards after swaps; underfull decks pad with dashed “+” placeholders). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
 
 - **Layout strategies**: [glance-layout.md](./glance-layout.md) — deck packing regions, swap pack modes, densify ladder
 - **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.

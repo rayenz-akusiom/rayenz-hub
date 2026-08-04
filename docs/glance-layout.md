@@ -39,6 +39,7 @@ From `GlanceIncludeSet`:
 
 - **commanders** / **lieutenants** — highlight plates; capped at `GLANCE_ROLE_HIGHLIGHT_LIMIT` (2)
 - **nonLands** / **lands** — title-peek column stacks
+- **placeholders** — when the include-set is under 100 cards after swaps, synthetic `isPlaceholder` faces pad `nonLands` (and `cards`) to 100; rendered as dashed “+” empty slots
 - Deck name + **title pips** — WUBRG-ordered commander colour identity (`C` if colourless)
 
 ### Algorithm

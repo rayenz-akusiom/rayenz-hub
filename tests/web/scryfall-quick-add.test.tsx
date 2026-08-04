@@ -279,3 +279,72 @@ describe('ScryfallSearchModal commander identity include', () => {
     expect(composeScryfallQuery('t:instant', true, baseDeck)).toBe('t:instant');
   });
 });
+
+describe('ScryfallSearchModal back to search', () => {
+  type ObserverCb = IntersectionObserverCallback;
+  let observerCallback: ObserverCb | null = null;
+  let scrollToMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    observerCallback = null;
+    scrollToMock = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollToMock,
+    });
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: ObserverCb) {
+          observerCallback = cb;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
+    vi.unstubAllGlobals();
+  });
+
+  function fireIntersecting(isIntersecting: boolean) {
+    expect(observerCallback).toBeTruthy();
+    act(() => {
+      observerCallback!(
+        [{ isIntersecting } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+  }
+
+  it('shows Back to search when the form scrolls out of view', () => {
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'Back to search' })).not.toBeInTheDocument();
+
+    fireIntersecting(false);
+    expect(screen.getByRole('button', { name: 'Back to search' })).toBeInTheDocument();
+
+    fireIntersecting(true);
+    expect(screen.queryByRole('button', { name: 'Back to search' })).not.toBeInTheDocument();
+  });
+
+  it('scrolls to top and focuses the query on click', async () => {
+    const user = userEvent.setup();
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    fireIntersecting(false);
+    const input = screen.getByLabelText(/Scryfall query/i);
+    input.blur();
+    expect(input).not.toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Back to search' }));
+
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(input).toHaveFocus();
+  });
+});

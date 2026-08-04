@@ -1,4 +1,10 @@
-import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import {
   cardHasBackFace,
   commanderIdentityScryfallQuery,
@@ -88,9 +94,28 @@ export function ScryfallSearchModal({
   const [pending, setPending] = useState<ScryfallCard | null>(null);
   const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
   const [quickAdd, setQuickAdd] = useState(false);
+  const [showBackToSearch, setShowBackToSearch] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const lastComposedQueryRef = useRef('');
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    const formEl = formRef.current;
+    if (!scrollEl || !formEl || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowBackToSearch(!entry.isIntersecting);
+      },
+      { root: scrollEl, threshold: 0 },
+    );
+    observer.observe(formEl);
+    return () => observer.disconnect();
+  }, []);
 
   const categories = deckCategoryOptions(deck);
   const inDeckByName = deckCardNameCounts(deck);
@@ -236,7 +261,9 @@ export function ScryfallSearchModal({
   const showRecent = !query.trim() && !results.length && recent.length > 0;
 
   const card = (
-    <div className="db-modal-card db-modal-picker">
+    <div
+      className={`db-modal-card db-modal-picker${hasMore ? ' has-more-actions' : ''}`}
+    >
       <div className="db-picker-header">
         <h3>{title}</h3>
         <div className="db-picker-header-controls">
@@ -262,11 +289,12 @@ export function ScryfallSearchModal({
         </div>
       </div>
 
-      <div className="db-picker-scroll">
-        <form className="db-search-form" onSubmit={(e) => void runSearch(e)}>
+      <div className="db-picker-scroll" ref={scrollRef}>
+        <form className="db-search-form" ref={formRef} onSubmit={(e) => void runSearch(e)}>
           <label className="db-search-label">
             Scryfall query
             <input
+              ref={inputRef}
               className="db-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -389,6 +417,19 @@ export function ScryfallSearchModal({
             {loading ? 'Loading…' : 'Load more'}
           </button>
         </div>
+      ) : null}
+
+      {showBackToSearch ? (
+        <button
+          type="button"
+          className="db-btn db-picker-back-to-search"
+          onClick={() => {
+            scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            inputRef.current?.focus();
+          }}
+        >
+          Back to search
+        </button>
       ) : null}
     </div>
   );

@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   cardHasBackFace,
   defaultAddCategory,
+  defaultCategoryForCard,
   deckCategoryOptions,
+  mapScryfallCardToPrinting,
   scryfallCardImageUrl,
   scryfallImageFromId,
   searchCards,
@@ -16,6 +18,24 @@ import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
 import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
 
+const LONG_PRESS_MS = 450;
+
+export type ScryfallAddMeta = { proxy: boolean; keepOpen?: boolean };
+
+/** Case-insensitive name → quantity already in the deck. */
+export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const card of deck.cards || []) {
+    const key = String(card.name || '')
+      .trim()
+      .toLowerCase();
+    if (!key) continue;
+    const qty = typeof card.quantity === 'number' && card.quantity > 0 ? card.quantity : 1;
+    counts.set(key, (counts.get(key) || 0) + qty);
+  }
+  return counts;
+}
+
 export function ScryfallSearchModal({
   deck,
   onClose,
@@ -25,10 +45,11 @@ export function ScryfallSearchModal({
   printingTitle,
   defaultCategory,
   embedded = false,
+  allowQuickAdd = false,
 }: {
   deck: DeckDocument;
   onClose: () => void;
-  onAdd: (printing: PrintingFields, category: string, meta?: { proxy: boolean }) => void;
+  onAdd: (printing: PrintingFields, category: string, meta?: ScryfallAddMeta) => void;
   title?: string;
   confirmLabel?: string;
   /** Title for the nested printing step; defaults to `Add — {name}` / confirm-based. */
@@ -36,6 +57,8 @@ export function ScryfallSearchModal({
   defaultCategory?: string;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
+  /** Show session Quick add toggle (deck FAB add flow). */
+  allowQuickAdd?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ScryfallCard[]>([]);
@@ -46,8 +69,12 @@ export function ScryfallSearchModal({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<ScryfallCard | null>(null);
   const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
+  const [quickAdd, setQuickAdd] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
 
   const categories = deckCategoryOptions(deck);
+  const inDeckByName = deckCardNameCounts(deck);
   const printingHint = pending
     ? {
         name: pending.name,
@@ -56,6 +83,60 @@ export function ScryfallSearchModal({
       }
     : null;
   const defaultCat = defaultCategory || defaultAddCategory(deck, printingHint);
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current != null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function openPrintingPicker(cardResult: ScryfallCard) {
+    clearLongPressTimer();
+    setPending(cardResult);
+  }
+
+  function quickAddCard(cardResult: ScryfallCard) {
+    const printing = mapScryfallCardToPrinting(cardResult);
+    const category = defaultCategoryForCard(deck, {
+      name: printing.name,
+      scryfallId: printing.scryfallId,
+      setCode: printing.setCode,
+      collectorNumber: printing.collectorNumber,
+      colourIdentity: printing.colourIdentity,
+      typeLine: printing.typeLine,
+    });
+    onAdd(printing, category, { proxy: false, keepOpen: true });
+  }
+
+  function onResultPointerDown(e: ReactPointerEvent, cardResult: ScryfallCard) {
+    if (!allowQuickAdd || !quickAdd) return;
+    // Ignore non-primary mouse buttons; touch/pen often omit `button`.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    longPressFiredRef.current = false;
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressTimerRef.current = null;
+      openPrintingPicker(cardResult);
+    }, LONG_PRESS_MS);
+  }
+
+  function onResultPointerEnd() {
+    clearLongPressTimer();
+  }
+
+  function onResultClick(cardResult: ScryfallCard) {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    if (allowQuickAdd && quickAdd) {
+      quickAddCard(cardResult);
+      return;
+    }
+    openPrintingPicker(cardResult);
+  }
 
   async function runSearch(e?: FormEvent, overrideQuery?: string) {
     e?.preventDefault();
@@ -134,6 +215,21 @@ export function ScryfallSearchModal({
       <div className="db-picker-header">
         <h3>{title}</h3>
         <div className="db-picker-header-controls">
+          {allowQuickAdd ? (
+            <button
+              type="button"
+              className={`db-btn${quickAdd ? ' is-active' : ''}`}
+              aria-pressed={quickAdd}
+              title={
+                quickAdd
+                  ? 'Quick add on — tap to add, long-press for printing'
+                  : 'Quick add off — tap opens printing picker'
+              }
+              onClick={() => setQuickAdd((v) => !v)}
+            >
+              Quick add
+            </button>
+          ) : null}
           <CardSizePicker />
           <button type="button" className="db-btn" onClick={onClose}>
             {embedded ? 'Back' : 'Close'}
@@ -160,7 +256,9 @@ export function ScryfallSearchModal({
         </form>
 
         <p className="db-muted db-search-hint">
-          Uses Scryfall search syntax. Pick a card, then choose a printing.
+          {allowQuickAdd && quickAdd
+            ? 'Tap a card to add it; long-press to choose printing / category.'
+            : 'Uses Scryfall search syntax. Pick a card, then choose a printing.'}
         </p>
 
         {showRecent ? (
@@ -191,14 +289,27 @@ export function ScryfallSearchModal({
               const src = scryfallCardImageUrl(cardResult);
               const doubleFaced = cardHasBackFace(cardResult.layout);
               const backSrc = doubleFaced ? scryfallImageFromId(cardResult.id, 'back') : null;
+              const inDeckCount =
+                inDeckByName.get(String(cardResult.name || '').trim().toLowerCase()) || 0;
               return (
                 <button
                   key={cardResult.id}
                   type="button"
                   role="option"
-                  className="db-picker-option"
-                  title={cardResult.name}
-                  onClick={() => setPending(cardResult)}
+                  className={`db-picker-option${inDeckCount ? ' is-in-deck' : ''}`}
+                  title={
+                    inDeckCount
+                      ? `${cardResult.name} (in deck ×${inDeckCount})`
+                      : cardResult.name
+                  }
+                  onClick={() => onResultClick(cardResult)}
+                  onPointerDown={(e) => onResultPointerDown(e, cardResult)}
+                  onPointerUp={onResultPointerEnd}
+                  onPointerLeave={onResultPointerEnd}
+                  onPointerCancel={onResultPointerEnd}
+                  onContextMenu={(e) => {
+                    if (allowQuickAdd && quickAdd) e.preventDefault();
+                  }}
                 >
                   <span className="db-picker-option-face">
                     <CardFace
@@ -208,6 +319,11 @@ export function ScryfallSearchModal({
                       faceKey={cardResult.id}
                       doubleFaced={doubleFaced}
                     />
+                    {inDeckCount ? (
+                      <span className="db-picker-in-deck" aria-label={`In deck ×${inDeckCount}`}>
+                        {inDeckCount > 1 ? `In deck ×${inDeckCount}` : 'In deck'}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="db-picker-option-meta">{cardResult.name}</span>
                 </button>

@@ -548,7 +548,7 @@ export function BrowseShell({
   function onAddCard(
     printing: PrintingFields,
     category: string,
-    meta?: { proxy: boolean },
+    meta?: { proxy: boolean; keepOpen?: boolean },
   ) {
     const current = deckRef.current;
     const before = new Set(current.cards.map((c) => c.instanceId));
@@ -559,7 +559,7 @@ export function BrowseShell({
       setSelectedIds(new Set([added.instanceId]));
       setSelectionAnchorId(added.instanceId);
     }
-    setAddOpen(false);
+    if (!meta?.keepOpen) setAddOpen(false);
   }
 
   function onConfirmSwapIn(
@@ -895,6 +895,7 @@ export function BrowseShell({
           deck={deck}
           onClose={() => setAddOpen(false)}
           onAdd={onAddCard}
+          allowQuickAdd
         />
       ) : null}
 

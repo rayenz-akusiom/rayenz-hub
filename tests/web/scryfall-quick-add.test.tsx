@@ -1,0 +1,163 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { DeckDocument, ScryfallCard } from '@rayenz-hub/shared';
+import {
+  deckCardNameCounts,
+  ScryfallSearchModal,
+} from '../../packages/web/src/deck-builder/scryfall/ScryfallSearchModal';
+import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
+
+const { searchCards, fetchPrintings } = vi.hoisted(() => ({
+  searchCards: vi.fn(),
+  fetchPrintings: vi.fn(),
+}));
+
+vi.mock('@rayenz-hub/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@rayenz-hub/shared')>();
+  return {
+    ...actual,
+    searchCards: (...args: unknown[]) => searchCards(...args),
+    fetchPrintings: (...args: unknown[]) => fetchPrintings(...args),
+  };
+});
+
+const solRing: ScryfallCard = {
+  id: 'sf-sol',
+  name: 'Sol Ring',
+  set: 'cmm',
+  collector_number: '1',
+  type_line: 'Artifact',
+  color_identity: [],
+  finishes: ['nonfoil', 'foil'],
+};
+
+const birds: ScryfallCard = {
+  id: 'sf-bop',
+  name: 'Birds of Paradise',
+  set: 'm12',
+  collector_number: '165',
+  type_line: 'Creature — Bird',
+  color_identity: ['G'],
+  finishes: ['nonfoil'],
+};
+
+const baseDeck = commanderFixture as DeckDocument;
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.clearAllMocks();
+  localStorage.clear();
+});
+
+beforeEach(() => {
+  searchCards.mockResolvedValue({
+    data: [solRing, birds],
+    has_more: false,
+    next_page: null,
+  });
+  fetchPrintings.mockResolvedValue([solRing]);
+});
+
+describe('deckCardNameCounts', () => {
+  it('counts quantities case-insensitively', () => {
+    const counts = deckCardNameCounts({
+      cards: [
+        { ...baseDeck.cards[0], name: 'Sol Ring', quantity: 1 },
+        { ...baseDeck.cards[0], name: 'sol ring', quantity: 2, instanceId: 'x' },
+      ],
+    });
+    expect(counts.get('sol ring')).toBe(3);
+  });
+});
+
+describe('ScryfallSearchModal quick add', () => {
+  it('quick-adds with type default category and keepOpen; shows in-deck badge', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={onClose}
+        onAdd={onAdd}
+        allowQuickAdd
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 't:artifact');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText(/In deck ×1/i)).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Birds of Paradise/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    const [printing, category, meta] = onAdd.mock.calls[0];
+    expect(printing.name).toBe('Sol Ring');
+    expect(printing.scryfallId).toBe('sf-sol');
+    expect(category).toBe('Artifact');
+    expect(meta).toEqual({ proxy: false, keepOpen: true });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('listbox', { name: 'Search results' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Add —/i })).not.toBeInTheDocument();
+  });
+
+  it('long-press opens printing picker while quick add is on', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onAdd = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={onAdd}
+        allowQuickAdd
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+
+    const option = screen.getByRole('option', { name: /Sol Ring/i });
+    fireEvent.pointerDown(option, { button: 0, pointerType: 'touch', pointerId: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(fetchPrintings).toHaveBeenCalled();
+  });
+
+  it('does not show Quick add toggle when allowQuickAdd is false', () => {
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Quick add' })).not.toBeInTheDocument();
+  });
+});

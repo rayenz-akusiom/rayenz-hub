@@ -14,6 +14,7 @@ export * from './deck-builder/swap-retarget';
 export * from './deck-builder/scryfall-images';
 export * from './deck-builder/deck-cover';
 export * from './deck-builder/partner';
+export * from './deck-builder/commander-identity-query';
 export * from './deck-builder/format';
 export * from './deck-builder/force-format';
 export * from './deck-builder/library-filter';

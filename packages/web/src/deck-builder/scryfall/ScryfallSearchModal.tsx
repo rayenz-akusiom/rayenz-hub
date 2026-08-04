@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   cardHasBackFace,
+  commanderIdentityScryfallQuery,
   defaultAddCategory,
   defaultCategoryForCard,
   deckCategoryOptions,
@@ -60,7 +61,7 @@ export function ScryfallSearchModal({
   /** Show session Quick add toggle (deck FAB add flow). */
   allowQuickAdd?: boolean;
 }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => commanderIdentityScryfallQuery(deck) ?? '');
   const [results, setResults] = useState<ScryfallCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);

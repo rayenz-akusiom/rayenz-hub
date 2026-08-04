@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DeckDocument, ScryfallCard } from '@rayenz-hub/shared';
+import {
+  emptyCardOracle,
+  oracleKey,
+  type CardInstance,
+  type DeckDocument,
+  type ScryfallCard,
+} from '@rayenz-hub/shared';
 import {
   deckCardNameCounts,
   ScryfallSearchModal,
@@ -159,5 +165,43 @@ describe('ScryfallSearchModal quick add', () => {
       <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />,
     );
     expect(screen.queryByRole('button', { name: 'Quick add' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ScryfallSearchModal commander identity default', () => {
+  it('prefills id:… when commander colour identity is set', () => {
+    const cmd: CardInstance = {
+      instanceId: 'cmd',
+      name: "Atraxa, Praetors' Voice",
+      quantity: 1,
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      stack: null,
+      setCode: 'c16',
+      collectorNumber: '1',
+      scryfallId: 'sf-atraxa',
+      archidektCardId: null,
+      foil: false,
+      proxy: false,
+    };
+    const deck: DeckDocument = {
+      ...baseDeck,
+      cards: [cmd],
+      oracle: {
+        [oracleKey(cmd)]: emptyCardOracle({
+          colourIdentity: ['W', 'U', 'B', 'G'],
+          typeLine: 'Legendary Creature — Phyrexian Angel Horror',
+          scryfallId: 'sf-atraxa',
+        }),
+      },
+    };
+
+    render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByLabelText(/Scryfall query/i)).toHaveValue('id:wubg');
+  });
+
+  it('leaves query blank when commander identity is not set', () => {
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByLabelText(/Scryfall query/i)).toHaveValue('');
   });
 });

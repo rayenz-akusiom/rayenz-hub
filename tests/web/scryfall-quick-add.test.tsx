@@ -183,7 +183,7 @@ describe('ScryfallSearchModal quick add', () => {
   });
 });
 
-describe('ScryfallSearchModal commander identity include', () => {
+describe('ScryfallSearchModal commander Include options', () => {
   function commanderDeckWithIdentity(): DeckDocument {
     const cmd: CardInstance = {
       instanceId: 'cmd',
@@ -212,22 +212,22 @@ describe('ScryfallSearchModal commander identity include', () => {
     };
   }
 
-  it('keeps the query empty and checks Commander identity by default', async () => {
+  it('keeps the query empty and checks Identity + Format by default', async () => {
     const user = userEvent.setup();
     const deck = commanderDeckWithIdentity();
     render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
 
     expect(screen.getByLabelText(/Scryfall query/i)).toHaveValue('');
     expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).toHaveTextContent(
-      /Identity/i,
+      /Identity, Format/i,
     );
 
     await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
-    const checkbox = screen.getByRole('checkbox', { name: /Commander identity/i });
-    expect(checkbox).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Commander identity/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Commander format/i })).toBeChecked();
   });
 
-  it('appends id:… to the Scryfall request when identity is included', async () => {
+  it('appends format:commander and id:… when both includes are on', async () => {
     const user = userEvent.setup();
     const deck = commanderDeckWithIdentity();
     render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
@@ -236,34 +236,63 @@ describe('ScryfallSearchModal commander identity include', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() => {
-      expect(searchCards).toHaveBeenCalledWith('t:creature id:wubg', 1);
+      expect(searchCards).toHaveBeenCalledWith('t:creature format:commander id:wubg', 1);
     });
     expect(screen.getByLabelText(/Scryfall query/i)).toHaveValue('t:creature');
   });
 
-  it('no-ops identity when no commander is set but leaves the checkbox checked', async () => {
+  it('appends format:commander when no commander is set; identity no-ops', async () => {
     const user = userEvent.setup();
     render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
     expect(screen.getByRole('checkbox', { name: /Commander identity/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Commander format/i })).toBeChecked();
 
     await user.type(screen.getByLabelText(/Scryfall query/i), 'sol ring');
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() => {
-      expect(searchCards).toHaveBeenCalledWith('sol ring', 1);
+      expect(searchCards).toHaveBeenCalledWith('sol ring format:commander', 1);
     });
   });
 
-  it('omits identity when the include checkbox is unchecked', async () => {
+  it('omits format:commander when Format is unchecked; identity still appends', async () => {
+    const user = userEvent.setup();
+    const deck = commanderDeckWithIdentity();
+    render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Commander format/i }));
+    expect(screen.getByRole('checkbox', { name: /Commander format/i })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).toHaveTextContent(
+      /Identity/,
+    );
+    expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).not.toHaveTextContent(
+      /Format/,
+    );
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 't:creature');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith('t:creature id:wubg', 1);
+    });
+  });
+
+  it('omits both includes when unchecked', async () => {
     const user = userEvent.setup();
     const deck = commanderDeckWithIdentity();
     render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
     await user.click(screen.getByRole('checkbox', { name: /Commander identity/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Commander format/i }));
     expect(screen.getByRole('checkbox', { name: /Commander identity/i })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Commander format/i })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).toHaveTextContent(
+      /None/i,
+    );
 
     await user.type(screen.getByLabelText(/Scryfall query/i), 't:creature');
     await user.click(screen.getByRole('button', { name: 'Search' }));
@@ -286,11 +315,43 @@ describe('ScryfallSearchModal commander identity include', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('composeScryfallQuery appends identity only when requested and known', () => {
+  it('composeScryfallQuery appends format and identity when requested and known', () => {
     const deck = commanderDeckWithIdentity();
-    expect(composeScryfallQuery('t:instant', true, deck)).toBe('t:instant id:wubg');
-    expect(composeScryfallQuery('t:instant', false, deck)).toBe('t:instant');
-    expect(composeScryfallQuery('t:instant', true, baseDeck)).toBe('t:instant');
+    expect(
+      composeScryfallQuery(
+        't:instant',
+        { includeIdentity: true, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('t:instant format:commander id:wubg');
+    expect(
+      composeScryfallQuery(
+        't:instant',
+        { includeIdentity: true, includeFormatCommander: false },
+        deck,
+      ),
+    ).toBe('t:instant id:wubg');
+    expect(
+      composeScryfallQuery(
+        't:instant',
+        { includeIdentity: false, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('t:instant format:commander');
+    expect(
+      composeScryfallQuery(
+        't:instant',
+        { includeIdentity: false, includeFormatCommander: false },
+        deck,
+      ),
+    ).toBe('t:instant');
+    expect(
+      composeScryfallQuery(
+        't:instant',
+        { includeIdentity: true, includeFormatCommander: true },
+        baseDeck,
+      ),
+    ).toBe('t:instant format:commander');
   });
 });
 

@@ -46,18 +46,26 @@ export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<strin
   return counts;
 }
 
-/** Freeform query plus optional Include clauses (identity stays out of the input). */
+/** Freeform query plus optional Include clauses (kept out of the input). */
 export function composeScryfallQuery(
   freeform: string,
-  includeIdentity: boolean,
+  opts: { includeIdentity?: boolean; includeFormatCommander?: boolean },
   deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string {
   const parts = [freeform.trim()];
-  if (includeIdentity) {
+  if (opts.includeFormatCommander) parts.push('format:commander');
+  if (opts.includeIdentity) {
     const clause = commanderIdentityScryfallQuery(deck);
     if (clause) parts.push(clause);
   }
   return parts.filter(Boolean).join(' ');
+}
+
+function includeMenuValue(includeIdentity: boolean, includeFormatCommander: boolean): string {
+  const labels: string[] = [];
+  if (includeIdentity) labels.push('Identity');
+  if (includeFormatCommander) labels.push('Format');
+  return labels.length ? labels.join(', ') : 'None';
 }
 
 export function ScryfallSearchModal({
@@ -87,6 +95,7 @@ export function ScryfallSearchModal({
   const isCommander = deck.format === 'commander';
   const [query, setQuery] = useState('');
   const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommander);
+  const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommander);
   const [results, setResults] = useState<ScryfallCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);
@@ -196,7 +205,14 @@ export function ScryfallSearchModal({
       return;
     }
     if (overrideQuery != null) setQuery(freeform);
-    const composed = composeScryfallQuery(freeform, includeCommanderIdentity, deck);
+    const composed = composeScryfallQuery(
+      freeform,
+      {
+        includeIdentity: includeCommanderIdentity,
+        includeFormatCommander,
+      },
+      deck,
+    );
     lastComposedQueryRef.current = composed;
     setLoading(true);
     setLoadingMore(false);
@@ -233,7 +249,14 @@ export function ScryfallSearchModal({
         ? await searchCardsNextPage(nextPageRef.current)
         : await searchCards(
             lastComposedQueryRef.current ||
-              composeScryfallQuery(query, includeCommanderIdentity, deck),
+              composeScryfallQuery(
+                query,
+                {
+                  includeIdentity: includeCommanderIdentity,
+                  includeFormatCommander,
+                },
+                deck,
+              ),
             page + 1,
           );
       setResults((prev) => {
@@ -250,7 +273,7 @@ export function ScryfallSearchModal({
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [hasMore, page, query, includeCommanderIdentity, deck]);
+  }, [hasMore, page, query, includeCommanderIdentity, includeFormatCommander, deck]);
 
   const sentinelRef = useInfiniteScrollSentinel({
     rootRef: scrollRef,
@@ -328,7 +351,7 @@ export function ScryfallSearchModal({
             <div className="db-search-include">
               <DbMenu
                 label="Include"
-                value={includeCommanderIdentity ? 'Identity' : 'None'}
+                value={includeMenuValue(includeCommanderIdentity, includeFormatCommander)}
                 ariaLabel="Include in Scryfall search"
               >
                 <div
@@ -344,6 +367,14 @@ export function ScryfallSearchModal({
                       onChange={(e) => setIncludeCommanderIdentity(e.target.checked)}
                     />
                     Commander identity
+                  </label>
+                  <label className="db-check">
+                    <input
+                      type="checkbox"
+                      checked={includeFormatCommander}
+                      onChange={(e) => setIncludeFormatCommander(e.target.checked)}
+                    />
+                    Commander format
                   </label>
                 </div>
               </DbMenu>

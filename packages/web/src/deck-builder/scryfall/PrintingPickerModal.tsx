@@ -1,19 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   canonicalizeCategoryName,
   cardHasBackFace,
-  fetchPrintings,
+  fetchCardById,
+  fetchPrintingsPage,
   mapScryfallCardToPrinting,
   printingSupportsFoil,
   scryfallCardImageUrl,
   scryfallImageFromId,
+  searchCardsNextPage,
   type PrintingFields,
   type ScryfallCard,
 } from '@rayenz-hub/shared';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
+import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 
 const NEW_CATEGORY_VALUE = '__new__';
+
+function preferPicked(
+  list: ScryfallCard[],
+  selectedScryfallId: string | null,
+  defaultScryfallId: string | null,
+): ScryfallCard | null {
+  return (
+    list.find((p) => p.id === selectedScryfallId) ||
+    list.find((p) => p.id === defaultScryfallId) ||
+    list[0] ||
+    null
+  );
+}
+
+function prependUnique(pin: ScryfallCard | null, list: ScryfallCard[]): ScryfallCard[] {
+  if (!pin) return list;
+  if (list.some((p) => p.id === pin.id)) return list;
+  return [pin, ...list];
+}
 
 export function PrintingPickerModal({
   cardName,
@@ -51,7 +73,10 @@ export function PrintingPickerModal({
   embedded?: boolean;
 }) {
   const [prints, setPrints] = useState<ScryfallCard[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextPage, setNextPage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ScryfallCard | null>(null);
   const [foil, setFoil] = useState(foilDefault);
@@ -61,34 +86,90 @@ export function PrintingPickerModal({
   );
   const [creatingNew, setCreatingNew] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  const nextPageRef = useRef<string | null>(null);
+  nextPageRef.current = nextPage;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadingMore(false);
+    loadingMoreRef.current = false;
     setError(null);
+    setPrints([]);
+    setHasMore(false);
+    setNextPage(null);
     setPicked(null);
-    fetchPrintings(cardName, { defaultScryfallId })
-      .then((list) => {
+
+    const pinId = selectedScryfallId || defaultScryfallId || null;
+
+    void (async () => {
+      try {
+        const page1 = await fetchPrintingsPage(cardName, 1, {
+          defaultScryfallId: defaultScryfallId,
+        });
         if (cancelled) return;
+
+        let list = page1.data;
+        let pin: ScryfallCard | null = null;
+        if (pinId && !list.some((p) => p.id === pinId)) {
+          pin = await fetchCardById(pinId);
+          if (cancelled) return;
+          list = prependUnique(pin, list);
+        }
+
         setPrints(list);
-        const preferred =
-          list.find((p) => p.id === selectedScryfallId) ||
-          list.find((p) => p.id === defaultScryfallId) ||
-          list[0] ||
-          null;
-        setPicked(preferred);
-      })
-      .catch((err: unknown) => {
+        setHasMore(page1.has_more);
+        setNextPage(page1.next_page);
+        setPicked(preferPicked(list, selectedScryfallId, defaultScryfallId));
+        if (!list.length) {
+          setError('No printings found.');
+        }
+      } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Failed to load printings.');
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [cardName, defaultScryfallId, selectedScryfallId]);
+
+  const loadMore = useCallback(async () => {
+    const url = nextPageRef.current;
+    if (!url || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const next = await searchCardsNextPage(url);
+      setPrints((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        const appended = next.data.filter((p) => !seen.has(p.id));
+        return [...prev, ...appended];
+      });
+      setHasMore(next.has_more);
+      setNextPage(next.next_page);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load more printings.');
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, []);
+
+  const sentinelRef = useInfiniteScrollSentinel({
+    rootRef: scrollRef,
+    enabled: hasMore && !loading && !error,
+    loading: loadingMore,
+    onLoadMore: () => {
+      void loadMore();
+    },
+  });
 
   const anyFoil = prints.some(printingSupportsFoil);
 
@@ -140,7 +221,7 @@ export function PrintingPickerModal({
         </div>
       </div>
 
-      <div className="db-picker-scroll">
+      <div className="db-picker-scroll" ref={scrollRef}>
         {categoryOptions?.length ? (
           creatingNew ? (
             <label>
@@ -182,7 +263,7 @@ export function PrintingPickerModal({
         {loading ? <p className="db-muted">Loading printings…</p> : null}
         {error ? <p className="db-error">{error}</p> : null}
 
-        {!loading && !error ? (
+        {!loading && !error && prints.length ? (
           <div className="db-picker-grid" role="listbox" aria-label="Printings">
             {prints.map((p) => {
               const src = scryfallCardImageUrl(p);
@@ -218,6 +299,15 @@ export function PrintingPickerModal({
             })}
           </div>
         ) : null}
+
+        {hasMore ? (
+          <div
+            ref={sentinelRef}
+            className="db-picker-scroll-sentinel"
+            aria-hidden="true"
+          />
+        ) : null}
+        {loadingMore ? <p className="db-muted db-picker-loading-more">Loading more…</p> : null}
       </div>
 
       <div className="db-modal-actions">

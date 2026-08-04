@@ -148,12 +148,13 @@ export function buildSearchUrl(
   return url.toString();
 }
 
-export function buildPrintingsSearchUrl(cardName: string): string {
+export function buildPrintingsSearchUrl(cardName: string, page = 1): string {
   const name = String(cardName || '').trim();
   const url = new URL(`${SCYFALL_API}/cards/search`);
   url.searchParams.set('q', `!"${name}"`);
   url.searchParams.set('unique', 'prints');
   url.searchParams.set('order', 'released');
+  if (page > 1) url.searchParams.set('page', String(page));
   return url.toString();
 }
 
@@ -433,6 +434,76 @@ export async function searchCardsNextPage(
   };
 }
 
+/** Fetch a single Scryfall card by id, or null when missing. */
+export async function fetchCardById(
+  scryfallId: string,
+  opts?: { fetchImpl?: typeof fetch },
+): Promise<ScryfallCard | null> {
+  const id = String(scryfallId || '').trim();
+  if (!id) return null;
+  const fetchImpl = opts?.fetchImpl || fetch;
+  const res = await fetchImpl(`${SCYFALL_API}/cards/${encodeURIComponent(id)}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  return asScryfallCard(await res.json());
+}
+
+/**
+ * One page of printings for a card name (`unique=prints`, `order=released`).
+ * Does not follow `has_more` — callers paginate via `searchCardsNextPage`.
+ */
+export async function fetchPrintingsPage(
+  cardName: string,
+  page = 1,
+  opts?: {
+    fetchImpl?: typeof fetch;
+    delayMs?: number;
+    defaultScryfallId?: string | null;
+  },
+): Promise<ScryfallSearchPage> {
+  const name = String(cardName || '').trim();
+  if (!name) {
+    throw new Error('Card name is required for printings search.');
+  }
+  const fetchImpl = opts?.fetchImpl || fetch;
+  const pageNum = Math.max(1, Math.floor(Number(page) || 1));
+  if (pageNum > 1) {
+    await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
+  }
+  const res = await fetchImpl(buildPrintingsSearchUrl(name, pageNum), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    if (pageNum === 1 && opts?.defaultScryfallId) {
+      const one = await fetchCardById(opts.defaultScryfallId, { fetchImpl });
+      if (one) {
+        return { data: [one], has_more: false, next_page: null };
+      }
+    }
+    throw await parseError(res, `Scryfall lookup failed for ${name}`);
+  }
+  const json = (await res.json()) as {
+    data?: unknown[];
+    has_more?: boolean;
+    next_page?: string | null;
+    total_cards?: number;
+  };
+  const data = (json.data || [])
+    .map(asScryfallCard)
+    .filter((c): c is ScryfallCard => Boolean(c));
+  return {
+    data,
+    has_more: Boolean(json.has_more),
+    next_page: json.next_page || null,
+    total_cards: json.total_cards,
+  };
+}
+
+/**
+ * First page of printings only (cached by name). For Review/Reconcile dropdowns.
+ * Prefer `fetchPrintingsPage` + `searchCardsNextPage` for lazy UI grids.
+ */
 export async function fetchPrintings(
   cardName: string,
   options?: {
@@ -445,31 +516,12 @@ export async function fetchPrintings(
   if (printCache[cacheKey]) {
     return printCache[cacheKey];
   }
-  const fetchImpl = options?.fetchImpl || fetch;
-  const res = await fetchImpl(buildPrintingsSearchUrl(name), {
-    headers: { Accept: 'application/json' },
+  const page = await fetchPrintingsPage(name, 1, {
+    fetchImpl: options?.fetchImpl,
+    defaultScryfallId: options?.defaultScryfallId,
   });
-  if (!res.ok) {
-    if (options?.defaultScryfallId) {
-      const single = await fetchImpl(`${SCYFALL_API}/cards/${options.defaultScryfallId}`, {
-        headers: { Accept: 'application/json' },
-      });
-      if (single.ok) {
-        const one = asScryfallCard(await single.json());
-        if (one) {
-          printCache[cacheKey] = [one];
-          return printCache[cacheKey];
-        }
-      }
-    }
-    throw await parseError(res, `Scryfall lookup failed for ${name}`);
-  }
-  const json = (await res.json()) as { data?: unknown[] };
-  const prints = (json.data || [])
-    .map(asScryfallCard)
-    .filter((c): c is ScryfallCard => Boolean(c));
-  printCache[cacheKey] = prints;
-  return prints;
+  printCache[cacheKey] = page.data;
+  return printCache[cacheKey];
 }
 
 /** Apply printing identity onto an existing lean instance. */

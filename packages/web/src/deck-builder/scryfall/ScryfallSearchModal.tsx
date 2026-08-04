@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -25,6 +26,7 @@ import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
 import { DbMenu } from '../ui/DbMenu';
 import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
+import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 
 const LONG_PRESS_MS = 450;
 
@@ -90,6 +92,7 @@ export function ScryfallSearchModal({
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<ScryfallCard | null>(null);
   const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
@@ -98,9 +101,12 @@ export function ScryfallSearchModal({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const lastComposedQueryRef = useRef('');
+  const nextPageRef = useRef<string | null>(null);
+  const loadingMoreRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  nextPageRef.current = nextPage;
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -193,6 +199,8 @@ export function ScryfallSearchModal({
     const composed = composeScryfallQuery(freeform, includeCommanderIdentity, deck);
     lastComposedQueryRef.current = composed;
     setLoading(true);
+    setLoadingMore(false);
+    loadingMoreRef.current = false;
     setError(null);
     setPending(null);
     try {
@@ -215,28 +223,43 @@ export function ScryfallSearchModal({
     }
   }
 
-  async function loadMore() {
-    if (loading || !hasMore) return;
-    setLoading(true);
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
     setError(null);
     try {
-      const next = nextPage
-        ? await searchCardsNextPage(nextPage)
+      const next = nextPageRef.current
+        ? await searchCardsNextPage(nextPageRef.current)
         : await searchCards(
             lastComposedQueryRef.current ||
               composeScryfallQuery(query, includeCommanderIdentity, deck),
             page + 1,
           );
-      setResults((prev) => [...prev, ...next.data]);
+      setResults((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        const appended = next.data.filter((c) => !seen.has(c.id));
+        return [...prev, ...appended];
+      });
       setHasMore(next.has_more);
       setNextPage(next.next_page);
       setPage((p) => p + 1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load more.');
     } finally {
-      setLoading(false);
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
-  }
+  }, [hasMore, page, query, includeCommanderIdentity, deck]);
+
+  const sentinelRef = useInfiniteScrollSentinel({
+    rootRef: scrollRef,
+    enabled: hasMore && !loading && !pending && results.length > 0,
+    loading: loadingMore,
+    onLoadMore: () => {
+      void loadMore();
+    },
+  });
 
   if (pending) {
     return (
@@ -261,9 +284,7 @@ export function ScryfallSearchModal({
   const showRecent = !query.trim() && !results.length && recent.length > 0;
 
   const card = (
-    <div
-      className={`db-modal-card db-modal-picker${hasMore ? ' has-more-actions' : ''}`}
-    >
+    <div className="db-modal-card db-modal-picker">
       <div className="db-picker-header">
         <h3>{title}</h3>
         <div className="db-picker-header-controls">
@@ -409,15 +430,16 @@ export function ScryfallSearchModal({
             })}
           </div>
         ) : null}
-      </div>
 
-      {hasMore ? (
-        <div className="db-modal-actions">
-          <button type="button" className="db-btn" disabled={loading} onClick={() => void loadMore()}>
-            {loading ? 'Loading…' : 'Load more'}
-          </button>
-        </div>
-      ) : null}
+        {hasMore && results.length ? (
+          <div
+            ref={sentinelRef}
+            className="db-picker-scroll-sentinel"
+            aria-hidden="true"
+          />
+        ) : null}
+        {loadingMore ? <p className="db-muted db-picker-loading-more">Loading more…</p> : null}
+      </div>
 
       {showBackToSearch ? (
         <button

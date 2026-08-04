@@ -7,17 +7,30 @@ import type {
 } from '../schemas/deck-builder.js';
 import { isSwapQueueCategory, moveCardCategory } from './browse.js';
 import { canonicalizeCategoryName } from './category-names.js';
-import { isLookingForCategory, SEEKING } from '../mtg/swap-queue.js';
+import {
+  isLookingForCategory,
+  isSeekingCategory,
+  isSwapQueueCategoryName,
+  SEEKING,
+} from '../mtg/swap-queue.js';
 import { colourIdentitySection } from './colour-identity.js';
 import {
   emptyCardOracle,
   getOracle,
   oracleKey,
   resolveCardView,
+  resolveDeckCards,
   upsertOracle,
 } from './card-oracle.js';
 import { commanderTypeCategory } from './card-types.js';
-import { normalizeCardQuantities } from './quantities.js';
+import { collectCommanders } from './partner.js';
+import {
+  BASIC_LAND_TYPE_ORDER,
+  basicLandDisplayName,
+  basicLandTypeKey,
+  isBasicLand,
+  normalizeCardQuantities,
+} from './quantities.js';
 import type { PrintingFields } from './scryfall-api.js';
 import { applyPrintingToCard } from './scryfall-api.js';
 import { scryfallImageFromId } from './scryfall-images.js';
@@ -408,4 +421,255 @@ export function changeCardPrinting(
     categories,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Identity for merging basic-land printing stacks (matches formal-swap merge key). */
+export function cardStackMergeKey(
+  card: Pick<
+    CardInstance,
+    | 'name'
+    | 'setCode'
+    | 'collectorNumber'
+    | 'scryfallId'
+    | 'foil'
+    | 'proxy'
+    | 'primaryCategory'
+    | 'stack'
+  >,
+): string {
+  return [
+    String(card.name || ''),
+    String(card.setCode || ''),
+    String(card.collectorNumber || ''),
+    String(card.scryfallId || ''),
+    card.foil ? '1' : '0',
+    card.proxy ? '1' : '0',
+    String(card.primaryCategory || ''),
+    String(card.stack || ''),
+  ].join('\0');
+}
+
+function isAsideBasicCategory(name: string | null | undefined): boolean {
+  const n = String(name || '').trim();
+  return isSwapQueueCategoryName(n) || isSeekingCategory(n);
+}
+
+/** Non-swap / non-seeking basic land stacks in the deck. */
+export function listBasicLandStacks(
+  deck: Pick<DeckDocument, 'cards'>,
+): CardInstance[] {
+  return (deck.cards || []).filter(
+    (c) => isBasicLand(c) && !isAsideBasicCategory(c.primaryCategory),
+  );
+}
+
+/**
+ * Preferred category when adding a new basic stack:
+ * majority among existing basics → Land def → defaultAddCategory.
+ */
+export function defaultBasicLandCategory(
+  deck: Pick<DeckDocument, 'categories' | 'format' | 'cards'>,
+  printing?: Pick<PrintingFields, 'name' | 'colourIdentity' | 'typeLine'> | null,
+): string {
+  const stacks = listBasicLandStacks(deck);
+  if (stacks.length) {
+    const counts = new Map<string, number>();
+    for (const c of stacks) {
+      const cat = String(c.primaryCategory || '').trim();
+      if (!cat) continue;
+      counts.set(cat, (counts.get(cat) || 0) + Math.max(1, Number(c.quantity) || 1));
+    }
+    let best = '';
+    let bestN = -1;
+    for (const [cat, n] of counts) {
+      if (n > bestN) {
+        best = cat;
+        bestN = n;
+      }
+    }
+    if (best) return best;
+  }
+  const landDef = (deck.categories || []).find(
+    (c) => canonicalizeCategoryName(c.name) === 'Land',
+  );
+  if (landDef) return landDef.name;
+  return defaultAddCategory(deck, printing);
+}
+
+/**
+ * Set quantity on a card instance. Quantity ≤ 0 removes the card.
+ * Commander non-basics are still normalized to qty 1 after update.
+ */
+export function setCardQuantity(
+  deck: DeckDocument,
+  instanceId: string,
+  quantity: number,
+  opts?: { nextId?: (prefix: string) => string },
+): DeckDocument {
+  const qty = Math.floor(Number(quantity));
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return removeCardFromDeck(deck, instanceId);
+  }
+  const nextId = opts?.nextId || defaultNextId;
+  const found = deck.cards.some((c) => c.instanceId === instanceId);
+  if (!found) return deck;
+  const cards = normalizeCardQuantities(
+    deck.cards.map((c) =>
+      c.instanceId === instanceId ? { ...c, quantity: qty } : c,
+    ),
+    deck.format,
+    nextId,
+  );
+  return {
+    ...deck,
+    cards,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Add a basic printing stack, or bump quantity on an existing matching stack.
+ */
+export function addOrBumpBasicPrinting(
+  deck: DeckDocument,
+  printing: PrintingFields,
+  opts?: {
+    quantity?: number;
+    category?: string;
+    proxy?: boolean;
+    nextId?: (prefix: string) => string;
+  },
+): DeckDocument {
+  const addQty = Math.max(1, Math.floor(Number(opts?.quantity) || 1));
+  const proxy = Boolean(opts?.proxy);
+  const category =
+    String(opts?.category || '').trim() || defaultBasicLandCategory(deck, printing);
+  const probe: CardInstance = {
+    instanceId: '__probe__',
+    name: printing.name,
+    quantity: 1,
+    primaryCategory: category,
+    categories: [category],
+    stack: null,
+    setCode: printing.setCode || null,
+    collectorNumber: printing.collectorNumber || null,
+    scryfallId: printing.scryfallId,
+    archidektCardId: null,
+    foil: Boolean(printing.foil),
+    proxy,
+  };
+  const key = cardStackMergeKey(probe);
+  const existing = listBasicLandStacks(deck).find((c) => cardStackMergeKey(c) === key);
+  if (existing) {
+    const current = Math.max(1, Number(existing.quantity) || 1);
+    return setCardQuantity(deck, existing.instanceId, current + addQty, {
+      nextId: opts?.nextId,
+    });
+  }
+  return addCardToDeck(deck, printing, category, {
+    quantity: addQty,
+    proxy,
+    nextId: opts?.nextId,
+  });
+}
+
+/**
+ * Change printing on a stack; if another stack shares the new identity, merge quantities.
+ */
+export function changeCardPrintingMerging(
+  deck: DeckDocument,
+  instanceId: string,
+  printing: PrintingFields,
+  opts?: { proxy?: boolean },
+): DeckDocument {
+  const before = deck.cards.find((c) => c.instanceId === instanceId);
+  if (!before) return deck;
+  let next = changeCardPrinting(deck, instanceId, printing, opts);
+  const changed = next.cards.find((c) => c.instanceId === instanceId);
+  if (!changed) return next;
+  const key = cardStackMergeKey(changed);
+  const other = next.cards.find(
+    (c) =>
+      c.instanceId !== instanceId &&
+      !isAsideBasicCategory(c.primaryCategory) &&
+      cardStackMergeKey(c) === key,
+  );
+  if (!other) return next;
+  const mergedQty =
+    Math.max(1, Number(other.quantity) || 1) + Math.max(1, Number(changed.quantity) || 1);
+  next = setCardQuantity(next, other.instanceId, mergedQty);
+  return removeCardFromDeck(next, instanceId);
+}
+
+const BASIC_CI_LETTER: Record<string, string | null> = {
+  plains: 'W',
+  island: 'U',
+  swamp: 'B',
+  mountain: 'R',
+  forest: 'G',
+  wastes: null,
+  'snow-covered plains': 'W',
+  'snow-covered island': 'U',
+  'snow-covered swamp': 'B',
+  'snow-covered mountain': 'R',
+  'snow-covered forest': 'G',
+};
+
+/** Commander colour letters present on commanders (WUBRG order), empty if unknown. */
+export function deckCommanderColourLetters(
+  deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
+): string[] {
+  if (deck.format !== 'commander') return [];
+  const commanders = collectCommanders(resolveDeckCards(deck));
+  const set = new Set<string>();
+  for (const cmd of commanders) {
+    for (const c of cmd.colourIdentity || []) {
+      const letter = String(c).toUpperCase();
+      if ('WUBRG'.includes(letter)) set.add(letter);
+    }
+  }
+  return ['W', 'U', 'B', 'R', 'G'].filter((c) => set.has(c));
+}
+
+/**
+ * Basic type display names to show in the Basics panel:
+ * types already in the deck, plus CI-matching types (snow when CI known).
+ */
+export function basicLandTypesForPanel(
+  deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
+): string[] {
+  const present = new Set<string>();
+  for (const c of listBasicLandStacks(deck)) {
+    const key = basicLandTypeKey(c.name);
+    if (key) present.add(basicLandDisplayName(key));
+  }
+  const letters = deckCommanderColourLetters(deck);
+  const letterSet = new Set(letters);
+  const commanders =
+    deck.format === 'commander' ? collectCommanders(resolveDeckCards(deck)) : [];
+  const colourlessKnown =
+    deck.format === 'commander' &&
+    letters.length === 0 &&
+    commanders.some((c) => Boolean(c.scryfallId || c.typeLine));
+
+  const out: string[] = [];
+  for (const name of BASIC_LAND_TYPE_ORDER) {
+    if (present.has(name)) {
+      out.push(name);
+      continue;
+    }
+    const key = name.toLowerCase();
+    const ci = BASIC_CI_LETTER[key];
+    if (ci == null) {
+      if (colourlessKnown) out.push(name);
+      continue;
+    }
+    if (letterSet.size > 0) {
+      if (letterSet.has(ci)) out.push(name);
+      continue;
+    }
+    // Unknown CI: offer core WUBRG only (not snow).
+    if (!key.startsWith('snow-covered')) out.push(name);
+  }
+  return out;
 }

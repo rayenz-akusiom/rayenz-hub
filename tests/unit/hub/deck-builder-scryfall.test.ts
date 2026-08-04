@@ -13,11 +13,14 @@ import {
   fetchCardsCollection,
   fetchInSetMembership,
   fetchPrintings,
+  fetchPrintingsPage,
+  fetchCardById,
   getOracle,
   mapScryfallCardToPrinting,
   oracleKey,
   removeCardFromDeck,
   searchCards,
+  searchCardsNextPage,
 } from '../../../packages/shared/src/index.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 
@@ -177,7 +180,7 @@ describe('searchCards / fetchPrintings', () => {
   it('fetchPrintings caches by name', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ data: [sampleCard] }),
+      json: async () => ({ data: [sampleCard], has_more: false, next_page: null }),
     }));
 
     const first = await fetchPrintings('Sol Ring', { fetchImpl });
@@ -201,6 +204,67 @@ describe('searchCards / fetchPrintings', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('sf-sol');
+  });
+
+  it('fetchPrintingsPage returns has_more and next_page', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [sampleCard],
+        has_more: true,
+        next_page: 'https://api.scryfall.com/cards/search?page=2',
+        total_cards: 200,
+      }),
+    }));
+
+    const page = await fetchPrintingsPage('Forest', 1, { fetchImpl });
+    expect(page.data).toHaveLength(1);
+    expect(page.has_more).toBe(true);
+    expect(page.next_page).toContain('page=2');
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('unique=prints');
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('order=released');
+  });
+
+  it('fetchPrintingsPage page 2 hits page query param', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [sampleCard], has_more: false, next_page: null }),
+    }));
+    await fetchPrintingsPage('Forest', 2, { fetchImpl, delayMs: 0 });
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('page=2');
+  });
+
+  it('fetchCardById returns a card or null', async () => {
+    const okFetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => sampleCard,
+    }));
+    const card = await fetchCardById('sf-sol', { fetchImpl: okFetch });
+    expect(card?.name).toBe('Sol Ring');
+
+    const missFetch = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    expect(await fetchCardById('missing', { fetchImpl: missFetch })).toBeNull();
+  });
+
+  it('searchCardsNextPage appends from next_page url', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [{ ...sampleCard, id: 'sf-sol-2', set: 'mh2' }],
+        has_more: false,
+        next_page: null,
+      }),
+    }));
+    const page = await searchCardsNextPage('https://api.scryfall.com/cards/search?page=2', {
+      fetchImpl,
+      delayMs: 0,
+    });
+    expect(page.data[0]!.id).toBe('sf-sol-2');
+    expect(page.has_more).toBe(false);
   });
 });
 

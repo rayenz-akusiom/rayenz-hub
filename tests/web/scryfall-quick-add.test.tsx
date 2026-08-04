@@ -15,9 +15,11 @@ import {
 } from '../../packages/web/src/deck-builder/scryfall/ScryfallSearchModal';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
-const { searchCards, fetchPrintings } = vi.hoisted(() => ({
+const { searchCards, searchCardsNextPage, fetchPrintingsPage, fetchCardById } = vi.hoisted(() => ({
   searchCards: vi.fn(),
-  fetchPrintings: vi.fn(),
+  searchCardsNextPage: vi.fn(),
+  fetchPrintingsPage: vi.fn(),
+  fetchCardById: vi.fn(),
 }));
 
 vi.mock('@rayenz-hub/shared', async (importOriginal) => {
@@ -25,7 +27,9 @@ vi.mock('@rayenz-hub/shared', async (importOriginal) => {
   return {
     ...actual,
     searchCards: (...args: unknown[]) => searchCards(...args),
-    fetchPrintings: (...args: unknown[]) => fetchPrintings(...args),
+    searchCardsNextPage: (...args: unknown[]) => searchCardsNextPage(...args),
+    fetchPrintingsPage: (...args: unknown[]) => fetchPrintingsPage(...args),
+    fetchCardById: (...args: unknown[]) => fetchCardById(...args),
   };
 });
 
@@ -64,7 +68,17 @@ beforeEach(() => {
     has_more: false,
     next_page: null,
   });
-  fetchPrintings.mockResolvedValue([solRing]);
+  searchCardsNextPage.mockResolvedValue({
+    data: [],
+    has_more: false,
+    next_page: null,
+  });
+  fetchPrintingsPage.mockResolvedValue({
+    data: [solRing],
+    has_more: false,
+    next_page: null,
+  });
+  fetchCardById.mockResolvedValue(null);
 });
 
 describe('deckCardNameCounts', () => {
@@ -158,7 +172,7 @@ describe('ScryfallSearchModal quick add', () => {
 
     expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
-    expect(fetchPrintings).toHaveBeenCalled();
+    expect(fetchPrintingsPage).toHaveBeenCalled();
   });
 
   it('does not show Quick add toggle when allowQuickAdd is false', () => {

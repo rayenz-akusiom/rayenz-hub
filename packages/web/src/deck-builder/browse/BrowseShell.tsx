@@ -57,6 +57,7 @@ import { MoveSheet } from '../edit/MoveSheet';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
 import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
 import { CategoryEditDialog } from '../edit/CategoryEditDialog';
+import { BasicLandsPanel } from '../edit/BasicLandsPanel';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
 import { GlanceGenerateButton } from '../commander/GlanceGenerateButton';
@@ -128,6 +129,7 @@ export function BrowseShell({
   const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
   const [contextMenu, setContextMenu] = useState<CardContextMenuState | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [basicsOpen, setBasicsOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const setFilter = useSetMembershipFilter();
@@ -669,6 +671,7 @@ export function BrowseShell({
           cardSize={cardSize}
           onCardSizeChange={setCardSize}
           onOpenCategories={() => setCategoriesOpen(true)}
+          onOpenBasics={() => setBasicsOpen(true)}
           setFilter={setFilter}
         />
         <DeckActionsMenu
@@ -935,6 +938,14 @@ export function BrowseShell({
             setEditingCategory(name);
           }}
           initialFocus="order"
+        />
+      ) : null}
+
+      {basicsOpen ? (
+        <BasicLandsPanel
+          deck={deck}
+          onChange={(next) => commit(next)}
+          onClose={() => setBasicsOpen(false)}
         />
       ) : null}
 

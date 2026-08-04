@@ -37,6 +37,7 @@ export function ExportBar({
   cardSize,
   onCardSizeChange,
   onOpenCategories,
+  onOpenBasics,
   setFilter,
 }: {
   view: BrowseView;
@@ -48,6 +49,7 @@ export function ExportBar({
   cardSize: CardSizeKey;
   onCardSizeChange: (next: CardSizeKey) => void;
   onOpenCategories?: () => void;
+  onOpenBasics?: () => void;
   setFilter?: SetMembershipFilterState;
 }) {
   return (
@@ -108,6 +110,11 @@ export function ExportBar({
       {onOpenCategories ? (
         <button type="button" className="db-btn" onClick={onOpenCategories}>
           Categories…
+        </button>
+      ) : null}
+      {onOpenBasics ? (
+        <button type="button" className="db-btn" onClick={onOpenBasics}>
+          Basics…
         </button>
       ) : null}
     </div>

@@ -1238,6 +1238,147 @@ body,
   width: min(42rem, 96vw);
 }
 
+.db-basics-panel {
+  max-width: 36rem;
+  width: min(36rem, 96vw);
+  max-height: min(90vh, 44rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.db-basics-total {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.db-basics-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  overflow: auto;
+  flex: 1 1 auto;
+  padding-right: 0.15rem;
+}
+
+.db-basics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--db-border, #ddd);
+}
+
+.db-basics-section:last-of-type {
+  border-bottom: none;
+}
+
+.db-basics-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.db-basics-section-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.db-basics-stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.db-basics-stack-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--db-border, #ddd);
+  border-radius: 6px;
+  background: var(--db-surface, #fff);
+}
+
+.db-basics-thumb {
+  width: 2rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--db-muted-bg, #eee);
+  display: grid;
+  place-items: center;
+}
+
+.db-basics-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.db-basics-thumb-fallback {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--db-muted, #888);
+}
+
+.db-basics-stack-meta {
+  flex: 1 1 6rem;
+  min-width: 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.db-basics-printing {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.db-basics-badges {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.db-basics-badge {
+  display: inline-flex;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--db-muted, #666);
+}
+
+.db-basics-badge .db-badge-foil-icon,
+.db-basics-badge .db-badge-proxy-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.db-basics-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.db-basics-qty-btn {
+  min-width: 1.75rem;
+  padding-inline: 0.35rem;
+}
+
+.db-basics-qty-input {
+  width: 3.25rem;
+  text-align: center;
+  padding: 0.25rem 0.3rem;
+}
+
+.db-basics-empty {
+  margin: 0;
+}
+
 .db-category-cube-target {
   display: flex;
   flex-direction: column;
@@ -2236,6 +2377,18 @@ body,
   display: grid;
   gap: 0.75rem;
   align-content: start;
+}
+
+.db-picker-scroll-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.db-picker-loading-more {
+  margin: 0;
+  text-align: center;
+  padding-bottom: 0.35rem;
 }
 
 .db-modal-picker > .db-modal-actions {

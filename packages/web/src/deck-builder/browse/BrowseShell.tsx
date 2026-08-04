@@ -44,6 +44,7 @@ import {
   type CardSortMode,
   type DeckDocument,
   type PrintingFields,
+  type ScryfallCard,
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
@@ -55,6 +56,10 @@ import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chr
 import { findMatchingPrintingInstance } from '../swaps/swap-pickers';
 import { MoveSheet } from '../edit/MoveSheet';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
+import {
+  findDeckInstanceForPickerCard,
+  removeOneCopyFromDeck,
+} from '../edit/card-mutations';
 import { CategorySettingsPanel } from '../edit/CategorySettingsPanel';
 import { CategoryEditDialog } from '../edit/CategoryEditDialog';
 import { BasicLandsPanel } from '../edit/BasicLandsPanel';
@@ -566,6 +571,29 @@ export function BrowseShell({
     if (!meta?.keepOpen) setAddOpen(false);
   }
 
+  function onRemoveInDeckCardFromPicker(card: ScryfallCard) {
+    const next = removeOneCopyFromDeck(deckRef.current, {
+      name: card.name,
+      scryfallId: card.id,
+    });
+    if (next === deckRef.current) return;
+    commit(next);
+  }
+
+  function onInDeckContextMenuFromPicker(
+    card: ScryfallCard,
+    pos: { x: number; y: number },
+  ) {
+    const inst = findDeckInstanceForPickerCard(deckRef.current, {
+      name: card.name,
+      scryfallId: card.id,
+    });
+    if (!inst) return;
+    setSelectedIds(new Set([inst.instanceId]));
+    setSelectionAnchorId(inst.instanceId);
+    setContextMenu({ x: pos.x, y: pos.y, instanceId: inst.instanceId });
+  }
+
   function onConfirmSwapIn(
     printing: PrintingFields,
     category: string,
@@ -906,6 +934,8 @@ export function BrowseShell({
           onClose={() => setAddOpen(false)}
           onAdd={onAddCard}
           allowQuickAdd
+          onRemoveInDeckCard={onRemoveInDeckCardFromPicker}
+          onInDeckContextMenu={onInDeckContextMenuFromPicker}
         />
       ) : null}
 

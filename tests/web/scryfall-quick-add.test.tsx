@@ -53,6 +53,16 @@ const birds: ScryfallCard = {
   finishes: ['nonfoil'],
 };
 
+const forest: ScryfallCard = {
+  id: 'sf-forest',
+  name: 'Forest',
+  set: 'm12',
+  collector_number: '246',
+  type_line: 'Basic Land — Forest',
+  color_identity: ['G'],
+  finishes: ['nonfoil'],
+};
+
 const baseDeck = commanderFixture as DeckDocument;
 
 afterEach(() => {
@@ -180,6 +190,178 @@ describe('ScryfallSearchModal quick add', () => {
       <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />,
     );
     expect(screen.queryByRole('button', { name: 'Quick add' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ScryfallSearchModal deck-edit singleton gestures', () => {
+  async function searchWithResults(user: ReturnType<typeof userEvent.setup>, data: ScryfallCard[]) {
+    searchCards.mockResolvedValue({ data, has_more: false, next_page: null });
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'query');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: new RegExp(data[0]!.name, 'i') })).toBeInTheDocument();
+    });
+  }
+
+  it('no-ops left-click on an in-deck non-basic when deck-edit callbacks are set', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const onRemove = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={onAdd}
+        allowQuickAdd
+        onRemoveInDeckCard={onRemove}
+        onInDeckContextMenu={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await searchWithResults(user, [birds, solRing]);
+
+    await user.click(screen.getByRole('option', { name: /Birds of Paradise/i }));
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('still quick-adds an in-deck basic land', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={onAdd}
+        allowQuickAdd
+        onRemoveInDeckCard={vi.fn()}
+        onInDeckContextMenu={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await searchWithResults(user, [forest]);
+
+    await user.click(screen.getByRole('option', { name: /Forest/i }));
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd.mock.calls[0]![0].name).toBe('Forest');
+  });
+
+  it('right-click removes an in-deck card; no-ops when not in deck', async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={vi.fn()}
+        allowQuickAdd
+        onRemoveInDeckCard={onRemove}
+        onInDeckContextMenu={vi.fn()}
+      />,
+    );
+
+    await searchWithResults(user, [birds, solRing]);
+
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Birds of Paradise/i }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onRemove.mock.calls[0]![0].name).toBe('Birds of Paradise');
+
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Sol Ring/i }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('long-press on in-deck card opens context menu callback', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onMenu = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={vi.fn()}
+        allowQuickAdd
+        onRemoveInDeckCard={vi.fn()}
+        onInDeckContextMenu={onMenu}
+      />,
+    );
+
+    await searchWithResults(user, [birds]);
+
+    const option = screen.getByRole('option', { name: /Birds of Paradise/i });
+    fireEvent.pointerDown(option, {
+      button: 0,
+      pointerType: 'touch',
+      pointerId: 1,
+      clientX: 120,
+      clientY: 80,
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(onMenu).toHaveBeenCalledTimes(1);
+    expect(onMenu.mock.calls[0]![0].name).toBe('Birds of Paradise');
+    expect(onMenu.mock.calls[0]![1]).toEqual(
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+      }),
+    );
+    expect(screen.queryByRole('heading', { name: /Add —/i })).not.toBeInTheDocument();
+  });
+
+  it('long-press on not-in-deck card still opens printing picker with Quick add', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onMenu = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={vi.fn()}
+        allowQuickAdd
+        onRemoveInDeckCard={vi.fn()}
+        onInDeckContextMenu={onMenu}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await searchWithResults(user, [solRing]);
+
+    const option = screen.getByRole('option', { name: /Sol Ring/i });
+    fireEvent.pointerDown(option, { button: 0, pointerType: 'touch', pointerId: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(onMenu).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+  });
+
+  it('allows adding an in-deck non-basic when deck-edit callbacks are omitted (swap)', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={onAdd}
+        allowQuickAdd
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await searchWithResults(user, [birds]);
+
+    await user.click(screen.getByRole('option', { name: /Birds of Paradise/i }));
+    expect(onAdd).toHaveBeenCalledTimes(1);
   });
 });
 

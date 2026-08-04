@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
   defaultAddCategory,
   defaultCategoryForCard,
   deckCategoryOptions,
+  isBasicLand,
   mapScryfallCardToPrinting,
   scryfallCardImageUrl,
   scryfallImageFromId,
@@ -31,6 +33,24 @@ import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 const LONG_PRESS_MS = 450;
 
 export type ScryfallAddMeta = { proxy: boolean; keepOpen?: boolean };
+
+export type PickerMenuPosition = { x: number; y: number };
+
+function inDeckCountForCard(
+  inDeckByName: Map<string, number>,
+  cardResult: ScryfallCard,
+): number {
+  return inDeckByName.get(String(cardResult.name || '').trim().toLowerCase()) || 0;
+}
+
+/** Non-basics already in the deck cannot be added again from the picker. */
+export function isPickerAddBlocked(
+  cardResult: Pick<ScryfallCard, 'name' | 'type_line'>,
+  inDeckCount: number,
+): boolean {
+  if (inDeckCount <= 0) return false;
+  return !isBasicLand({ name: cardResult.name, typeLine: cardResult.type_line || null });
+}
 
 /** Case-insensitive name → quantity already in the deck. */
 export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<string, number> {
@@ -78,6 +98,8 @@ export function ScryfallSearchModal({
   defaultCategory,
   embedded = false,
   allowQuickAdd = false,
+  onRemoveInDeckCard,
+  onInDeckContextMenu,
 }: {
   deck: DeckDocument;
   onClose: () => void;
@@ -91,6 +113,10 @@ export function ScryfallSearchModal({
   embedded?: boolean;
   /** Show session Quick add toggle (deck FAB add flow). */
   allowQuickAdd?: boolean;
+  /** Right-click on an in-deck result removes one copy (deck FAB add flow). */
+  onRemoveInDeckCard?: (card: ScryfallCard) => void;
+  /** Long-press on an in-deck result opens the builder card context menu. */
+  onInDeckContextMenu?: (card: ScryfallCard, pos: PickerMenuPosition) => void;
 }) {
   const isCommander = deck.format === 'commander';
   const [query, setQuery] = useState('');
@@ -109,6 +135,7 @@ export function ScryfallSearchModal({
   const [showBackToSearch, setShowBackToSearch] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
+  const longPressPosRef = useRef<PickerMenuPosition>({ x: 0, y: 0 });
   const lastComposedQueryRef = useRef('');
   const nextPageRef = useRef<string | null>(null);
   const loadingMoreRef = useRef(false);
@@ -155,7 +182,15 @@ export function ScryfallSearchModal({
     setPending(cardResult);
   }
 
+  const deckEditPicker = Boolean(onRemoveInDeckCard || onInDeckContextMenu);
+
   function quickAddCard(cardResult: ScryfallCard) {
+    if (
+      deckEditPicker &&
+      isPickerAddBlocked(cardResult, inDeckCountForCard(inDeckByName, cardResult))
+    ) {
+      return;
+    }
     const printing = mapScryfallCardToPrinting(cardResult);
     const category = defaultCategoryForCard(deck, {
       name: printing.name,
@@ -169,14 +204,26 @@ export function ScryfallSearchModal({
   }
 
   function onResultPointerDown(e: ReactPointerEvent, cardResult: ScryfallCard) {
-    if (!allowQuickAdd || !quickAdd) return;
     // Ignore non-primary mouse buttons; touch/pen often omit `button`.
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const inDeckCount = inDeckCountForCard(inDeckByName, cardResult);
+    const canOpenInDeckMenu = Boolean(onInDeckContextMenu) && inDeckCount > 0;
+    const canOpenPrintingLongPress = Boolean(allowQuickAdd && quickAdd);
+    if (!canOpenInDeckMenu && !canOpenPrintingLongPress) return;
+
     longPressFiredRef.current = false;
+    longPressPosRef.current = {
+      x: Number.isFinite(e.clientX) ? e.clientX : 0,
+      y: Number.isFinite(e.clientY) ? e.clientY : 0,
+    };
     clearLongPressTimer();
     longPressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true;
       longPressTimerRef.current = null;
+      if (canOpenInDeckMenu && onInDeckContextMenu) {
+        onInDeckContextMenu(cardResult, longPressPosRef.current);
+        return;
+      }
       openPrintingPicker(cardResult);
     }, LONG_PRESS_MS);
   }
@@ -190,11 +237,27 @@ export function ScryfallSearchModal({
       longPressFiredRef.current = false;
       return;
     }
+    if (
+      deckEditPicker &&
+      isPickerAddBlocked(cardResult, inDeckCountForCard(inDeckByName, cardResult))
+    ) {
+      return;
+    }
     if (allowQuickAdd && quickAdd) {
       quickAddCard(cardResult);
       return;
     }
     openPrintingPicker(cardResult);
+  }
+
+  function onResultContextMenu(e: ReactMouseEvent, cardResult: ScryfallCard) {
+    const inDeckCount = inDeckCountForCard(inDeckByName, cardResult);
+    if (onRemoveInDeckCard && inDeckCount > 0) {
+      e.preventDefault();
+      onRemoveInDeckCard(cardResult);
+      return;
+    }
+    if (allowQuickAdd && quickAdd) e.preventDefault();
   }
 
   async function runSearch(e?: FormEvent, overrideQuery?: string) {
@@ -318,8 +381,12 @@ export function ScryfallSearchModal({
               aria-pressed={quickAdd}
               title={
                 quickAdd
-                  ? 'Quick add on — tap to add, long-press for printing'
-                  : 'Quick add off — tap opens printing picker'
+                  ? onRemoveInDeckCard
+                    ? 'Quick add on — tap to add once; right-click removes; long-press for menu/printing'
+                    : 'Quick add on — tap to add, long-press for printing'
+                  : onRemoveInDeckCard
+                    ? 'Quick add off — tap opens printing; right-click removes; long-press opens card menu'
+                    : 'Quick add off — tap opens printing picker'
               }
               onClick={() => setQuickAdd((v) => !v)}
             >
@@ -387,8 +454,12 @@ export function ScryfallSearchModal({
 
         <p className="db-muted db-search-hint">
           {allowQuickAdd && quickAdd
-            ? 'Tap a card to add it; long-press to choose printing / category.'
-            : 'Uses Scryfall search syntax. Pick a card, then choose a printing.'}
+            ? onRemoveInDeckCard
+              ? 'Tap to add (once); right-click removes; long-press for menu or printing.'
+              : 'Tap a card to add it; long-press to choose printing / category.'
+            : onRemoveInDeckCard
+              ? 'Pick a card to add (once). Right-click removes; long-press opens the card menu.'
+              : 'Uses Scryfall search syntax. Pick a card, then choose a printing.'}
         </p>
 
         {showRecent ? (
@@ -437,9 +508,7 @@ export function ScryfallSearchModal({
                   onPointerUp={onResultPointerEnd}
                   onPointerLeave={onResultPointerEnd}
                   onPointerCancel={onResultPointerEnd}
-                  onContextMenu={(e) => {
-                    if (allowQuickAdd && quickAdd) e.preventDefault();
-                  }}
+                  onContextMenu={(e) => onResultContextMenu(e, cardResult)}
                 >
                   <span className="db-picker-option-face">
                     <CardFace

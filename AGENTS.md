@@ -4,7 +4,8 @@ This file captures conventions for automated agents working in this repo. Prefer
 
 ## Non-negotiables
 
-- **Do not deploy to AWS** unless the user explicitly asks (`sam deploy`, `npm run deploy:api`, etc.). Local SAM/`start:api` is fine.
+- **“Deploy” means GitHub Pages** (`npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`) — production has **not** cut over to AWS yet.
+- **Do not deploy to AWS** unless the user **names AWS** or an API script (`deploy to AWS`, `sam deploy`, `npm run deploy:api`). Bare “deploy” / “commit push and deploy” is **not** an AWS override. Local SAM/`start:api` is fine.
 - **Do not commit or push** unless the user explicitly asks.
 - Prefer **Ask mode** for exploration; switch to Agent only when implementing.
 - Keep diffs focused: no drive-by refactors, no unsolicited markdown docs beyond what was requested.

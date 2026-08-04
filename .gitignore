@@ -11,4 +11,6 @@ dist/
 packages/*/dist/
 tools/dev-dashboard/logs/*.log
 tools/dev-dashboard/.state.json
+debug-*.log
+.cursor/debug-*.log
 

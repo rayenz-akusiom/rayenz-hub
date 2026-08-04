@@ -1,26 +1,36 @@
 ---
-description: Do not deploy to AWS unless the user explicitly overrides this rule
+description: Deploy means GitHub Pages; never deploy to AWS unless named explicitly
 alwaysApply: true
 ---
 
-# No AWS deploy (default)
+# Deploy = GitHub Pages (not AWS)
 
-Until the user **explicitly** says otherwise, **never deploy or push to AWS**.
+**Production is still GitHub Pages.** AWS is local/dev tooling and optional cloud experiments — it is **not** the production cutover yet.
 
-## Do not run
+## What “deploy” means
+
+When the user says **deploy**, **publish**, **ship**, or **push to prod** (without naming AWS), they mean the **Hub static site → GitHub Pages**:
+
+- `npm run publish:hub` (build web + next-step hint)
+- `npm run deploy:hub` (`git subtree push --prefix=rayenz-hub hub-prod main`)
+
+Do **not** interpret bare “deploy” as AWS / SAM / `deploy:api`.
+
+## Never run (unless AWS is named)
 
 - `npm run deploy:api` or `npm run deploy:api:guided`
 - `sam deploy` (any variant)
-- AWS CLI commands that create, update, or delete cloud resources (stacks, Lambda, DynamoDB tables, S3 buckets, SSM parameters, etc.)
-- Suggesting or offering to deploy to AWS without being asked
+- AWS CLI that creates, updates, or deletes cloud resources (stacks, Lambda, DynamoDB, S3, SSM, etc.)
+- Offering or suggesting an AWS deploy when the user only said “deploy”
 
 ## Allowed without override
 
-- Local development: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, MinIO
-- `npm run test:api` and `npm run test:api:deployed` (only when the user supplies `HUB_API_URL` / credentials)
-- Documentation and code changes for AWS deploy tooling
-- `git push` to GitHub (not AWS)
+- Local API: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, MinIO
+- `npm run test:api` / `npm run test:api:deployed` (when the user supplies `HUB_API_URL` / credentials)
+- Docs/code for AWS tooling
+- `git push` to GitHub remotes (source repo or Pages subtree via `deploy:hub`)
 
-## Override
+## AWS override (strict)
 
-Only deploy to AWS when the user clearly requests it (e.g. "deploy to AWS", "run deploy:api", or "push to AWS").
+Only touch AWS when the user **names AWS or the API script**, e.g. “deploy to AWS”, “run deploy:api”, “sam deploy”, “push the Lambda stack”.  
+Phrases like “deploy”, “deploy it”, “commit push and deploy” are **not** an AWS override.

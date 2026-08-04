@@ -17,6 +17,7 @@ import {
 import { PrintingPickerModal } from './PrintingPickerModal';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
+import { DbMenu } from '../ui/DbMenu';
 import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
 
 const LONG_PRESS_MS = 450;
@@ -35,6 +36,20 @@ export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<strin
     counts.set(key, (counts.get(key) || 0) + qty);
   }
   return counts;
+}
+
+/** Freeform query plus optional Include clauses (identity stays out of the input). */
+export function composeScryfallQuery(
+  freeform: string,
+  includeIdentity: boolean,
+  deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
+): string {
+  const parts = [freeform.trim()];
+  if (includeIdentity) {
+    const clause = commanderIdentityScryfallQuery(deck);
+    if (clause) parts.push(clause);
+  }
+  return parts.filter(Boolean).join(' ');
 }
 
 export function ScryfallSearchModal({
@@ -61,7 +76,9 @@ export function ScryfallSearchModal({
   /** Show session Quick add toggle (deck FAB add flow). */
   allowQuickAdd?: boolean;
 }) {
-  const [query, setQuery] = useState(() => commanderIdentityScryfallQuery(deck) ?? '');
+  const isCommander = deck.format === 'commander';
+  const [query, setQuery] = useState('');
+  const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommander);
   const [results, setResults] = useState<ScryfallCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);
@@ -73,6 +90,7 @@ export function ScryfallSearchModal({
   const [quickAdd, setQuickAdd] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
+  const lastComposedQueryRef = useRef('');
 
   const categories = deckCategoryOptions(deck);
   const inDeckByName = deckCardNameCounts(deck);
@@ -141,22 +159,24 @@ export function ScryfallSearchModal({
 
   async function runSearch(e?: FormEvent, overrideQuery?: string) {
     e?.preventDefault();
-    const q = (overrideQuery ?? query).trim();
-    if (!q) {
+    const freeform = (overrideQuery ?? query).trim();
+    if (!freeform) {
       setError('Enter a Scryfall search query.');
       return;
     }
-    if (overrideQuery != null) setQuery(q);
+    if (overrideQuery != null) setQuery(freeform);
+    const composed = composeScryfallQuery(freeform, includeCommanderIdentity, deck);
+    lastComposedQueryRef.current = composed;
     setLoading(true);
     setError(null);
     setPending(null);
     try {
-      const page1 = await searchCards(q, 1);
+      const page1 = await searchCards(composed, 1);
       setResults(page1.data);
       setHasMore(page1.has_more);
       setNextPage(page1.next_page);
       setPage(1);
-      setRecent(rememberScryfallSearch(q));
+      setRecent(rememberScryfallSearch(freeform));
       if (!page1.data.length) {
         setError('No cards matched that search.');
       }
@@ -177,7 +197,11 @@ export function ScryfallSearchModal({
     try {
       const next = nextPage
         ? await searchCardsNextPage(nextPage)
-        : await searchCards(query.trim(), page + 1);
+        : await searchCards(
+            lastComposedQueryRef.current ||
+              composeScryfallQuery(query, includeCommanderIdentity, deck),
+            page + 1,
+          );
       setResults((prev) => [...prev, ...next.data]);
       setHasMore(next.has_more);
       setNextPage(next.next_page);
@@ -246,11 +270,36 @@ export function ScryfallSearchModal({
               className="db-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder='e.g. t:creature id:wubrg o:"draw a card"'
+              placeholder='e.g. t:creature o:"draw a card"'
               autoFocus
               spellCheck={false}
             />
           </label>
+          {isCommander ? (
+            <div className="db-search-include">
+              <DbMenu
+                label="Include"
+                value={includeCommanderIdentity ? 'Identity' : 'None'}
+                ariaLabel="Include in Scryfall search"
+              >
+                <div
+                  className="db-search-include-panel"
+                  role="none"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <label className="db-check">
+                    <input
+                      type="checkbox"
+                      checked={includeCommanderIdentity}
+                      onChange={(e) => setIncludeCommanderIdentity(e.target.checked)}
+                    />
+                    Commander identity
+                  </label>
+                </div>
+              </DbMenu>
+            </div>
+          ) : null}
           <button type="submit" className="db-btn is-active" disabled={loading}>
             Search
           </button>

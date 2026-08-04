@@ -2122,6 +2122,16 @@ body,
   gap: 0.25rem;
 }
 
+.db-search-include {
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+
+.db-search-include-panel {
+  padding: 0.35rem 0.5rem;
+  min-width: 11rem;
+}
+
 .db-search-hint {
   margin: 0;
 }

@@ -48,6 +48,7 @@ import {
 import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { UnifiedListBrowse } from './UnifiedListBrowse';
+import { AddCardFab } from './AddCardFab';
 import { useDragAutoScroll } from './useDragAutoScroll';
 import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
 import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chrome';
@@ -120,6 +121,7 @@ export function BrowseShell({
   const [mainVisibleOrder, setMainVisibleOrder] = useState<string[]>([]);
   const [asideVisibleOrder, setAsideVisibleOrder] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [moveCreatingNew, setMoveCreatingNew] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [printingOpen, setPrintingOpen] = useState(false);
   const [draft, setDraft] = useState<SwapEditDraft | null>(null);
@@ -882,10 +884,15 @@ export function BrowseShell({
         <MoveSheet
           deck={deck}
           cards={selectedCards}
-          onClose={() => setMoveOpen(false)}
+          initialCreatingNew={moveCreatingNew}
+          onClose={() => {
+            setMoveOpen(false);
+            setMoveCreatingNew(false);
+          }}
           onApply={(next) => {
             commit(next);
             setMoveOpen(false);
+            setMoveCreatingNew(false);
           }}
         />
       ) : null}
@@ -996,17 +1003,18 @@ export function BrowseShell({
         />
       ) : null}
 
-      <button
-        type="button"
-        className="db-add-fab"
-        aria-label="Add card"
-        title="Add card"
-        onClick={() => setAddOpen(true)}
-      >
-        <span className="db-add-fab-plus" aria-hidden="true">
-          +
-        </span>
-      </button>
+      <AddCardFab
+        onAddClick={() => setAddOpen(true)}
+        onDropDefault={(ids) => {
+          commit(moveCardsToDefaultCategories(deckRef.current, ids));
+        }}
+        onDropNewCategory={(ids) => {
+          setSelectedIds(new Set(ids));
+          setSelectionAnchorId(ids[0] ?? null);
+          setMoveCreatingNew(true);
+          setMoveOpen(true);
+        }}
+      />
     </div>
   );
 }

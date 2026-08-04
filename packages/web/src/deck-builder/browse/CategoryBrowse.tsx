@@ -37,6 +37,7 @@ import {
   type SelectCardHandler,
 } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
+import { useDeckBuilderDragging } from './useDeckBuilderDragging';
 
 export type DropCardHandler = (
   instanceIds: string[],
@@ -53,31 +54,6 @@ function cardIsSelected(
 ): boolean {
   if (selectedIds) return selectedIds.has(instanceId);
   return selectedId === instanceId;
-}
-
-/** True while a deck-builder card drag is in progress. */
-function useDeckBuilderDragging(): boolean {
-  const [dragging, setDragging] = useState(false);
-
-  useEffect(() => {
-    function onDragStart(e: DragEvent) {
-      if (isDeckBuilderDragTypes(e.dataTransfer?.types)) setDragging(true);
-    }
-    function onDragEnd() {
-      setDragging(false);
-    }
-
-    document.addEventListener('dragstart', onDragStart);
-    document.addEventListener('dragend', onDragEnd);
-    document.addEventListener('drop', onDragEnd);
-    return () => {
-      document.removeEventListener('dragstart', onDragStart);
-      document.removeEventListener('dragend', onDragEnd);
-      document.removeEventListener('drop', onDragEnd);
-    };
-  }, []);
-
-  return dragging;
 }
 
 function PartnerTie({ illegal }: { illegal?: boolean }) {

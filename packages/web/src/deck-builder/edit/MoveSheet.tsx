@@ -15,12 +15,15 @@ export function MoveSheet({
   cards,
   onClose,
   onApply,
+  initialCreatingNew = false,
 }: {
   deck: DeckDocument;
   /** One or more cards to move to the same category/stack. */
   cards: Array<CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null }>;
   onClose: () => void;
   onApply: (next: DeckDocument) => void;
+  /** Open directly on the new-category name field (FAB drop target). */
+  initialCreatingNew?: boolean;
 }) {
   const list = cards.filter(Boolean);
   const primary = list[0];
@@ -48,7 +51,7 @@ export function MoveSheet({
         : '';
 
   const [category, setCategory] = useState(defaultCategory);
-  const [creatingNew, setCreatingNew] = useState(false);
+  const [creatingNew, setCreatingNew] = useState(initialCreatingNew);
   const [newCategory, setNewCategory] = useState('');
   const [stack, setStack] = useState(defaultStack);
 

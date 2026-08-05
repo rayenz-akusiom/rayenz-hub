@@ -207,6 +207,40 @@ describe('retargetFormalSwap', () => {
     expect(result!.target.formalSwapEntries[0]!.inInstanceId).toBe('new-in');
     expect(result!.target.formalSwapEntries[0]!.outInstanceId).toBeNull();
   });
+
+  it('rejects Maybeboard Place In and falls back to an included category', () => {
+    const source = baseDeck({
+      deckId: 'a',
+      name: 'A',
+      cards: [card({ instanceId: 'in1', name: 'Sol Ring' })],
+      formalSwapEntries: [
+        {
+          id: 'swap1',
+          inInstanceId: 'in1',
+          outInstanceId: null,
+          inTargetCategory: 'Maybeboard',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    });
+    const target = baseDeck({
+      deckId: 'b',
+      name: 'B',
+      categories: [
+        { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+    });
+    const result = retargetFormalSwap(source, target, 'swap1', undefined, {
+      nextId: () => 'in-moved',
+    });
+    expect(result).not.toBeNull();
+    expect(result!.target.formalSwapEntries[0]!.inTargetCategory).toBe('Creature');
+    expect(result!.target.cards.find((c) => c.instanceId === 'in-moved')!.primaryCategory).toBe(
+      'Creature',
+    );
+  });
 });
 
 describe('retargetLookingFor', () => {

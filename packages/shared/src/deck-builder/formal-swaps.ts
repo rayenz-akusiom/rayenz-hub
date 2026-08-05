@@ -13,7 +13,8 @@ import {
   isSwapOutCategory,
   isSwapQueueCategoryName,
 } from '../mtg/swap-queue.js';
-import { defaultAddCategory, ensureCategoryDef } from './card-edits.js';
+import { categoryIncluded } from './browse.js';
+import { ensureCategoryDef } from './card-edits.js';
 
 const MAYBEBOARD = 'Maybeboard';
 
@@ -21,28 +22,63 @@ function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function isUsableInTargetCategory(name: string | null | undefined): boolean {
+/** Place In targets must be included in the deck — not Maybeboard, Seeking, or Queued*. */
+export function isValidSwapInTargetCategory(
+  categories: CategoryDef[],
+  name: string | null | undefined,
+): boolean {
   const n = String(name || '').trim();
   if (!n) return false;
   if (isSwapQueueCategoryName(n) || isSeekingCategory(n)) return false;
-  return true;
+  return categoryIncluded(categories, n);
+}
+
+/** First deck-included category def, else Other. Never Maybeboard. */
+export function defaultSwapInTargetCategory(
+  deck: Pick<DeckDocument, 'categories'>,
+): string {
+  const cats = deck.categories || [];
+  for (const c of cats) {
+    if (isValidSwapInTargetCategory(cats, c.name)) return c.name;
+  }
+  return 'Other';
 }
 
 /**
  * Prefer the Out card's Hub category for Place In defaults.
  * After sync, primary may be Queued Out — fall back to the first usable secondary.
+ * Only returns categories included in the deck (skips Maybeboard / Seeking / Queued*).
  */
 export function inTargetCategoryFromOutCard(
   card: CardInstance | null | undefined,
+  categories: CategoryDef[] = [],
 ): string | null {
   if (!card) return null;
-  if (isUsableInTargetCategory(card.primaryCategory)) {
+  if (isValidSwapInTargetCategory(categories, card.primaryCategory)) {
     return String(card.primaryCategory).trim();
   }
   for (const c of card.categories || []) {
-    if (isUsableInTargetCategory(c)) return String(c).trim();
+    if (isValidSwapInTargetCategory(categories, c)) return String(c).trim();
   }
   return null;
+}
+
+/**
+ * Resolve a Place In category: valid requested → Out-derived included → deck default.
+ * Never returns Maybeboard or other aside categories.
+ */
+export function resolveSwapInTargetCategory(
+  deck: Pick<DeckDocument, 'categories'>,
+  requested: string | null | undefined,
+  fallbackCard?: CardInstance | null,
+): string {
+  const cats = deck.categories || [];
+  if (isValidSwapInTargetCategory(cats, requested)) {
+    return String(requested).trim();
+  }
+  const fromCard = inTargetCategoryFromOutCard(fallbackCard, cats);
+  if (fromCard) return fromCard;
+  return defaultSwapInTargetCategory(deck);
 }
 
 export function incompleteEntryCount(entries: FormalSwapEntry[]): number {
@@ -275,6 +311,7 @@ export function syncCardsWithFormalSwaps(
   const referencedOut = new Set<string>();
   const referencedIn = new Set<string>();
   let categories = ensureSwapCategoryDefs(deck.categories || []);
+  const deckForResolve = { categories };
 
   for (const entry of formalSwapEntries) {
     if (entry.outInstanceId && byId.has(entry.outInstanceId)) {
@@ -282,13 +319,26 @@ export function syncCardsWithFormalSwaps(
       const card = clearSwapCategories(byId.get(entry.outInstanceId)!, format);
       byId.set(entry.outInstanceId, setPrimaryCategory(card, SWAP_OUT));
     }
+  }
+
+  for (const entry of formalSwapEntries) {
+    const outCard = entry.outInstanceId ? byId.get(entry.outInstanceId) ?? null : null;
+    if (
+      entry.inTargetCategory != null &&
+      !isValidSwapInTargetCategory(categories, entry.inTargetCategory)
+    ) {
+      entry.inTargetCategory = resolveSwapInTargetCategory(deckForResolve, null, outCard);
+    }
+
     if (entry.inInstanceId && byId.has(entry.inInstanceId)) {
       referencedIn.add(entry.inInstanceId);
       const cleared = clearSwapCategories(byId.get(entry.inInstanceId)!, format);
-      const target =
-        (entry.inTargetCategory && String(entry.inTargetCategory).trim()) ||
-        (!isSwapQueueCategoryName(cleared.primaryCategory) ? cleared.primaryCategory : null) ||
-        defaultAddCategory(deck);
+      const target = resolveSwapInTargetCategory(
+        deckForResolve,
+        entry.inTargetCategory,
+        outCard,
+      );
+      entry.inTargetCategory = target;
       categories = ensureCategoryDef(categories, target);
       byId.set(entry.inInstanceId, setPrimaryCategory(cleared, target));
     }
@@ -370,8 +420,9 @@ export function addCardsToSwapQueueAsOut(
 /** Queue cards as Out and sync live deck categories (Outs leave the counted deck). */
 export function queueCardsAsOut(deck: DeckDocument, instanceIds: string[]): DeckDocument {
   const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));
+  const cats = deck.categories || [];
   const entries = addCardsToSwapQueueAsOut(deck.formalSwapEntries, instanceIds, {
-    categoryForOut: (id) => inTargetCategoryFromOutCard(byId.get(id)),
+    categoryForOut: (id) => inTargetCategoryFromOutCard(byId.get(id), cats),
   });
   return syncCardsWithFormalSwaps(deck, entries);
 }
@@ -398,10 +449,7 @@ export function finalizeFormalSwap(
 
   const format = deck.format;
   const cleared = clearSwapCategories(inCard, format);
-  const target =
-    (entry.inTargetCategory && String(entry.inTargetCategory).trim()) ||
-    (!isSwapQueueCategoryName(cleared.primaryCategory) ? cleared.primaryCategory : null) ||
-    defaultAddCategory(deck);
+  const target = resolveSwapInTargetCategory(deck, entry.inTargetCategory, outCard);
   let categories = ensureCategoryDef(deck.categories || [], target);
   categories = ensureSwapCategoryDefs(categories);
   const placedIn = setPrimaryCategory(cleared, target);

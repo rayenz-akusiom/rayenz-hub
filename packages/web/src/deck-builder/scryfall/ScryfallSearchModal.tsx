@@ -96,6 +96,7 @@ export function ScryfallSearchModal({
   confirmLabel = 'Add to deck',
   printingTitle,
   defaultCategory,
+  categoryOptions,
   embedded = false,
   allowQuickAdd = false,
   onRemoveInDeckCard,
@@ -109,6 +110,8 @@ export function ScryfallSearchModal({
   /** Title for the nested printing step; defaults to `Add — {name}` / confirm-based. */
   printingTitle?: (cardName: string) => string;
   defaultCategory?: string;
+  /** When set, limits the printing-picker category list (e.g. swap Place In). */
+  categoryOptions?: string[];
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
   /** Show session Quick add toggle (deck FAB add flow). */
@@ -159,7 +162,7 @@ export function ScryfallSearchModal({
     return () => observer.disconnect();
   }, []);
 
-  const categories = deckCategoryOptions(deck);
+  const categories = categoryOptions ?? deckCategoryOptions(deck);
   const inDeckByName = deckCardNameCounts(deck);
   const printingHint = pending
     ? {

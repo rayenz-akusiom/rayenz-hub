@@ -1,8 +1,11 @@
 import type { DeckDocument, FormalSwapEntry, LookingForEntry } from '../schemas/deck-builder.js';
-import { categoryIncluded, isSwapQueueCategory } from './browse.js';
-import { defaultAddCategory, ensureCategoryDef, removeCardFromDeck } from './card-edits.js';
+import { ensureCategoryDef, removeCardFromDeck } from './card-edits.js';
 import { getOracle, oracleKey } from './card-oracle.js';
-import { syncCardsWithFormalSwaps } from './formal-swaps.js';
+import {
+  defaultSwapInTargetCategory,
+  isValidSwapInTargetCategory,
+  syncCardsWithFormalSwaps,
+} from './formal-swaps.js';
 import { SEEKING, syncCardsWithLookingFor } from './looking-for.js';
 
 function defaultNextId(prefix: string): string {
@@ -19,11 +22,8 @@ function resolveInTargetCategory(
   target: DeckDocument,
   requested: string | null | undefined,
 ): string | null {
-  const name = String(requested || '').trim();
-  if (!name) return null;
-  if (!categoryIncluded(target.categories || [], name)) return null;
-  if (isSwapQueueCategory(name)) return null;
-  return name;
+  if (!isValidSwapInTargetCategory(target.categories || [], requested)) return null;
+  return String(requested).trim();
 }
 
 /**
@@ -42,7 +42,7 @@ export function transplantCardInstance(
 
   const nextId = opts?.nextId || defaultNextId;
   const newInstanceId = nextId('c');
-  const category = String(primaryCategory || '').trim() || defaultAddCategory(to);
+  const category = String(primaryCategory || '').trim() || defaultSwapInTargetCategory(to);
   const cloned = {
     ...card,
     instanceId: newInstanceId,
@@ -103,7 +103,7 @@ export function retargetFormalSwap(
 
   if (draftIn && (nextTarget.cards || []).some((c) => c.instanceId === draftIn)) {
     newInId = draftIn;
-    const category = inTargetCategory || defaultAddCategory(nextTarget);
+    const category = inTargetCategory || defaultSwapInTargetCategory(nextTarget);
     inTargetCategory = category;
     if (
       entry.inInstanceId &&
@@ -113,7 +113,7 @@ export function retargetFormalSwap(
       nextSource = removeCardFromDeck(nextSource, entry.inInstanceId);
     }
   } else if (draftIn && (nextSource.cards || []).some((c) => c.instanceId === draftIn)) {
-    const category = inTargetCategory || defaultAddCategory(nextTarget);
+    const category = inTargetCategory || defaultSwapInTargetCategory(nextTarget);
     const moved = transplantCardInstance(nextSource, nextTarget, draftIn, category, opts);
     if (moved) {
       nextSource = moved.from;

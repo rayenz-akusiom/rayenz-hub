@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   addCardToDeck,
   aggregateSwapWants,
-  categoryIncluded,
   filterAcquireSources,
   filterWantSources,
   finalizeFormalSwap,
-  isSwapQueueCategory,
+  isValidSwapInTargetCategory,
   newFormalSwapEntry,
   partitionWantSourcesBySwimlane,
   retargetFormalSwap,
@@ -434,10 +433,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   }
 
   function categoryValidOnDeck(deck: DeckDocument, category: string | null): string | null {
-    if (!category) return null;
-    if (!categoryIncluded(deck.categories || [], category)) return null;
-    if (isSwapQueueCategory(category)) return null;
-    return category;
+    if (!isValidSwapInTargetCategory(deck.categories || [], category)) return null;
+    return String(category).trim();
   }
 
   function syncedFromDraft(deck: DeckDocument, draft: SwapEditDraft): DeckDocument {

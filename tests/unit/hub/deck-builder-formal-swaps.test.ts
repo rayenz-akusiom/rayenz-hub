@@ -2,19 +2,50 @@ import { describe, it, expect } from 'vitest';
 import {
   addCardsToSwapQueueAsOut,
   applyFormalSwapsToCards,
+  defaultSwapInTargetCategory,
   finalizeFormalSwap,
   formalSwapInIds,
   incompleteEntryCount,
   inTargetCategoryFromOutCard,
+  isValidSwapInTargetCategory,
   normalizeFormalEntries,
   queueCardsAsOut,
+  resolveSwapInTargetCategory,
   seedFormalSwapsFromCategories,
   splitOutInstance,
   syncCardsWithFormalSwaps,
 } from '../../../packages/shared/src/deck-builder/formal-swaps.ts';
 import { deckSize } from '../../../packages/shared/src/deck-builder/browse.ts';
-import type { CardInstance, DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
+import type {
+  CardInstance,
+  CategoryDef,
+  DeckDocument,
+} from '../../../packages/shared/src/schemas/deck-builder.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+
+const ASIDE_AND_DECK: CategoryDef[] = [
+  { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+  { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+  { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+  { name: 'Queued Out', includedInDeck: false, includedInPrice: false, target: null },
+];
+
+function cardStub(
+  partial: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'name' | 'primaryCategory'>,
+): CardInstance {
+  return {
+    quantity: 1,
+    categories: [partial.primaryCategory],
+    stack: null,
+    setCode: null,
+    collectorNumber: null,
+    scryfallId: null,
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+    ...partial,
+  };
+}
 
 function plainsStackDeck(qty = 6): DeckDocument {
   const base = commander as unknown as DeckDocument;
@@ -236,6 +267,71 @@ describe('formal swaps', () => {
         }),
       ).toBeNull();
     });
+
+    it('skips Maybeboard and uses a secondary included category', () => {
+      expect(
+        inTargetCategoryFromOutCard(
+          cardStub({
+            instanceId: 'c1',
+            name: 'Sol Ring',
+            primaryCategory: 'Maybeboard',
+            categories: ['Maybeboard', 'Creature'],
+          }),
+          ASIDE_AND_DECK,
+        ),
+      ).toBe('Creature');
+    });
+
+    it('returns null when Out is only on Maybeboard', () => {
+      expect(
+        inTargetCategoryFromOutCard(
+          cardStub({
+            instanceId: 'c1',
+            name: 'Sol Ring',
+            primaryCategory: 'Maybeboard',
+            categories: ['Maybeboard'],
+          }),
+          ASIDE_AND_DECK,
+        ),
+      ).toBeNull();
+    });
+  });
+
+  describe('swap Place In category helpers', () => {
+    it('rejects Maybeboard, Seeking, and Queued categories', () => {
+      expect(isValidSwapInTargetCategory(ASIDE_AND_DECK, 'Creature')).toBe(true);
+      expect(isValidSwapInTargetCategory(ASIDE_AND_DECK, 'Maybeboard')).toBe(false);
+      expect(isValidSwapInTargetCategory(ASIDE_AND_DECK, 'Seeking')).toBe(false);
+      expect(isValidSwapInTargetCategory(ASIDE_AND_DECK, 'Queued Out')).toBe(false);
+      expect(isValidSwapInTargetCategory(ASIDE_AND_DECK, null)).toBe(false);
+    });
+
+    it('defaultSwapInTargetCategory picks the first included def', () => {
+      expect(defaultSwapInTargetCategory({ categories: ASIDE_AND_DECK })).toBe('Creature');
+      expect(defaultSwapInTargetCategory({ categories: [] })).toBe('Other');
+    });
+
+    it('resolveSwapInTargetCategory clamps aside targets', () => {
+      expect(resolveSwapInTargetCategory({ categories: ASIDE_AND_DECK }, 'Maybeboard')).toBe(
+        'Creature',
+      );
+      expect(resolveSwapInTargetCategory({ categories: ASIDE_AND_DECK }, 'Seeking')).toBe(
+        'Creature',
+      );
+      expect(resolveSwapInTargetCategory({ categories: ASIDE_AND_DECK }, null)).toBe('Creature');
+      expect(
+        resolveSwapInTargetCategory(
+          { categories: ASIDE_AND_DECK },
+          null,
+          cardStub({
+            instanceId: 'out1',
+            name: 'Birds',
+            primaryCategory: 'Maybeboard',
+            categories: ['Maybeboard', 'Creature'],
+          }),
+        ),
+      ).toBe('Creature');
+    });
   });
 
   describe('formalSwapInIds', () => {
@@ -308,6 +404,116 @@ describe('formal swaps', () => {
       const next = queueCardsAsOut(staged, [outCard.instanceId]);
       expect(next.formalSwapEntries[0]!.outInstanceId).toBe(outCard.instanceId);
       expect(next.formalSwapEntries[0]!.inTargetCategory).toBe('Instant');
+    });
+
+    it('does not set inTargetCategory to Maybeboard when queuing Out from Maybeboard', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        categories: [
+          ...baseDeck.categories.map((c) => ({ ...c, target: c.target ?? null })),
+          { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        ],
+        cards: [
+          ...baseDeck.cards.map((c) => ({ ...c, foil: false, proxy: false })),
+          cardStub({
+            instanceId: 'maybe-1',
+            name: 'Maybe Card',
+            primaryCategory: 'Maybeboard',
+            categories: ['Maybeboard'],
+          }),
+        ],
+      };
+      const next = queueCardsAsOut(deck, ['maybe-1']);
+      expect(next.formalSwapEntries[0]!.outInstanceId).toBe('maybe-1');
+      expect(next.formalSwapEntries[0]!.inTargetCategory).toBeNull();
+    });
+
+    it('clamps Maybeboard and Seeking Place In targets on sync', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        categories: [
+          ...baseDeck.categories.map((c) => ({ ...c, target: c.target ?? null })),
+          { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        ],
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: 'c3',
+            outInstanceId: 'c1',
+            inTargetCategory: 'Maybeboard',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      };
+      const next = syncCardsWithFormalSwaps(deck);
+      expect(next.formalSwapEntries[0]!.inTargetCategory).toBe('Creature');
+      expect(next.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+
+      const seeking = syncCardsWithFormalSwaps({
+        ...deck,
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: 'c3',
+            outInstanceId: 'c1',
+            inTargetCategory: 'Seeking',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      });
+      expect(seeking.formalSwapEntries[0]!.inTargetCategory).toBe('Creature');
+      expect(seeking.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+    });
+
+    it('does not fall back to Maybeboard when inTargetCategory is null', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        categories: [
+          ...baseDeck.categories.map((c) => ({ ...c, target: c.target ?? null })),
+          { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        ],
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: 'c3',
+            outInstanceId: null,
+            inTargetCategory: null,
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      };
+      const next = syncCardsWithFormalSwaps(deck);
+      expect(next.formalSwapEntries[0]!.inTargetCategory).toBe('Creature');
+      expect(next.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+      expect(next.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).not.toBe('Maybeboard');
+    });
+
+    it('finalize clamps aside Place In targets', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        categories: [
+          ...baseDeck.categories.map((c) => ({ ...c, target: c.target ?? null })),
+          { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        ],
+        cards: baseDeck.cards.map((c) => ({ ...c, foil: false, proxy: false })),
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: 'c3',
+            outInstanceId: 'c1',
+            inTargetCategory: 'Maybeboard',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      };
+      const done = finalizeFormalSwap(deck, 's1');
+      expect(done).not.toBeNull();
+      expect(done!.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+      expect(done!.cards.some((c) => c.instanceId === 'c1')).toBe(false);
     });
 
     it('splits a basic land stack so only one copy leaves the deck', () => {

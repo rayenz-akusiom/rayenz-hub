@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   cardDisplayName,
   categoryIncluded,
-  defaultAddCategory,
+  defaultSwapInTargetCategory,
   inTargetCategoryFromOutCard,
   isSwapQueueCategory,
   resolveDeckCards,
@@ -139,14 +139,15 @@ export function SwapEditChrome({
     .map((c) => c.name)
     .sort((a, b) => a.localeCompare(b));
 
-  const swapInDefaultCategory = draft.inTargetCategory || defaultAddCategory(deck);
+  const swapInDefaultCategory =
+    draft.inTargetCategory || defaultSwapInTargetCategory(deck);
 
   function pickOut() {
     openOutCardPicker(deck, draft.outInstanceId, (instanceId) => {
       const patch: Partial<SwapEditDraft> = { outInstanceId: instanceId };
       if (!draft.inTargetCategory) {
         const card = deck.cards.find((c) => c.instanceId === instanceId);
-        const category = inTargetCategoryFromOutCard(card);
+        const category = inTargetCategoryFromOutCard(card, deck.categories);
         if (category) patch.inTargetCategory = category;
       }
       onDraftChange(patch);
@@ -178,6 +179,7 @@ export function SwapEditChrome({
           confirmLabel="Use as In"
           printingTitle={(name) => `Printing — ${name}`}
           defaultCategory={swapInDefaultCategory}
+          categoryOptions={targetOptions}
           onClose={() => setPhase('edit')}
           onAdd={(printing, category, meta) => {
             onConfirmIn(printing, category, meta);

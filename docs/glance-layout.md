@@ -4,7 +4,7 @@ Reference for how Hub “at a glance” PNGs place cards. Layout lives in `@raye
 
 | Product | Entry point | Planner |
 |---------|-------------|---------|
-| Deck glance | `buildGlanceLayoutPlan(includeSet, deckName)` | Single 1920×1080 page; shrink card size until fit |
+| Deck glance | `buildGlanceLayoutPlan(includeSet, deckName)` | Single 1920×1080 page; densify at M, then shrink |
 | Swap glance | `buildSwapGlanceLayoutPlans(includeSet)` | 1–5 pages at fixed M; densify ladder then truncate |
 
 ---
@@ -31,41 +31,53 @@ API handlers call the planners, then art enrichment + `glance-render` compositin
 
 **Source:** [`packages/shared/src/deck-builder/glance/layout.ts`](../packages/shared/src/deck-builder/glance/layout.ts)
 
-One packing strategy: fit the whole include-set on a single page by searching card height downward from M.
+One packing strategy: fit the whole include-set on a single page using an L-shaped column masonry. Prefer denser column assignments at M before shrinking card height.
+
+### Layout modes (`GlanceLayoutMode`)
+
+| Mode | Remainder partitioning |
+|------|------------------------|
+| `type_line` (default) | Type-line **Main deck** + **Lands** (`nonLands` / `lands`) |
+| `primary_category` | Groups by each card’s **primary** category; section order follows deck `categories` (custom), orphans alpha-sorted after |
+
+Request body field `mode` (optional) on `POST …/decks/:id/glance`. Fingerprints include mode + ordered section names. UI radios in the glance dialog: **Main + Lands** / **Primary categories**.
 
 ### Inputs
 
 From `GlanceIncludeSet`:
 
 - **commanders** / **lieutenants** — highlight plates; capped at `GLANCE_ROLE_HIGHLIGHT_LIMIT` (2)
-- **nonLands** / **lands** — title-peek column stacks
-- **placeholders** — when the include-set is under 100 cards after swaps, synthetic `isPlaceholder` faces pad `nonLands` (and `cards`) to 100; rendered as dashed “+” empty slots
+- **mode** / **sections** — ordered labeled stacks used for packing
+- **nonLands** / **lands** — always filled for back-compat (type-line split); mirrored into `sections` when `mode === 'type_line'`
+- **placeholders** — when the include-set is under 100 cards after swaps, synthetic `isPlaceholder` faces pad to 100 (Main deck / largest non-Land section); rendered as dashed “+” empty slots
 - Deck name + **title pips** — WUBRG-ordered commander colour identity (`C` if colourless)
 
 ### Algorithm
 
-1. **Card-size search** — try `cardHeight` from `GLANCE_CARD_HEIGHT` (297) down to `MIN_CARD_HEIGHT` (48), step 1. Width = `round(height × 61/85)`. First height that places everything wins; all regions share that size.
+1. **Card-size search (last resort)** — try `cardHeight` from `GLANCE_CARD_HEIGHT` (297) down to `MIN_CARD_HEIGHT` (48). At each size, try densify biases before stepping down. Width = `round(height × 61/85)`. First successful plan wins; all regions share that size.
 2. **Role plates** — left column: commander plate, then lieutenant plate (label + rounded backdrop + side-by-side faces).
-3. **Main / lands zones**
-   - **Beside** — tall columns to the right of the role block (full content height minus label row).
-   - **Under** — shorter columns in the void below the role block; reserved for **main deck only** so main wraps under commanders, not lands.
-   - When both main and lands exist and beside has ≥2 columns, split beside columns by card-count weight (at least one column each). Lands only use beside columns.
-4. **Title-peek stacking** — peek per stacked card = `max(22, round(0.14 × cardHeight))`. `chunkByCapacity` splits cards across slots in proportion to each column’s capacity so stacks stay balanced.
-5. **Labels** — `Commander` / `Commanders`, `Lieutenant` / `Lieutenants`, `Main deck`, `Lands`.
-6. **Failure** — if no size fits, the plan has empty placements (no multi-page or densify).
+3. **L-shaped column grid** — short columns under the role plate use the left-origin grid (midpoint cutout so plate padding does not blank an extra column). Tall columns begin on a fresh grid at `roleBlockRight + COL_GAP` so the first deck column clears the plate. Under-role space is just shorter columns — not a separate mandatory allocation.
+4. **Contiguous section blocks (vertical masonry)** — each column keeps a y-cursor. Place each section into a contiguous run of columns at that run’s current cursor (`max` of those cursors), then advance those cursors past the used stack. Later sections can pack into leftover vertical space under earlier ones (and under the role block). Prefer the highest free band; at that band, `max` bias takes more columns / `min` bias fewer.
+5. **Densify before shrink** — at a fixed card size: `max` bias then `min` bias. Only if both fail, shrink card height.
+6. **Title-peek stacking** — peek per stacked card = `max(22, round(0.14 × cardHeight))`. `chunkByCapacity` balances cards across a section’s columns.
+7. **Labels** — `Commander` / `Commanders`, `Lieutenant` / `Lieutenants`, plus each section name (`Main deck` / `Lands`, or primary category names).
+8. **Failure** — if no size/bias fits, the plan has empty placements (no multi-page).
 
 ```mermaid
 flowchart TB
   header[TitleBar_pips_and_name]
   subgraph content [Content]
-    roles[RolePlates_left]
-    beside[BesideColumns_main_and_lands]
-    under[UnderRoles_mainOnly]
+    roles[RolePlates_topLeft]
+    tall[TallCols_rightOfRoles]
+    short[ShortCols_underRoles]
+    blocks[ContiguousSectionBlocks]
   end
   footer[Watermark]
   header --> content --> footer
-  roles --- beside
-  roles --> under
+  roles --> tall
+  roles --> short
+  tall --> blocks
+  short --> blocks
 ```
 
 ---

@@ -30,4 +30,15 @@ describe('deck-builder glance fingerprint', () => {
     if (!first.ok || !second.ok) return;
     expect(glanceFingerprint(first.includeSet)).not.toBe(glanceFingerprint(second.includeSet));
   });
+
+  it('differs when layout mode changes', () => {
+    const deck = buildEligibleCommanderDeck();
+    const typeLine = buildGlanceIncludeSet(deck, { mode: 'type_line' });
+    const byCategory = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
+    expect(typeLine.ok && byCategory.ok).toBe(true);
+    if (!typeLine.ok || !byCategory.ok) return;
+    expect(glanceFingerprint(typeLine.includeSet)).not.toBe(
+      glanceFingerprint(byCategory.includeSet),
+    );
+  });
 });

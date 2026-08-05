@@ -38,6 +38,11 @@ export function canonicalIncludeSetMaterial(includeSet: GlanceIncludeSet): strin
   // differently depending on which roles sit on the plates.
   lines.push(roleMaterial('commanders', includeSet.commanders));
   lines.push(roleMaterial('lieutenants', includeSet.lieutenants));
+  // Mode + ordered section names change packing even when the card set matches.
+  lines.push(`mode:${includeSet.mode || 'type_line'}`);
+  lines.push(
+    `sections:${(includeSet.sections || []).map((s) => s.name).join(',')}`,
+  );
   return lines.join('\n');
 }
 

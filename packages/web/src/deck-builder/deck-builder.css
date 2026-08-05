@@ -2066,7 +2066,33 @@ body,
   max-height: calc(100vh - 1.5rem);
   margin: auto;
   overflow: hidden;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+
+.db-glance-mode {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+}
+
+.db-glance-mode legend {
+  padding: 0;
+  margin: 0 0.75rem 0 0;
+  font-weight: 600;
+  float: left;
+  width: auto;
+}
+
+.db-glance-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  cursor: pointer;
 }
 
 .db-glance-statusline {

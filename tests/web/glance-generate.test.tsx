@@ -10,10 +10,13 @@ import {
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postGlance = vi.fn(
-  async (_deckId: string, _request?: { lieutenantInstanceIds?: string[] }) => ({
+  async (
+    _deckId: string,
+    _request?: { lieutenantInstanceIds?: string[]; mode?: 'type_line' | 'primary_category' },
+  ) => ({
     blob: new Blob(['png'], { type: 'image/png' }),
     cache: 'MISS',
-    generation: 'glance-gen-9',
+    generation: 'glance-gen-14',
     delivery: 'inline' as const,
   }),
 );
@@ -23,8 +26,10 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
-  apiPostDeckGlance: (deckId: string, request?: { lieutenantInstanceIds?: string[] }) =>
-    postGlance(deckId, request),
+  apiPostDeckGlance: (
+    deckId: string,
+    request?: { lieutenantInstanceIds?: string[]; mode?: 'type_line' | 'primary_category' },
+  ) => postGlance(deckId, request),
 }));
 
 describe('GlanceGenerateButton', () => {
@@ -60,15 +65,49 @@ describe('GlanceGenerateButton', () => {
     expect(postGlance).not.toHaveBeenCalled();
   });
 
-  it('generates, previews, shows status, and exposes download', async () => {
+  it('opens options without generating until confirmed', async () => {
     const deck = buildEligibleCommanderDeck();
     render(<GlanceGenerateButton deck={deck} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Generate glance' }));
-    await waitFor(() => expect(postGlance).toHaveBeenCalledWith(deck.deckId, {}));
+
+    expect(screen.getByRole('radio', { name: /main \+ lands/i })).toBeChecked();
+    expect(screen.getByText(/choose a layout, then generate/i)).toBeInTheDocument();
+    expect(postGlance).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() =>
+      expect(postGlance).toHaveBeenCalledWith(deck.deckId, { mode: 'type_line' }),
+    );
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(/gen glance-gen-9 · cache MISS/i)).toBeInTheDocument();
+    expect(screen.getByText(/gen glance-gen-14 · cache MISS/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+  });
+
+  it('waits for generate after switching layout, and restores a matching session cache', async () => {
+    const deck = buildEligibleCommanderDeck();
+    render(<GlanceGenerateButton deck={deck} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Generate glance' }));
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(postGlance).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('radio', { name: /primary categories/i }));
+    expect(postGlance).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('img', { name: 'Deck glance preview' })).not.toBeInTheDocument();
+    expect(screen.getByText(/choose a layout, then generate/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() =>
+      expect(postGlance).toHaveBeenCalledWith(deck.deckId, { mode: 'primary_category' }),
+    );
+    expect(postGlance).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole('radio', { name: /main \+ lands/i }));
+    expect(postGlance).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled();
   });
 
   it('asks which lieutenants to highlight when the deck has more than two', async () => {
@@ -88,10 +127,15 @@ describe('GlanceGenerateButton', () => {
     await user.click(options[1]!);
     await user.click(options[3]!);
 
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(postGlance).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: /main \+ lands/i })).toBeChecked();
+
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await waitFor(() =>
       expect(postGlance).toHaveBeenCalledWith(deck.deckId, {
         lieutenantInstanceIds: ['spell-0', 'spell-3'],
+        mode: 'type_line',
       }),
     );
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
@@ -110,6 +154,6 @@ describe('GlanceGenerateButton', () => {
     await user.click(options[0]!);
     await user.click(options[2]!);
     expect(options[2]).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
   });
 });

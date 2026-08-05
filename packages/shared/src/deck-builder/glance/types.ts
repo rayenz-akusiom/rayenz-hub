@@ -1,5 +1,5 @@
 /** Bump when layout, art tier, render pipeline, or delivery changes — invalidates S3 cache. */
-export const GLANCE_GENERATION_VERSION = 'glance-gen-9';
+export const GLANCE_GENERATION_VERSION = 'glance-gen-14';
 
 /** Maximum commanders/lieutenants shown on their highlight plates. */
 export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;
@@ -15,7 +15,10 @@ export const GLANCE_CARD_WIDTH = 213;
 /** M height at Scryfall 61∶85 aspect (`round(213 * 85 / 61)`). */
 export const GLANCE_CARD_HEIGHT = 297;
 
-export type GlanceRegion = 'commander' | 'lieutenant' | 'nonland' | 'land';
+/** How the post-role remainder is partitioned into labeled stacks. */
+export type GlanceLayoutMode = 'type_line' | 'primary_category';
+
+export type GlanceRegion = 'commander' | 'lieutenant' | 'nonland' | 'land' | 'category';
 
 export type GlanceCard = {
   instanceId: string;
@@ -37,13 +40,25 @@ export type GlanceCard = {
   proxy?: boolean;
 };
 
+/** One labeled column-group in the glance packing zones. */
+export type GlanceSection = {
+  name: string;
+  cards: GlanceCard[];
+};
+
 export type GlanceIncludeSet = {
   cards: GlanceCard[];
   quantitySum: number;
   commanders: GlanceCard[];
   lieutenants: GlanceCard[];
+  /** Type-line non-lands (kept for back-compat; also mirrored in `sections`). */
   nonLands: GlanceCard[];
+  /** Type-line lands (kept for back-compat; also mirrored in `sections`). */
   lands: GlanceCard[];
+  /** Layout partition mode used to build `sections`. */
+  mode: GlanceLayoutMode;
+  /** Ordered packing sections (Main/Lands or primary categories). */
+  sections: GlanceSection[];
 };
 
 export type GlanceCardPlacement = {
@@ -88,6 +103,8 @@ export type GlanceLayoutPlan = {
 export type BuildGlanceIncludeSetOptions = {
   /** Explicit lieutenant highlights; falls back to the deterministic auto-pick. */
   lieutenantInstanceIds?: string[];
+  /** Partition mode for the post-role remainder. Defaults to `type_line`. */
+  mode?: GlanceLayoutMode;
 };
 
 export type GlanceIncludeSetResult =

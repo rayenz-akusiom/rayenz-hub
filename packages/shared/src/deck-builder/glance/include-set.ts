@@ -1,6 +1,6 @@
 import type { CardInstance, DeckDocument } from '../../schemas/deck-builder.js';
 import { isSeekingCategory, isSwapOutCategory } from '../../mtg/swap-queue.js';
-import { categoryIncluded, COMMANDER_DECK_TARGET } from '../browse.js';
+import { categoryIncluded, COMMANDER_DECK_TARGET, sortCategoryKeys } from '../browse.js';
 import { canonicalizeCategoryName } from '../category-names.js';
 import { getOracle, resolveCardView } from '../card-oracle.js';
 import { cardImageUrl, scryfallCdnUrlWithSize, scryfallImageFromId } from '../scryfall-images.js';
@@ -11,6 +11,8 @@ import type {
   BuildGlanceIncludeSetOptions,
   GlanceCard,
   GlanceIncludeSetResult,
+  GlanceLayoutMode,
+  GlanceSection,
 } from './types.js';
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT } from './types.js';
 
@@ -28,6 +30,12 @@ function isLandType(typeLine: string | null | undefined, basic: boolean): boolea
   // Only treat a card as a land when its FRONT face is a Land. This keeps DFCs
   // whose land side is the back face (e.g. `Creature // Land`) in the main deck.
   return /\bLand\b/i.test(frontFaceTypeLine(typeLine));
+}
+
+/** Canonical Land / Lands section names used for under-void exclusion. */
+export function isGlanceLandSectionName(name: string): boolean {
+  const key = canonicalizeCategoryName(name).toLowerCase();
+  return key === 'land' || key === 'lands';
 }
 
 function basicLandColours(name: string): string[] {
@@ -208,10 +216,69 @@ export function makeGlancePlaceholders(count: number): GlanceCard[] {
   return out;
 }
 
+function sortSectionCards(name: string, cards: GlanceCard[]): GlanceCard[] {
+  return isGlanceLandSectionName(name) ? sortLands(cards) : sortNonLands(cards);
+}
+
+function appendPlaceholders(sections: GlanceSection[], placeholders: GlanceCard[]): GlanceSection[] {
+  if (!placeholders.length) return sections;
+  if (!sections.length) {
+    return [{ name: 'Main deck', cards: placeholders }];
+  }
+  const nonLandIdx = sections.reduce((best, s, i) => {
+    if (isGlanceLandSectionName(s.name)) return best;
+    if (best < 0) return i;
+    return s.cards.length > sections[best]!.cards.length ? i : best;
+  }, -1);
+  const target = nonLandIdx >= 0 ? nonLandIdx : 0;
+  return sections.map((s, i) =>
+    i === target ? { ...s, cards: [...s.cards, ...placeholders] } : s,
+  );
+}
+
+function buildTypeLineSections(
+  remainder: GlanceCard[],
+  placeholders: GlanceCard[],
+): { nonLands: GlanceCard[]; lands: GlanceCard[]; sections: GlanceSection[] } {
+  const lands = sortLands(remainder.filter((c) => c.isLand));
+  const nonLands = sortNonLands(remainder.filter((c) => !c.isLand));
+  const paddedNonLands = [...nonLands, ...placeholders];
+  const sections: GlanceSection[] = [];
+  if (paddedNonLands.length) sections.push({ name: 'Main deck', cards: paddedNonLands });
+  if (lands.length) sections.push({ name: 'Lands', cards: lands });
+  return { nonLands: paddedNonLands, lands, sections };
+}
+
+function buildPrimaryCategorySections(
+  remainder: GlanceCard[],
+  placeholders: GlanceCard[],
+  deck: DeckDocument,
+): GlanceSection[] {
+  const groups = new Map<string, GlanceCard[]>();
+  for (const card of remainder) {
+    const key = canonicalizeCategoryName(card.primaryCategory || 'Other') || 'Other';
+    const list = groups.get(key);
+    if (list) list.push(card);
+    else groups.set(key, [card]);
+  }
+
+  const categoryOrder = (deck.categories || []).map((c) => canonicalizeCategoryName(c.name));
+  const keys = sortCategoryKeys([...groups.keys()], 'custom', categoryOrder);
+  const sections: GlanceSection[] = keys
+    .filter((k) => (groups.get(k) || []).length > 0)
+    .map((name) => ({
+      name,
+      cards: sortSectionCards(name, groups.get(name) || []),
+    }));
+
+  return appendPlaceholders(sections, placeholders);
+}
+
 export function buildGlanceIncludeSet(
   deck: DeckDocument,
   options: BuildGlanceIncludeSetOptions = {},
 ): GlanceIncludeSetResult {
+  const mode: GlanceLayoutMode = options.mode === 'primary_category' ? 'primary_category' : 'type_line';
   const { cards: glanceCards, quantitySum } = eligibleGlanceCards(deck);
   if (quantitySum > COMMANDER_DECK_TARGET) {
     return {
@@ -257,9 +324,14 @@ export function buildGlanceIncludeSet(
   ]);
 
   const remainder = glanceCards.filter((c) => !roleIds.has(c.instanceId));
-  const lands = sortLands(remainder.filter((c) => c.isLand));
-  const nonLands = sortNonLands(remainder.filter((c) => !c.isLand));
   const placeholders = makeGlancePlaceholders(COMMANDER_DECK_TARGET - quantitySum);
+
+  // Always compute type-line lists for back-compat fields.
+  const typeLine = buildTypeLineSections(remainder, placeholders);
+  const sections =
+    mode === 'primary_category'
+      ? buildPrimaryCategorySections(remainder, placeholders, deck)
+      : typeLine.sections;
 
   return {
     ok: true,
@@ -268,8 +340,10 @@ export function buildGlanceIncludeSet(
       quantitySum: quantitySum + placeholders.length,
       commanders,
       lieutenants,
-      nonLands: [...nonLands, ...placeholders],
-      lands,
+      nonLands: typeLine.nonLands,
+      lands: typeLine.lands,
+      mode,
+      sections,
     },
   };
 }

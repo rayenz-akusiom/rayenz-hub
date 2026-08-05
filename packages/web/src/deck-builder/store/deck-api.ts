@@ -41,7 +41,8 @@ export type DeckGlanceResult = {
 export type DeckGlanceRequest = {
   /** Lieutenants to highlight on the glance plate; defaults to the auto-pick. */
   lieutenantInstanceIds?: string[];
-};
+  /** Partition mode: type-line Main+Lands (default) or primary categories. */
+  mode?: 'type_line' | 'primary_category';};
 
 export async function apiPostDeckGlance(
   deckId: string,

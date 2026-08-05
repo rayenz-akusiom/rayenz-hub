@@ -3,6 +3,7 @@ import {
   buildGlanceLayoutPlan,
   GLANCE_GENERATION_VERSION,
   type DeckDocument,
+  type GlanceLayoutMode,
 } from '@rayenz-hub/shared';
 import { binaryResponse, errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
@@ -39,24 +40,43 @@ export type DeckGlanceOptions = RenderGlanceOptions & {
   ) => Promise<{ url: string; expiresAt: string }>;
 };
 
+type GlanceRequest = {
+  lieutenantInstanceIds?: string[];
+  mode?: GlanceLayoutMode;
+};
+
 function parseGlanceRequest(
   body: string | null | undefined,
-): { ok: true; lieutenantInstanceIds?: string[] } | { ok: false } {
-  if (!body) return { ok: true };
+): { ok: true; request: GlanceRequest } | { ok: false } {
+  if (!body) return { ok: true, request: {} };
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
   } catch {
     return { ok: false };
   }
-  if (parsed == null) return { ok: true };
+  if (parsed == null) return { ok: true, request: {} };
   if (typeof parsed !== 'object') return { ok: false };
-  const raw = (parsed as { lieutenantInstanceIds?: unknown }).lieutenantInstanceIds;
-  if (raw === undefined || raw === null) return { ok: true };
-  if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !id)) {
-    return { ok: false };
+
+  const obj = parsed as { lieutenantInstanceIds?: unknown; mode?: unknown };
+  const request: GlanceRequest = {};
+
+  if (obj.lieutenantInstanceIds !== undefined && obj.lieutenantInstanceIds !== null) {
+    const raw = obj.lieutenantInstanceIds;
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !id)) {
+      return { ok: false };
+    }
+    request.lieutenantInstanceIds = raw as string[];
   }
-  return { ok: true, lieutenantInstanceIds: raw as string[] };
+
+  if (obj.mode !== undefined && obj.mode !== null) {
+    if (obj.mode !== 'type_line' && obj.mode !== 'primary_category') {
+      return { ok: false };
+    }
+    request.mode = obj.mode;
+  }
+
+  return { ok: true, request };
 }
 
 export async function handleDeckGlance(
@@ -78,13 +98,14 @@ export async function handleDeckGlance(
       return errorResponse(400, 'Glance is supported for Commander decks only.', 'GLANCE_UNSUPPORTED_FORMAT');
     }
 
-    const request = parseGlanceRequest(body);
-    if (!request.ok) {
+    const parsed = parseGlanceRequest(body);
+    if (!parsed.ok) {
       return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
     }
 
     const includeResult = buildGlanceIncludeSet(deck, {
-      lieutenantInstanceIds: request.lieutenantInstanceIds,
+      lieutenantInstanceIds: parsed.request.lieutenantInstanceIds,
+      mode: parsed.request.mode,
     });
     if (!includeResult.ok) {
       return errorResponse(400, includeResult.message, includeResult.code);

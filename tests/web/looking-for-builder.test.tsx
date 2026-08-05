@@ -56,6 +56,43 @@ describe('CategoryBrowse aside Seeking section', () => {
     expect(screen.getByText('Counterspell')).toBeInTheDocument();
   });
 
+  it('does not list secondary Seeking cards in the aside', () => {
+    const deck = baseDeck({
+      cards: commanderDoc.cards.map((c) =>
+        c.instanceId === 'c1'
+          ? { ...c, primaryCategory: 'Creature', categories: ['Creature', 'Seeking'] }
+          : c,
+      ),
+      lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
+    });
+    render(
+      <CategoryBrowse
+        deck={deck}
+        mode="aside"
+        layout="stacked"
+        browseView="category_multi"
+        onDropCard={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Seeking')).toBeInTheDocument();
+    expect(screen.queryByText('Birds of Paradise')).not.toBeInTheDocument();
+  });
+
+  it('invokes onMarkMainDeckSeeking from the Seeking section action', () => {
+    const onMarkMainDeckSeeking = vi.fn();
+    render(
+      <CategoryBrowse
+        deck={baseDeck()}
+        mode="aside"
+        layout="stacked"
+        onDropCard={vi.fn()}
+        onMarkMainDeckSeeking={onMarkMainDeckSeeking}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark main deck Seeking' }));
+    expect(onMarkMainDeckSeeking).toHaveBeenCalledTimes(1);
+  });
+
   it('does not treat Maybeboard cards as Seeking', () => {
     const deck = baseDeck({
       cards: [

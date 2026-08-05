@@ -15,6 +15,7 @@ import {
   categoryPlaceholderCount,
   categoryTarget,
   formalSwapInIds,
+  isSeekingCategory,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
   type BrowseView,
@@ -178,6 +179,7 @@ export function DropSection({
   onDropCard,
   onCardContextMenu,
   onEditCategory,
+  sectionAction,
   variant = 'section',
   cardSort = 'name_asc',
   target = null,
@@ -194,6 +196,8 @@ export function DropSection({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
+  /** Optional action under the section title (e.g. Seeking “Mark main deck”). */
+  sectionAction?: { label: string; onClick: () => void; ariaLabel?: string };
   variant?: 'section' | 'header' | 'column';
   cardSort?: CardSortMode;
   target?: number | null;
@@ -259,6 +263,18 @@ export function DropSection({
           <span className="db-count">{countLabel}</span>
         </h3>
       )}
+      {sectionAction ? (
+        <div className="db-section-actions">
+          <button
+            type="button"
+            className="db-btn db-section-action"
+            onClick={sectionAction.onClick}
+            aria-label={sectionAction.ariaLabel || sectionAction.label}
+          >
+            {sectionAction.label}
+          </button>
+        </div>
+      ) : null}
       <CardGroup
         cards={sorted}
         layout={layout}
@@ -564,6 +580,7 @@ export function CategoryBrowse({
   onDropCard,
   onCardContextMenu,
   onEditCategory,
+  onMarkMainDeckSeeking,
   onVisibleOrderChange,
   mode = 'main',
   deckMeta,
@@ -589,6 +606,8 @@ export function CategoryBrowse({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
+  /** Aside Seeking: mark included main-deck cards Seeking as secondary. */
+  onMarkMainDeckSeeking?: () => void;
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   mode?: 'main' | 'aside';
@@ -680,6 +699,15 @@ export function CategoryBrowse({
             onDropCard={dropHandler}
             onCardContextMenu={onCardContextMenu}
             onEditCategory={onEditCategory}
+            sectionAction={
+              onMarkMainDeckSeeking && isSeekingCategory(cat)
+                ? {
+                    label: 'Mark main deck',
+                    ariaLabel: 'Mark main deck Seeking',
+                    onClick: onMarkMainDeckSeeking,
+                  }
+                : undefined
+            }
             variant="column"
             cardSort={cardSort}
             target={categoryTarget(categories, cat)}

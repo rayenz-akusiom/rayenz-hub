@@ -25,10 +25,14 @@ import {
   ensureCategoryDef,
   incompleteEntryCount,
   isCategoryBrowseView,
+  isSeekingCategory,
+  markCardsSeekingSecondary,
+  markMainDeckSeekingSecondary,
   moveCardsCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
   queueCardsAsOut,
+  reconcileLookingForFromCards,
   removeCardsFromDeck,
   removeSecondaryCategory,
   secondaryCategoriesOf,
@@ -426,6 +430,15 @@ export function BrowseShell({
     commit(queueCardsAsOut(deckRef.current, selectionIdList));
   }
 
+  function onMarkSeekingInDeck() {
+    if (!selectionCount) return;
+    commit(markCardsSeekingSecondary(deckRef.current, selectionIdList));
+  }
+
+  function onMarkMainDeckSeeking() {
+    commit(markMainDeckSeekingSecondary(deckRef.current));
+  }
+
   function setViewAndPersist(next: BrowseView) {
     setView(next);
     if (deckRef.current.browseViewDefault !== next) {
@@ -770,6 +783,11 @@ export function BrowseShell({
                   <DbMenuItem onSelect={onAddToSwapQueue}>
                     {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
                   </DbMenuItem>
+                  <DbMenuItem onSelect={onMarkSeekingInDeck}>
+                    {multi
+                      ? `Mark ${selectionCount} Seeking (in deck)`
+                      : 'Mark Seeking (in deck)'}
+                  </DbMenuItem>
                   {!multi ? (
                     <DbMenuItem onSelect={() => setPrintingOpen(true)}>Change printing…</DbMenuItem>
                   ) : null}
@@ -881,6 +899,7 @@ export function BrowseShell({
               onDropCard={view === 'category_multi' ? undefined : onDropCard}
               onCardContextMenu={onCardContextMenu}
               onEditCategory={(cat) => setEditingCategory(cat)}
+              onMarkMainDeckSeeking={onMarkMainDeckSeeking}
               onVisibleOrderChange={onAsideVisibleOrderChange}
               mode="aside"
               browseView={isCategoryBrowseView(view) ? view : 'category'}
@@ -1010,23 +1029,38 @@ export function BrowseShell({
           onMove={() => setMoveOpen(true)}
           onMoveToDefault={onMoveToDefault}
           onAddToSwapQueue={onAddToSwapQueue}
+          onMarkSeekingInDeck={onMarkSeekingInDeck}
           onChangePrinting={() => setPrintingOpen(true)}
           onRemove={onRemoveSelected}
           onRemoveSecondary={(category) => {
-            commitPatch({
-              cards: removeSecondaryCategory(
-                deckRef.current.cards,
-                contextCard.instanceId,
-                category,
-              ),
-            });
+            const current = deckRef.current;
+            const cards = removeSecondaryCategory(
+              current.cards,
+              contextCard.instanceId,
+              category,
+            );
+            const patched = { ...current, cards };
+            if (isSeekingCategory(category)) {
+              commit(reconcileLookingForFromCards(patched));
+            } else {
+              commitPatch({ cards });
+            }
           }}
           onAddSecondary={(category) => {
             const current = deckRef.current;
-            commitPatch({
-              cards: addSecondaryCategory(current.cards, contextCard.instanceId, category),
-              categories: ensureCategoryDef(current.categories || [], category),
-            });
+            const cards = addSecondaryCategory(current.cards, contextCard.instanceId, category);
+            const categories = ensureCategoryDef(current.categories || [], category);
+            if (isSeekingCategory(category)) {
+              commit(
+                reconcileLookingForFromCards({
+                  ...current,
+                  cards,
+                  categories,
+                }),
+              );
+            } else {
+              commitPatch({ cards, categories });
+            }
           }}
         />
       ) : null}

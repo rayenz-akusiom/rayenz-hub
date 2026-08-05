@@ -696,6 +696,16 @@ body,
   transition: opacity 0.12s ease;
 }
 
+.db-section-actions {
+  margin: -0.15rem 0 0.35rem;
+}
+
+.db-section-action {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  line-height: 1.2;
+}
+
 .db-category-settings-section {
   margin: 1rem 0;
   padding-top: 0.5rem;

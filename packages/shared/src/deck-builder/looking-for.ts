@@ -13,8 +13,10 @@ import {
   isLookingForCategory,
   isSwapQueueCategoryName,
 } from '../mtg/swap-queue.js';
+import { categoryIncluded } from './browse.js';
 import { defaultAddCategory, ensureCategoryDef } from './card-edits.js';
 import { formalSwapInIds } from './formal-swaps.js';
+import { isBasicLand } from './quantities.js';
 
 const MAYBEBOARD = 'Maybeboard';
 
@@ -34,15 +36,6 @@ export function normalizeLookingForEntries(entries: LookingForEntry[]): LookingF
   }));
 }
 
-function setPrimaryCategory(card: CardInstance, category: string): CardInstance {
-  const cats = [...new Set([category, ...(card.categories || []).filter((c) => c !== category)])];
-  return {
-    ...card,
-    primaryCategory: category,
-    categories: cats,
-  };
-}
-
 function clearSeekingCategory(card: CardInstance, format: DeckFormat): CardInstance {
   const cats = (card.categories || []).filter((c) => !isSeekingCategory(c));
   let primary = card.primaryCategory;
@@ -50,6 +43,44 @@ function clearSeekingCategory(card: CardInstance, format: DeckFormat): CardInsta
     primary = cats[0] || (format === 'cube' ? MAYBEBOARD : 'Other');
   }
   return { ...card, primaryCategory: primary, categories: cats.length ? cats : [primary] };
+}
+
+/** True when primary or any category membership is Seeking (or legacy Looking For). */
+export function cardIsSeekingMarked(
+  card: Pick<CardInstance, 'primaryCategory' | 'categories'>,
+): boolean {
+  if (isSeekingCategory(card.primaryCategory)) return true;
+  return (card.categories || []).some((c) => isSeekingCategory(c));
+}
+
+/** Keep primary; ensure canonical Seeking is present as a secondary category. */
+function ensureSeekingSecondary(card: CardInstance): CardInstance {
+  const primary = card.primaryCategory;
+  const withoutSeeking = (card.categories || []).filter((c) => !isSeekingCategory(c));
+  const categories = [
+    ...new Set([primary, ...withoutSeeking.filter((c) => c !== primary), SEEKING]),
+  ];
+  return { ...card, primaryCategory: primary, categories };
+}
+
+/**
+ * Apply one Looking For row onto a card.
+ * Primary Seeking (or legacy) stays primary Seeking; otherwise Seeking is secondary only.
+ */
+function applySeekingMembership(card: CardInstance): CardInstance {
+  if (isSeekingCategory(card.primaryCategory)) {
+    // Normalize primary Seeking; keep intentional non-Seeking secondaries only
+    // (do not clear→fallback→re-primary, which left Other as a sticky secondary).
+    const kept = (card.categories || []).filter(
+      (c) => !isSeekingCategory(c) && c !== card.primaryCategory,
+    );
+    return {
+      ...card,
+      primaryCategory: SEEKING,
+      categories: [...new Set([SEEKING, ...kept])],
+    };
+  }
+  return ensureSeekingSecondary(card);
 }
 
 function formalSwapMemberIds(entries: FormalSwapEntry[] | null | undefined): Set<string> {
@@ -83,8 +114,9 @@ export function resolveLookingForConflicts(
 }
 
 /**
- * Export projection: referenced Seeking instances → primary Seeking;
- * stale Seeking primaries cleared.
+ * Export projection: referenced Seeking instances keep primary Seeking when already
+ * primary Seeking; otherwise Seeking is applied as a secondary category.
+ * Stale Seeking membership on unreferenced cards is cleared.
  */
 export function applyLookingForToCards(
   cards: CardInstance[],
@@ -99,8 +131,7 @@ export function applyLookingForToCards(
   for (const entry of normalizeLookingForEntries(entries)) {
     if (!entry.instanceId || !byId.has(entry.instanceId)) continue;
     referenced.add(entry.instanceId);
-    const card = clearSeekingCategory(byId.get(entry.instanceId)!, format);
-    byId.set(entry.instanceId, setPrimaryCategory(card, SEEKING));
+    byId.set(entry.instanceId, applySeekingMembership(byId.get(entry.instanceId)!));
   }
 
   return cards.map((c) => {
@@ -108,10 +139,7 @@ export function applyLookingForToCards(
       return byId.get(c.instanceId)!;
     }
     const existing = byId.get(c.instanceId)!;
-    if (
-      isSeekingCategory(existing.primaryCategory) ||
-      (existing.categories || []).some((x) => isSeekingCategory(x))
-    ) {
+    if (cardIsSeekingMarked(existing)) {
       return clearSeekingCategory(existing, format);
     }
     return existing;
@@ -119,8 +147,8 @@ export function applyLookingForToCards(
 }
 
 /**
- * Live Hub sync: Seeking entries get primary Seeking; ensure category def;
- * drop dangling / formal-conflict entries.
+ * Live Hub sync: Looking For entries get Seeking membership (primary if already
+ * primary Seeking, else secondary); ensure category def; drop dangling / formal conflicts.
  */
 export function syncCardsWithLookingFor(
   deck: DeckDocument,
@@ -140,14 +168,13 @@ export function syncCardsWithLookingFor(
     (deck.cards || []).map((c) => [c.instanceId, { ...c, categories: [...(c.categories || [])] }]),
   );
   const referenced = new Set<string>();
-  let categories: CategoryDef[] = ensureCategoryDef(deck.categories || [], SEEKING);
+  const categories: CategoryDef[] = ensureCategoryDef(deck.categories || [], SEEKING);
 
   for (const entry of lookingForEntries) {
     if (!byId.has(entry.instanceId)) continue;
     referenced.add(entry.instanceId);
-    const cleared = clearSeekingCategory(byId.get(entry.instanceId)!, format);
     // Do not clear Queued In/Out membership here — conflict resolver already dropped overlaps.
-    byId.set(entry.instanceId, setPrimaryCategory(cleared, SEEKING));
+    byId.set(entry.instanceId, applySeekingMembership(byId.get(entry.instanceId)!));
   }
 
   const cards = (deck.cards || []).map((c) => {
@@ -155,10 +182,7 @@ export function syncCardsWithLookingFor(
       return byId.get(c.instanceId)!;
     }
     const existing = byId.get(c.instanceId)!;
-    if (
-      isSeekingCategory(existing.primaryCategory) ||
-      (existing.categories || []).some((x) => isSeekingCategory(x))
-    ) {
+    if (cardIsSeekingMarked(existing)) {
       return clearSeekingCategory(existing, format);
     }
     return existing;
@@ -177,14 +201,14 @@ export function syncCardsWithLookingFor(
 }
 
 /**
- * Seed Seeking entries from cards whose primary is Seeking (or legacy Looking For).
- * Does not treat Maybeboard as Seeking. Preserves existing ids when instance still Seeking.
+ * Seed Seeking entries from cards whose primary is Seeking (or legacy Looking For),
+ * or that carry Seeking as a secondary category. Preserves existing ids when still Seeking.
  */
 export function seedLookingForFromCategories(
   cards: CardInstance[],
   existing: LookingForEntry[] = [],
 ): LookingForEntry[] {
-  const seekingCards = (cards || []).filter((c) => isSeekingCategory(c.primaryCategory));
+  const seekingCards = (cards || []).filter((c) => cardIsSeekingMarked(c));
   if (!seekingCards.length && !(existing || []).length) return [];
 
   const byInstance = new Map((existing || []).map((e) => [e.instanceId, e]));
@@ -210,7 +234,7 @@ export function lookingForFallbackCategory(
 }
 
 /**
- * Re-seed Seeking entries from primary Seeking cards, then sync category membership.
+ * Re-seed Seeking entries from Seeking-marked cards, then sync category membership.
  * Use after add/move/remove so lookingForEntries stays aligned with card categories.
  */
 export function reconcileLookingForFromCards(deck: DeckDocument): DeckDocument {
@@ -218,6 +242,79 @@ export function reconcileLookingForFromCards(deck: DeckDocument): DeckDocument {
     deck,
     seedLookingForFromCategories(deck.cards, deck.lookingForEntries || []),
   ).deck;
+}
+
+function canMarkSeekingSecondary(card: CardInstance): boolean {
+  if (cardIsSeekingMarked(card)) return false;
+  if (isSwapQueueCategoryName(card.primaryCategory)) return false;
+  return true;
+}
+
+function addSeekingSecondaryToCards(
+  deck: DeckDocument,
+  instanceIds: ReadonlySet<string>,
+): DeckDocument {
+  let changed = false;
+  const cards = (deck.cards || []).map((c) => {
+    if (!instanceIds.has(c.instanceId)) return c;
+    if (!canMarkSeekingSecondary(c)) return c;
+    changed = true;
+    return ensureSeekingSecondary(c);
+  });
+  if (!changed) {
+    const categories = ensureCategoryDef(deck.categories || [], SEEKING);
+    return categories === deck.categories ? deck : { ...deck, categories };
+  }
+  return reconcileLookingForFromCards({
+    ...deck,
+    cards,
+    categories: ensureCategoryDef(deck.categories || [], SEEKING),
+  });
+}
+
+/**
+ * Mark selected cards Seeking as a secondary category (keeps primary / in-deck).
+ * Basics are allowed — explicit selection counts as specifically marked.
+ */
+export function markCardsSeekingSecondary(
+  deck: DeckDocument,
+  instanceIds: string[],
+): DeckDocument {
+  const ids = new Set((instanceIds || []).filter(Boolean));
+  if (!ids.size) return deck;
+  return addSeekingSecondaryToCards(deck, ids);
+}
+
+function isMainDeckSeekingCandidate(
+  deck: Pick<DeckDocument, 'categories'>,
+  card: CardInstance,
+): boolean {
+  const primary = card.primaryCategory || 'Other';
+  if (isSeekingCategory(primary)) return false;
+  if (isSwapQueueCategoryName(primary)) return false;
+  if (!categoryIncluded(deck.categories || [], primary)) return false;
+  return true;
+}
+
+/**
+ * Mark all included main-deck cards Seeking as secondary.
+ * Skips basic lands unless they are already Seeking-marked.
+ */
+export function markMainDeckSeekingSecondary(deck: DeckDocument): DeckDocument {
+  const ids = new Set<string>();
+  for (const card of deck.cards || []) {
+    if (!isMainDeckSeekingCandidate(deck, card)) continue;
+    if (cardIsSeekingMarked(card)) continue;
+    if (isBasicLand(card)) continue;
+    ids.add(card.instanceId);
+  }
+  if (!ids.size) {
+    return {
+      ...deck,
+      categories: ensureCategoryDef(deck.categories || [], SEEKING),
+    };
+  }
+  return addSeekingSecondaryToCards(deck, ids);
 }
 
 export { SEEKING, LOOKING_FOR, isSeekingCategory, isLookingForCategory, isSwapQueueCategoryName };

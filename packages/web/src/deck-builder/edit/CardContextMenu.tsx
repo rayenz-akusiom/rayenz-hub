@@ -25,6 +25,7 @@ export function CardContextMenu({
   onMove,
   onMoveToDefault,
   onAddToSwapQueue,
+  onMarkSeekingInDeck,
   onChangePrinting,
   onRemove,
   onRemoveSecondary,
@@ -48,6 +49,8 @@ export function CardContextMenu({
   onMove: () => void;
   onMoveToDefault?: () => void;
   onAddToSwapQueue?: () => void;
+  /** Mark selection Seeking as secondary (keep in deck). */
+  onMarkSeekingInDeck?: () => void;
   onChangePrinting: () => void;
   onRemove: () => void;
   onRemoveSecondary?: (category: string) => void;
@@ -198,6 +201,21 @@ export function CardContextMenu({
           }}
         >
           {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
+        </button>
+      ) : null}
+      {onMarkSeekingInDeck ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onMarkSeekingInDeck();
+            onClose();
+          }}
+        >
+          {multi
+            ? `Mark ${selectionCount} Seeking (in deck)`
+            : 'Mark Seeking (in deck)'}
         </button>
       ) : null}
       {!multi

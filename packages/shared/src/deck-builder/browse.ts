@@ -89,24 +89,37 @@ export function moveCardCategory(
     if (c.instanceId !== instanceId) return c;
     const prevPrimary = c.primaryCategory;
     const existing = c.categories || [];
+    const leavingSeeking =
+      isSeekingCategory(prevPrimary) && !isSeekingCategory(primaryCategory);
     const promoting =
       prevPrimary !== primaryCategory && existing.includes(primaryCategory);
     if (promoting) {
-      // Drop onto an existing secondary → promote; old primary stays as secondary.
+      // Drop onto an existing secondary → promote; old primary stays as secondary
+      // unless leaving Seeking (Seeking must not linger as secondary after a Move out).
       const categories = [
         ...new Set([
           primaryCategory,
-          prevPrimary,
-          ...existing.filter((x) => x !== primaryCategory),
+          ...(leavingSeeking ? [] : [prevPrimary]),
+          ...existing.filter(
+            (x) =>
+              x !== primaryCategory &&
+              !(leavingSeeking && isSeekingCategory(x)),
+          ),
         ]),
       ];
       return { ...c, primaryCategory, categories, stack };
     }
     // Normal move: replace primary; keep other secondaries (not the old primary).
+    // Leaving Seeking also strips Seeking aliases from membership.
     const categories = [
       ...new Set([
         primaryCategory,
-        ...existing.filter((x) => x !== prevPrimary && x !== primaryCategory),
+        ...existing.filter(
+          (x) =>
+            x !== prevPrimary &&
+            x !== primaryCategory &&
+            !(leavingSeeking && isSeekingCategory(x)),
+        ),
       ]),
     ];
     return { ...c, primaryCategory, categories, stack };
@@ -546,11 +559,14 @@ export function partitionCategories(
   }
 
   // Seeking is always an aside drop target (empty when no cards); fold legacy alias.
+  // Aside shows primary Seeking only — secondary Seeking stays in main-deck columns.
   const seekingCards: CategorizedCard[] = [];
   for (const bucket of [header, included, excluded]) {
     for (const key of Object.keys(bucket)) {
       if (!isSeekingCategory(key)) continue;
-      seekingCards.push(...bucket[key]);
+      for (const card of bucket[key]) {
+        if (card.membership === 'primary') seekingCards.push(card);
+      }
       delete bucket[key];
     }
   }

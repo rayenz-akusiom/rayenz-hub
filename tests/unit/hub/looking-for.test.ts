@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyLookingForToCards,
+  markCardsSeekingSecondary,
+  markMainDeckSeekingSecondary,
   normalizeLookingForEntries,
   reconcileLookingForFromCards,
   seedLookingForFromCategories,
   syncCardsWithLookingFor,
 } from '../../../packages/shared/src/deck-builder/looking-for.ts';
+import { partitionCategories } from '../../../packages/shared/src/deck-builder/browse.ts';
 import {
   addCardToDeck,
   moveCardsCategory,
@@ -64,15 +67,31 @@ describe('looking-for', () => {
     expect(entries[1].sortIndex).toBe(1);
   });
 
-  it('sync sets Seeking primary and category def', () => {
+  it('sync applies Seeking as secondary when card is not already primary Seeking', () => {
     const { deck, warnings } = syncCardsWithLookingFor(
       baseDeck(),
       [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
     );
     expect(warnings).toEqual([]);
     const card = deck.cards.find((c) => c.instanceId === 'c1')!;
-    expect(card.primaryCategory).toBe('Seeking');
+    expect(card.primaryCategory).toBe('Creature');
+    expect(card.categories).toContain('Seeking');
     expect(deck.categories.some((c) => c.name === 'Seeking' && !c.includedInDeck)).toBe(true);
+  });
+
+  it('sync keeps primary Seeking when card is already Seeking', () => {
+    const { deck } = syncCardsWithLookingFor(
+      baseDeck({
+        cards: (commander.cards as DeckDocument['cards']).map((c) =>
+          c.instanceId === 'c1'
+            ? { ...c, primaryCategory: 'Seeking', categories: ['Seeking'] }
+            : c,
+        ),
+      }),
+      [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
+    );
+    const card = deck.cards.find((c) => c.instanceId === 'c1')!;
+    expect(card.primaryCategory).toBe('Seeking');
   });
 
   it('prefers formal swap over Seeking on conflict', () => {
@@ -115,6 +134,27 @@ describe('looking-for', () => {
     expect(seeded[0].instanceId).toBe('lf1');
   });
 
+  it('seeds from secondary Seeking without changing primary', () => {
+    const cards = [
+      {
+        ...commander.cards[0],
+        instanceId: 'c1',
+        primaryCategory: 'Creature',
+        categories: ['Creature', 'Seeking'],
+      },
+    ];
+    const seeded = seedLookingForFromCategories(cards as DeckDocument['cards'], []);
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0].instanceId).toBe('c1');
+    const next = reconcileLookingForFromCards(
+      baseDeck({ cards: cards as DeckDocument['cards'], lookingForEntries: [] }),
+    );
+    const card = next.cards.find((c) => c.instanceId === 'c1')!;
+    expect(card.primaryCategory).toBe('Creature');
+    expect(card.categories).toContain('Seeking');
+    expect(next.lookingForEntries.map((e) => e.instanceId)).toEqual(['c1']);
+  });
+
   it('preserves existing entry ids on reseed', () => {
     const cards = [
       {
@@ -145,13 +185,15 @@ describe('looking-for', () => {
     expect(seeded[0].instanceId).toBe('lf1');
   });
 
-  it('export applies Seeking with noDeck/noPrice flags', () => {
+  it('export keeps secondary Seeking in deck and still emits Seeking flags', () => {
     const cards = applyLookingForToCards(
       commander.cards as DeckDocument['cards'],
       [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
       'commander',
     );
-    expect(cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Seeking');
+    const c1 = cards.find((c) => c.instanceId === 'c1')!;
+    expect(c1.primaryCategory).toBe('Creature');
+    expect(c1.categories).toContain('Seeking');
 
     const text = buildArchidektImportText(
       baseDeck({
@@ -160,6 +202,7 @@ describe('looking-for', () => {
       }),
     );
     expect(text).toMatch(/Seeking\{noDeck\}\{noPrice\}/);
+    expect(text).toMatch(/Birds of Paradise/);
   });
 
   it('move into Seeking creates a lookingFor entry', () => {
@@ -201,5 +244,62 @@ describe('looking-for', () => {
     });
     const next = reconcileLookingForFromCards(deck);
     expect(next.lookingForEntries.map((e) => e.instanceId)).toEqual(['c1']);
+  });
+
+  it('markMainDeckSeekingSecondary skips basics and marks non-basics', () => {
+    const next = markMainDeckSeekingSecondary(
+      baseDeck({
+        categories: commander.categories as DeckDocument['categories'],
+      }),
+    );
+    const birds = next.cards.find((c) => c.instanceId === 'c1')!;
+    const forest = next.cards.find((c) => c.instanceId === 'c2')!;
+    const counter = next.cards.find((c) => c.instanceId === 'c3')!;
+    expect(birds.primaryCategory).toBe('Creature');
+    expect(birds.categories).toContain('Seeking');
+    expect(counter.categories).toContain('Seeking');
+    expect(forest.categories).not.toContain('Seeking');
+    expect(next.lookingForEntries.map((e) => e.instanceId).sort()).toEqual(['c1', 'c3']);
+  });
+
+  it('markCardsSeekingSecondary allows marking a basic land', () => {
+    const next = markCardsSeekingSecondary(baseDeck(), ['c2']);
+    const forest = next.cards.find((c) => c.instanceId === 'c2')!;
+    expect(forest.primaryCategory).toBe('Land');
+    expect(forest.categories).toContain('Seeking');
+    expect(next.lookingForEntries.some((e) => e.instanceId === 'c2')).toBe(true);
+  });
+
+  it('seeds an explicitly marked basic with Seeking secondary', () => {
+    const cards = (commander.cards as DeckDocument['cards']).map((c) =>
+      c.instanceId === 'c2' ? { ...c, categories: ['Land', 'Seeking'] } : c,
+    );
+    const seeded = seedLookingForFromCategories(cards, []);
+    expect(seeded.some((e) => e.instanceId === 'c2')).toBe(true);
+  });
+
+  it('aside Seeking excludes secondary membership in multi browse', () => {
+    const part = partitionCategories(
+      {
+        cards: [
+          {
+            ...(commander.cards[0] as DeckDocument['cards'][0]),
+            instanceId: 'c1',
+            primaryCategory: 'Creature',
+            categories: ['Creature', 'Seeking'],
+          },
+          {
+            ...(commander.cards[2] as DeckDocument['cards'][0]),
+            instanceId: 'c3',
+            primaryCategory: 'Seeking',
+            categories: ['Seeking'],
+          },
+        ],
+        categories: commander.categories as DeckDocument['categories'],
+      },
+      { multi: true },
+    );
+    expect(part.excluded.Seeking.map((c) => c.instanceId)).toEqual(['c3']);
+    expect(part.included.Creature?.some((c) => c.instanceId === 'c1')).toBe(true);
   });
 });

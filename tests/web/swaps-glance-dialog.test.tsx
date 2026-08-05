@@ -122,6 +122,7 @@ describe('Swaps at a glance dialog', () => {
       await screen.findByRole('img', { name: 'Swaps at a glance preview' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled();
   });
 
   it('posts setCodes when provided', async () => {

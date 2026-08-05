@@ -253,41 +253,63 @@ export function GlanceGenerateButton({ deck }: Props) {
         >
           <div className="db-modal-card db-modal-wide db-glance-modal">
             <h2>{picking ? 'Highlight lieutenants' : 'Deck glance'}</h2>
-            {!picking ? (
-              <fieldset className="db-glance-mode">
-                <legend>Layout</legend>
-                <label className="db-glance-option">
-                  <input
-                    type="radio"
-                    name="db-glance-mode"
-                    checked={mode === 'type_line'}
-                    disabled={loading}
-                    onChange={() => onModeChange('type_line')}
-                  />
-                  Main + Lands
-                </label>
-                <label className="db-glance-option">
-                  <input
-                    type="radio"
-                    name="db-glance-mode"
-                    checked={mode === 'primary_category'}
-                    disabled={loading}
-                    onChange={() => onModeChange('primary_category')}
-                  />
-                  Primary categories
-                </label>
-              </fieldset>
-            ) : null}
+            <div className="db-glance-chrome">
+              {!picking ? (
+                <fieldset className="db-glance-mode">
+                  <legend>Layout</legend>
+                  <label className="db-glance-option">
+                    <input
+                      type="radio"
+                      name="db-glance-mode"
+                      checked={mode === 'type_line'}
+                      disabled={loading}
+                      onChange={() => onModeChange('type_line')}
+                    />
+                    Main + Lands
+                  </label>
+                  <label className="db-glance-option">
+                    <input
+                      type="radio"
+                      name="db-glance-mode"
+                      checked={mode === 'primary_category'}
+                      disabled={loading}
+                      onChange={() => onModeChange('primary_category')}
+                    />
+                    Primary categories
+                  </label>
+                </fieldset>
+              ) : (
+                <p className="db-glance-status">
+                  {`This deck has ${lieutenants.length} lieutenants. Choose ${GLANCE_ROLE_HIGHLIGHT_LIMIT} to highlight (${picked.length}/${GLANCE_ROLE_HIGHLIGHT_LIMIT} selected).`}
+                </p>
+              )}
+              <div className="db-glance-primary-actions">
+                {picking ? (
+                  <button
+                    type="button"
+                    className="db-btn"
+                    disabled={!canConfirmPick}
+                    onClick={onConfirmPick}
+                  >
+                    Continue
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="db-btn"
+                    disabled={loading || !enabled}
+                    onClick={onConfirmGenerate}
+                  >
+                    {hasMatchingPreview ? 'Regenerate' : 'Generate'}
+                  </button>
+                )}
+              </div>
+            </div>
             <GlanceStatusLine
               loading={loading}
               error={error}
               statusLine={!picking ? statusLine : null}
             >
-              {picking ? (
-                <p className="db-glance-status">
-                  {`This deck has ${lieutenants.length} lieutenants. Choose ${GLANCE_ROLE_HIGHLIGHT_LIMIT} to highlight (${picked.length}/${GLANCE_ROLE_HIGHLIGHT_LIMIT} selected).`}
-                </p>
-              ) : null}
               {!picking && !loading && !error && !hasMatchingPreview ? (
                 <p className="db-glance-status">Choose a layout, then generate.</p>
               ) : null}
@@ -338,27 +360,7 @@ export function GlanceGenerateButton({ deck }: Props) {
               onDownload={picking ? undefined : onDownload}
               onCopy={picking ? undefined : onCopy}
               downloadDisabled={!pngBlob}
-            >
-              {picking ? (
-                <button
-                  type="button"
-                  className="db-btn"
-                  disabled={!canConfirmPick}
-                  onClick={onConfirmPick}
-                >
-                  Continue
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="db-btn"
-                  disabled={loading || !enabled}
-                  onClick={onConfirmGenerate}
-                >
-                  {hasMatchingPreview ? 'Regenerate' : 'Generate'}
-                </button>
-              )}
-            </GlanceModalActions>
+            />
           </div>
         </div>
       ) : null}

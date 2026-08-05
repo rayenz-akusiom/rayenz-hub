@@ -131,6 +131,8 @@ type DrawTextOptions = {
   fontFamily?: string;
   fontSize?: number;
   align?: 'left' | 'center';
+  /** Vertical alignment within the text box. Default top (baseline near top). */
+  vAlign?: 'top' | 'middle';
 };
 
 async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
@@ -140,8 +142,14 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
   const fontSize = options.fontSize ?? Math.max(12, Math.floor(options.height * 0.72));
   const fontPath = options.fontPath;
   const align = options.align ?? 'left';
+  const vAlign = options.vAlign ?? 'top';
   const textX = align === 'center' ? Math.round(options.width / 2) : 0;
   const textAnchor = align === 'center' ? 'middle' : 'start';
+  const textY =
+    vAlign === 'middle'
+      ? Math.round(options.height / 2)
+      : Math.min(options.height - 2, Math.round(fontSize * 0.9));
+  const dominantBaseline = vAlign === 'middle' ? ' dominant-baseline="central"' : '';
 
   if (existsSync(fontPath)) {
     let fontB64 = fontBase64Cache.get(fontPath);
@@ -155,8 +163,8 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
       `<defs><style><![CDATA[` +
       `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${fontB64}) format('truetype');}` +
       `]]></style></defs>` +
-      `<text x="${textX}" y="${Math.min(options.height - 2, Math.round(fontSize * 0.9))}" ` +
-      `text-anchor="${textAnchor}" ` +
+      `<text x="${textX}" y="${textY}" ` +
+      `text-anchor="${textAnchor}"${dominantBaseline} ` +
       `font-family="${family}" font-size="${fontSize}" fill="${ink}">` +
       `${escapeXml(options.text)}</text></svg>`;
     return sharp(Buffer.from(svg)).png().toBuffer();
@@ -550,6 +558,7 @@ async function drawFrostedSectionLabel(
     fontFamily: 'GlanceSans',
     fontSize,
     align: 'center',
+    vAlign: 'middle',
   });
   const bandSvg = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${boxW}" height="${boxH}">` +
@@ -645,6 +654,50 @@ function pngEncodeOptions(fastPng?: boolean) {
   return fastPng ? FAST_PNG : PROD_PNG;
 }
 
+type FacePlacement = {
+  card: GlanceCard;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  showQuantity?: boolean;
+  showProxy?: boolean;
+};
+
+/** Composite card face tile plus optional quantity / proxy badges. */
+async function pushCardFaceComposites(
+  composites: import('sharp').OverlayOptions[],
+  placement: FacePlacement,
+  loader: GlanceImageLoader,
+): Promise<void> {
+  const tile = await loadTile(placement.card, placement.width, placement.height, loader);
+  composites.push({
+    input: tile,
+    left: placement.x,
+    top: placement.y,
+  });
+
+  const inset = Math.max(2, Math.round(placement.width * 0.03));
+
+  if (placement.showQuantity) {
+    const badge = await drawQuantityBadge(placement.card.quantity, placement.width);
+    composites.push({
+      input: badge.input,
+      left: placement.x + placement.width - badge.width - inset,
+      top: placement.y + inset,
+    });
+  }
+
+  if (placement.showProxy) {
+    const badge = await drawProxyBadge(placement.width);
+    composites.push({
+      input: badge.input,
+      left: placement.x + inset,
+      top: placement.y + placement.height - badge.height - inset,
+    });
+  }
+}
+
 export async function renderGlancePng(
   plan: GlanceLayoutPlan,
   options: RenderGlanceOptions = {},
@@ -670,22 +723,7 @@ export async function renderGlancePng(
   }
 
   for (const placement of plan.placements) {
-    const tile = await loadTile(placement.card, placement.width, placement.height, loader);
-    composites.push({
-      input: tile,
-      left: placement.x,
-      top: placement.y,
-    });
-
-    if (placement.showQuantity) {
-      const badge = await drawQuantityBadge(placement.card.quantity, placement.width);
-      const inset = Math.max(2, Math.round(placement.width * 0.03));
-      composites.push({
-        input: badge.input,
-        left: placement.x + placement.width - badge.width - inset,
-        top: placement.y + inset,
-      });
-    }
+    await pushCardFaceComposites(composites, placement, loader);
   }
 
   const header = await drawHeaderStrip(
@@ -799,32 +837,7 @@ export async function renderSwapGlancePng(
   }
 
   for (const placement of plan.placements) {
-    const tile = await loadTile(placement.card, placement.width, placement.height, loader);
-    composites.push({
-      input: tile,
-      left: placement.x,
-      top: placement.y,
-    });
-
-    if (placement.showQuantity) {
-      const badge = await drawQuantityBadge(placement.card.quantity, placement.width);
-      const inset = Math.max(2, Math.round(placement.width * 0.03));
-      composites.push({
-        input: badge.input,
-        left: placement.x + placement.width - badge.width - inset,
-        top: placement.y + inset,
-      });
-    }
-
-    if (placement.showProxy) {
-      const badge = await drawProxyBadge(placement.width);
-      const inset = Math.max(2, Math.round(placement.width * 0.03));
-      composites.push({
-        input: badge.input,
-        left: placement.x + inset,
-        top: placement.y + placement.height - badge.height - inset,
-      });
-    }
+    await pushCardFaceComposites(composites, placement, loader);
   }
 
   const watermark = await drawSwapWatermark(plan.canvasWidth, plan.filterSetCodes || []);

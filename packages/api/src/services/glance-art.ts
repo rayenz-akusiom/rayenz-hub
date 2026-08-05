@@ -13,6 +13,18 @@ export const SCRYFALL_USER_AGENT = 'RayenzHub/1.0 (deck-glance; +https://github.
 
 const CDN_HOST = 'cards.scryfall.io';
 
+export type GlanceDeckCardRef = {
+  instanceId: string;
+  name: string;
+  setCode: string | null;
+  collectorNumber: string | null;
+  scryfallId?: string | null;
+};
+
+export type GlanceArtPlacement<TCard extends GlanceCard = GlanceCard> = {
+  card: TCard;
+};
+
 export function isCdnImageUrl(url: string | null | undefined): boolean {
   return Boolean(url && url.includes(CDN_HOST));
 }
@@ -53,22 +65,17 @@ export function glanceImageUrlForCard(
   return derived || card.imageUrl || null;
 }
 
-export async function enrichGlancePlanArt(
-  plan: GlanceLayoutPlan,
-  deckCards: Array<{
-    instanceId: string;
-    name: string;
-    setCode: string | null;
-    collectorNumber: string | null;
-    scryfallId?: string | null;
-  }>,
+/** Enrich placement cards via Scryfall CDN / collection lookup. */
+export async function enrichGlancePlacementsArt<T extends GlanceArtPlacement>(
+  placements: T[],
+  deckCards: GlanceDeckCardRef[],
   fetchImpl: typeof fetch = fetch,
-): Promise<GlanceLayoutPlan> {
+): Promise<T[]> {
   const deckById = new Map(deckCards.map((c) => [c.instanceId, c]));
   const needsLookup = new Map<string, ReturnType<typeof collectionIdentifierForCard>>();
   const idByPrint = new Map<string, string>();
 
-  for (const placement of plan.placements) {
+  for (const placement of placements) {
     const card = placement.card;
     const deckCard = deckById.get(card.instanceId);
     const scryfallId = deckCard?.scryfallId ?? null;
@@ -105,7 +112,7 @@ export async function enrichGlancePlanArt(
     }
   }
 
-  const placements = plan.placements.map((placement) => {
+  return placements.map((placement) => {
     const deckCard = deckById.get(placement.card.instanceId);
     const scryfallId = deckCard?.scryfallId ?? idByPrint.get(printKey(placement.card)) ?? null;
     const imageUrl = glanceImageUrlForCard({ ...placement.card, scryfallId });
@@ -115,77 +122,25 @@ export async function enrichGlancePlanArt(
       card: { ...placement.card, imageUrl },
     };
   });
+}
 
+export async function enrichGlancePlanArt(
+  plan: GlanceLayoutPlan,
+  deckCards: GlanceDeckCardRef[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<GlanceLayoutPlan> {
+  const placements = await enrichGlancePlacementsArt(plan.placements, deckCards, fetchImpl);
   return { ...plan, placements };
 }
 
 /** Enrich swap-glance placements via the same Scryfall CDN / collection path as deck glance. */
 export async function enrichSwapGlancePlanArt(
   plan: SwapGlanceLayoutPlan,
-  deckCards: Array<{
-    instanceId: string;
-    name: string;
-    setCode: string | null;
-    collectorNumber: string | null;
-    scryfallId?: string | null;
-  }>,
+  deckCards: GlanceDeckCardRef[],
   fetchImpl: typeof fetch = fetch,
 ): Promise<SwapGlanceLayoutPlan> {
-  const asGlance: GlanceLayoutPlan = {
-    layoutVersion: plan.layoutVersion,
-    canvasWidth: plan.canvasWidth,
-    canvasHeight: plan.canvasHeight,
-    deckName: null,
-    titlePips: [],
-    labels: [],
-    backdrops: [],
-    placements: plan.placements.map((p) => ({
-      card: p.card,
-      region: 'nonland' as const,
-      x: p.x,
-      y: p.y,
-      width: p.width,
-      height: p.height,
-      zIndex: 0,
-      showQuantity: p.showQuantity,
-    })),
-    fingerprint: plan.fingerprint,
-  };
-  const enriched = await enrichGlancePlanArt(asGlance, deckCards, fetchImpl);
-  return {
-    ...plan,
-    placements: plan.placements.map((p, i) => ({
-      ...p,
-      card: enriched.placements[i]?.card ?? p.card,
-    })),
-  };
-}
-
-export async function prefetchSwapGlanceImages(
-  plan: SwapGlanceLayoutPlan,
-  fetchImpl: typeof fetch = fetch,
-): Promise<Map<string, Uint8Array>> {
-  const asGlance: GlanceLayoutPlan = {
-    layoutVersion: plan.layoutVersion,
-    canvasWidth: plan.canvasWidth,
-    canvasHeight: plan.canvasHeight,
-    deckName: null,
-    titlePips: [],
-    labels: [],
-    backdrops: [],
-    placements: plan.placements.map((p) => ({
-      card: p.card,
-      region: 'nonland' as const,
-      x: p.x,
-      y: p.y,
-      width: p.width,
-      height: p.height,
-      zIndex: 0,
-      showQuantity: p.showQuantity,
-    })),
-    fingerprint: plan.fingerprint,
-  };
-  return prefetchGlanceImages(asGlance, fetchImpl);
+  const placements = await enrichGlancePlacementsArt(plan.placements, deckCards, fetchImpl);
+  return { ...plan, placements };
 }
 
 export async function fetchImageBytes(
@@ -228,15 +183,15 @@ async function mapWithConcurrency<T, R>(
 }
 
 /** Prefetch unique card art bytes keyed by instanceId. */
-export async function prefetchGlanceImages(
-  plan: GlanceLayoutPlan,
+export async function prefetchGlanceImagesFromCards(
+  cards: Array<Pick<GlanceCard, 'instanceId' | 'imageUrl'>>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Map<string, Uint8Array>> {
   const unique = new Map<string, string>();
-  for (const placement of plan.placements) {
-    const url = placement.card.imageUrl;
+  for (const card of cards) {
+    const url = card.imageUrl;
     if (!url) continue;
-    unique.set(cardArtKey(placement.card), url);
+    unique.set(cardArtKey(card), url);
   }
 
   const entries = [...unique.entries()];
@@ -250,6 +205,27 @@ export async function prefetchGlanceImages(
     if (bytes) cache.set(instanceId, bytes);
   }
   return cache;
+}
+
+/** Prefetch unique card art bytes keyed by instanceId. */
+export async function prefetchGlanceImages(
+  plan: GlanceLayoutPlan,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Map<string, Uint8Array>> {
+  return prefetchGlanceImagesFromCards(
+    plan.placements.map((p) => p.card),
+    fetchImpl,
+  );
+}
+
+export async function prefetchSwapGlanceImages(
+  plan: SwapGlanceLayoutPlan,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Map<string, Uint8Array>> {
+  return prefetchGlanceImagesFromCards(
+    plan.placements.map((p) => p.card),
+    fetchImpl,
+  );
 }
 
 export function createGlanceImageLoader(

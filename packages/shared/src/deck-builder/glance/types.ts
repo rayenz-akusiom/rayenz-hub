@@ -7,13 +7,12 @@ export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;
 /** @deprecated Use GLANCE_GENERATION_VERSION for cache keys. */
 export const GLANCE_LAYOUT_VERSION = GLANCE_GENERATION_VERSION;
 
-export const GLANCE_CANVAS_WIDTH = 1920;
-export const GLANCE_CANVAS_HEIGHT = 1080;
-
-/** Matches web `CARD_SIZE_PX.M` (deck-builder card width). */
-export const GLANCE_CARD_WIDTH = 213;
-/** M height at Scryfall 61∶85 aspect (`round(213 * 85 / 61)`). */
-export const GLANCE_CARD_HEIGHT = 297;
+export {
+  GLANCE_CANVAS_WIDTH,
+  GLANCE_CANVAS_HEIGHT,
+  GLANCE_CARD_WIDTH,
+  GLANCE_CARD_HEIGHT,
+} from './plate.js';
 
 /** How the post-role remainder is partitioned into labeled stacks. */
 export type GlanceLayoutMode = 'type_line' | 'primary_category';

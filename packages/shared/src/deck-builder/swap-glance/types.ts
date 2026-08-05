@@ -1,19 +1,37 @@
 import type { GlanceCard } from '../glance/types.js';
 import type { WantSourceKind } from '../../mtg/wants-aggregate.js';
+import {
+  GLANCE_CANVAS_HEIGHT,
+  GLANCE_CANVAS_WIDTH,
+  GLANCE_CARD_HEIGHT,
+  GLANCE_CARD_WIDTH,
+  GLANCE_HEADER_HEIGHT,
+  GLANCE_PLATE_BACKGROUND,
+  GLANCE_WATERMARK_HEIGHT,
+} from '../glance/plate.js';
 
 /** Bump when layout, art tier, or render pipeline changes — invalidates cache. */
-export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-8';
+export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-9';
 
-export const SWAP_GLANCE_CANVAS_WIDTH = 1920;
-export const SWAP_GLANCE_CANVAS_HEIGHT = 1080;
+/** @deprecated Prefer GLANCE_CANVAS_WIDTH from glance/plate. */
+export const SWAP_GLANCE_CANVAS_WIDTH = GLANCE_CANVAS_WIDTH;
+/** @deprecated Prefer GLANCE_CANVAS_HEIGHT from glance/plate. */
+export const SWAP_GLANCE_CANVAS_HEIGHT = GLANCE_CANVAS_HEIGHT;
 
-/** Matches deck-glance M card width. */
-export const SWAP_GLANCE_CARD_WIDTH = 213;
-/** M height at Scryfall 61∶85 aspect. */
-export const SWAP_GLANCE_CARD_HEIGHT = 297;
+/** @deprecated Prefer GLANCE_CARD_WIDTH from glance/plate. */
+export const SWAP_GLANCE_CARD_WIDTH = GLANCE_CARD_WIDTH;
+/** @deprecated Prefer GLANCE_CARD_HEIGHT from glance/plate. */
+export const SWAP_GLANCE_CARD_HEIGHT = GLANCE_CARD_HEIGHT;
 
 /** Max PNG pages a swaps glance may span. */
 export const SWAP_GLANCE_MAX_PAGES = 5;
+
+/** @deprecated Prefer GLANCE_PLATE_BACKGROUND / GLANCE_SKY_BLUE. */
+export const SWAP_GLANCE_BACKGROUND = GLANCE_PLATE_BACKGROUND;
+/** @deprecated Prefer GLANCE_HEADER_HEIGHT. */
+export const SWAP_GLANCE_TITLE_HEIGHT = GLANCE_HEADER_HEIGHT;
+/** @deprecated Prefer GLANCE_WATERMARK_HEIGHT. */
+export const SWAP_GLANCE_WATERMARK_HEIGHT = GLANCE_WATERMARK_HEIGHT;
 
 export type SwapGlanceMode = 'full' | 'in_only';
 

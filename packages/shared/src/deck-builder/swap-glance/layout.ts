@@ -19,12 +19,15 @@ import {
   SWAP_GLANCE_CARD_WIDTH,
   SWAP_GLANCE_GENERATION_VERSION,
   SWAP_GLANCE_MAX_PAGES,
+  SWAP_GLANCE_TITLE_HEIGHT,
+  SWAP_GLANCE_WATERMARK_HEIGHT,
 } from './types.js';
+import {
+  glanceCardHeightForWidth,
+  glanceMaxStackedRows,
+  glanceTitlePeek,
+} from '../glance/plate.js';
 
-/** Same plate colour as deck glance. */
-export const SWAP_GLANCE_BACKGROUND = '#b8d4e8';
-export const SWAP_GLANCE_TITLE_HEIGHT = 72;
-export const SWAP_GLANCE_WATERMARK_HEIGHT = 48;
 const CONTENT_MARGIN_X = 24;
 const CONTENT_MARGIN_Y = 16;
 const SECTION_GAP = 14;
@@ -35,12 +38,8 @@ const CARD_GAP = 8;
 const PAIR_INNER_GAP = 32;
 /** Gap between adjacent pair groups. */
 const PAIR_GROUP_GAP = 28;
-const CARD_ASPECT = 61 / 85;
 /** Reserved band for a bottom "+N cards" overflow label. */
 const SECTION_OVERFLOW_LABEL_H = 22;
-/** Fixed fraction of a card revealed for each stacked card below the top one. */
-const TITLE_PEEK_RATIO = 0.14;
-const MIN_VISIBLE_Y = 22;
 
 type FaceSlot = {
   card: SwapGlanceCard;
@@ -145,17 +144,11 @@ function unitWidth(row: SwapGlanceRow, cardW: number): number {
 }
 
 function cardHeightForWidth(cardW: number): number {
-  return Math.round(cardW / CARD_ASPECT);
+  return glanceCardHeightForWidth(cardW);
 }
 
-function peekFor(cardHeight: number): number {
-  return Math.max(MIN_VISIBLE_Y, Math.round(cardHeight * TITLE_PEEK_RATIO));
-}
-
-function maxStackedRows(bandHeight: number, cardHeight: number): number {
-  if (bandHeight < cardHeight) return 0;
-  return 1 + Math.floor((bandHeight - cardHeight) / peekFor(cardHeight));
-}
+const peekFor = glanceTitlePeek;
+const maxStackedRows = glanceMaxStackedRows;
 
 type PackedUnit = {
   row: SwapGlanceRow;

@@ -1,8 +1,7 @@
 import type { CardInstance, DeckDocument } from '../../schemas/deck-builder.js';
 import { cardDisplayName, getOracle, resolveCardView } from '../card-oracle.js';
 import { collectCommanders, pickCommanderPair } from '../partner.js';
-import { isBasicLand } from '../quantities.js';
-import { cardImageUrl, scryfallCdnUrlWithSize, scryfallImageFromId } from '../scryfall-images.js';
+import { toGlanceCard } from '../glance/card-from-instance.js';
 import type { GlanceCard } from '../glance/types.js';
 import type {
   BuildSwapGlanceOptions,
@@ -13,56 +12,8 @@ import type {
   SwapGlanceSection,
 } from './types.js';
 
-function frontFaceTypeLine(typeLine: string | null | undefined): string {
-  const raw = String(typeLine || '');
-  const sep = raw.indexOf(' // ');
-  return sep === -1 ? raw : raw.slice(0, sep);
-}
-
-function isLandType(typeLine: string | null | undefined, basic: boolean): boolean {
-  if (basic) return true;
-  return /\bLand\b/i.test(frontFaceTypeLine(typeLine));
-}
-
 function toSwapGlanceCard(card: CardInstance, doc: DeckDocument): SwapGlanceCard {
-  const oracle = getOracle(doc, card);
-  const view = resolveCardView(card, oracle);
-  const typeLine = view.typeLine;
-  const basic = isBasicLand({ name: card.name, typeLine });
-  const scryfallId = card.scryfallId || view.scryfallId || oracle?.scryfallId || null;
-  const fromId = scryfallImageFromId(scryfallId, undefined, 'normal');
-  const fromView = view.imageUrl?.includes('cards.scryfall.io')
-    ? scryfallCdnUrlWithSize(view.imageUrl, 'normal')
-    : null;
-  const fromCard = cardImageUrl({ ...view, scryfallId });
-  const imageUrl =
-    fromId ||
-    fromView ||
-    (fromCard.includes('cards.scryfall.io') ? scryfallCdnUrlWithSize(fromCard, 'normal') : fromCard || null) ||
-    null;
-  const colours = Array.isArray(oracle?.colours)
-    ? oracle!.colours!.map((c) => String(c).toUpperCase()).filter(Boolean)
-    : [];
-  const colourIdentity = Array.isArray(oracle?.colourIdentity)
-    ? oracle!.colourIdentity!.map((c) => String(c).toUpperCase()).filter(Boolean)
-    : Array.isArray(card.colourIdentity)
-      ? card.colourIdentity.map((c) => String(c).toUpperCase()).filter(Boolean)
-      : colours;
-  return {
-    instanceId: card.instanceId,
-    name: card.name,
-    setCode: card.setCode,
-    collectorNumber: card.collectorNumber,
-    typeLine,
-    colours,
-    colourIdentity,
-    primaryCategory: card.primaryCategory,
-    quantity: Math.max(1, Number(card.quantity) || 1),
-    imageUrl,
-    isBasicLand: basic,
-    isLand: isLandType(typeLine, basic),
-    proxy: Boolean(card.proxy),
-  };
+  return toGlanceCard(card, doc, { includeProxy: true });
 }
 
 function commanderDisplayName(deck: DeckDocument, card: CardInstance): string {

@@ -11,35 +11,27 @@ import type {
   GlanceSection,
 } from './types.js';
 import {
-  GLANCE_CANVAS_HEIGHT,
-  GLANCE_CANVAS_WIDTH,
-  GLANCE_CARD_HEIGHT,
   GLANCE_GENERATION_VERSION,
   GLANCE_ROLE_HIGHLIGHT_LIMIT,
 } from './types.js';
+import {
+  GLANCE_CANVAS_HEIGHT,
+  GLANCE_CANVAS_WIDTH,
+  GLANCE_CARD_HEIGHT,
+  GLANCE_HEADER_HEIGHT as HEADER_HEIGHT,
+  GLANCE_WATERMARK_HEIGHT as WATERMARK_HEIGHT,
+  glanceCardWidthForHeight,
+  glanceMaxStackedRows,
+  glanceTitlePeek,
+} from './plate.js';
 
-import { GLANCE_SKY_BLUE } from './chrome-theme.js';
-
-const BACKGROUND = GLANCE_SKY_BLUE;
-/** Title strip height (matches footer treatment, taller for large type). */
-const HEADER_HEIGHT = 72;
-const WATERMARK_HEIGHT = 48;
 /** Room for centered frosted section band + text. */
 const LABEL_HEIGHT = 32;
 const COL_GAP = 8;
 const ROLE_GAP = 12;
 const PLATE_PAD = 12;
 const SECTION_GAP = 10;
-const CARD_ASPECT = 61 / 85;
 const MIN_CARD_HEIGHT = 48;
-/** Minimum vertical peek so card names stay readable. */
-const MIN_VISIBLE_Y = 22;
-/**
- * Fixed fraction of a card revealed for each stacked card below the top one.
- * Constant per render so every stack uses the same overlap that keeps the card
- * name/title strip visible (blank space below short stacks is expected).
- */
-const TITLE_PEEK_RATIO = 0.14;
 /** Breathing room between the packed content and the header/footer bars. */
 const CONTENT_MARGIN_Y = 18;
 const ORIGIN_X = 24;
@@ -77,16 +69,8 @@ function showQuantityFor(card: GlanceCard): boolean {
   return card.quantity > 1;
 }
 
-/** Vertical peek per stacked card, fixed for a given card height. */
-function peekFor(cardHeight: number): number {
-  return Math.max(MIN_VISIBLE_Y, Math.round(cardHeight * TITLE_PEEK_RATIO));
-}
-
-/** Cards that fit in a band at the fixed peek pitch. */
-function maxRowsFixed(bandHeight: number, cardHeight: number): number {
-  if (bandHeight < cardHeight) return 0;
-  return 1 + Math.floor((bandHeight - cardHeight) / peekFor(cardHeight));
-}
+const peekFor = glanceTitlePeek;
+const maxRowsFixed = glanceMaxStackedRows;
 
 /**
  * Split `count` items into contiguous chunks across the given slots, sized in
@@ -590,7 +574,7 @@ function tryPackAtSize(
   labels: GlanceLabel[];
   backdrops: GlanceBackdrop[];
 } | null {
-  const cardWidth = Math.round(cardHeight * CARD_ASPECT);
+  const cardWidth = glanceCardWidthForHeight(cardHeight);
   const colStride = cardWidth + COL_GAP;
   const roles = placeRoles(commanders, lieutenants, contentLeft, contentTop, cardWidth, cardHeight);
 
@@ -707,5 +691,3 @@ export function buildGlanceLayoutPlan(
     fingerprint,
   };
 }
-
-export { BACKGROUND, WATERMARK_HEIGHT, MIN_VISIBLE_Y, HEADER_HEIGHT };

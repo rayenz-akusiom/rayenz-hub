@@ -13,7 +13,7 @@ const postSwapsGlance = vi.fn(async () => ({
   densifyStage: 'base',
   omittedCardCount: 0,
   cache: 'MISS',
-  generation: 'swap-glance-gen-8',
+  generation: 'swap-glance-gen-9',
   delivery: 'inline' as const,
 }));
 
@@ -200,7 +200,7 @@ describe('Swaps at a glance dialog', () => {
       densifyStage: 'base',
       omittedCardCount: 0,
       cache: 'MISS',
-      generation: 'swap-glance-gen-8',
+      generation: 'swap-glance-gen-9',
       delivery: 'bundle' as const,
     });
     vi.stubGlobal('URL', {

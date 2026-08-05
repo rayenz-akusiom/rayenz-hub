@@ -1,5 +1,6 @@
 import type { GlanceIncludeSet } from './types.js';
 import { GLANCE_GENERATION_VERSION } from './types.js';
+import { glanceCardIdentityBase } from './card-identity.js';
 import { sha256Hex } from './sha256.js';
 
 function cardIdentity(card: {
@@ -14,11 +15,7 @@ function cardIdentity(card: {
 }): string {
   const colours = [...(card.colours || [])].sort().join('');
   return [
-    card.instanceId,
-    card.name.trim().toLocaleLowerCase(),
-    (card.setCode || '').toLowerCase(),
-    card.collectorNumber || '',
-    String(card.quantity),
+    glanceCardIdentityBase(card),
     colours,
     (card.primaryCategory || '').toLocaleLowerCase(),
     card.isPlaceholder ? '1' : '0',

@@ -1,4 +1,5 @@
 import { sha256Hex } from '../glance/sha256.js';
+import { glanceCardIdentityBase } from '../glance/card-identity.js';
 import type { SwapGlanceDensifyStage, SwapGlanceIncludeSet } from './types.js';
 import { SWAP_GLANCE_GENERATION_VERSION } from './types.js';
 
@@ -10,14 +11,7 @@ function cardIdentity(card: {
   quantity: number;
   proxy?: boolean;
 }): string {
-  return [
-    card.instanceId,
-    card.name.trim().toLocaleLowerCase(),
-    (card.setCode || '').toLowerCase(),
-    card.collectorNumber || '',
-    String(card.quantity),
-    card.proxy ? '1' : '0',
-  ].join('|');
+  return [glanceCardIdentityBase(card), card.proxy ? '1' : '0'].join('|');
 }
 
 export function canonicalSwapGlanceMaterial(includeSet: SwapGlanceIncludeSet): string {

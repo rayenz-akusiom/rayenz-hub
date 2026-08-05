@@ -11,7 +11,9 @@ Reference for how Hub “at a glance” PNGs place cards. Layout lives in `@raye
 
 ## Shared plate constants
 
-Both products use the same canvas / M card size:
+Both products use the same canvas / M card size. Source of truth:
+[`packages/shared/src/deck-builder/glance/plate.ts`](../packages/shared/src/deck-builder/glance/plate.ts)
+(`glanceTitlePeek` / `glanceMaxStackedRows` for title-peek stacks).
 
 | Constant | Value |
 |----------|-------|
@@ -20,6 +22,10 @@ Both products use the same canvas / M card size:
 | M card size | 213×297 (Scryfall 61∶85) |
 | Title / header bar | 72px |
 | Watermark / footer bar | 48px |
+
+Product-specific packing gaps stay local (deck `COL_GAP` / margins vs swap).
+Card conversion is shared via
+[`card-from-instance.ts`](../packages/shared/src/deck-builder/glance/card-from-instance.ts).
 
 **Commander deck-glance chrome** is themed from commander colour identity (`titlePips`) via `resolveGlanceChromeTheme`:
 
@@ -169,6 +175,8 @@ Public wrappers:
 
 | Concern | Path |
 |---------|------|
+| Shared plate / peek | `packages/shared/src/deck-builder/glance/plate.ts` |
+| Card from instance | `packages/shared/src/deck-builder/glance/card-from-instance.ts` |
 | Deck layout | `packages/shared/src/deck-builder/glance/layout.ts` |
 | Deck types / version | `packages/shared/src/deck-builder/glance/types.ts` |
 | Swap layout | `packages/shared/src/deck-builder/swap-glance/layout.ts` |

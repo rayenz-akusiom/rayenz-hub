@@ -222,6 +222,21 @@ describe('CardPickerModal', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('filters cards by name and closes on Escape', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<CardPickerModal config={{ title: 'Pick a card', items }} onClose={onClose} />);
+
+    const filter = screen.getByRole('searchbox', { name: 'Filter cards' });
+    expect(filter).toHaveFocus();
+    await user.type(filter, 'bet');
+    expect(screen.getByRole('button', { name: 'Beta Beta 2 MV' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Alpha Alpha' })).not.toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 
 describe('resolveFinish', () => {

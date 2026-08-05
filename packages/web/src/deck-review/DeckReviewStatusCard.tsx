@@ -1,3 +1,4 @@
+import { useState, type MouseEvent } from 'react';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import type { ReviewProgress } from '../lib/hub-storage';
@@ -14,6 +15,8 @@ import { bridgeApplyAvailable, bridgeAvailable, stageDeckApply } from './archide
 import { archidektApplyOpenUrl } from './data';
 import type { DeckPrefs, StatusCardTab, TransferSource } from './types';
 
+const STATUS_EXPANDED_KEY = 'dr-status-expanded';
+
 type DeckReviewStatusCardProps = {
   deck: DeckEntry;
   progress: ReviewProgress;
@@ -25,6 +28,40 @@ type DeckReviewStatusCardProps = {
   onApplyStaged: (message: string) => void;
   onError: (message: string) => void;
 };
+
+function readExpandedPreference(): boolean {
+  try {
+    return sessionStorage.getItem(STATUS_EXPANDED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeExpandedPreference(expanded: boolean) {
+  try {
+    sessionStorage.setItem(STATUS_EXPANDED_KEY, expanded ? '1' : '0');
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function statusCounts(
+  suggestions: Suggestion[],
+  progress: ReviewProgress,
+): { pending: number; accepted: number; rejected: number; skipped: number } {
+  let pending = 0;
+  let accepted = 0;
+  let rejected = 0;
+  let skipped = 0;
+  for (const s of suggestions) {
+    const status = getDecision(progress, String(s.suggestion_id))?.status || 'pending';
+    if (status === 'accepted') accepted++;
+    else if (status === 'rejected') rejected++;
+    else if (status === 'skipped') skipped++;
+    else pending++;
+  }
+  return { pending, accepted, rejected, skipped };
+}
 
 function archidektDeckLink(deck: DeckEntry, label?: string) {
   if (!deck.archidekt_url) {
@@ -245,6 +282,7 @@ function UpdatePane({
   async function handleCopy() {
     const text = ArchidektExport.buildFullDeckImport(deck, ArchidektExport.buildTargetAcceptedSwaps(accepted));
     await ArchidektExport.copyText(text);
+    onApplyStaged('Copied to clipboard.');
   }
 
   function handleApply() {
@@ -310,33 +348,79 @@ export function DeckReviewStatusCard({
   onApplyStaged,
   onError,
 }: DeckReviewStatusCardProps) {
+  const [expanded, setExpanded] = useState(readExpandedPreference);
+  const suggestions = allVisibleSuggestions(deck, deckPrefs);
+  const counts = statusCounts(suggestions, progress);
   const tabClass = (name: StatusCardTab) => 'dr-status-tab' + (statusCardTab === name ? ' active' : '');
 
+  function setExpandedPref(next: boolean) {
+    setExpanded(next);
+    writeExpandedPreference(next);
+  }
+
+  function openQueue(e: MouseEvent) {
+    e.stopPropagation();
+    onTabChange('queue');
+    setExpandedPref(true);
+  }
+
   return (
-    <div className="dr-deck-status-card" id="dr-deck-status-card">
-      <div className="dr-deck-status-header">
-        <h3>Deck status</h3>
-        <div className="dr-status-tabs">
-          <button type="button" className={tabClass('decisions')} onClick={() => onTabChange('decisions')}>
-            Decisions
+    <div
+      className={'dr-deck-status-card' + (expanded ? ' is-expanded' : ' is-collapsed')}
+      id="dr-deck-status-card"
+    >
+      <div className="dr-status-summary">
+        <button
+          type="button"
+          className="dr-status-summary-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpandedPref(!expanded)}
+        >
+          <span className="dr-status-summary-counts">
+            {counts.pending} pending · {counts.accepted} accepted · {counts.rejected} rejected
+            {counts.skipped ? ` · ${counts.skipped} skipped` : ''}
+          </span>
+          <span className="dr-status-summary-label">{expanded ? 'Collapse' : 'Open status'}</span>
+        </button>
+        {!expanded ? (
+          <button type="button" className="dr-btn dr-btn-ghost dr-status-open-queue" onClick={openQueue}>
+            Open queue
           </button>
-          <button type="button" className={tabClass('queue')} onClick={() => onTabChange('queue')}>
-            Archidekt queue
-          </button>
-          <button type="button" className={tabClass('update')} onClick={() => onTabChange('update')}>
-            Update
-          </button>
-        </div>
+        ) : null}
       </div>
-      <div className="dr-status-pane" id="dr-status-pane-decisions" hidden={statusCardTab !== 'decisions'}>
-        <DecisionsPane deck={deck} progress={progress} deckPrefs={deckPrefs} />
-      </div>
-      <div className="dr-status-pane" id="dr-status-pane-queue" hidden={statusCardTab !== 'queue'}>
-        <QueuePane deck={deck} transferSource={transferSource} onRefreshDeck={onRefreshDeck} />
-      </div>
-      <div className="dr-status-pane" id="dr-status-pane-update" hidden={statusCardTab !== 'update'}>
-        <UpdatePane deck={deck} progress={progress} deckPrefs={deckPrefs} onApplyStaged={onApplyStaged} onError={onError} />
-      </div>
+      {expanded ? (
+        <>
+          <div className="dr-deck-status-header">
+            <h3>Deck status</h3>
+            <div className="dr-status-tabs">
+              <button type="button" className={tabClass('decisions')} onClick={() => onTabChange('decisions')}>
+                Decisions
+              </button>
+              <button type="button" className={tabClass('queue')} onClick={() => onTabChange('queue')}>
+                Archidekt queue
+              </button>
+              <button type="button" className={tabClass('update')} onClick={() => onTabChange('update')}>
+                Update
+              </button>
+            </div>
+          </div>
+          <div className="dr-status-pane" id="dr-status-pane-decisions" hidden={statusCardTab !== 'decisions'}>
+            <DecisionsPane deck={deck} progress={progress} deckPrefs={deckPrefs} />
+          </div>
+          <div className="dr-status-pane" id="dr-status-pane-queue" hidden={statusCardTab !== 'queue'}>
+            <QueuePane deck={deck} transferSource={transferSource} onRefreshDeck={onRefreshDeck} />
+          </div>
+          <div className="dr-status-pane" id="dr-status-pane-update" hidden={statusCardTab !== 'update'}>
+            <UpdatePane
+              deck={deck}
+              progress={progress}
+              deckPrefs={deckPrefs}
+              onApplyStaged={onApplyStaged}
+              onError={onError}
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

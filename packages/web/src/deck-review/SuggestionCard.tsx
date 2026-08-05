@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { scryfallImageFromId, scryfallImageFromPrinting } from '../lib/hub-utils';
 import type { ReviewProgress } from '../lib/hub-storage';
@@ -36,6 +36,8 @@ type SuggestionCardProps = {
   suggestion: Suggestion;
   progress: ReviewProgress;
   advanceOnAction: boolean;
+  compact?: boolean;
+  progressLabel?: string;
   onDecision: (suggestionId: string, decision: ReviewDecision, advance: boolean) => void;
   onProfileUpdate: (patch: {
     deckPrefs?: Record<string, { blocked_cards: string[]; protected_cards: string[] }>;
@@ -50,6 +52,8 @@ export function SuggestionCard({
   suggestion,
   progress,
   advanceOnAction,
+  compact = false,
+  progressLabel,
   onDecision,
   onProfileUpdate,
   deckPrefs,
@@ -75,7 +79,12 @@ export function SuggestionCard({
   const [printId, setPrintId] = useState('');
   const [finish, setFinish] = useState('nonfoil');
   const [cutKey, setCutKey] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(!compact);
   const cutMeta = useMemo(() => cutMetaFromKey(cutKey, cutOptions), [cutKey, cutOptions]);
+
+  useEffect(() => {
+    setDetailsOpen(!compact);
+  }, [compact, suggestion.suggestion_id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,8 +167,26 @@ export function SuggestionCard({
     onDecision(String(suggestion.suggestion_id), { status: nextStatus }, advanceOnAction);
   }
 
+  const acceptRef = useRef(handleAccept);
+  const skipRejectRef = useRef(handleSkipReject);
+  acceptRef.current = handleAccept;
+  skipRejectRef.current = handleSkipReject;
+
   async function handleNever(side: 'in' | 'out') {
     const inName = selectedInCardName(suggestion, printId, prints);
+    const cardLabel = side === 'in' ? inName : cutMeta.name;
+    if (!cardLabel) {
+      onProfileUpdate({ profileStatus: 'Select a card first.' });
+      return;
+    }
+    const confirmed = window.confirm(
+      side === 'in'
+        ? `Never suggest “${cardLabel}” for this deck again?`
+        : `Never suggest cutting “${cardLabel}” from this deck again?`,
+    );
+    if (!confirmed) {
+      return;
+    }
     const result = await neverSuggestAgain(deck, suggestion, side, inName, cutMeta.name);
     if (!result.ok) {
       onProfileUpdate({ profileStatus: result.error });
@@ -175,10 +202,49 @@ export function SuggestionCard({
     onDecision(String(suggestion.suggestion_id), { status: 'skipped' }, advanceOnAction);
   }
 
+  useEffect(() => {
+    if (!advanceOnAction) {
+      return;
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) {
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+          return;
+        }
+      }
+      if (document.querySelector('.hub-picker-dialog')) {
+        return;
+      }
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === 'a') {
+        e.preventDefault();
+        acceptRef.current();
+      } else if (key === 's') {
+        e.preventDefault();
+        skipRejectRef.current('skipped');
+      } else if (key === 'r') {
+        e.preventDefault();
+        skipRejectRef.current('rejected');
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [advanceOnAction]);
+
+  const showDetails = !compact || detailsOpen;
+  const inImgSrc = printId ? scryfallImageFromId(printId) : undefined;
+
   return (
     <div
       className={
         'dr-suggestion-card' +
+        (compact ? ' dr-suggestion-compact' : '') +
+        (compact && detailsOpen ? ' is-expanded' : '') +
         (suggestion.priority_tier === 'swap' ? ' swap-tier' : '') +
         decisionStatusClass(status) +
         (missingCut ? ' dr-missing-cut' : '') +
@@ -186,111 +252,145 @@ export function SuggestionCard({
       }
       data-suggestion-id={String(suggestion.suggestion_id)}
     >
-      <div className="dr-reasoning">
-        <div className="dr-badge-row">
-          {suggestion.priority_tier === 'swap' ? <span className="dr-badge dr-badge-swap">Swap</span> : null}
-          {staleness.stale ? (
-            staleness.level === 'fully_queued' ? (
-              <span className="dr-badge dr-badge-queued">Already queued</span>
-            ) : (
-              <span className="dr-badge dr-badge-stale">Stale</span>
-            )
-          ) : null}
-          <span className={'dr-badge dr-badge-' + String(suggestion.confidence)}>{String(suggestion.confidence)}</span>
-          <span className="dr-badge">{String(suggestion.action)}</span>
-          {missingCut ? <span className="dr-badge dr-badge-missing-cut">No cut suggested</span> : null}
-          {status ? (
-            <span className={'dr-decision-label dr-decision-label-' + status}>{decisionStatusText(status)}</span>
-          ) : null}
-        </div>
-        <h3>{card.name}</h3>
-        <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
-        <p className="dr-roles">
-          Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
-        </p>
-      </div>
-
-      <div className="dr-swap-pair">
-        {staleness.stale ? (
-          <div className="dr-stale-notice-row">
-            <p className="dr-stale-notice">{staleness.reasons.join(' ')}</p>
+      <div className="dr-suggestion-body">
+        <div className="dr-reasoning dr-reasoning-header">
+          <div className="dr-badge-row">
+            {suggestion.priority_tier === 'swap' ? <span className="dr-badge dr-badge-swap">Swap</span> : null}
+            {staleness.stale ? (
+              staleness.level === 'fully_queued' ? (
+                <span className="dr-badge dr-badge-queued">Already queued</span>
+              ) : (
+                <span className="dr-badge dr-badge-stale">Stale</span>
+              )
+            ) : null}
+            <span className={'dr-badge dr-badge-' + String(suggestion.confidence)}>{String(suggestion.confidence)}</span>
+            <span className="dr-badge">{String(suggestion.action)}</span>
+            {missingCut ? <span className="dr-badge dr-badge-missing-cut">No cut suggested</span> : null}
+            {status ? (
+              <span className={'dr-decision-label dr-decision-label-' + status}>{decisionStatusText(status)}</span>
+            ) : null}
           </div>
-        ) : null}
-        {missingCut ? (
-          <div className="dr-cut-warning-row">
-            <p className="dr-cut-warning">
-              No cut was suggested for this swap. Choose an Out card manually — the generator may have omitted{' '}
-              <code>replaces</code>.
+          <h3>{card.name}</h3>
+        </div>
+
+        <div className="dr-swap-pair">
+          {showDetails && staleness.stale ? (
+            <div className="dr-stale-notice-row">
+              <p className="dr-stale-notice">{staleness.reasons.join(' ')}</p>
+            </div>
+          ) : null}
+          {showDetails && missingCut ? (
+            <div className="dr-cut-warning-row">
+              <p className="dr-cut-warning">
+                No cut was suggested for this swap. Choose an Out card manually — the generator may have omitted{' '}
+                <code>replaces</code>.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="dr-swap-col dr-swap-in">
+            <div className="dr-swap-label dr-swap-label-in">In</div>
+            <button
+              type="button"
+              className="dr-card-image dr-card-image-btn"
+              aria-label="Choose printing"
+              onClick={() =>
+                openPrintPicker(suggestion, prints, printId, finish === 'foil', (nextPrintId, nextFinish) => {
+                  setPrintId(nextPrintId);
+                  setFinish(nextFinish);
+                })
+              }
+            >
+              <img data-dr-img-in src={inImgSrc} alt="" />
+            </button>
+            {showDetails ? (
+              <>
+                <p className="dr-picker-summary">{printSummaryLabel(printId, prints, suggestion, finish)}</p>
+                <button
+                  type="button"
+                  className="dr-btn dr-btn-ghost dr-never-btn"
+                  disabled={!canWrite}
+                  title={neverBtnTitle}
+                  onClick={() => void handleNever('in')}
+                >
+                  Never suggest again
+                </button>
+              </>
+            ) : null}
+          </div>
+
+          <div className="dr-swap-arrow" aria-hidden="true">
+            →
+          </div>
+
+          <div className="dr-swap-col dr-swap-out">
+            <div className="dr-swap-label dr-swap-label-out">Out</div>
+            <button
+              type="button"
+              className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
+              aria-label="Choose cut"
+              onClick={() =>
+                openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
+              }
+            >
+              <img data-dr-img-out src={outImgSrc || undefined} alt="" />
+            </button>
+            {showDetails ? (
+              <>
+                <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
+                <button
+                  type="button"
+                  className="dr-btn dr-btn-ghost dr-never-btn"
+                  disabled={!canWrite}
+                  title={neverBtnTitle}
+                  onClick={() => void handleNever('out')}
+                >
+                  Never suggest again
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        {showDetails ? (
+          <div className="dr-reasoning dr-reasoning-detail">
+            <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
+            <p className="dr-roles">
+              Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
             </p>
           </div>
         ) : null}
 
-        <div className="dr-swap-col dr-swap-in">
-          <div className="dr-swap-label dr-swap-label-in">In</div>
+        {compact ? (
           <button
             type="button"
-            className="dr-card-image dr-card-image-btn"
-            aria-label="Choose printing"
-            onClick={() =>
-              openPrintPicker(suggestion, prints, printId, finish === 'foil', (nextPrintId, nextFinish) => {
-                setPrintId(nextPrintId);
-                setFinish(nextFinish);
-              })
-            }
+            className="dr-btn dr-btn-ghost dr-compact-expand"
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((open) => !open)}
           >
-            <img data-dr-img-in src={printId ? scryfallImageFromId(printId) : undefined} alt="" />
+            {detailsOpen ? 'Hide details' : 'Show details'}
           </button>
-          <p className="dr-picker-summary">{printSummaryLabel(printId, prints, suggestion, finish)}</p>
-          <button
-            type="button"
-            className="dr-btn dr-btn-ghost dr-never-btn"
-            disabled={!canWrite}
-            title={neverBtnTitle}
-            onClick={() => void handleNever('in')}
-          >
-            Never suggest again
-          </button>
-        </div>
-
-        <div className="dr-swap-arrow" aria-hidden="true">
-          →
-        </div>
-
-        <div className="dr-swap-col dr-swap-out">
-          <div className="dr-swap-label dr-swap-label-out">Out</div>
-          <button
-            type="button"
-            className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
-            aria-label="Choose cut"
-            onClick={() =>
-              openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
-            }
-          >
-            <img data-dr-img-out src={outImgSrc || undefined} alt="" />
-          </button>
-          <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
-          <button
-            type="button"
-            className="dr-btn dr-btn-ghost dr-never-btn"
-            disabled={!canWrite}
-            title={neverBtnTitle}
-            onClick={() => void handleNever('out')}
-          >
-            Never suggest again
-          </button>
-        </div>
+        ) : null}
       </div>
 
-      <div className="dr-actions">
-        <button type="button" className="dr-btn dr-btn-ghost" onClick={() => handleSkipReject('skipped')}>
-          Skip
-        </button>
-        <button type="button" className="dr-btn dr-btn-danger" onClick={() => handleSkipReject('rejected')}>
-          Reject
-        </button>
-        <button type="button" className="dr-btn dr-btn-success" onClick={handleAccept}>
-          Accept
-        </button>
+      <div className={'dr-actions-bar' + (advanceOnAction ? ' is-sticky' : '')}>
+        {progressLabel && advanceOnAction ? <p className="dr-actions-progress">{progressLabel}</p> : null}
+        <div className="dr-actions">
+          <button type="button" className="dr-btn dr-btn-ghost" onClick={() => handleSkipReject('skipped')}>
+            Skip
+          </button>
+          <button type="button" className="dr-btn dr-btn-danger" onClick={() => handleSkipReject('rejected')}>
+            Reject
+          </button>
+          <button type="button" className="dr-btn dr-btn-success" onClick={handleAccept}>
+            Accept
+          </button>
+        </div>
+        {advanceOnAction ? (
+          <p className="dr-shortcut-hint" aria-hidden="true">
+            Shortcuts: <kbd>A</kbd> Accept · <kbd>S</kbd> Skip · <kbd>R</kbd> Reject · <kbd>J</kbd>/<kbd>K</kbd> prev/next
+          </p>
+        ) : null}
       </div>
     </div>
   );

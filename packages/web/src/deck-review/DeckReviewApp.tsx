@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { consumeReviewHandoff } from '../lib/hub-storage';
+import { consumeReviewHandoff, navigateHub } from '../lib/hub-storage';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { bridgeAvailable, downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
 import { escapeHtml } from '../lib/string-utils';
@@ -13,6 +13,7 @@ import {
   handoffSnapshotDate,
   handoffStatusMessage,
   loadSuggestionsData,
+  navigatePendingSuggestion,
   recordDecision,
   selectDeck,
 } from './review';
@@ -144,6 +145,10 @@ export function DeckReviewApp() {
     setError('');
   }
 
+  const handleNavigateSuggestion = useCallback((delta: number) => {
+    setState((prev) => navigatePendingSuggestion(prev, delta));
+  }, []);
+
   function handleSelectDeck(deckId: string) {
     setState((prev) => selectDeck(prev, deckId));
   }
@@ -247,7 +252,26 @@ export function DeckReviewApp() {
           <div className="dr-body" id="dr-body">
             {!loaded ? (
               <div className="dr-empty" id="dr-empty-state">
-                Upload a suggestions JSON file, transfer from Deck Suggest, or click Refresh latest.
+                <p>Upload a suggestions JSON file, transfer from Deck Suggest, or click Refresh latest.</p>
+                <div className="dr-empty-actions">
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-primary"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload JSON
+                  </button>
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost"
+                    onClick={() => navigateHub('#/deck-suggest')}
+                  >
+                    Open Deck Suggest
+                  </button>
+                  <button type="button" className="dr-btn dr-btn-ghost" onClick={() => void handleFetchLatest()}>
+                    Refresh latest
+                  </button>
+                </div>
               </div>
             ) : (
               <div id="dr-content">
@@ -262,6 +286,7 @@ export function DeckReviewApp() {
                     onRefreshDeck={() => void handleRefreshDeck()}
                     onApplyStaged={(message) => setState((prev) => ({ ...prev, profileStatus: message }))}
                     onError={setError}
+                    onNavigateSuggestion={handleNavigateSuggestion}
                   />
                 </div>
               </div>

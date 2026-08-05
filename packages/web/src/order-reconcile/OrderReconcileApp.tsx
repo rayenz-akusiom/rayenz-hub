@@ -133,6 +133,30 @@ export function OrderReconcileApp() {
     scrollToTop();
   }
 
+  function hasProgressDecisions() {
+    return Object.keys(state.progress.decisions || {}).length > 0;
+  }
+
+  function handleNewSession() {
+    if (
+      hasProgressDecisions() &&
+      !window.confirm('Start a new session? Current decisions will be cleared.')
+    ) {
+      return;
+    }
+    persist(resetSession(state));
+  }
+
+  function handleEditAcquired() {
+    if (
+      hasProgressDecisions() &&
+      !window.confirm('Return to edit acquired cards? You can Continue again after editing.')
+    ) {
+      return;
+    }
+    persist({ ...state, phase: 'input' });
+  }
+
   function renderDeckNav() {
     if (state.phase === 'assign') {
       return (
@@ -275,7 +299,7 @@ export function OrderReconcileApp() {
               type="button"
               className="or-btn or-btn-ghost"
               id="or-new-session"
-              onClick={() => persist(resetSession(state))}
+              onClick={handleNewSession}
             >
               New session
             </button>
@@ -283,7 +307,7 @@ export function OrderReconcileApp() {
               type="button"
               className="or-btn or-btn-ghost"
               id="or-back-input"
-              onClick={() => persist({ ...state, phase: 'input' })}
+              onClick={handleEditAcquired}
             >
               Edit acquired cards
             </button>

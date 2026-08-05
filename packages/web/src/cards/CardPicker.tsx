@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { cardHasBackFace, scryfallImageFromId, SWAP_IN, SWAP_OUT, canonicalizeSwapCategory } from '@rayenz-hub/shared';
 import { CardFace } from './CardFace';
@@ -76,6 +76,12 @@ function groupItems(items: CardPickerItem[]): { name: string | null; items: Card
   return groups;
 }
 
+function itemMatchesFilter(item: CardPickerItem, query: string): boolean {
+  if (!query) return true;
+  const haystack = (item.lines || []).join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
 export function resolveFinish(item: CardPickerItem | null | undefined, foilOn: boolean): string {
   if (foilOn && item?.finishes && item.finishes.indexOf('foil') >= 0) {
     return 'foil';
@@ -92,17 +98,41 @@ export function CardPickerModal({
 }) {
   const { size, setSize, widthPx } = useCardSize();
   const [foil, setFoil] = useState(!!config.foilDefault);
+  const [filter, setFilter] = useState('');
+  const filterRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setFoil(!!config.foilDefault);
   }, [config]);
 
+  useEffect(() => {
+    filterRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const groups = useMemo(() => {
     let items = config.items || [];
+    const q = filter.trim().toLowerCase();
+    if (q) {
+      items = items.filter((item) => itemMatchesFilter(item, q));
+    }
     if (config.groupByCategory) return groupItems(items);
     if (config.sort) items = sortItems(items);
     return [{ name: null, items }];
-  }, [config]);
+  }, [config, filter]);
+
+  const totalVisible = groups.reduce((n, g) => n + g.items.length, 0);
 
   function pick(item: CardPickerItem) {
     config.onPick?.(item.value, item, { foil });
@@ -136,7 +166,21 @@ export function CardPickerModal({
             </button>
           </div>
         </header>
+        <div className="hub-picker-filter-row">
+          <input
+            ref={filterRef}
+            type="search"
+            className="hub-picker-filter"
+            placeholder="Filter cards…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter cards"
+          />
+        </div>
         <div className="hub-picker-grid">
+          {!totalVisible ? (
+            <p className="hub-picker-empty">{filter.trim() ? 'No cards match that filter.' : 'No cards to choose.'}</p>
+          ) : null}
           {groups.map((group) => (
             <div key={group.name || '__flat__'} className="hub-picker-group">
               {group.name ? (

@@ -209,6 +209,34 @@ export function recordDecision(
   return { ...state, progress };
 }
 
+export function navigatePendingSuggestion(state: DeckReviewState, delta: number): DeckReviewState {
+  if (!state.fileId || !state.activeDeckId || !state.data) {
+    return state;
+  }
+  const deck = state.data.decks.find((d) => d.deck_id === state.activeDeckId);
+  if (!deck) {
+    return state;
+  }
+  const pending = pendingSuggestions(deck, state.progress, state.deckPrefs);
+  if (!pending.length) {
+    return state;
+  }
+  const max = pending.length - 1;
+  const suggestionIndex = Math.max(0, Math.min(max, state.suggestionIndex + delta));
+  if (suggestionIndex === state.suggestionIndex) {
+    return state;
+  }
+  const progress = {
+    ...state.progress,
+    currentSuggestionIndex: {
+      ...state.progress.currentSuggestionIndex,
+      [state.activeDeckId]: suggestionIndex,
+    },
+  };
+  saveReviewProgress(state.fileId, progress);
+  return { ...state, progress, suggestionIndex };
+}
+
 export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewState {
   if (!state.fileId) {
     return { ...state, activeDeckId: deckId };

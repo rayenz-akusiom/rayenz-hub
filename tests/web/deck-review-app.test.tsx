@@ -83,6 +83,7 @@ function handoffPayload() {
 beforeEach(() => {
   resetHubModules();
   vi.clearAllMocks();
+  sessionStorage.clear();
   delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
 });
 
@@ -98,8 +99,9 @@ describe('DeckReviewApp empty state', () => {
 
     expect(screen.getByRole('heading', { name: 'Deck Review' })).toBeInTheDocument();
     expect(screen.getByText(/Upload a suggestions JSON file/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh latest' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Refresh latest' }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole('button', { name: 'Upload JSON' }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('button', { name: 'Open Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
   });
 
@@ -112,7 +114,7 @@ describe('DeckReviewApp empty state', () => {
 
     const user = userEvent.setup();
     render(<DeckReviewApp />);
-    await user.click(screen.getByRole('button', { name: 'Refresh latest' }));
+    await user.click(screen.getAllByRole('button', { name: 'Refresh latest' })[0]);
 
     await waitFor(() => {
       expect(screen.getByText(/Could not fetch data\/suggestions\/latest.json/i)).toBeInTheDocument();
@@ -267,6 +269,9 @@ describe('DeckReviewApp suggestion panel', () => {
     const user = userEvent.setup();
     render(<DeckReviewApp />);
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Open status/i }));
+
     await waitFor(() => expect(screen.getByRole('button', { name: 'Decisions' })).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Archidekt queue' }));
@@ -277,6 +282,59 @@ describe('DeckReviewApp suggestion panel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Decisions' }));
     expect(screen.getByText(/1\/1 reviewed|0\/1 reviewed/i)).toBeInTheDocument();
+  });
+
+  it('keeps status collapsed by default and expands from the summary', async () => {
+    saveReviewHandoff({
+      data: handoffPayload(),
+      source: 'deck-suggest',
+      savedAt: '2026-06-30T12:00:00.000Z',
+    });
+
+    const user = userEvent.setup();
+    render(<DeckReviewApp />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Decisions' })).not.toBeInTheDocument();
+    expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Open queue/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Archidekt queue' })).toHaveClass('active'));
+    expect(screen.getAllByText(/From Deck Suggest/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows a denser show-all grid of compact suggestion tiles', async () => {
+    const data = handoffPayload();
+    data.decks[0].suggestions.push({
+      suggestion_id: 's2',
+      priority_tier: 'upgrade',
+      confidence: 'medium',
+      action: 'add',
+      card: { name: 'Sol Ring', set_code: 'C21', collector_number: '1' },
+      replaces: [],
+      roles_matched: ['ramp'],
+      rationale: 'Staple ramp',
+    });
+
+    saveReviewHandoff({
+      data,
+      source: 'deck-suggest',
+      savedAt: '2026-06-30T12:00:00.000Z',
+    });
+
+    const user = userEvent.setup();
+    render(<DeckReviewApp />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Show all' }));
+
+    const grid = await waitFor(() => document.getElementById('dr-suggestions-all'));
+    expect(grid).toBeInTheDocument();
+    expect(grid?.querySelectorAll('.dr-suggestion-compact').length).toBe(2);
+    expect(screen.getAllByRole('button', { name: 'Show details' }).length).toBe(2);
+
+    await user.click(screen.getAllByRole('button', { name: 'Show details' })[0]);
+    expect(screen.getByText('Upgrade path')).toBeInTheDocument();
   });
 
   it('switches to a deck with no suggestions from the sidebar', async () => {

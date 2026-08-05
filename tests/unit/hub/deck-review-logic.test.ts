@@ -57,6 +57,7 @@ import {
   handoffSnapshotDate,
   handoffStatusMessage,
   pendingSuggestions,
+  navigatePendingSuggestion,
   recordDecision,
   refreshAllDecksLabel,
   refreshAllDecksTitle,
@@ -518,6 +519,49 @@ describe('deck-review review helpers', () => {
     };
     const next = recordDecision(state, 's-new', { status: 'rejected' }, false);
     expect(next.suggestionIndex).toBe(3);
+  });
+
+  it('navigatePendingSuggestion clamps within pending suggestions', () => {
+    const deck = {
+      deck_id: 'baird',
+      deck_name: 'Baird',
+      suggestions: [
+        {
+          suggestion_id: 's1',
+          priority_tier: 'swap',
+          confidence: 'high',
+          action: 'replace',
+          card: { name: 'A' },
+          replaces: [],
+          roles_matched: [],
+          rationale: '',
+        },
+        {
+          suggestion_id: 's2',
+          priority_tier: 'swap',
+          confidence: 'high',
+          action: 'replace',
+          card: { name: 'B' },
+          replaces: [],
+          roles_matched: [],
+          rationale: '',
+        },
+      ],
+    };
+    const state = {
+      ...createInitialReviewState(),
+      fileId: 'file-1',
+      activeDeckId: 'baird',
+      suggestionIndex: 0,
+      data: { meta: {}, decks: [deck] },
+      progress: { decisions: {}, currentDeckId: 'baird', currentSuggestionIndex: { baird: 0 } },
+    };
+    const next = navigatePendingSuggestion(state as never, 1);
+    expect(next.suggestionIndex).toBe(1);
+    const same = navigatePendingSuggestion(next as never, 1);
+    expect(same.suggestionIndex).toBe(1);
+    const back = navigatePendingSuggestion(next as never, -1);
+    expect(back.suggestionIndex).toBe(0);
   });
 
   it('selectDeck without fileId skips progress persistence', () => {

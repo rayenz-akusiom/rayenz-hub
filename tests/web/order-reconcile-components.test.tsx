@@ -449,9 +449,15 @@ describe('OrderReconcileDeckPanel', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /Confirm & apply/i }));
+    await user.click(screen.getByRole('button', { name: /Apply & stay/i }));
     expect(mockStageDeckApply).toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalled();
+    expect(onCompleteDeck).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith(
+      'Applied — verify the Archidekt banner, then continue when ready.',
+    );
+
+    await user.click(screen.getByRole('button', { name: /Apply & next/i }));
     expect(onCompleteDeck).toHaveBeenCalled();
     openSpy.mockRestore();
   });

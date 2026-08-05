@@ -177,6 +177,23 @@ function ReconcileCard({ item, deck, decision, onDecision, onItemChange }: Recon
   return (
     <div className={'or-reconcile-card' + decisionClass} data-item-id={item.item_id} data-is-cube={item.is_cube ? '1' : undefined}>
       <h3>{item.card_name}</h3>
+      <div className="or-swap-pair">
+        <div className="or-swap-col or-swap-in">
+          <div className="or-swap-label or-swap-label-in">In</div>
+          <button type="button" className={'or-card-image or-card-image-btn' + (!inImg ? ' or-card-image-empty' : '')} onClick={() => void openPrintPicker()}>
+            {inImg ? <img src={inImg} alt="" /> : <img alt="" />}
+          </button>
+          <p className="or-picker-summary">{formatCardLabel(printing)}</p>
+        </div>
+        <div className="or-swap-arrow" aria-hidden="true">→</div>
+        <div className="or-swap-col or-swap-out">
+          <div className="or-swap-label or-swap-label-out">Out</div>
+          <button type="button" className={'or-card-image or-card-image-btn' + (!outImg ? ' or-card-image-empty' : '')} onClick={openCutPicker}>
+            {outImg ? <img src={outImg} alt="" /> : <img alt="" />}
+          </button>
+          <p className="or-picker-summary">{cut ? formatCardLabel(cut) : 'Choose cut…'}</p>
+        </div>
+      </div>
       <label>Destination category</label>
       <select
         className="or-category-select"
@@ -197,35 +214,20 @@ function ReconcileCard({ item, deck, decision, onDecision, onItemChange }: Recon
           </option>
         ))}
       </select>
-      <div className="or-swap-pair">
-        <div className="or-swap-col or-swap-in">
-          <div className="or-swap-label or-swap-label-in">In</div>
-          <button type="button" className={'or-card-image or-card-image-btn' + (!inImg ? ' or-card-image-empty' : '')} onClick={() => void openPrintPicker()}>
-            {inImg ? <img src={inImg} alt="" /> : <img alt="" />}
-          </button>
-          <p className="or-picker-summary">{formatCardLabel(printing)}</p>
-        </div>
-        <div className="or-swap-arrow">→</div>
-        <div className="or-swap-col or-swap-out">
-          <div className="or-swap-label or-swap-label-out">Out</div>
-          <button type="button" className={'or-card-image or-card-image-btn' + (!outImg ? ' or-card-image-empty' : '')} onClick={openCutPicker}>
-            {outImg ? <img src={outImg} alt="" /> : <img alt="" />}
-          </button>
-          <p className="or-picker-summary">{cut ? formatCardLabel(cut) : 'Choose cut…'}</p>
-        </div>
-      </div>
       {cardError ? (
         <p className="or-card-error" data-or-card-error="1">
           {cardError}
         </p>
       ) : null}
-      <div className="or-actions">
-        <button type="button" className="or-btn or-btn-ghost" onClick={handleSkip}>
-          Skip
-        </button>
-        <button type="button" className="or-btn or-btn-success" onClick={handleAccept}>
-          Accept
-        </button>
+      <div className="or-actions-bar">
+        <div className="or-actions">
+          <button type="button" className="or-btn or-btn-ghost" onClick={handleSkip}>
+            Skip
+          </button>
+          <button type="button" className="or-btn or-btn-success" onClick={handleAccept}>
+            Accept
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -260,12 +262,16 @@ export function OrderReconcileDeckPanel({
     void ArchidektExport.copyText(importText).then(() => onStatus('Deck import copied.'));
   }
 
-  function applyDeck() {
+  function applyDeck(advance: boolean) {
     const deckId = ArchidektExport.parseDeckId(deck.archidekt_url || '');
     ArchidektExport.stageDeckApply(deckId, importText);
     window.open(deck.archidekt_url, '_blank', 'noopener');
-    onStatus('Applied — move to next deck.');
-    onCompleteDeck();
+    if (advance) {
+      onStatus('Applied — move to next deck.');
+      onCompleteDeck();
+    } else {
+      onStatus('Applied — verify the Archidekt banner, then continue when ready.');
+    }
   }
 
   return (
@@ -299,9 +305,24 @@ export function OrderReconcileDeckPanel({
             Copy deck import
           </button>
           {bridgeApplyAvailable() ? (
-            <button type="button" className="or-btn or-btn-success" disabled={!complete.complete} onClick={applyDeck}>
-              Confirm &amp; apply
-            </button>
+            <>
+              <button
+                type="button"
+                className="or-btn or-btn-success"
+                disabled={!complete.complete}
+                onClick={() => applyDeck(false)}
+              >
+                Apply &amp; stay
+              </button>
+              <button
+                type="button"
+                className="or-btn or-btn-ghost"
+                disabled={!complete.complete}
+                onClick={() => applyDeck(true)}
+              >
+                Apply &amp; next
+              </button>
+            </>
           ) : null}
         </div>
         <textarea className="or-textarea" readOnly value={importText} style={{ minHeight: 100, marginTop: 12 }} />

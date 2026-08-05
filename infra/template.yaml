@@ -144,6 +144,12 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/decks/{deckId}
             Method: PUT
+        DeckPatch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/decks/{deckId}
+            Method: PATCH
         DeckDelete:
           Type: HttpApi
           Properties:

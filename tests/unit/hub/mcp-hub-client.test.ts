@@ -53,6 +53,24 @@ describe('mcp hub-client', () => {
     );
   });
 
+  it('patchDeck sends PATCH with body', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.method).toBe('PATCH');
+      expect(JSON.parse(String(init?.body))).toEqual({ name: 'Renamed' });
+      return new Response(JSON.stringify({ deckId: 'd1', name: 'Renamed' }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createHubClient({ url: 'http://api.test', key: 'secret' });
+    await expect(client.patchDeck('d1', { name: 'Renamed' })).resolves.toEqual({
+      deckId: 'd1',
+      name: 'Renamed',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api.test/v1/decks/d1',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
   it('rejects HTML bodies that look like wrong API URL', async () => {
     vi.stubGlobal(
       'fetch',

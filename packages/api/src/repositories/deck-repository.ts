@@ -1,5 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import {
+  applyDeckPatch,
   DeckDocumentSchema,
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
@@ -9,9 +10,10 @@ import {
   userPk,
   type AuthContext,
   type DeckDocument,
+  type DeckPatch,
   type DeckSummary,
 } from '@rayenz-hub/shared';
-import type { ApiEnv } from '../lib/auth.js';
+import { NotFoundError, type ApiEnv } from '../lib/auth.js';
 import type { BlobStore } from './s3-blob-store.js';
 
 type DocClient = Pick<import('@aws-sdk/lib-dynamodb').DynamoDBDocumentClient, 'send'>;
@@ -106,6 +108,20 @@ export class DeckRepository {
       }),
     );
     return doc;
+  }
+
+  async patch(
+    auth: AuthContext,
+    env: ApiEnv,
+    deckId: string,
+    patch: DeckPatch,
+  ): Promise<DeckDocument> {
+    const existing = await this.get(auth, env, deckId);
+    if (!existing) {
+      throw new NotFoundError(`Deck not found: ${deckId}`);
+    }
+    const merged = applyDeckPatch(existing, patch);
+    return this.put(auth, env, deckId, merged);
   }
 
   async delete(auth: AuthContext, env: ApiEnv, deckId: string): Promise<boolean> {

@@ -63,7 +63,7 @@ After connecting, agents should `GetMcpTools` on server `rayenz-hub`, then `Call
 
 | Tool | Purpose |
 |------|---------|
-| `hub_list_decks` / `hub_get_deck` / `hub_put_deck` / `hub_delete_deck` | Deck library CRUD |
+| `hub_list_decks` / `hub_get_deck` / `hub_put_deck` / `hub_patch_deck` / `hub_delete_deck` | Deck library CRUD (`hub_patch_deck` for card/queue deltas) |
 | `hub_list_profiles` / `hub_get_profile` / `hub_put_profile` / `hub_resolve_profile` | Deck profiles |
 | `hub_summarize_deck` / `hub_list_swaps` | Agent-friendly deck + swap views |
 | `hub_aggregate_wants` / `hub_export_wants_text` | Buy/acquire lists from formal queues |

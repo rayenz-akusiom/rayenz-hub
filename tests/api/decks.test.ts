@@ -38,4 +38,86 @@ describe('decks API', () => {
     expect(del.statusCode).toBe(204);
     expect(s3.snapshot().has('decks/cmd-fixture.json')).toBe(false);
   });
+
+  it('patches deck list with card ops without full document', async () => {
+    const { services } = createMemoryStores();
+    const put = await handleDeck(
+      'PUT',
+      'cmd-fixture',
+      TEST_AUTH_HEADERS,
+      JSON.stringify(commander),
+      services,
+    );
+    const before = JSON.parse(String(put.body));
+    const beforeCount = before.cards.length;
+
+    const patch = await handleDeck(
+      'PATCH',
+      'cmd-fixture',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        expectedUpdatedAt: before.updatedAt,
+        cardOps: [
+          {
+            op: 'add',
+            card: {
+              name: 'Sol Ring',
+              primaryCategory: 'Artifact',
+              categories: ['Artifact'],
+            },
+          },
+          { op: 'remove', instanceId: 'c3' },
+        ],
+      }),
+      services,
+    );
+    expect(patch.statusCode).toBe(200);
+    const after = JSON.parse(String(patch.body));
+    expect(after.cards.some((c: { name: string }) => c.name === 'Sol Ring')).toBe(true);
+    expect(after.cards.some((c: { instanceId: string }) => c.instanceId === 'c3')).toBe(false);
+    expect(after.cards.length).toBe(beforeCount); // +1 -1
+    expect(after.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  it('returns 409 when expectedUpdatedAt conflicts', async () => {
+    const { services } = createMemoryStores();
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+
+    const patch = await handleDeck(
+      'PATCH',
+      'cmd-fixture',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        expectedUpdatedAt: '1999-01-01T00:00:00.000Z',
+        name: 'Renamed',
+      }),
+      services,
+    );
+    expect(patch.statusCode).toBe(409);
+    expect(JSON.parse(String(patch.body)).code).toBe('CONFLICT');
+  });
+
+  it('returns 400 for empty patch and unknown instance', async () => {
+    const { services } = createMemoryStores();
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+
+    const empty = await handleDeck(
+      'PATCH',
+      'cmd-fixture',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({}),
+      services,
+    );
+    expect(empty.statusCode).toBe(400);
+
+    const unknown = await handleDeck(
+      'PATCH',
+      'cmd-fixture',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ cardOps: [{ op: 'remove', instanceId: 'missing-id' }] }),
+      services,
+    );
+    expect(unknown.statusCode).toBe(400);
+    expect(JSON.parse(String(unknown.body)).code).toBe('UNKNOWN_INSTANCE');
+  });
 });

@@ -1,5 +1,10 @@
-import { DeckDocumentSchema } from '@rayenz-hub/shared';
-import { handleKeyedResource, handleListResource } from '../lib/keyed-resource-handler.js';
+import {
+  DeckDocumentSchema,
+  DeckPatchSchema,
+} from '@rayenz-hub/shared';
+import { handleKeyedResource, handleListResource, parseJsonBody } from '../lib/keyed-resource-handler.js';
+import { mapHandlerError } from '../lib/handler-errors.js';
+import { errorResponse, jsonResponse } from '../lib/response.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 
 export async function handleListDecks(
@@ -21,6 +26,10 @@ export async function handleDeck(
   body: string | null | undefined,
   services: AppServices = getAppServices(),
 ) {
+  if (method === 'PATCH') {
+    return handleDeckPatch(deckId, headers, body, services);
+  }
+
   const repo = services.deckRepository;
   return handleKeyedResource({
     method,
@@ -36,4 +45,31 @@ export async function handleDeck(
       delete: (auth, env, key) => repo.delete(auth, env, key),
     },
   });
+}
+
+async function handleDeckPatch(
+  deckId: string,
+  headers: Record<string, string | undefined>,
+  body: string | null | undefined,
+  services: AppServices,
+) {
+  try {
+    const { auth, env } = services.authService.authenticate(headers);
+    const parsedBody = parseJsonBody(body);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+    const result = DeckPatchSchema.safeParse(parsedBody.value);
+    if (!result.success) {
+      return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
+    }
+    const saved = await services.deckRepository.patch(auth, env, deckId, result.data);
+    return jsonResponse(200, saved);
+  } catch (e) {
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) {
+      return mapped;
+    }
+    throw e;
+  }
 }

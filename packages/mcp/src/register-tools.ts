@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import {
   DeckDocumentSchema,
+  DeckPatchSchema,
   ProfileUpsertSchema,
   ReviewProgressUpsertSchema,
   SetPoolUpsertSchema,
@@ -59,6 +60,7 @@ export const HUB_MCP_TOOL_NAMES = [
   'hub_list_decks',
   'hub_get_deck',
   'hub_put_deck',
+  'hub_patch_deck',
   'hub_delete_deck',
   'hub_list_profiles',
   'hub_get_profile',
@@ -130,6 +132,25 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
           return errorResult(`document.deckId (${parsed.deckId}) must match path deckId (${deckId})`);
         }
         return jsonResult(await client.putDeck(deckId, parsed));
+      } catch (e) {
+        return catchTool(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'hub_patch_deck',
+    {
+      description:
+        'Apply a delta patch to an existing Hub deck (prefer over hub_put_deck for list/queue edits). Supports cardOps (add/remove/update), formalSwapOps, lookingForOps, optional metadata, and expectedUpdatedAt for optimistic concurrency.',
+      inputSchema: DeckPatchSchema.extend({
+        deckId: z.string().describe('Hub deck id'),
+      }),
+    },
+    async ({ deckId, ...patch }) => {
+      try {
+        const parsed = DeckPatchSchema.parse(patch);
+        return jsonResult(await client.patchDeck(deckId, parsed));
       } catch (e) {
         return catchTool(e);
       }

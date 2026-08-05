@@ -92,6 +92,12 @@ export function createHubClient(config: HubClientConfig) {
         body: document,
         nullOn404: false,
       }),
+    patchDeck: (deckId: string, patch: unknown) =>
+      hubFetch(`/v1/decks/${encodeURIComponent(deckId)}`, {
+        method: 'PATCH',
+        body: patch,
+        nullOn404: false,
+      }),
     deleteDeck: (deckId: string) =>
       hubFetch(`/v1/decks/${encodeURIComponent(deckId)}`, {
         method: 'DELETE',

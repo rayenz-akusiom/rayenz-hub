@@ -172,6 +172,14 @@ describe('browse grouping', () => {
     expect(part.includedKeys).not.toContain('Seeking');
   });
 
+  it('always surfaces Maybeboard in aside even when empty', () => {
+    const part = partitionCategories({ cards: [], categories: [] });
+    expect(part.excludedKeys).toContain('Maybeboard');
+    expect(part.excluded.Maybeboard).toEqual([]);
+    expect(part.includedKeys).not.toContain('Maybeboard');
+    expect(part.excludedKeys).toContain('Seeking');
+  });
+
   it('folds legacy Looking For cards into Seeking aside bucket', () => {
     const part = partitionCategories({
       cards: [

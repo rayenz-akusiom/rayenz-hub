@@ -115,3 +115,38 @@ describe('CategoryBrowse aside Seeking section', () => {
     expect(onDropCard).toHaveBeenCalledWith(['c1'], 'Seeking');
   });
 });
+
+describe('CategoryBrowse aside Maybeboard section', () => {
+  it('always renders a Maybeboard drop section when empty', () => {
+    render(
+      <CategoryBrowse
+        deck={baseDeck()}
+        mode="aside"
+        layout="stacked"
+        onDropCard={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Maybeboard')).toBeInTheDocument();
+  });
+
+  it('invokes onDropCard with Maybeboard when a card is dropped on the section', () => {
+    const onDropCard = vi.fn();
+    render(
+      <CategoryBrowse
+        deck={baseDeck()}
+        mode="aside"
+        layout="stacked"
+        onDropCard={onDropCard}
+      />,
+    );
+    const section = screen.getByText('Maybeboard').closest('.db-cat-column');
+    expect(section).toBeTruthy();
+    fireEvent.drop(section!, {
+      dataTransfer: {
+        getData: (type: string) => (type === 'text/plain' ? 'c1' : ''),
+      },
+      preventDefault: () => {},
+    });
+    expect(onDropCard).toHaveBeenCalledWith(['c1'], 'Maybeboard');
+  });
+});

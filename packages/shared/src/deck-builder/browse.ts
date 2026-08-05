@@ -454,11 +454,17 @@ export function sortCategoryKeys(
   return sortKeysAlpha(keys);
 }
 
+const MAYBEBOARD = 'Maybeboard';
+
+function isMaybeboardCategory(name: string): boolean {
+  return canonicalizeCategoryName(name) === MAYBEBOARD;
+}
+
 /**
  * Partition cards for browse: header categories, included main columns, excluded (aside).
  * Queued In / Out are omitted by default (shown only via the formal swap queue).
  * Pass `includeSwapCategories: true` to surface them in the aside (swap edit pick mode).
- * Seeking is always shown in the aside (even when empty) as a drop target.
+ * Seeking and Maybeboard are always shown in the aside (even when empty) as drop targets.
  */
 export function partitionCategories(
   deck: Pick<DeckDocument, 'cards' | 'categories'>,
@@ -519,7 +525,12 @@ export function partitionCategories(
   ].map((k) => canonicalizeCategoryName(k)));
   for (const def of deck.categories || []) {
     const name = def.name;
-    if (isSwapQueueCategory(name) || isHeaderCategory(name) || isSeekingCategory(name)) {
+    if (
+      isSwapQueueCategory(name) ||
+      isHeaderCategory(name) ||
+      isSeekingCategory(name) ||
+      isMaybeboardCategory(name)
+    ) {
       continue;
     }
     const key = canonicalizeCategoryName(name);
@@ -544,6 +555,17 @@ export function partitionCategories(
     }
   }
   excluded[SEEKING] = seekingCards;
+
+  // Maybeboard is always an aside drop target (empty when no cards).
+  const maybeboardCards: CategorizedCard[] = [];
+  for (const bucket of [header, included, excluded]) {
+    for (const key of Object.keys(bucket)) {
+      if (!isMaybeboardCategory(key)) continue;
+      maybeboardCards.push(...bucket[key]);
+      delete bucket[key];
+    }
+  }
+  excluded[MAYBEBOARD] = maybeboardCards;
 
   const headerKeys = (HEADER_CATEGORIES as readonly string[]).filter((k) => header[k]?.length);
   const includedKeys = sortCategoryKeys(Object.keys(included), keySort, categoryOrder);

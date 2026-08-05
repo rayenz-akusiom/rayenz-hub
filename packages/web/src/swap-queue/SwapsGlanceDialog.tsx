@@ -136,50 +136,63 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     >
       <div className="db-modal-card db-modal-wide db-glance-modal">
         <h2>Swaps at a glance</h2>
-        <div className="sq-glance-options">
-          <fieldset className="db-glance-mode">
-            <legend>Show</legend>
+        <div className="db-glance-chrome">
+          <div className="sq-glance-options">
+            <fieldset className="db-glance-mode">
+              <legend>Show</legend>
+              <label className="db-glance-option">
+                <input
+                  type="radio"
+                  name="sq-glance-mode"
+                  checked={mode === 'in_only'}
+                  onChange={() => {
+                    setMode('in_only');
+                    resetPreview();
+                  }}
+                />
+                Looking for (In)
+              </label>
+              <label className="db-glance-option">
+                <input
+                  type="radio"
+                  name="sq-glance-mode"
+                  checked={mode === 'full'}
+                  onChange={() => {
+                    setMode('full');
+                    resetPreview();
+                  }}
+                />
+                Full swaps (Out → In)
+              </label>
+            </fieldset>
             <label className="db-glance-option">
               <input
-                type="radio"
-                name="sq-glance-mode"
-                checked={mode === 'in_only'}
-                onChange={() => {
-                  setMode('in_only');
+                type="checkbox"
+                checked={includeSeeking}
+                onChange={(e) => {
+                  setIncludeSeeking(e.target.checked);
                   resetPreview();
                 }}
               />
-              Looking for (In)
+              Include Seeking
             </label>
-            <label className="db-glance-option">
-              <input
-                type="radio"
-                name="sq-glance-mode"
-                checked={mode === 'full'}
-                onChange={() => {
-                  setMode('full');
-                  resetPreview();
-                }}
-              />
-              Full swaps (Out → In)
-            </label>
-          </fieldset>
-          <label className="db-glance-option">
-            <input
-              type="checkbox"
-              checked={includeSeeking}
-              onChange={(e) => {
-                setIncludeSeeking(e.target.checked);
-                resetPreview();
-              }}
-            />
-            Include Seeking
-          </label>
-          <p className="hub-muted sq-glance-count" role="status">
-            {itemCount === 0
-              ? 'No rows for current filters and options.'
-              : `${itemCount} row${itemCount === 1 ? '' : 's'} from current filters.`}
-          </p>
+            <p className="hub-muted sq-glance-count" role="status">
+              {itemCount === 0
+                ? 'No rows for current filters and options.'
+                : `${itemCount} row${itemCount === 1 ? '' : 's'} from current filters.`}
+            </p>
+          </div>
+          <div className="db-glance-primary-actions">
+            <button
+              type="button"
+              className="db-btn"
+              disabled={loading || itemCount === 0 || !apiReady}
+              title={!apiReady ? 'Configure Hub API to generate glance images' : undefined}
+              onClick={() => void generate()}
+            >
+              {currentBlob ? 'Regenerate' : 'Generate'}
+            </button>
+          </div>
         </div>
         <GlanceStatusLine
           loading={loading}
@@ -236,17 +249,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
               </button>
             ) : null
           }
-        >
-          <button
-            type="button"
-            className="db-btn"
-            disabled={loading || itemCount === 0 || !apiReady}
-            title={!apiReady ? 'Configure Hub API to generate glance images' : undefined}
-            onClick={() => void generate()}
-          >
-            Generate
-          </button>
-        </GlanceModalActions>
+        />
       </div>
     </div>
   );

@@ -804,7 +804,7 @@ export function BrowseShell({
               </div>
             </div>
           ) : null}
-          {setFilter.error ? <p className="db-warn">{setFilter.error}</p> : null}
+          {setFilter.error ? <p className="hub-warn">{setFilter.error}</p> : null}
           {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
           {isUnifiedListView ? (
             <UnifiedListBrowse

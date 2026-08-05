@@ -9,6 +9,7 @@ import '../../../../rayenz-hub/shared/card-picker.css';
 import '../../../../rayenz-hub/shared/deck-chip.css';
 import '../../../../rayenz-hub/shared/hub-progress.css';
 import '../../../../rayenz-hub/shared/hub-app-chrome.css';
+import '../../../../rayenz-hub/shared/hub-mtg-ui.css';
 import '../cards/cards.css';
 import '../styles.css';
 import '../dailies/dailies.css';

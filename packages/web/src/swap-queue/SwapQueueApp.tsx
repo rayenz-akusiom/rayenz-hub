@@ -804,10 +804,10 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       </header>
 
       {status ? <p className="hub-muted" role="status">{status}</p> : null}
-      {apiWarning ? <p className="db-warn">{apiWarning}</p> : null}
-      {setFilter.error ? <p className="hub-error">{setFilter.error}</p> : null}
+      {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
+      {setFilter.error ? <p className="hub-banner-error">{setFilter.error}</p> : null}
       {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
-      {error ? <p className="hub-error">{error}</p> : null}
+      {error ? <p className="hub-banner-error">{error}</p> : null}
       {loading ? <p className="hub-muted">Loading library…</p> : null}
 
       {!loading && !error && !hasAny ? (

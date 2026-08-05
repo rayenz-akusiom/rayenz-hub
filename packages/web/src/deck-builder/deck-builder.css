@@ -1,12 +1,6 @@
 :root {
   color-scheme: light;
-  --db-bg: #f4f6f8;
-  --db-panel: #ffffff;
-  --db-ink: #1a1f24;
-  --db-muted: #5c6770;
-  --db-accent: #1f6feb;
-  --db-danger: #b42318;
-  --db-border: #d0d7de;
+  /* Color tokens (--db-bg/panel/ink/muted/accent/danger/border) come from hub-mtg-ui.css */
   --db-card-w: 213px;
   /* ~42/213 — scales with size picker */
   --db-card-overlap: calc(var(--db-card-w) * 0.197);
@@ -139,29 +133,7 @@ body,
   animation: db-sync-spin 0.9s linear infinite;
 }
 
-.db-btn {
-  border: 1px solid var(--db-border);
-  background: var(--db-panel);
-  color: var(--db-ink);
-  border-radius: 6px;
-  padding: 0.4rem 0.7rem;
-  cursor: pointer;
-}
-
-.db-btn.is-active {
-  background: var(--db-accent);
-  border-color: var(--db-accent);
-  color: #fff;
-}
-
-.db-btn-danger {
-  color: var(--db-danger);
-}
-
-.db-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* .db-btn / .db-btn.is-active / .db-btn-danger — see hub-mtg-ui.css */
 
 .db-library-list {
   list-style: none;
@@ -618,13 +590,7 @@ body,
   color: var(--db-muted);
 }
 
-.db-empty-state {
-  background: var(--db-panel);
-  border: 1px dashed var(--db-border);
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: center;
-}
+/* .db-empty-state — see hub-mtg-ui.css */
 
 .db-empty-sample-hint {
   color: var(--db-muted);
@@ -2337,13 +2303,7 @@ body,
   color: var(--db-danger);
 }
 
-.db-warn {
-  color: #8a6116;
-  background: #fff6e0;
-  border: 1px solid #f0d9a0;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-}
+/* .db-warn — see hub-mtg-ui.css */
 
 .db-check {
   display: flex;

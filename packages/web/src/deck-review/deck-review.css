@@ -1,5 +1,5 @@
 ﻿.deck-review-app {
-   background: #f0f2f5;
+   background: var(--hub-bg);
    min-height: 100vh;
    color: #1a202c;
    font-size: 15px;
@@ -7,7 +7,7 @@
 }
 
 .deck-review-app a {
-   color: #2b6cb0;
+   color: var(--hub-accent);
    font-weight: 600;
 }
 
@@ -182,8 +182,8 @@
 }
 
 .dr-filmstrip-item.is-active {
-   border-color: #2b6cb0;
-   box-shadow: 0 0 0 1px #2b6cb0;
+   border-color: var(--hub-accent);
+   box-shadow: 0 0 0 1px var(--hub-accent);
 }
 
 .dr-filmstrip-pair {
@@ -242,17 +242,7 @@
    line-height: 1;
 }
 
-.dr-right-nav-backdrop {
-   display: none;
-   position: fixed;
-   inset: 0;
-   background: rgba(0, 0, 0, 0.45);
-   z-index: 150;
-}
-
-.dr-right-nav-backdrop.open {
-   display: block;
-}
+/* .dr-right-nav-backdrop — see hub-mtg-ui.css */
 
 .dr-right-nav {
    width: 220px;
@@ -316,59 +306,12 @@
    align-items: center;
 }
 
-.dr-btn {
-   border: none;
-   border-radius: 6px;
-   padding: 8px 14px;
-   font-size: 0.9rem;
-   font-weight: 600;
-   cursor: pointer;
-   background: #4a5568;
-   color: #fff;
-}
-
 .dr-nav-actions .dr-btn {
    width: 100%;
    text-align: center;
 }
 
-.dr-btn:hover {
-   filter: brightness(1.08);
-}
-
-.dr-btn:disabled {
-   opacity: 0.55;
-   cursor: not-allowed;
-   filter: grayscale(0.35);
-   pointer-events: none;
-}
-
-.dr-btn-primary:disabled {
-   background: #a0aec0;
-   border-color: #a0aec0;
-   color: #fff;
-}
-
-.dr-btn:disabled:hover {
-   filter: grayscale(0.35);
-}
-
-.dr-btn-primary {
-   background: #2b6cb0;
-}
-
-.dr-btn-success {
-   background: #276749;
-}
-
-.dr-btn-danger {
-   background: #9b2c2c;
-}
-
-.dr-btn-ghost {
-   background: #edf2f7;
-   color: #2d3748;
-}
+/* .dr-btn variants — see hub-mtg-ui.css */
 
 .dr-file-input {
    display: none;
@@ -414,7 +357,7 @@
 }
 
 .dr-status-summary-toggle:focus-visible {
-   outline: 2px solid #2b6cb0;
+   outline: 2px solid var(--hub-accent);
    outline-offset: 2px;
    border-radius: 4px;
 }
@@ -428,7 +371,7 @@
 .dr-status-summary-label {
    font-size: 0.78rem;
    font-weight: 700;
-   color: #2b6cb0;
+   color: var(--hub-accent);
    white-space: nowrap;
 }
 
@@ -476,8 +419,8 @@
 }
 
 .dr-status-tab.active {
-   background: #2b6cb0;
-   border-color: #2b6cb0;
+   background: var(--hub-accent);
+   border-color: var(--hub-accent);
    color: #fff;
 }
 
@@ -828,7 +771,7 @@
    margin-right: 6px;
 }
 
-.dr-badge-swap { background: #fefcbf; color: #744210; }
+/* .dr-badge-swap — see hub-mtg-ui.css */
 .dr-badge-high { background: #c6f6d5; color: #22543d; }
 .dr-badge-medium { background: #bee3f8; color: #2a4365; }
 .dr-badge-low { background: #e2e8f0; color: #4a5568; }
@@ -844,84 +787,7 @@
    color: #718096;
 }
 
-.dr-swap-pair {
-   display: flex;
-   flex-direction: row;
-   flex-wrap: wrap;
-   justify-content: center;
-   align-items: flex-start;
-   gap: 20px 36px;
-   width: 100%;
-   margin: 0 auto;
-}
-
-.dr-swap-col {
-   display: flex;
-   flex-direction: column;
-   gap: 10px;
-   flex: 0 1 260px;
-   width: 260px;
-   max-width: 100%;
-}
-
-.dr-swap-label {
-   font-size: 0.8rem;
-   font-weight: 700;
-   text-transform: uppercase;
-   letter-spacing: 0.08em;
-   color: #4a5568;
-   text-align: center;
-}
-
-.dr-swap-label-in { color: #276749; }
-.dr-swap-label-out { color: #9b2c2c; }
-
-.dr-swap-arrow {
-   flex-shrink: 0;
-   align-self: center;
-   padding-top: 88px;
-   font-size: 1.75rem;
-   color: #a0aec0;
-   font-weight: 300;
-}
-
-.dr-card-image {
-   width: 100%;
-   max-width: none;
-   margin: 0 auto;
-   aspect-ratio: 488 / 680;
-   border-radius: 8px;
-   overflow: hidden;
-   background: #1a202c;
-   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.dr-card-image-btn {
-   display: block;
-   border: none;
-   padding: 0;
-   cursor: pointer;
-   font: inherit;
-   color: inherit;
-   transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
-
-.dr-card-image-btn:hover {
-   box-shadow: 0 4px 14px rgba(43, 108, 176, 0.35);
-   transform: translateY(-1px);
-}
-
-.dr-card-image-btn:focus-visible {
-   outline: 2px solid #2b6cb0;
-   outline-offset: 2px;
-}
-
-.dr-card-image img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-   display: block;
-}
+/* .dr-swap-pair … .dr-actions — see hub-mtg-ui.css */
 
 .dr-swap-col select {
    width: 100%;
@@ -941,38 +807,12 @@
    word-break: break-word;
 }
 
-.dr-actions-bar {
-   margin-top: 18px;
-   padding: 14px 0 20px;
-   background: #fff;
-}
-
-.dr-actions-bar.is-sticky {
-   position: sticky;
-   bottom: 0;
-   z-index: 8;
-   margin-left: -28px;
-   margin-right: -28px;
-   margin-bottom: 0;
-   padding: 12px 28px 16px;
-   border-top: 1px solid #edf2f7;
-   background: linear-gradient(to top, #fff 78%, rgba(255, 255, 255, 0.92));
-   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
-}
-
 .dr-actions-progress {
    margin: 0 0 8px;
    font-size: 0.78rem;
    color: #718096;
    text-align: center;
    font-weight: 600;
-}
-
-.dr-actions {
-   display: flex;
-   flex-wrap: wrap;
-   gap: 8px;
-   justify-content: center;
 }
 
 .dr-shortcut-hint {
@@ -996,27 +836,8 @@
    font-size: 0.9rem;
 }
 
-.dr-empty {
-   text-align: center;
-   padding: 48px 20px;
-   color: #718096;
-   width: 100%;
-   max-width: 720px;
-}
-
-.dr-empty-actions {
-   display: flex;
-   flex-wrap: wrap;
-   gap: 10px;
-   justify-content: center;
-   margin-top: 16px;
-}
-
+/* .dr-empty / .dr-empty-actions / .dr-error — see hub-mtg-ui.css */
 .dr-error {
-   background: #fed7d7;
-   color: #9b2c2c;
-   padding: 12px 14px;
-   border-radius: 8px;
    margin: 0 20px 16px;
 }
 
@@ -1114,36 +935,14 @@
       transform: translateX(0);
    }
 
-   .dr-swap-pair {
-      flex-direction: row;
-      flex-wrap: nowrap;
-      align-items: flex-start;
-      justify-content: center;
-      gap: 8px 10px;
-   }
-
-   .dr-swap-col {
-      width: min(148px, 42vw);
-      flex: 0 1 auto;
-   }
-
-   .dr-swap-arrow {
-      display: block;
-      padding-top: 52px;
-      font-size: 1.25rem;
-   }
+   /* .dr-swap-pair mobile — see hub-mtg-ui.css */
 
    .dr-never-btn {
       font-size: 0.7rem;
       padding: 4px 6px;
    }
 
-   .dr-actions-bar.is-sticky {
-      margin-left: -16px;
-      margin-right: -16px;
-      padding-left: 16px;
-      padding-right: 16px;
-   }
+   /* .dr-actions-bar.is-sticky mobile margins — see hub-mtg-ui.css */
 
    .dr-suggestion-card {
       padding-left: 16px;
@@ -1253,7 +1052,7 @@
    align-items: center;
    font-size: 0.9rem;
    font-weight: 600;
-   color: #2b6cb0;
+   color: var(--hub-accent);
    text-decoration: none;
    padding: 8px 12px;
    border-radius: 6px;
@@ -1359,7 +1158,7 @@
 .dr-profile-status,
 .dr-profiles-status {
    font-size: 0.8rem;
-   color: #2b6cb0;
+   color: var(--hub-accent);
    margin: 6px 0 0;
 }
 

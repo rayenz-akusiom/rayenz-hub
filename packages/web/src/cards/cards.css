@@ -251,13 +251,13 @@
 }
 
 .db-card-size-btn:hover {
-  border-color: #2b6cb0;
+  border-color: var(--hub-accent);
   background: #ebf8ff;
   color: #2c5282;
 }
 
 .db-card-size-btn.is-active {
-  border-color: #2b6cb0;
+  border-color: var(--hub-accent);
   background: #bee3f8;
   color: #2c5282;
 }
@@ -335,7 +335,7 @@
 
 .hub-picker-filter:focus {
   outline: none;
-  border-color: #2b6cb0;
+  border-color: var(--hub-accent);
   box-shadow: 0 0 0 2px rgba(43, 108, 176, 0.2);
 }
 

@@ -404,7 +404,7 @@ export function BuilderApp({
   if (active) {
     return (
       <div className="db-app">
-        {apiWarning ? <p className="db-warn">{apiWarning}</p> : null}
+        {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
         <BrowseShell
           deck={active}
           syncStatus={syncStatus}

@@ -174,6 +174,17 @@ function regionForSection(section: GlanceSection, mode: GlanceIncludeSet['mode']
   return isGlanceLandSectionName(section.name) ? 'land' : 'nonland';
 }
 
+/** Pack Land/Lands after other sections so they claim the rightmost free columns. */
+function orderSectionsForPacking(sections: GlanceSection[]): GlanceSection[] {
+  const lands: GlanceSection[] = [];
+  const rest: GlanceSection[] = [];
+  for (const section of sections) {
+    if (isGlanceLandSectionName(section.name)) lands.push(section);
+    else rest.push(section);
+  }
+  return [...rest, ...lands];
+}
+
 export function buildTitlePips(commanders: GlanceCard[]): string[] {
   const set = new Set<string>();
   for (const cmd of commanders) {
@@ -292,6 +303,42 @@ function slotsAtY(
   return slots;
 }
 
+/** Minimum contiguous columns from `start` that can hold `count` cards at `startY`. */
+function minColumnsForCount(
+  count: number,
+  columns: GridColumn[],
+  start: number,
+  startY: number,
+  cardHeight: number,
+): number | null {
+  const maxK = columns.length - start;
+  for (let k = 1; k <= maxK; k++) {
+    const slots = slotsAtY(columns, start, k, startY, cardHeight);
+    if (slots && runCapacity(slots) >= count) return k;
+  }
+  return null;
+}
+
+/**
+ * How many rightmost columns to reserve for Land so it can sit on the right
+ * without being squeezed by earlier max-bias sections.
+ */
+function landReserveColumnCount(
+  landCards: number,
+  columns: GridColumn[],
+  cardHeight: number,
+): number {
+  if (landCards <= 0 || !columns.length) return 0;
+  for (let k = 1; k <= columns.length; k++) {
+    const start = columns.length - k;
+    const startY = Math.max(...columns.slice(start, start + k).map((c) => c.top));
+    if (minColumnsForCount(landCards, columns, start, startY, cardHeight) === k) {
+      return k;
+    }
+  }
+  return columns.length;
+}
+
 /**
  * Vertical masonry: each column has a y-cursor. Sections claim a contiguous
  * run of columns at `max(cursors)` for that run, then advance those cursors
@@ -300,6 +347,10 @@ function slotsAtY(
  *
  * `max` bias: prefer more columns (shorter stacks) when capacity allows.
  * `min` bias: prefer fewer columns (denser) to leave room / fit later sections.
+ *
+ * When `landReserve` > 0, non-Land sections may only use columns
+ * `0 .. columns.length - landReserve - 1`; Land sections pack into the
+ * reserved right run (and may spill left only if still short on capacity).
  */
 function packSectionsMasonry(
   sections: GlanceSection[],
@@ -308,6 +359,7 @@ function packSectionsMasonry(
   cardWidth: number,
   cardHeight: number,
   bias: ColumnBias,
+  landReserve = 0,
 ): PackedSection[] | null {
   if (!sections.length) return [];
   if (!columns.length) return null;
@@ -315,11 +367,13 @@ function packSectionsMasonry(
   const cursors = columns.map((c) => c.top);
   const packed: PackedSection[] = [];
   const peek = peekFor(cardHeight);
-  const maxK = columns.length;
+  const nonLandLimit =
+    landReserve > 0 ? Math.max(0, columns.length - landReserve) : columns.length;
 
   for (let si = 0; si < sections.length; si++) {
     const section = sections[si]!;
     const n = section.cards.length;
+    const landSection = isGlanceLandSectionName(section.name);
 
     type Candidate = {
       start: number;
@@ -331,8 +385,11 @@ function packSectionsMasonry(
     // Collect fits at the highest band (lowest startY), then pick by bias.
     let topY = Number.POSITIVE_INFINITY;
     const atTop: Candidate[] = [];
+    const searchStartMin = landSection && landReserve > 0 ? nonLandLimit : 0;
+    const searchEndExclusive = landSection ? columns.length : nonLandLimit;
+    const maxK = Math.max(0, searchEndExclusive - searchStartMin);
     for (let k = 1; k <= maxK; k++) {
-      for (let start = 0; start + k <= columns.length; start++) {
+      for (let start = searchStartMin; start + k <= searchEndExclusive; start++) {
         const startY = Math.max(...cursors.slice(start, start + k));
         const slots = slotsAtY(columns, start, k, startY, cardHeight);
         if (!slots || runCapacity(slots) < n) continue;
@@ -345,11 +402,33 @@ function packSectionsMasonry(
         }
       }
     }
+    // Land may spill left into non-reserved columns if the reserve alone is too small.
+    if (!atTop.length && landSection && landReserve > 0) {
+      for (let k = 1; k <= columns.length; k++) {
+        for (let start = 0; start + k <= columns.length; start++) {
+          const startY = Math.max(...cursors.slice(start, start + k));
+          const slots = slotsAtY(columns, start, k, startY, cardHeight);
+          if (!slots || runCapacity(slots) < n) continue;
+          if (startY < topY - 0.5) {
+            topY = startY;
+            atTop.length = 0;
+            atTop.push({ start, count: k, startY, slots });
+          } else if (Math.abs(startY - topY) <= 0.5) {
+            atTop.push({ start, count: k, startY, slots });
+          }
+        }
+      }
+    }
     if (!atTop.length) return null;
     if (bias === 'max') {
-      atTop.sort((a, b) => b.count - a.count || a.start - b.start);
+      // Lands: more columns, then rightmost. Others: more columns, then leftmost.
+      atTop.sort((a, b) =>
+        b.count - a.count || (landSection ? b.start - a.start : a.start - b.start),
+      );
     } else {
-      atTop.sort((a, b) => a.count - b.count || a.start - b.start);
+      atTop.sort((a, b) =>
+        a.count - b.count || (landSection ? b.start - a.start : a.start - b.start),
+      );
     }
     const best = atTop[0]!;
 
@@ -527,7 +606,21 @@ function tryPackAtSize(
   );
   if (!columns.length && sections.length) return null;
 
-  const packed = packSectionsMasonry(sections, columns, mode, cardWidth, cardHeight, bias);
+  const ordered = orderSectionsForPacking(sections);
+  const landCards = ordered
+    .filter((s) => isGlanceLandSectionName(s.name))
+    .reduce((n, s) => n + s.cards.length, 0);
+  const landReserve = landCards > 0 ? landReserveColumnCount(landCards, columns, cardHeight) : 0;
+
+  const packed = packSectionsMasonry(
+    ordered,
+    columns,
+    mode,
+    cardWidth,
+    cardHeight,
+    bias,
+    landReserve,
+  );
   if (!packed) return null;
 
   const labels = [...roles.labels];

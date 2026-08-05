@@ -397,6 +397,92 @@ describe('deck-builder glance layout', () => {
     expect(plan.placements[0]!.height).toBeGreaterThanOrEqual(Math.round(GLANCE_CARD_HEIGHT * 0.35));
   });
 
+  it('keeps Land as the rightmost category section when it is mid-order and large', () => {
+    const catNames = [
+      'Creatures',
+      'Instants',
+      'Sorceries',
+      'Land',
+      'Artifacts',
+      'Enchantments',
+      'Other',
+    ];
+    const deck = buildEligibleCommanderDeck({
+      categories: [
+        { name: 'Commander', includedInDeck: true, includedInPrice: true },
+        ...catNames.map((name) => ({
+          name,
+          includedInDeck: true,
+          includedInPrice: true,
+        })),
+      ],
+    });
+    const cmd = deck.cards.filter((c) => c.primaryCategory === 'Commander');
+    const others: typeof deck.cards = [];
+    let id = 0;
+    const add = (name: string, cat: string, typeLine: string, n: number) => {
+      for (let i = 0; i < n; i++) {
+        const collectorNumber = String(++id);
+        others.push({
+          instanceId: `c-${collectorNumber}`,
+          name: `${name} ${i}`,
+          quantity: 1,
+          primaryCategory: cat,
+          categories: [cat],
+          stack: null,
+          setCode: 'tst',
+          collectorNumber,
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        });
+        deck.oracle![`print:tst:${collectorNumber}`] = {
+          scryfallId: null,
+          colourIdentity: cat === 'Land' ? [] : ['G'],
+          colours: cat === 'Land' ? [] : ['G'],
+          typeLine,
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: cat === 'Land' ? 0 : 2,
+          imageUrl: null,
+          finishes: null,
+          updatedAt: null,
+        };
+      }
+    };
+    add('Unique Land', 'Land', 'Land', 38);
+    add('Creature', 'Creatures', 'Creature', 18);
+    add('Instant', 'Instants', 'Instant', 12);
+    add('Sorcery', 'Sorceries', 'Sorcery', 10);
+    add('Artifact', 'Artifacts', 'Artifact', 8);
+    add('Enchant', 'Enchantments', 'Enchantment', 7);
+    add('Misc', 'Other', 'Artifact', 6);
+    deck.cards = [...cmd, ...others];
+
+    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.sections.map((s) => s.name)).toContain('Land');
+    // Deck category order still lists Land mid-list.
+    expect(include.includeSet.sections.map((s) => s.name).indexOf('Land')).toBeGreaterThan(0);
+    expect(include.includeSet.sections.map((s) => s.name).indexOf('Land')).toBeLessThan(
+      include.includeSet.sections.length - 1,
+    );
+
+    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const sectionLabels = plan.labels.filter((l) => l.role === 'section');
+    const land = sectionLabels.find((l) => l.text === 'Land');
+    expect(land).toBeTruthy();
+    if (!land) return;
+    const maxRight = Math.max(...sectionLabels.map((l) => l.x + (l.width ?? 0)));
+    expect(land.x + (land.width ?? 0)).toBeGreaterThanOrEqual(maxRight - 1);
+  });
+
   it('places underfull-deck placeholders in the nonland region', () => {
     const deck = buildEligibleCommanderDeck();
     deck.cards = deck.cards.slice(0, 20);

@@ -70,10 +70,11 @@ From `GlanceIncludeSet`:
 2. **Role plates** — left column: commander plate, then lieutenant plate (label + rounded backdrop + side-by-side faces).
 3. **L-shaped column grid** — short columns under the role plate use the left-origin grid (midpoint cutout so plate padding does not blank an extra column). Tall columns begin on a fresh grid at `roleBlockRight + COL_GAP` so the first deck column clears the plate. Under-role space is just shorter columns — not a separate mandatory allocation.
 4. **Contiguous section blocks (vertical masonry)** — each column keeps a y-cursor. Place each section into a contiguous run of columns at that run’s current cursor (`max` of those cursors), then advance those cursors past the used stack. Later sections can pack into leftover vertical space under earlier ones (and under the role block). Prefer the highest free band; at that band, `max` bias takes more columns / `min` bias fewer.
-5. **Densify before shrink** — at a fixed card size: `max` bias then `min` bias. Only if both fail, shrink card height.
-6. **Title-peek stacking** — peek per stacked card = `max(22, round(0.14 × cardHeight))`. `chunkByCapacity` balances cards across a section’s columns.
-7. **Labels** — `Commander` / `Commanders`, `Lieutenant` / `Lieutenants`, plus each section name (`Main deck` / `Lands`, or primary category names).
-8. **Failure** — if no size/bias fits, the plan has empty placements (no multi-page).
+5. **Land / Lands on the right** — packing order moves Land/Lands sections last. The packer reserves the minimum rightmost columns those lands need at the current card size so earlier categories cannot squeeze them into the middle; among equal-height candidates, Land prefers the rightmost run.
+6. **Densify before shrink** — at a fixed card size: `max` bias then `min` bias. Only if both fail, shrink card height.
+7. **Title-peek stacking** — peek per stacked card = `max(22, round(0.14 × cardHeight))`. `chunkByCapacity` balances cards across a section’s columns.
+8. **Labels** — `Commander` / `Commanders`, `Lieutenant` / `Lieutenants`, plus each section name (`Main deck` / `Lands`, or primary category names).
+9. **Failure** — if no size/bias fits, the plan has empty placements (no multi-page).
 
 ```mermaid
 flowchart TB

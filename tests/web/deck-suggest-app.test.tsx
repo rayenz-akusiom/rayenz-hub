@@ -4,19 +4,12 @@ import userEvent from '@testing-library/user-event';
 import setMshSlice from '../fixtures/deck-suggest/set-msh-slice.json';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
 import { resetHubModules } from '../unit/helpers/hubHarness';
+import { progressController } from './helpers/hub-progress-mock';
 
-const progressController = {
-  start: vi.fn(),
-  update: vi.fn(),
-  finish: vi.fn(),
-  dismiss: vi.fn(),
-  isActive: vi.fn(() => false),
-  isFinished: vi.fn(() => false),
-};
-
-vi.mock('../../packages/web/src/lib/hub-progress', () => ({
-  HubProgress: { mount: vi.fn(() => progressController) },
-}));
+vi.mock('../../packages/web/src/lib/hub-progress', async () => {
+  const { hubProgressMockModule } = await import('./helpers/hub-progress-mock');
+  return hubProgressMockModule();
+});
 
 vi.mock('../../packages/web/src/lib/hub-storage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/lib/hub-storage')>();

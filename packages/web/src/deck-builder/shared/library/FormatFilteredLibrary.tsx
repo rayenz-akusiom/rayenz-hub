@@ -1,44 +1,17 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
 import { builderHash, HUB_USER_SLUG, type BuilderFormat } from '../../../hub/routes';
 import { toKebabCase } from '../../../lib/string-utils';
 import { CARD_SIZE_PX } from '../../card-size';
 import { LibraryCoverArt } from '../../library/LibraryCoverArt';
 import { FormatBadge } from '../../ui/FormatBadge';
+import { LibrarySkeleton, LibrarySortSelect } from '../../library/library-chrome';
 import {
+  persistLibrarySort,
   readLibrarySort,
   sortLibraryDecks,
   type LibrarySort,
-  LIBRARY_SORT_KEY,
-} from '../../library/LibraryView';
-
-const SKELETON_TILE_COUNT = 8;
-
-function LibrarySkeleton() {
-  return (
-    <div
-      className="db-library-skeleton"
-      aria-busy="true"
-      aria-label="Loading library"
-      role="status"
-    >
-      <div className="db-library-section-title db-skeleton-title">
-        <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-title" />
-      </div>
-      <ul className="db-library-grid" aria-hidden="true">
-        {Array.from({ length: SKELETON_TILE_COUNT }, (_, i) => (
-          <li key={i} className="db-library-tile db-skeleton-tile">
-            <span className="db-library-tile-art db-skeleton-pulse db-skeleton-art" />
-            <span className="db-library-tile-caption">
-              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-badge" />
-              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-name" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+} from '../../library/library-sort';
 
 function LibraryGrid({
   format,
@@ -160,11 +133,7 @@ export function FormatFilteredLibrary({
 
   function onSortChange(next: LibrarySort) {
     setSort(next);
-    try {
-      localStorage.setItem(LIBRARY_SORT_KEY, next);
-    } catch {
-      /* ignore */
-    }
+    persistLibrarySort(next);
   }
 
   const libraryStyle = {
@@ -192,19 +161,7 @@ export function FormatFilteredLibrary({
           {title} <span className="db-count">({decks.length})</span>
         </h2>
         <div className="db-header-actions">
-          <label className="db-library-sort">
-            <span className="db-library-sort-label">Sort</span>
-            <select
-              className="db-select"
-              aria-label="Library sort"
-              value={sort}
-              onChange={(e) => onSortChange(e.target.value as LibrarySort)}
-            >
-              <option value="recent">Recent</option>
-              <option value="name">A–Z</option>
-              <option value="cover">A–Z (Highlighted Card)</option>
-            </select>
-          </label>
+          <LibrarySortSelect sort={sort} onChange={onSortChange} />
           {onRefreshRemote ? (
             <button type="button" className="db-btn" onClick={onRefreshRemote}>
               Sync from API
@@ -261,4 +218,3 @@ export function FormatFilteredLibrary({
     </div>
   );
 }
-

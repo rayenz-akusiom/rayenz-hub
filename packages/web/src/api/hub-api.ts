@@ -18,7 +18,8 @@ import {
   clearHubApiConfig,
   isApiConfigured,
   HubApiClient,
-  parseHubApiJsonBody,
+  clientApiFetch,
+  pushSettingsDomain,
 } from './hub-api-client';
 
 export type { HubApiConfig } from './hub-api-client';
@@ -31,61 +32,107 @@ export {
   HubApiClient,
 };
 
+type SafeParseSchema<T> = {
+  safeParse: (data: unknown) => { success: true; data: T } | { success: false };
+  parse: (data: unknown) => T;
+};
+
+type SettingsDomainConfig<T> = {
+  domain: string;
+  schema: SafeParseSchema<T>;
+  readLocal: () => T | null;
+  writeLocal: (payload: T) => void;
+  onPersist?: (payload: T) => void;
+};
+
+function createSettingsDomain<T>(config: SettingsDomainConfig<T>) {
+  const { domain, schema, readLocal, writeLocal, onPersist } = config;
+
+  async function fetchRemote(): Promise<T | null> {
+    const data = await apiFetch<unknown>(`/v1/settings/${domain}`);
+    if (!data) {
+      return null;
+    }
+    const parsed = SettingsResponseSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new Error('Invalid settings response from API');
+    }
+    const payload = schema.safeParse(parsed.data.payload);
+    if (!payload.success) {
+      throw new Error(`Invalid ${domain} payload from API`);
+    }
+    return payload.data;
+  }
+
+  async function load(): Promise<{
+    settings: T | null;
+    source: 'api' | 'local' | 'none';
+  }> {
+    if (getHubApiConfig().enabled) {
+      try {
+        const remote = await fetchRemote();
+        if (remote) {
+          writeLocal(remote);
+          return { settings: remote, source: 'api' };
+        }
+      } catch {
+        /* fall through to local */
+      }
+    }
+    const local = readLocal();
+    return { settings: local, source: local ? 'local' : 'none' };
+  }
+
+  async function persist(payload: T): Promise<'api' | 'local'> {
+    const body = schema.parse(payload);
+    writeLocal(body);
+    onPersist?.(body);
+    if (getHubApiConfig().enabled) {
+      await pushSettingsDomain(domain, body);
+      return 'api';
+    }
+    return 'local';
+  }
+
+  return { load, persist };
+}
+
+/** Typed settings/deck helpers over the shared low-level client fetch. */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
-  const cfg = getHubApiConfig();
-  if (!cfg.enabled) {
-    throw new Error('Hub API not configured. Set rayenz-hub-api-url and rayenz-hub-api-key in localStorage.');
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    const h = init.headers;
+    if (h instanceof Headers) {
+      h.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else if (Array.isArray(h)) {
+      for (const [key, value] of h) {
+        headers[key] = value;
+      }
+    } else {
+      Object.assign(headers, h);
+    }
   }
-  assertApiNotPageOrigin(cfg.url);
-  const fullUrl = `${cfg.url}${path}`;
-  const res = await fetch(fullUrl, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${cfg.key}`,
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
-  });
-  const peek = await res.text();
-  if (res.status === 404) {
-    return null;
-  }
-  if (res.status === 401) {
-    throw new Error('Hub API unauthorized — check rayenz-hub-api-key.');
-  }
-  if (!res.ok) {
-    throw new Error(`Hub API error ${res.status}: ${peek}`);
-  }
-  if (res.status === 204) {
-    return null;
-  }
-  return parseHubApiJsonBody(peek, fullUrl, cfg.url) as T;
-}
 
-async function fetchDomainPayload<T>(
-  domain: string,
-  schema: { safeParse: (data: unknown) => { success: true; data: T } | { success: false } },
-): Promise<T | null> {
-  const data = await apiFetch<unknown>(`/v1/settings/${domain}`);
-  if (!data) {
-    return null;
+  let body: unknown;
+  if (init?.body != null) {
+    if (typeof init.body === 'string') {
+      try {
+        body = JSON.parse(init.body);
+      } catch {
+        throw new Error('apiFetch expects JSON string bodies');
+      }
+    } else {
+      throw new Error('apiFetch only supports string JSON bodies');
+    }
   }
-  const parsed = SettingsResponseSchema.safeParse(data);
-  if (!parsed.success) {
-    throw new Error('Invalid settings response from API');
-  }
-  const payload = schema.safeParse(parsed.data.payload);
-  if (!payload.success) {
-    throw new Error(`Invalid ${domain} payload from API`);
-  }
-  return payload.data;
-}
 
-async function saveDomainPayload(domain: string, payload: unknown): Promise<void> {
-  await apiFetch(`/v1/settings/${domain}`, {
-    method: 'PUT',
-    body: JSON.stringify({ payload }),
-  });
+  return (await clientApiFetch(path, {
+    method: init?.method,
+    headers,
+    body,
+  })) as T | null;
 }
 
 function readLocalDailies(): DailiesSettingsPayload | null {
@@ -135,210 +182,121 @@ function writeLocalDailies(payload: DailiesSettingsPayload): void {
   }
 }
 
-export async function loadDailiesSettings(): Promise<{
-  settings: DailiesSettingsPayload | null;
-  source: 'api' | 'local' | 'none';
-}> {
-  const cfg = getHubApiConfig();
-  if (cfg.enabled) {
-    try {
-      const remote = await fetchDomainPayload('dailies', DailiesSettingsPayloadSchema);
-      if (remote) {
-        writeLocalDailies(remote);
-        return { settings: remote, source: 'api' };
-      }
-    } catch {
-      /* fall through to local */
-    }
+function readStorageSettings<T>(
+  schema: SafeParseSchema<T>,
+  loadFromStorage: (() => unknown) | undefined,
+  lsKey: string,
+): T | null {
+  const raw = loadFromStorage?.();
+  if (raw) {
+    const parsed = schema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
   }
-  const local = readLocalDailies();
-  return { settings: local, source: local ? 'local' : 'none' };
-}
-
-export async function persistDailiesSettings(payload: DailiesSettingsPayload): Promise<'api' | 'local'> {
-  const body = DailiesSettingsPayloadSchema.parse(payload);
-  writeLocalDailies(body);
-  const cfg = getHubApiConfig();
-  if (cfg.enabled) {
-    await saveDomainPayload('dailies', body);
-    return 'api';
-  }
-  return 'local';
-}
-
-function readLocalDeckSuggest(): DeckSuggestSettingsPayload | null {
-  const raw = getHubStorage()?.loadDeckSuggestSettings?.();
-  if (!raw) {
-    return null;
-  }
-  const parsed = DeckSuggestSettingsPayloadSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-}
-
-function writeLocalDeckSuggest(payload: DeckSuggestSettingsPayload): void {
-  const storage = getHubStorage();
-  if (storage?.saveDeckSuggestSettings) {
-    storage.saveDeckSuggestSettings(payload as Record<string, unknown>);
-  } else {
-    try {
-      localStorage.setItem('rayenz-deck-suggest-settings', JSON.stringify(payload));
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-export async function loadDeckSuggestSettings(): Promise<{
-  settings: DeckSuggestSettingsPayload | null;
-  source: 'api' | 'local' | 'none';
-}> {
-  const cfg = getHubApiConfig();
-  if (cfg.enabled) {
-    try {
-      const remote = await fetchDomainPayload('deck-suggest', DeckSuggestSettingsPayloadSchema);
-      if (remote) {
-        writeLocalDeckSuggest(remote);
-        return { settings: remote, source: 'api' };
-      }
-    } catch {
-      /* local fallback */
-    }
-  }
-  const local = readLocalDeckSuggest();
-  return { settings: local, source: local ? 'local' : 'none' };
-}
-
-export async function persistDeckSuggestSettings(
-  payload: DeckSuggestSettingsPayload,
-): Promise<'api' | 'local'> {
-  const body = DeckSuggestSettingsPayloadSchema.parse(payload);
-  writeLocalDeckSuggest(body);
-  if (getHubApiConfig().enabled) {
-    await saveDomainPayload('deck-suggest', body);
-    return 'api';
-  }
-  return 'local';
-}
-
-function readLocalOrderReconcile(): OrderReconcileSettingsPayload | null {
-  const raw = getHubStorage()?.loadOrderReconcileSettings?.();
-  if (!raw) {
-    return null;
-  }
-  const parsed = OrderReconcileSettingsPayloadSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-}
-
-function writeLocalOrderReconcile(payload: OrderReconcileSettingsPayload): void {
-  const storage = getHubStorage();
-  if (storage?.saveOrderReconcileSettings) {
-    storage.saveOrderReconcileSettings(payload as Record<string, unknown>);
-  } else {
-    try {
-      localStorage.setItem('rayenz-order-reconcile-settings', JSON.stringify(payload));
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-export async function loadOrderReconcileSettings(): Promise<{
-  settings: OrderReconcileSettingsPayload | null;
-  source: 'api' | 'local' | 'none';
-}> {
-  const cfg = getHubApiConfig();
-  if (cfg.enabled) {
-    try {
-      const remote = await fetchDomainPayload('order-reconcile', OrderReconcileSettingsPayloadSchema);
-      if (remote) {
-        writeLocalOrderReconcile(remote);
-        return { settings: remote, source: 'api' };
-      }
-    } catch {
-      /* local fallback */
-    }
-  }
-  const local = readLocalOrderReconcile();
-  return { settings: local, source: local ? 'local' : 'none' };
-}
-
-export async function persistOrderReconcileSettings(
-  payload: OrderReconcileSettingsPayload,
-): Promise<'api' | 'local'> {
-  const body = OrderReconcileSettingsPayloadSchema.parse(payload);
-  writeLocalOrderReconcile(body);
-  if (getHubApiConfig().enabled) {
-    await saveDomainPayload('order-reconcile', body);
-    return 'api';
-  }
-  return 'local';
-}
-
-function readLocalDeckBuilder(): DeckBuilderSettingsPayload | null {
-  const raw = getHubStorage()?.loadDeckBuilderSettings?.();
-  if (!raw) {
-    try {
-      const ls = localStorage.getItem('rayenz-deck-builder-settings');
-      if (!ls) return null;
-      const parsed = DeckBuilderSettingsPayloadSchema.safeParse(JSON.parse(ls));
-      return parsed.success ? parsed.data : null;
-    } catch {
-      return null;
-    }
-  }
-  const parsed = DeckBuilderSettingsPayloadSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-}
-
-function writeLocalDeckBuilder(payload: DeckBuilderSettingsPayload): void {
-  const storage = getHubStorage();
-  if (storage?.saveDeckBuilderSettings) {
-    storage.saveDeckBuilderSettings(payload as Record<string, unknown>);
-  } else {
-    try {
-      localStorage.setItem('rayenz-deck-builder-settings', JSON.stringify(payload));
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-export async function loadDeckBuilderSettings(): Promise<{
-  settings: DeckBuilderSettingsPayload | null;
-  source: 'api' | 'local' | 'none';
-}> {
-  const cfg = getHubApiConfig();
-  if (cfg.enabled) {
-    try {
-      const remote = await fetchDomainPayload('deck-builder', DeckBuilderSettingsPayloadSchema);
-      if (remote) {
-        writeLocalDeckBuilder(remote);
-        return { settings: remote, source: 'api' };
-      }
-    } catch {
-      /* local fallback */
-    }
-  }
-  const local = readLocalDeckBuilder();
-  return { settings: local, source: local ? 'local' : 'none' };
-}
-
-export async function persistDeckBuilderSettings(
-  payload: DeckBuilderSettingsPayload,
-): Promise<'api' | 'local'> {
-  const body = DeckBuilderSettingsPayloadSchema.parse(payload);
-  writeLocalDeckBuilder(body);
   try {
-    window.dispatchEvent(new CustomEvent(DECK_BUILDER_SETTINGS_EVENT, { detail: body }));
+    const ls = localStorage.getItem(lsKey);
+    if (!ls) return null;
+    const parsed = schema.safeParse(JSON.parse(ls));
+    return parsed.success ? parsed.data : null;
   } catch {
-    /* ignore */
+    return null;
   }
-  if (getHubApiConfig().enabled) {
-    await saveDomainPayload('deck-builder', body);
-    return 'api';
-  }
-  return 'local';
 }
+
+function writeStorageSettings(
+  payload: unknown,
+  saveToStorage: ((p: Record<string, unknown>) => void) | undefined,
+  lsKey: string,
+): void {
+  if (saveToStorage) {
+    saveToStorage(payload as Record<string, unknown>);
+  } else {
+    try {
+      localStorage.setItem(lsKey, JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+const dailiesDomain = createSettingsDomain({
+  domain: 'dailies',
+  schema: DailiesSettingsPayloadSchema,
+  readLocal: readLocalDailies,
+  writeLocal: writeLocalDailies,
+});
+
+const deckSuggestDomain = createSettingsDomain({
+  domain: 'deck-suggest',
+  schema: DeckSuggestSettingsPayloadSchema,
+  readLocal: () =>
+    readStorageSettings(
+      DeckSuggestSettingsPayloadSchema,
+      () => getHubStorage()?.loadDeckSuggestSettings?.(),
+      'rayenz-deck-suggest-settings',
+    ),
+  writeLocal: (payload) => {
+    const storage = getHubStorage();
+    writeStorageSettings(
+      payload,
+      storage?.saveDeckSuggestSettings ? (p) => storage.saveDeckSuggestSettings!(p) : undefined,
+      'rayenz-deck-suggest-settings',
+    );
+  },
+});
+
+const orderReconcileDomain = createSettingsDomain({
+  domain: 'order-reconcile',
+  schema: OrderReconcileSettingsPayloadSchema,
+  readLocal: () =>
+    readStorageSettings(
+      OrderReconcileSettingsPayloadSchema,
+      () => getHubStorage()?.loadOrderReconcileSettings?.(),
+      'rayenz-order-reconcile-settings',
+    ),
+  writeLocal: (payload) => {
+    const storage = getHubStorage();
+    writeStorageSettings(
+      payload,
+      storage?.saveOrderReconcileSettings ? (p) => storage.saveOrderReconcileSettings!(p) : undefined,
+      'rayenz-order-reconcile-settings',
+    );
+  },
+});
+
+const deckBuilderDomain = createSettingsDomain({
+  domain: 'deck-builder',
+  schema: DeckBuilderSettingsPayloadSchema,
+  readLocal: () =>
+    readStorageSettings(
+      DeckBuilderSettingsPayloadSchema,
+      () => getHubStorage()?.loadDeckBuilderSettings?.(),
+      'rayenz-deck-builder-settings',
+    ),
+  writeLocal: (payload) => {
+    const storage = getHubStorage();
+    writeStorageSettings(
+      payload,
+      storage?.saveDeckBuilderSettings ? (p) => storage.saveDeckBuilderSettings!(p) : undefined,
+      'rayenz-deck-builder-settings',
+    );
+  },
+  onPersist: (body) => {
+    try {
+      window.dispatchEvent(new CustomEvent(DECK_BUILDER_SETTINGS_EVENT, { detail: body }));
+    } catch {
+      /* ignore */
+    }
+  },
+});
+
+export const loadDailiesSettings = dailiesDomain.load;
+export const persistDailiesSettings = dailiesDomain.persist;
+export const loadDeckSuggestSettings = deckSuggestDomain.load;
+export const persistDeckSuggestSettings = deckSuggestDomain.persist;
+export const loadOrderReconcileSettings = orderReconcileDomain.load;
+export const persistOrderReconcileSettings = orderReconcileDomain.persist;
+export const loadDeckBuilderSettings = deckBuilderDomain.load;
+export const persistDeckBuilderSettings = deckBuilderDomain.persist;
 
 /** @deprecated use loadDailiesSettings / persistDailiesSettings */
 export async function fetchDailiesSettings(): Promise<DailiesSettingsPayload | null> {

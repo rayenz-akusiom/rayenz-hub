@@ -1,26 +1,17 @@
-import { bridgeAvailable, bridgeApplyAvailable, sleep } from '../lib/hub-utils';
-import { ArchidektExport } from '../mtg/archidekt-export';
+import { bridgeAvailable, bridgeApplyAvailable, getArchidektBridge, parseDeckId } from '../lib/archidekt-bridge';
+import { sleep } from '../lib/hub-utils';
 import type { DeckEntry } from '@rayenz-hub/shared';
 import type { HubProgressController } from '../lib/hub-progress';
-
-type ArchidektBridge = {
-  fetchDeckSnapshot?: (deckId: number) => Promise<unknown>;
-  stageApply?: (deckId: number, text: string) => void;
-};
-
-function archidektBridge(): ArchidektBridge | undefined {
-  return (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge;
-}
 
 export function refreshDeckSnapshot(deck: DeckEntry): Promise<unknown> {
   if (!bridgeAvailable()) {
     return Promise.reject(new Error('Archidekt bridge userscript not installed'));
   }
-  const deckId = ArchidektExport.parseDeckId(deck.archidekt_url);
+  const deckId = parseDeckId(deck.archidekt_url);
   if (!deckId) {
     return Promise.reject(new Error('Invalid Archidekt URL for ' + (deck.deck_name || deck.deck_id)));
   }
-  const bridge = archidektBridge();
+  const bridge = getArchidektBridge();
   if (!bridge?.fetchDeckSnapshot) {
     return Promise.reject(new Error('Archidekt bridge userscript not installed'));
   }
@@ -87,11 +78,11 @@ export function stageDeckApply(deck: DeckEntry, importText: string): { deckId: n
   if (!bridgeApplyAvailable()) {
     return { error: 'Install/update Archidekt Deck Review Bridge userscript (2026-06-21.4+) to apply from Hub.' };
   }
-  const deckId = ArchidektExport.parseDeckId(deck.archidekt_url);
+  const deckId = parseDeckId(deck.archidekt_url);
   if (!deckId || !importText.trim()) {
     return { error: 'Cannot stage apply — missing deck id or import text.' };
   }
-  const bridge = archidektBridge();
+  const bridge = getArchidektBridge();
   try {
     bridge?.stageApply?.(deckId, importText);
     return { deckId, url: deck.archidekt_url || '' };

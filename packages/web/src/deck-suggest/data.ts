@@ -6,18 +6,18 @@ import {
   normalizeSetCodesKey,
   saveSetPoolCache,
 } from '../lib/hub-storage';
-import { bridgeAvailable, sleep } from '../lib/hub-utils';
+import {
+  fetchDeckSnapshotFromBridge,
+  fetchFolderFromBridge,
+  parseFolderId,
+} from '../lib/archidekt-bridge';
+import { sleep } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
 const setPoolCache: Record<string, SetScope> = {};
-
-function parseFolderId(url: string): number | null {
-  const match = String(url || '').match(/archidekt\.com\/folders\/(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-}
 
 export function parseYamlProfile(text: string): DeckProfile {
   const profile: DeckProfile = { roles: [], protected_cards: [], blocked_cards: [] };
@@ -286,35 +286,16 @@ export function loadSetScopeFromUpload(json: Record<string, unknown>): SetScope 
   return scope;
 }
 
-type ArchidektBridge = {
-  fetchFolder?: (folderId: number) => Promise<DeckRecord[]>;
-  fetchDeckSnapshot?: (deckId: number) => Promise<DeckRecord['deck_snapshot']>;
-};
-
-function getBridge(): ArchidektBridge | undefined {
-  return (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge;
-}
-
 export async function loadDeckRegistry(folderUrl: string): Promise<DeckRecord[]> {
-  if (!bridgeAvailable() || typeof getBridge()?.fetchFolder !== 'function') {
-    throw new Error('Install Archidekt Deck Review Bridge userscript for folder fetch.');
-  }
   const folderId = parseFolderId(folderUrl);
   if (!folderId) {
     throw new Error('Invalid Archidekt folder URL.');
   }
-  return getBridge()!.fetchFolder!(folderId);
+  return (await fetchFolderFromBridge(folderId)) as DeckRecord[];
 }
 
 export async function fetchDeckSnapshot(url: string) {
-  if (!bridgeAvailable()) {
-    throw new Error('Install Archidekt Deck Review Bridge userscript for live Archidekt fetch.');
-  }
-  const deckId = ArchidektExport.parseDeckId(url);
-  if (!deckId) {
-    throw new Error('Invalid Archidekt URL: ' + url);
-  }
-  return getBridge()!.fetchDeckSnapshot!(deckId);
+  return fetchDeckSnapshotFromBridge(url) as Promise<DeckRecord['deck_snapshot']>;
 }
 
 export async function readProfileForDeck(deckId: string): Promise<DeckProfile | null> {

@@ -1,72 +1,15 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
+import { mockLoadSwapWantSources, pairDeck } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 
-const mockLoadSwapWantSources = vi.fn();
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: vi.fn(),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function pairDeck(): DeckDocument {
-  return {
-    schemaVersion: 1,
-    deckId: 'cmd1',
-    name: 'Commander Deck',
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
+/** Views suite: Ramp target + empty categories (vs harness default Other / null). */
+function viewsPairDeck(over: Partial<DeckDocument> = {}): DeckDocument {
+  return pairDeck({
     categories: [],
-    cards: [
-      {
-        instanceId: 'in1',
-        name: 'Sol Ring',
-        quantity: 1,
-        primaryCategory: 'Other',
-        categories: ['Other'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-      {
-        instanceId: 'out1',
-        name: 'Cut Card',
-        quantity: 1,
-        primaryCategory: 'Other',
-        categories: ['Other'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-    ],
-    oracle: {},
     formalSwapEntries: [
       {
         id: 's1',
@@ -77,17 +20,8 @@ function pairDeck(): DeckDocument {
         notes: null,
       },
     ],
-    lookingForEntries: [],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-  };
+    ...over,
+  });
 }
 
 afterEach(() => {
@@ -119,7 +53,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('Tiles layout shows Swaps + Seeking swimlanes and pair chrome', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
       sources: aggregateSwapWants([deck]),
@@ -142,7 +76,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('shows deck name in tile header when target category is empty', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     deck.formalSwapEntries[0]!.inTargetCategory = null;
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
@@ -158,16 +92,16 @@ describe('SwapQueueApp browse / layout', () => {
 
   it('Tiles Swaps sort by deck then category then In card name', async () => {
     const alpha: DeckDocument = {
-      ...pairDeck(),
+      ...viewsPairDeck(),
       deckId: 'd-alpha',
       name: 'Alpha Deck',
       cards: [
-        { ...pairDeck().cards[0]!, instanceId: 'a-in-b', name: 'Beta In' },
-        { ...pairDeck().cards[1]!, instanceId: 'a-out-b', name: 'Beta Out' },
-        { ...pairDeck().cards[0]!, instanceId: 'a-in-a', name: 'Alpha In' },
-        { ...pairDeck().cards[1]!, instanceId: 'a-out-a', name: 'Alpha Out' },
-        { ...pairDeck().cards[0]!, instanceId: 'a-in-ramp', name: 'Zebra In' },
-        { ...pairDeck().cards[1]!, instanceId: 'a-out-ramp', name: 'Zebra Out' },
+        { ...viewsPairDeck().cards[0]!, instanceId: 'a-in-b', name: 'Beta In' },
+        { ...viewsPairDeck().cards[1]!, instanceId: 'a-out-b', name: 'Beta Out' },
+        { ...viewsPairDeck().cards[0]!, instanceId: 'a-in-a', name: 'Alpha In' },
+        { ...viewsPairDeck().cards[1]!, instanceId: 'a-out-a', name: 'Alpha Out' },
+        { ...viewsPairDeck().cards[0]!, instanceId: 'a-in-ramp', name: 'Zebra In' },
+        { ...viewsPairDeck().cards[1]!, instanceId: 'a-out-ramp', name: 'Zebra Out' },
       ],
       formalSwapEntries: [
         {
@@ -197,12 +131,12 @@ describe('SwapQueueApp browse / layout', () => {
       ],
     };
     const beta: DeckDocument = {
-      ...pairDeck(),
+      ...viewsPairDeck(),
       deckId: 'd-beta',
       name: 'Beta Deck',
       cards: [
-        { ...pairDeck().cards[0]!, instanceId: 'b-in', name: 'Sol Ring' },
-        { ...pairDeck().cards[1]!, instanceId: 'b-out', name: 'Cut Card' },
+        { ...viewsPairDeck().cards[0]!, instanceId: 'b-in', name: 'Sol Ring' },
+        { ...viewsPairDeck().cards[1]!, instanceId: 'b-out', name: 'Cut Card' },
       ],
       formalSwapEntries: [
         {
@@ -240,7 +174,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('pair tiles inherit shell --db-card-w so size picker scales preview faces', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
       sources: aggregateSwapWants([deck]),
@@ -257,7 +191,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('shows Medium popout on hover at Small tile size', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
       sources: aggregateSwapWants([deck]),
@@ -279,7 +213,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('hides pair popout when tile size is Medium or larger', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
       sources: aggregateSwapWants([deck]),
@@ -295,7 +229,7 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('Stacked layout shows per-deck overlapping stacks like the deck builder', async () => {
-    const deck = pairDeck();
+    const deck = viewsPairDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
       sources: aggregateSwapWants([deck]),
@@ -323,19 +257,19 @@ describe('SwapQueueApp browse / layout', () => {
   });
 
   it('Stacked layout groups Queued In into one stack column per deck', async () => {
-    const a = pairDeck();
+    const a = viewsPairDeck();
     const b: DeckDocument = {
-      ...pairDeck(),
+      ...viewsPairDeck(),
       deckId: 'cmd2',
       name: 'Second Deck',
       cards: [
         {
-          ...pairDeck().cards[0]!,
+          ...viewsPairDeck().cards[0]!,
           instanceId: 'in2',
           name: 'Arcane Signet',
         },
         {
-          ...pairDeck().cards[1]!,
+          ...viewsPairDeck().cards[1]!,
           instanceId: 'out2',
           name: 'Other Cut',
         },

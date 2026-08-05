@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { clearDataSetPoolCache, tryRestoreSetPool } from '../../../packages/web/src/deck-suggest/data.ts';
 import {
   getDailiesSettingsApi,
@@ -7,36 +7,17 @@ import {
   navigateHub,
   setParentHash,
 } from '../../../packages/web/src/lib/hub-storage.ts';
-import { installHubGlobals, resetHubGlobalsInstalled } from '../../../packages/web/src/hub/install-hub-globals.ts';
-import { resetHubModules } from '../helpers/hubHarness.ts';
+import {
+  enableHubApi,
+  installHubApiGlobalsLifecycle,
+  jsonResponse,
+} from '../helpers/hubHarness.ts';
 
-function enableApi() {
-  localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-  localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
-}
-
-/** Fetch Response-like mock for HubApiClient (uses res.text(), not res.json()). */
-function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
-  const status = init.status ?? 200;
-  const ok = init.ok ?? (status >= 200 && status < 300);
-  const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-  return { status, ok, text: async () => text };
-}
-beforeEach(() => {
-  resetHubModules();
-  resetHubGlobalsInstalled();
-  installHubGlobals();
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  resetHubModules();
-  resetHubGlobalsInstalled();
-});
+installHubApiGlobalsLifecycle();
 
 describe('HubStorage API hydration', () => {
   it('hydrateReviewProgressFromApi uses remote payload when API enabled', async () => {
-    enableApi();
+    enableHubApi();
     const remote = { decisions: { remote: true }, currentDeckId: 'd1', currentSuggestionIndex: { d1: 1 } };
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(remote)));
     const hydrated = await HubStorage.hydrateReviewProgressFromApi('MSH-2026');
@@ -46,7 +27,7 @@ describe('HubStorage API hydration', () => {
 
   it('hydrateSetPoolFromApi stores complete remote pool', async () => {
     const remote = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [{ name: 'Remote Card' }] };
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(remote)));
     const hydrated = await HubStorage.hydrateSetPoolFromApi('MSH');
     expect(hydrated).toEqual(remote);
@@ -54,7 +35,7 @@ describe('HubStorage API hydration', () => {
   });
 
   it('saveReviewProgress pushes to API when configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveReviewProgress('MSH-2026', { decisions: {}, currentDeckId: null, currentSuggestionIndex: {} });
@@ -259,7 +240,7 @@ describe('HubStorage settings loaders', () => {
 
 describe('HubStorage dual-mode settings push', () => {
   it('saveOrderReconcileSettings pushes when API configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveOrderReconcileSettings({ folderUrl: 'https://archidekt.com' });
@@ -268,7 +249,7 @@ describe('HubStorage dual-mode settings push', () => {
   });
 
   it('saveDeckSuggestSettings pushes when API configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDeckSuggestSettings({ setCodes: 'MSH' });
@@ -277,7 +258,7 @@ describe('HubStorage dual-mode settings push', () => {
   });
 
   it('saveDeckBuilderSettings pushes when API configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDeckBuilderSettings({ allyThreeColourNames: 'custom' });
@@ -286,7 +267,7 @@ describe('HubStorage dual-mode settings push', () => {
   });
 
   it('saveDailiesSettings pushes when API configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDailiesSettings({ faerieQuest: 'jhudora' });
@@ -314,7 +295,7 @@ describe('HubStorage hydrateReviewProgressFromApi edge cases', () => {
 
   it('falls back to local when remote null or fetch fails', async () => {
     HubStorage.saveReviewProgress('MSH-2026', { decisions: { local: true }, currentDeckId: null, currentSuggestionIndex: {} });
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
     await expect(HubStorage.hydrateReviewProgressFromApi('MSH-2026')).resolves.toMatchObject({ decisions: { local: true } });
 
@@ -329,7 +310,7 @@ describe('HubStorage hydrateSetPoolFromApi edge cases', () => {
     HubStorage.saveSetPoolCache('MSH', scope);
     await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
 
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ complete: false, cards: [] })));
     await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
   });

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertApiNotPageOrigin,
   clientApiFetch,
@@ -13,40 +13,15 @@ import {
   setHubApiConfig,
   syncDailiesSettingsFromApi,
 } from '../../../packages/web/src/api/hub-api-client.ts';
-import { installHubGlobals, resetHubGlobalsInstalled } from '../../../packages/web/src/hub/install-hub-globals.ts';
 import { HubStorage } from '../../../packages/web/src/lib/hub-storage.ts';
 import { ProfileSync } from '../../../packages/web/src/mtg/profile-sync.ts';
-import { resetHubModules } from '../helpers/hubHarness.ts';
+import {
+  enableHubApi,
+  installHubApiGlobalsLifecycle,
+  jsonResponse,
+} from '../helpers/hubHarness.ts';
 
-/** Fetch Response-like mock for HubApiClient (uses res.text(), not res.json()). */
-function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
-  const status = init.status ?? 200;
-  const ok = init.ok ?? (status >= 200 && status < 300);
-  const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-  return {
-    status,
-    ok,
-    text: async () => text,
-    json: async () => (typeof body === 'string' ? JSON.parse(body || 'null') : body),
-  };
-}
-
-function enableApi() {
-  localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-  localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
-}
-
-beforeEach(() => {
-  resetHubModules();
-  resetHubGlobalsInstalled();
-  installHubGlobals();
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  resetHubModules();
-  resetHubGlobalsInstalled();
-});
+installHubApiGlobalsLifecycle();
 
 describe('HubApiClient config and parsing', () => {
   it('getHubApiConfig returns disabled when url or key missing', () => {
@@ -92,7 +67,7 @@ describe('HubApiClient config and parsing', () => {
   });
 
   it('clearHubApiConfig removes both keys', () => {
-    enableApi();
+    enableHubApi();
     clearHubApiConfig();
     expect(getHubApiConfig()).toEqual({ url: '', key: '', enabled: false });
     expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
@@ -121,25 +96,25 @@ describe('clientApiFetch', () => {
   });
 
   it('throws on 401 unauthorized', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('denied', { status: 401, ok: false })));
     await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow('Hub API unauthorized');
   });
 
   it('returns null on 404', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
     await expect(clientApiFetch('/v1/profiles/missing')).resolves.toBe(null);
   });
 
   it('throws on non-ok status with body peek', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('server blew up', { status: 500, ok: false })));
     await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow('Hub API error 500: server blew up');
   });
 
   it('throws when ok response body is HTML', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse('<!DOCTYPE html><html></html>', { status: 200, ok: true })),
@@ -148,7 +123,7 @@ describe('clientApiFetch', () => {
   });
 
   it('returns parsed JSON on success', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ payload: { faerieQuest: 'jhudora' } })));
     await expect(clientApiFetch('/v1/settings/dailies')).resolves.toEqual({ payload: { faerieQuest: 'jhudora' } });
   });
@@ -163,13 +138,13 @@ describe('clientApiFetch', () => {
 
 describe('HubApiClient settings and profiles', () => {
   it('pullSettings returns payload when present', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ payload: { folderUrl: 'x' } })));
     await expect(pullSettings('deck-suggest')).resolves.toEqual({ folderUrl: 'x' });
   });
 
   it('pullSettings returns null when payload missing', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ payload: null })));
     await expect(pullSettings('deck-suggest')).resolves.toBe(null);
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(null)));
@@ -177,7 +152,7 @@ describe('HubApiClient settings and profiles', () => {
   });
 
   it('pushSettingsDomain PUTs payload wrapper', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     await pushSettingsDomain('dailies', { faerieQuest: 'illusen' });
@@ -188,7 +163,7 @@ describe('HubApiClient settings and profiles', () => {
   });
 
   it('pullProfileYaml returns yaml or null', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ yaml: 'protected_cards: []\n' })));
     await expect(pullProfileYaml('deck-1')).resolves.toBe('protected_cards: []\n');
 
@@ -212,7 +187,7 @@ describe('syncDailiesSettingsFromApi', () => {
   });
 
   it('saves payload and applies main pet on success', async () => {
-    enableApi();
+    enableHubApi();
     const saveDailiesSettings = vi.fn();
     const saveMainPet = vi.fn();
     (window as Window & { HubStorage?: { saveDailiesSettings?: (p: unknown) => void } }).HubStorage = {
@@ -232,7 +207,7 @@ describe('syncDailiesSettingsFromApi', () => {
   });
 
   it('falls back when payload missing or HubStorage.saveDailiesSettings absent', async () => {
-    enableApi();
+    enableHubApi();
     const fallback = vi.fn(() => 'fb');
     delete (window as Window & { HubStorage?: unknown }).HubStorage;
 
@@ -245,14 +220,14 @@ describe('syncDailiesSettingsFromApi', () => {
   });
 
   it('falls back on fetch error', async () => {
-    enableApi();
+    enableHubApi();
     const fallback = vi.fn(() => 'caught');
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('fail', { status: 500, ok: false })));
     await expect(syncDailiesSettingsFromApi(fallback)).resolves.toBe('caught');
   });
 
   it('applyMainPetFromPayload skips empty name and missing saveMainPet', async () => {
-    enableApi();
+    enableHubApi();
     const saveDailiesSettings = vi.fn();
     const saveMainPet = vi.fn();
     (window as Window & { HubStorage?: { saveDailiesSettings?: (p: unknown) => void } }).HubStorage = {
@@ -287,7 +262,7 @@ describe('syncDailiesSettingsFromApi', () => {
 
 describe('HubApiClient review progress and set pools', () => {
   it('pullReviewProgress normalizes missing fields', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ currentDeckId: null })));
     await expect(HubApiClient.pullReviewProgress('MSH-2026')).resolves.toEqual({
       decisions: {},
@@ -297,7 +272,7 @@ describe('HubApiClient review progress and set pools', () => {
   });
 
   it('pushReviewProgress and pushSetPool send PUT bodies', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -317,7 +292,7 @@ describe('HubApiClient review progress and set pools', () => {
   });
 
   it('pullSetPool returns complete remote scope', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -346,7 +321,7 @@ describe('HubApiClient review progress and set pools', () => {
 
 describe('HubApiClient persistence helpers', () => {
   it('pushProfile PUTs yaml body', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () =>
       jsonResponse({ deckId: 'deck-1', yaml: 'protected_cards:\n  - Sol Ring\n' }),
     );
@@ -366,7 +341,7 @@ describe('HubApiClient persistence helpers', () => {
   });
 
   it('pullReviewProgress maps API record to HubStorage shape', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -388,7 +363,7 @@ describe('HubApiClient persistence helpers', () => {
   });
 
   it('pullSetPool returns null for incomplete pools', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({ codesKey: 'MSH', complete: false, cards: [] })),
@@ -399,7 +374,7 @@ describe('HubApiClient persistence helpers', () => {
 
 describe('HubStorage dual-mode sync', () => {
   it('saveReviewProgress pushes when API configured', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -418,7 +393,7 @@ describe('HubStorage dual-mode sync', () => {
   });
 
   it('hydrateReviewProgressFromApi writes local cache', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -436,7 +411,7 @@ describe('HubStorage dual-mode sync', () => {
   });
 
   it('saveSetPoolCache pushes complete scopes', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -454,7 +429,7 @@ describe('HubStorage dual-mode sync', () => {
   it('hydrateSetPoolFromApi falls back to local on 404', async () => {
     const local = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [] };
     HubStorage.saveSetPoolCache('MSH', local);
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
 
     const scope = await HubStorage.hydrateSetPoolFromApi('MSH');
@@ -464,7 +439,7 @@ describe('HubStorage dual-mode sync', () => {
 
 describe('ProfileSync API write path', () => {
   it('canWriteProfiles is true when API configured on mobile UA', () => {
-    enableApi();
+    enableHubApi();
     const original = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -479,7 +454,7 @@ describe('ProfileSync API write path', () => {
   });
 
   it('appendToProfileList pulls, appends, and pushes via API', async () => {
-    enableApi();
+    enableHubApi();
     const yaml = 'protected_cards:\n  - Sol Ring\nblocked_cards: []\n';
     const fetchMock = vi.fn(async (_url, opts) => {
       if (!opts || opts.method === 'GET' || !opts.method) {
@@ -500,7 +475,7 @@ describe('ProfileSync API write path', () => {
   });
 
   it('isConnected resolves true when API enabled', async () => {
-    enableApi();
+    enableHubApi();
     expect(await ProfileSync.isConnected()).toBe(true);
   });
 });
@@ -527,7 +502,7 @@ describe('ProfileSync.appendToProfileList validation and no-op paths', () => {
   });
 
   it('returns changed false when the card already exists via API', async () => {
-    enableApi();
+    enableHubApi();
     const yaml = 'protected_cards:\n  - Sol Ring\n';
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ yaml })));
     const result = await ProfileSync.appendToProfileList('deck-1', 'protected_cards', 'Sol Ring');
@@ -535,7 +510,7 @@ describe('ProfileSync.appendToProfileList validation and no-op paths', () => {
   });
 
   it('creates a new yaml section when the field is absent via API', async () => {
-    enableApi();
+    enableHubApi();
     const fetchMock = vi.fn(async (_url, opts) => {
       if (!opts?.method || opts.method === 'GET') {
         return jsonResponse({ yaml: 'roles:\n  - ramp\n' });
@@ -652,7 +627,7 @@ describe('ProfileSync read and connect paths', () => {
   });
 
   it('readProfileYaml falls back to directory when API returns no yaml', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ deckId: 'deck-1' })));
     const { handle } = mockDirHandle('protected_cards:\n  - From Dir\n');
     installFakeIndexedDb(handle);
@@ -660,7 +635,7 @@ describe('ProfileSync read and connect paths', () => {
   });
 
   it('readProfileYaml falls back to directory when API fetch fails', async () => {
-    enableApi();
+    enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('fail', { status: 500, ok: false })));
     const { handle } = mockDirHandle('protected_cards:\n  - Fallback\n');
     installFakeIndexedDb(handle);

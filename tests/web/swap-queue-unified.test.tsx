@@ -1,50 +1,10 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument, WantSource } from '@rayenz-hub/shared';
+import { mockLoadSwapWantSources, wantSource } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
-
-const mockLoadSwapWantSources = vi.fn();
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: vi.fn(),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function source(over: Partial<WantSource> = {}): WantSource {
-  return {
-    deckId: 'd1',
-    deckName: 'Commander Deck',
-    format: 'commander',
-    kind: 'queued_in',
-    entryId: 'e1',
-    cardInstanceId: 'c1',
-    cardName: 'Sol Ring',
-    mergeKey: 'sol ring',
-    quantity: 1,
-    usd: null,
-    outInstanceId: 'o1',
-    inInstanceId: 'c1',
-    pairIncomplete: false,
-    ...over,
-  };
-}
 
 function deckForSource(s: WantSource): DeckDocument {
   return {
@@ -126,8 +86,8 @@ afterEach(() => {
 
 describe('SwapQueueApp unified browse', () => {
   it('merges duplicates into one tile with qty badge and keeps face swimlanes', async () => {
-    const a = source({ deckId: 'd1', deckName: 'Commander Deck', entryId: 'e1' });
-    const b = source({
+    const a = wantSource({ deckId: 'd1', deckName: 'Commander Deck', entryId: 'e1' });
+    const b = wantSource({
       deckId: 'd2',
       deckName: 'Other Cmd',
       entryId: 'e2',
@@ -161,8 +121,8 @@ describe('SwapQueueApp unified browse', () => {
   });
 
   it('opens interstitial when a unified tile has multiple sources', async () => {
-    const a = source({ deckId: 'd1', deckName: 'Commander Deck', entryId: 'e1' });
-    const b = source({
+    const a = wantSource({ deckId: 'd1', deckName: 'Commander Deck', entryId: 'e1' });
+    const b = wantSource({
       deckId: 'd2',
       deckName: 'Other Cmd',
       entryId: 'e2',
@@ -191,7 +151,7 @@ describe('SwapQueueApp unified browse', () => {
   });
 
   it('opens edit directly when a unified tile has a single source', async () => {
-    const s = source();
+    const s = wantSource();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deckForSource(s)],
       sources: [s],

@@ -10,45 +10,14 @@ import {
   transplantCardInstance,
 } from '../../../packages/shared/src/deck-builder/swap-retarget.ts';
 import type { CardInstance, DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
+import { cardInstance, leanDeck } from '../helpers/deck-fixtures.ts';
 
 function card(partial: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'name'>): CardInstance {
-  return {
-    quantity: 1,
-    primaryCategory: 'Other',
-    categories: ['Other'],
-    stack: null,
-    setCode: null,
-    collectorNumber: null,
-    scryfallId: null,
-    archidektCardId: null,
-    foil: false,
-    proxy: false,
-    ...partial,
-  };
+  return cardInstance(partial);
 }
 
 function baseDeck(over: Partial<DeckDocument> & Pick<DeckDocument, 'deckId' | 'name'>): DeckDocument {
-  return {
-    schemaVersion: 1,
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
-    categories: [{ name: 'Other', includedInDeck: true, includedInPrice: true, target: null }],
-    cards: [],
-    oracle: {},
-    formalSwapEntries: [],
-    lookingForEntries: [],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-    ...over,
-  };
+  return leanDeck(over);
 }
 
 describe('newFormalSwapEntry', () => {

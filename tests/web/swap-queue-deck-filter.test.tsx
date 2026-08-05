@@ -1,50 +1,9 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WantSource } from '@rayenz-hub/shared';
+import { mockLoadSwapWantSources, wantSource } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
-
-const mockLoadSwapWantSources = vi.fn();
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: vi.fn(),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function source(over: Partial<WantSource> = {}): WantSource {
-  return {
-    deckId: 'd1',
-    deckName: 'Alpha Deck',
-    format: 'commander',
-    kind: 'queued_in',
-    entryId: 'e1',
-    cardInstanceId: 'c1',
-    cardName: 'Sol Ring',
-    mergeKey: 'sol ring',
-    quantity: 1,
-    usd: null,
-    outInstanceId: 'o1',
-    inInstanceId: 'c1',
-    pairIncomplete: false,
-    ...over,
-  };
-}
 
 afterEach(() => {
   cleanup();
@@ -56,14 +15,14 @@ describe('SwapQueueApp by-deck filter', () => {
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [],
       sources: [
-        source({
+        wantSource({
           deckId: 'd1',
           deckName: 'Alpha Deck',
           entryId: 'e1',
           cardName: 'Alpha Card',
           mergeKey: 'alpha',
         }),
-        source({
+        wantSource({
           deckId: 'd2',
           deckName: 'Bravo Deck',
           entryId: 'e2',
@@ -99,7 +58,7 @@ describe('SwapQueueApp by-deck filter', () => {
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [],
       sources: [
-        source({
+        wantSource({
           deckId: 'd1',
           deckName: 'Alpha Deck',
           entryId: 'e1',
@@ -107,7 +66,7 @@ describe('SwapQueueApp by-deck filter', () => {
           mergeKey: 'alpha',
           usd: 1,
         }),
-        source({
+        wantSource({
           deckId: 'd2',
           deckName: 'Bravo Deck',
           entryId: 'e2',

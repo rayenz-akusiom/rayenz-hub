@@ -1,72 +1,24 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
 import { deckBuilderHash, HUB_USER_SLUG } from '../../hub/routes';
 import { toKebabCase } from '../../lib/string-utils';
 import { CARD_SIZE_PX } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
 import { LibraryCoverArt } from './LibraryCoverArt';
+import { LibrarySkeleton, LibrarySortSelect } from './library-chrome';
+import {
+  persistLibrarySort,
+  readLibrarySort,
+  sortLibraryDecks,
+  type LibrarySort,
+} from './library-sort';
 
-export const LIBRARY_SORT_KEY = 'rayenz-deck-builder-library-sort';
-export type LibrarySort = 'recent' | 'name' | 'cover';
-
-export function readLibrarySort(): LibrarySort {
-  try {
-    const raw = localStorage.getItem(LIBRARY_SORT_KEY);
-    if (raw === 'name' || raw === 'recent' || raw === 'cover') return raw;
-  } catch {
-    /* ignore */
-  }
-  return 'recent';
-}
-
-function coverSortKey(deck: DeckSummary): string {
-  return (deck.coverCardName || deck.name || '').trim();
-}
-
-export function sortLibraryDecks(decks: DeckSummary[], sort: LibrarySort): DeckSummary[] {
-  const list = [...decks];
-  if (sort === 'name') {
-    list.sort((a, b) => a.name.localeCompare(b.name) || b.updatedAt.localeCompare(a.updatedAt));
-  } else if (sort === 'cover') {
-    list.sort(
-      (a, b) =>
-        coverSortKey(a).localeCompare(coverSortKey(b)) ||
-        a.name.localeCompare(b.name) ||
-        b.updatedAt.localeCompare(a.updatedAt),
-    );
-  } else {
-    list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name));
-  }
-  return list;
-}
-
-const SKELETON_TILE_COUNT = 8;
-
-function LibrarySkeleton() {
-  return (
-    <div
-      className="db-library-skeleton"
-      aria-busy="true"
-      aria-label="Loading library"
-      role="status"
-    >
-      <div className="db-library-section-title db-skeleton-title">
-        <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-title" />
-      </div>
-      <ul className="db-library-grid" aria-hidden="true">
-        {Array.from({ length: SKELETON_TILE_COUNT }, (_, i) => (
-          <li key={i} className="db-library-tile db-skeleton-tile">
-            <span className="db-library-tile-art db-skeleton-pulse db-skeleton-art" />
-            <span className="db-library-tile-caption">
-              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-badge" />
-              <span className="db-skeleton-pulse db-skeleton-line db-skeleton-line-name" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+export {
+  LIBRARY_SORT_KEY,
+  readLibrarySort,
+  sortLibraryDecks,
+  type LibrarySort,
+} from './library-sort';
 
 function LibrarySection({
   format,
@@ -140,6 +92,7 @@ function LibrarySection({
   );
 }
 
+/** Multi-format library shell (tests + shared chrome). Production builders use FormatFilteredLibrary. */
 export function LibraryView({
   decks,
   loading,
@@ -166,11 +119,7 @@ export function LibraryView({
 
   function onSortChange(next: LibrarySort) {
     setSort(next);
-    try {
-      localStorage.setItem(LIBRARY_SORT_KEY, next);
-    } catch {
-      /* ignore */
-    }
+    persistLibrarySort(next);
   }
 
   const libraryStyle = {
@@ -182,19 +131,7 @@ export function LibraryView({
       <header className="db-header">
         <h2>Deck Builder</h2>
         <div className="db-header-actions">
-          <label className="db-library-sort">
-            <span className="db-library-sort-label">Sort</span>
-            <select
-              className="db-select"
-              aria-label="Library sort"
-              value={sort}
-              onChange={(e) => onSortChange(e.target.value as LibrarySort)}
-            >
-              <option value="recent">Recent</option>
-              <option value="name">A–Z</option>
-              <option value="cover">A–Z (Highlighted Card)</option>
-            </select>
-          </label>
+          <LibrarySortSelect sort={sort} onChange={onSortChange} />
           {onRefreshRemote ? (
             <button type="button" className="db-btn" onClick={onRefreshRemote}>
               Sync from API

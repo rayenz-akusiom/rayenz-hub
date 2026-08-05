@@ -104,7 +104,7 @@ export async function clientApiFetch(path: string, options?: { method?: string; 
   if (res.status === 401) {
     throw new Error('Hub API unauthorized');
   }
-  if (res.status === 404) {
+  if (res.status === 404 || res.status === 204) {
     return null;
   }
   if (!res.ok) {

@@ -1,29 +1,9 @@
 import { hubDocumentRoot } from '../hub/core-scripts';
 import { HubProgress, type HubProgressController } from './hub-progress';
 import { escapeHtml } from './string-utils';
+import { bridgeApplyAvailable, bridgeAvailable } from './archidekt-bridge';
 
-type ArchidektBridge = {
-  isAvailable?: boolean;
-  stageApply?: (...args: unknown[]) => unknown;
-};
-
-type HubWindow = Window & {
-  RayenzArchidektBridge?: ArchidektBridge;
-  location: Location;
-};
-
-function w(): HubWindow {
-  return window as HubWindow;
-}
-
-export function bridgeAvailable(): boolean {
-  return typeof w().RayenzArchidektBridge !== 'undefined' && !!w().RayenzArchidektBridge?.isAvailable;
-}
-
-export function bridgeApplyAvailable(): boolean {
-  const bridge = w().RayenzArchidektBridge;
-  return !!(bridge && bridge.isAvailable && typeof bridge.stageApply === 'function');
-}
+export { bridgeAvailable, bridgeApplyAvailable } from './archidekt-bridge';
 
 export function optionKey(opt: { name: string; set_code?: string; collector_number?: string }): string {
   return [opt.name, opt.set_code || '', opt.collector_number || ''].join('|');
@@ -105,7 +85,7 @@ export function downloadSuggestionsJson(data: unknown): string {
 
 export function isLocalHub(): boolean {
   try {
-    const host = w().location && w().location.hostname;
+    const host = typeof location !== 'undefined' && location.hostname;
     return host === 'localhost' || host === '127.0.0.1';
   } catch {
     return false;

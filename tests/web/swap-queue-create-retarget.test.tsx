@@ -1,57 +1,17 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { aggregateSwapWants, syncCardsWithFormalSwaps, type DeckDocument } from '@rayenz-hub/shared';
+import {
+  emptyLibraryDeck,
+  lookingForDeck,
+  mockLoadSwapWantSources,
+  mockSaveDeck,
+  pairDeck,
+  cardInstance,
+} from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
-
-const mockLoadSwapWantSources = vi.fn();
-const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function emptyLibraryDeck(id: string, name: string): DeckDocument {
-  return {
-    schemaVersion: 1,
-    deckId: id,
-    name,
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
-    categories: [{ name: 'Other', includedInDeck: true, includedInPrice: true, target: null }],
-    cards: [],
-    oracle: {},
-    formalSwapEntries: [],
-    lookingForEntries: [],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-  };
-}
 
 /** Two classic Partner commanders with cover image URLs (library dual-tile). */
 function partnerLibraryDeck(): DeckDocument {
@@ -63,34 +23,20 @@ function partnerLibraryDeck(): DeckDocument {
       { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
     ],
     cards: [
-      {
+      cardInstance({
         instanceId: 'cmd-a',
         name: 'Ikra Shidiqi, the Usurper',
-        quantity: 1,
         primaryCategory: 'Commander',
         categories: ['Commander'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
         scryfallId: 'aaaa0000-0000-0000-0000-000000000001',
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-      {
+      }),
+      cardInstance({
         instanceId: 'cmd-b',
         name: 'Tymna the Weaver',
-        quantity: 1,
         primaryCategory: 'Commander',
         categories: ['Commander'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
         scryfallId: 'bbbb0000-0000-0000-0000-000000000002',
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
+      }),
     ],
     oracle: {
       'id:aaaa0000-0000-0000-0000-000000000001': {
@@ -130,40 +76,10 @@ function partnerLibraryDeck(): DeckDocument {
 }
 
 function pairDeckA(): DeckDocument {
-  const base = emptyLibraryDeck('deck-a', 'Alpha Deck');
   return syncCardsWithFormalSwaps(
-    {
-      ...base,
-      cards: [
-        {
-          instanceId: 'in1',
-          name: 'Sol Ring',
-          quantity: 1,
-          primaryCategory: 'Other',
-          categories: ['Other'],
-          stack: null,
-          setCode: null,
-          collectorNumber: null,
-          scryfallId: null,
-          archidektCardId: null,
-          foil: false,
-          proxy: false,
-        },
-        {
-          instanceId: 'out1',
-          name: 'Cut Card',
-          quantity: 1,
-          primaryCategory: 'Other',
-          categories: ['Other'],
-          stack: null,
-          setCode: null,
-          collectorNumber: null,
-          scryfallId: null,
-          archidektCardId: null,
-          foil: false,
-          proxy: false,
-        },
-      ],
+    pairDeck({
+      deckId: 'deck-a',
+      name: 'Alpha Deck',
       formalSwapEntries: [
         {
           id: 's1',
@@ -174,31 +90,12 @@ function pairDeckA(): DeckDocument {
           notes: null,
         },
       ],
-    },
+    }),
   );
 }
 
 function seekingDeckA(): DeckDocument {
-  return {
-    ...emptyLibraryDeck('deck-a', 'Alpha Deck'),
-    cards: [
-      {
-        instanceId: 'c1',
-        name: 'Counterspell',
-        quantity: 1,
-        primaryCategory: 'Seeking',
-        categories: ['Seeking'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-    ],
-    lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
-  };
+  return lookingForDeck({ deckId: 'deck-a', name: 'Alpha Deck' });
 }
 
 afterEach(() => {

@@ -5,18 +5,10 @@ import { saveReviewHandoff } from '../../packages/web/src/lib/hub-storage';
 import { DeckReviewApp } from '../../packages/web/src/deck-review/DeckReviewApp';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 
-const progressController = {
-  start: vi.fn(),
-  update: vi.fn(),
-  finish: vi.fn(),
-  dismiss: vi.fn(),
-  isActive: vi.fn(() => false),
-  isFinished: vi.fn(() => false),
-};
-
-vi.mock('../../packages/web/src/lib/hub-progress', () => ({
-  HubProgress: { mount: vi.fn(() => progressController) },
-}));
+vi.mock('../../packages/web/src/lib/hub-progress', async () => {
+  const { hubProgressMockModule } = await import('./helpers/hub-progress-mock');
+  return hubProgressMockModule();
+});
 
 vi.mock('../../packages/web/src/deck-review/profiles', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/deck-review/profiles')>();

@@ -13,6 +13,7 @@ import {
   parseImportText,
   type ArchidektCategorySettings,
 } from '@rayenz-hub/shared';
+import { getArchidektBridge as getSharedArchidektBridge } from '../lib/archidekt-bridge';
 
 const MANIFEST_VERSION = '1.1';
 const IN_CATEGORY = SWAP_IN;
@@ -449,15 +450,11 @@ function buildApplyManifest(
   };
 }
 
-function getArchidektBridge(): ArchidektBridge | undefined {
-  return (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge;
-}
-
 function stageDeckApply(archidektDeckId: number, importText: string): void {
   if (!archidektDeckId || !importText) {
     throw new Error('Missing deck id or import text');
   }
-  const bridge = getArchidektBridge();
+  const bridge = getSharedArchidektBridge();
   if (bridge && typeof bridge.stageApply === 'function') {
     bridge.stageApply(archidektDeckId, importText);
     return;
@@ -466,7 +463,7 @@ function stageDeckApply(archidektDeckId: number, importText: string): void {
 }
 
 function getStagedDeckApply(archidektDeckId: number): unknown {
-  const bridge = getArchidektBridge();
+  const bridge = getSharedArchidektBridge();
   if (bridge && typeof bridge.getStagedApply === 'function') {
     return bridge.getStagedApply(archidektDeckId);
   }
@@ -474,7 +471,7 @@ function getStagedDeckApply(archidektDeckId: number): unknown {
 }
 
 function clearStagedDeckApply(archidektDeckId: number): void {
-  const bridge = getArchidektBridge();
+  const bridge = getSharedArchidektBridge();
   if (bridge && typeof bridge.clearStagedApply === 'function') {
     bridge.clearStagedApply(archidektDeckId);
   }

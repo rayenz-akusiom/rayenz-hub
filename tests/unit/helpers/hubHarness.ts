@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
+import { installHubGlobals, resetHubGlobalsInstalled } from '../../../packages/web/src/hub/install-hub-globals.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -80,20 +81,42 @@ export function buildHubDom(): void {
     '</div>';
 }
 
-export function mockFetch() {
-  return vi.fn(async (url: string | URL | Request) => {
-    const requestUrl = String(url);
-    if (requestUrl.includes('latest.json')) {
-      return {
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve(''),
-      };
-    }
-    return {
-      ok: false,
-      text: () => Promise.resolve(''),
-    };
+/** Fetch Response-like mock for Hub API clients (uses res.text(), not res.json()). */
+export function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
+  const status = init.status ?? 200;
+  const ok = init.ok ?? (status >= 200 && status < 300);
+  const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
+  return {
+    status,
+    ok,
+    text: async () => text,
+    json: async () => (typeof body === 'string' ? JSON.parse(body || 'null') : body),
+  };
+}
+
+/** Enable Hub API URL + key in localStorage for dual-mode tests. */
+export function enableHubApi(
+  url = 'http://127.0.0.1:3000',
+  key = 'test-api-key-local',
+): void {
+  localStorage.setItem('rayenz-hub-api-url', url);
+  localStorage.setItem('rayenz-hub-api-key', key);
+}
+
+/** @deprecated Prefer enableHubApi */
+export const enableApi = enableHubApi;
+
+/** Standard beforeEach/afterEach for Hub API + globals suites. */
+export function installHubApiGlobalsLifecycle(): void {
+  beforeEach(() => {
+    resetHubModules();
+    resetHubGlobalsInstalled();
+    installHubGlobals();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetHubModules();
+    resetHubGlobalsInstalled();
   });
 }
 

@@ -1,135 +1,15 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
+import { aggregateSwapWants } from '@rayenz-hub/shared';
+import {
+  lookingForDeck,
+  mockLoadSwapWantSources,
+  mockSaveDeck,
+  pairDeck,
+} from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
-
-const mockLoadSwapWantSources = vi.fn();
-const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function lookingForDeck(): DeckDocument {
-  return {
-    schemaVersion: 1,
-    deckId: 'cmd1',
-    name: 'Commander Deck',
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
-    categories: [],
-    cards: [
-      {
-        instanceId: 'c1',
-        name: 'Counterspell',
-        quantity: 1,
-        primaryCategory: 'Seeking',
-        categories: ['Seeking'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-    ],
-    oracle: {},
-    formalSwapEntries: [],
-    lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-  };
-}
-
-function pairDeck(): DeckDocument {
-  return {
-    schemaVersion: 1,
-    deckId: 'cmd1',
-    name: 'Commander Deck',
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
-    categories: [{ name: 'Other', includedInDeck: true, includedInPrice: true, target: null }],
-    cards: [
-      {
-        instanceId: 'in1',
-        name: 'Sol Ring',
-        quantity: 1,
-        primaryCategory: 'Other',
-        categories: ['Other'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-      {
-        instanceId: 'out1',
-        name: 'Cut Card',
-        quantity: 1,
-        primaryCategory: 'Other',
-        categories: ['Other'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-    ],
-    oracle: {},
-    formalSwapEntries: [
-      {
-        id: 's1',
-        inInstanceId: 'in1',
-        outInstanceId: 'out1',
-        inTargetCategory: null,
-        sortIndex: 0,
-        notes: null,
-      },
-    ],
-    lookingForEntries: [],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-  };
-}
 
 afterEach(() => {
   cleanup();

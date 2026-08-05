@@ -22,6 +22,7 @@ import type {
   DeckDocument,
 } from '../../../packages/shared/src/schemas/deck-builder.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+import { cardInstance } from '../helpers/deck-fixtures.ts';
 
 const ASIDE_AND_DECK: CategoryDef[] = [
   { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
@@ -33,18 +34,7 @@ const ASIDE_AND_DECK: CategoryDef[] = [
 function cardStub(
   partial: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'name' | 'primaryCategory'>,
 ): CardInstance {
-  return {
-    quantity: 1,
-    categories: [partial.primaryCategory],
-    stack: null,
-    setCode: null,
-    collectorNumber: null,
-    scryfallId: null,
-    archidektCardId: null,
-    foil: false,
-    proxy: false,
-    ...partial,
-  };
+  return cardInstance(partial);
 }
 
 function plainsStackDeck(qty = 6): DeckDocument {

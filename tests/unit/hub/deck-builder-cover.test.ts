@@ -10,7 +10,7 @@ import {
   type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
-import { sortLibraryDecks } from '../../../packages/web/src/deck-builder/library/LibraryView.tsx';
+import { sortLibraryDecks } from '../../../packages/web/src/deck-builder/library/library-sort';
 
 type LegacyCard = CardInstance & {
   colourIdentity?: ('W' | 'U' | 'B' | 'R' | 'G')[];

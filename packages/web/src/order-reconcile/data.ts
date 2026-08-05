@@ -1,25 +1,18 @@
-import { bridgeAvailable, sleep } from '../lib/hub-utils';
+import { sleep } from '../lib/hub-utils';
 import { fetchPrintings as scryfallFetchPrintings } from '../lib/scryfall-cache';
-import { ArchidektExport } from '../mtg/archidekt-export';
+import {
+  bridgeAvailable,
+  fetchDeckSnapshotFromBridge,
+  fetchFolderFromBridge,
+  parseFolderId,
+} from '../lib/archidekt-bridge';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { buildAssignmentIndex } from './assign';
 import { sortDecksByName } from './helpers';
 import type { OrderReconcileDeck, OrderReconcileSettingsPayload, OrderReconcileState, PrintingParts } from './types';
 import { STAGING_DECK_ID } from './types';
 
-type ArchidektBridge = {
-  fetchFolder?: (folderId: number) => Promise<OrderReconcileDeck[]>;
-  fetchDeckSnapshot?: (deckId: number) => Promise<unknown>;
-};
-
-function bridge(): ArchidektBridge | undefined {
-  return (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge;
-}
-
-export function parseFolderId(url: string | null | undefined): number | null {
-  const match = String(url || '').match(/archidekt\.com\/folders\/(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-}
+export { parseFolderId };
 
 export async function loadDeckRegistry(settings: OrderReconcileSettingsPayload): Promise<OrderReconcileDeck[]> {
   const source = settings.registrySource || 'folder';
@@ -31,25 +24,18 @@ export async function loadDeckRegistry(settings: OrderReconcileSettingsPayload):
       archidekt_url: url.trim(),
     }));
   }
-  if (!bridgeAvailable() || typeof bridge()?.fetchFolder !== 'function') {
+  if (!bridgeAvailable()) {
     throw new Error('Install Archidekt Deck Review Bridge userscript (2026-06-25-2+) for folder fetch.');
   }
   const folderId = parseFolderId(settings.folderUrl);
   if (!folderId) {
     throw new Error('Invalid Archidekt folder URL.');
   }
-  return (await bridge()!.fetchFolder!(folderId)) as OrderReconcileDeck[];
+  return (await fetchFolderFromBridge(folderId)) as OrderReconcileDeck[];
 }
 
 export async function fetchDeckSnapshot(url: string): Promise<unknown> {
-  if (!bridgeAvailable()) {
-    throw new Error('Install Archidekt Deck Review Bridge userscript for live Archidekt fetch.');
-  }
-  const deckId = ArchidektExport.parseDeckId(url);
-  if (!deckId) {
-    throw new Error('Invalid Archidekt URL: ' + url);
-  }
-  return bridge()!.fetchDeckSnapshot!(deckId);
+  return fetchDeckSnapshotFromBridge(url);
 }
 
 export type FetchProgressCallbacks = {

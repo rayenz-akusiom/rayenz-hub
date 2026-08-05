@@ -1,23 +1,18 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { aggregateSwapWants, type DeckDocument, type WantSource } from '@rayenz-hub/shared';
+import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
+import {
+  lookingForDeck,
+  mockApiPutDeck,
+  mockIsApiConfigured,
+  mockLoadSwapWantSources,
+  mockPullRemoteLibraryUpdates,
+  mockSaveDeck,
+  wantSource,
+} from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
-
-const mockLoadSwapWantSources = vi.fn();
-const mockPullRemoteLibraryUpdates = vi.fn(async () => []);
-const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
-const mockApiPutDeck = vi.fn(async (doc: DeckDocument) => doc);
-const mockIsApiConfigured = vi.fn(() => false);
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => mockIsApiConfigured(),
@@ -29,78 +24,6 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
   apiListDecks: vi.fn(),
   apiDeleteDeck: vi.fn(),
 }));
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
-  reconcileDeckAfterApiPut: (local: DeckDocument) => local,
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: () => mockPullRemoteLibraryUpdates(),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
-
-function source(over: Partial<WantSource> = {}): WantSource {
-  return {
-    deckId: 'd1',
-    deckName: 'Commander Deck',
-    format: 'commander',
-    kind: 'queued_in',
-    entryId: 'e1',
-    cardInstanceId: 'c1',
-    cardName: 'Sol Ring',
-    mergeKey: 'sol ring',
-    quantity: 1,
-    usd: null,
-    outInstanceId: 'o1',
-    inInstanceId: 'c1',
-    pairIncomplete: false,
-    ...over,
-  };
-}
-
-function lookingForDeck(): DeckDocument {
-  return {
-    schemaVersion: 1,
-    deckId: 'cmd1',
-    name: 'Commander Deck',
-    format: 'commander',
-    archidektId: null,
-    archidektUrl: null,
-    categories: [],
-    cards: [
-      {
-        instanceId: 'c1',
-        name: 'Counterspell',
-        quantity: 1,
-        primaryCategory: 'Seeking',
-        categories: ['Seeking'],
-        stack: null,
-        setCode: null,
-        collectorNumber: null,
-        scryfallId: null,
-        archidektCardId: null,
-        foil: false,
-        proxy: false,
-      },
-    ],
-    oracle: {},
-    formalSwapEntries: [],
-    lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
-    coverInstanceId: null,
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-    cubeTargetSize: null,
-  };
-}
 
 afterEach(() => {
   cleanup();
@@ -116,7 +39,7 @@ describe('SwapQueueApp Hub API sync', () => {
     });
     mockLoadSwapWantSources.mockImplementation(async () => {
       order.push('load');
-      return { decks: [], sources: [source()] };
+      return { decks: [], sources: [wantSource()] };
     });
 
     render(<SwapQueueApp entryPath="wishlist" />);
@@ -128,7 +51,7 @@ describe('SwapQueueApp Hub API sync', () => {
   });
 
   it('pulls again when Refresh is selected', async () => {
-    mockLoadSwapWantSources.mockResolvedValue({ decks: [], sources: [source()] });
+    mockLoadSwapWantSources.mockResolvedValue({ decks: [], sources: [wantSource()] });
     const user = userEvent.setup();
     render(<SwapQueueApp entryPath="wishlist" />);
 
@@ -144,7 +67,7 @@ describe('SwapQueueApp Hub API sync', () => {
 
   it('still loads local wants when pull fails', async () => {
     mockPullRemoteLibraryUpdates.mockRejectedValue(new Error('Hub API unreachable'));
-    mockLoadSwapWantSources.mockResolvedValue({ decks: [], sources: [source()] });
+    mockLoadSwapWantSources.mockResolvedValue({ decks: [], sources: [wantSource()] });
 
     render(<SwapQueueApp entryPath="wishlist" />);
 

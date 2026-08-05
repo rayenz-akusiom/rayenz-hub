@@ -1,32 +1,11 @@
+import './helpers/swap-queue-vi-mocks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { WantSource } from '@rayenz-hub/shared';
+import { mockLoadSwapWantSources, wantSource } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 
-const mockLoadSwapWantSources = vi.fn();
 const mockFetchInSetMembership = vi.fn();
-
-vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../packages/web/src/swap-queue/aggregate')>();
-  return {
-    ...actual,
-    loadSwapWantSources: () => mockLoadSwapWantSources(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
-  saveDeck: vi.fn(),
-}));
-
-vi.mock('../../packages/web/src/deck-builder/store/library-sync', () => ({
-  pullRemoteLibraryUpdates: vi.fn(async () => []),
-}));
-
-vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
-  enrichWantSourcesUsd: async (sources: unknown) => sources,
-}));
 
 vi.mock('@rayenz-hub/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rayenz-hub/shared')>();
@@ -35,25 +14,6 @@ vi.mock('@rayenz-hub/shared', async (importOriginal) => {
     fetchInSetMembership: (...args: unknown[]) => mockFetchInSetMembership(...args),
   };
 });
-
-function source(over: Partial<WantSource> = {}): WantSource {
-  return {
-    deckId: 'd1',
-    deckName: 'Alpha Deck',
-    format: 'commander',
-    kind: 'queued_in',
-    entryId: 'e1',
-    cardInstanceId: 'c1',
-    cardName: 'Sol Ring',
-    mergeKey: 'sol ring',
-    quantity: 1,
-    usd: null,
-    outInstanceId: 'o1',
-    inInstanceId: 'c1',
-    pairIncomplete: false,
-    ...over,
-  };
-}
 
 afterEach(() => {
   cleanup();
@@ -65,7 +25,7 @@ describe('SwapQueueApp set filter', () => {
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [],
       sources: [
-        source({
+        wantSource({
           kind: 'queued_in',
           entryId: 'pair-1',
           cardName: 'Ponder',
@@ -74,7 +34,7 @@ describe('SwapQueueApp set filter', () => {
           inInstanceId: 'in1',
           outInstanceId: 'out1',
         }),
-        source({
+        wantSource({
           kind: 'queued_out',
           entryId: 'pair-1',
           cardName: 'Sol Ring',
@@ -83,7 +43,7 @@ describe('SwapQueueApp set filter', () => {
           inInstanceId: 'in1',
           outInstanceId: 'out1',
         }),
-        source({
+        wantSource({
           kind: 'queued_in',
           entryId: 'pair-2',
           deckId: 'd2',

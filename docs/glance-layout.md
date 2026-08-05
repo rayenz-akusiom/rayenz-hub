@@ -11,15 +11,27 @@ Reference for how Hub “at a glance” PNGs place cards. Layout lives in `@raye
 
 ## Shared plate constants
 
-Both products use the same plate chrome:
+Both products use the same canvas / M card size:
 
 | Constant | Value |
 |----------|-------|
 | Canvas | 1920×1080 |
-| Background | `#b8d4e8` |
+| Default / Cube / swap background | `#b8d4e8` (sky-blue) |
 | M card size | 213×297 (Scryfall 61∶85) |
 | Title / header bar | 72px |
 | Watermark / footer bar | 48px |
+
+**Commander deck-glance chrome** is themed from commander colour identity (`titlePips`) via `resolveGlanceChromeTheme`:
+
+| Identity | Header / footer | Background |
+|----------|-----------------|------------|
+| Colourless | silver | silver wash |
+| Mono | darker shade of that colour | lighter wash (solid) |
+| Dual | 1st pip / 2nd pip | mid soft-blend split (left→right) |
+| 3+ | gold | gold wash |
+| Cube format | legacy translucent dark bars | sky-blue |
+
+White maps to cream/tan (not pure white). Bar text ink flips for contrast. Section category headings use a centered frosted band (deck + swap); swap plate colours stay sky-blue.
 
 **Generation versions** (`GLANCE_GENERATION_VERSION`, `SWAP_GLANCE_GENERATION_VERSION`) are part of cache keys and fingerprints. Bump them when layout, art tier, render pipeline, or delivery changes so stale PNGs are not served.
 

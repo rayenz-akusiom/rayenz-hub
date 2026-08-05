@@ -74,6 +74,23 @@ describe('deck-builder glance layout', () => {
     expect(plan.labels.some((l) => l.text === 'Commander' || l.text === 'Commanders')).toBe(true);
   });
 
+  it('gives section category labels a width spanning their columns', () => {
+    const deck = buildEligibleCommanderDeck();
+    const include = buildGlanceIncludeSet(deck);
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const sectionLabels = plan.labels.filter((l) => l.role === 'section');
+    expect(sectionLabels.length).toBeGreaterThan(0);
+    for (const label of sectionLabels) {
+      expect(label.width).toBeGreaterThanOrEqual(40);
+      expect(label.role).toBe('section');
+    }
+    const roleLabels = plan.labels.filter((l) => l.role === 'role');
+    expect(roleLabels.length).toBeGreaterThan(0);
+    expect(roleLabels.every((l) => l.width == null)).toBe(true);
+  });
+
   it('uses singular Commander label for one commander', () => {
     const deck = buildEligibleCommanderDeck();
     const include = buildGlanceIncludeSet(deck);

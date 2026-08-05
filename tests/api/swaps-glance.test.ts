@@ -67,7 +67,7 @@ describe('swaps glance API', () => {
     expect(first.headers?.['content-type']).toBe('image/png');
     expect(first.headers?.['x-glance-cache']).toBe('MISS');
     expect(first.headers?.['x-glance-generation']).toBe(SWAP_GLANCE_GENERATION_VERSION);
-    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-6');
+    expect(first.headers?.['x-glance-generation']).toBe('swap-glance-gen-8');
     expect(first.isBase64Encoded).toBe(true);
 
     const second = await handleSwapsGlance(TEST_AUTH_HEADERS, body, services, {
@@ -106,7 +106,7 @@ describe('swaps glance API', () => {
       { ...renderOptions, blobStore: blob },
     );
     expect(filtered.statusCode).toBe(200);
-    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-6');
+    expect(filtered.headers?.['x-glance-generation']).toBe('swap-glance-gen-8');
     expect(filtered.headers?.['x-glance-cache']).toBe('MISS');
     expect(filtered.body).not.toBe(plain.body);
   });
@@ -189,7 +189,7 @@ describe('swaps glance API', () => {
       expect(body.delivery).toBe('bundle');
       expect(body.pageCount).toBeGreaterThan(1);
       expect(body.images.length).toBe(body.pageCount);
-      expect(body.generation).toBe('swap-glance-gen-6');
+      expect(body.generation).toBe('swap-glance-gen-8');
     } else {
       // If planner still fits on one page, response stays binary — acceptable
       expect(ct).toBe('image/png');

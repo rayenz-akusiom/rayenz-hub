@@ -1,15 +1,20 @@
 import type {
   GlanceBackdrop,
   GlanceCard,
+  GlanceChromeTheme,
+  GlanceLabel,
   GlanceLayoutPlan,
   SwapGlanceLayoutPlan,
 } from '@rayenz-hub/shared';
 import {
-  BACKGROUND,
   HEADER_HEIGHT,
+  resolveGlanceChromeTheme,
+  sharpBackgroundFromBarFill,
   SWAP_GLANCE_BACKGROUND,
   SWAP_GLANCE_TITLE_HEIGHT,
   SWAP_GLANCE_WATERMARK_HEIGHT,
+  TEXT_INK_DARK,
+  TEXT_INK_LIGHT,
   WATERMARK_HEIGHT,
 } from '@rayenz-hub/shared';
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,8 +26,6 @@ type Sharp = typeof import('sharp').default;
 
 /** Matches web `--db-card-radius: calc(width * 0.055)`. */
 const CARD_CORNER_RATIO = 0.055;
-const TEXT_INK_DARK = '#111827';
-const TEXT_INK_LIGHT = '#f8fafc';
 const TITLE_FONT_SIZE = 44;
 const PIP_SIZE = 40;
 const PIP_GAP = 6;
@@ -30,6 +33,8 @@ const TITLE_PAD_X = 24;
 const SEP_GAP = 14;
 const SEP_RULE_W = 3;
 const SEP_RULE_H = 36;
+const SECTION_LABEL_HEIGHT = 32;
+const SECTION_BAND_RADIUS = 8;
 
 let sharpPromise: Promise<Sharp> | null = null;
 let fontconfigReady = false;
@@ -125,6 +130,7 @@ type DrawTextOptions = {
   ink?: string;
   fontFamily?: string;
   fontSize?: number;
+  align?: 'left' | 'center';
 };
 
 async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
@@ -133,6 +139,9 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
   const ink = options.ink ?? TEXT_INK_DARK;
   const fontSize = options.fontSize ?? Math.max(12, Math.floor(options.height * 0.72));
   const fontPath = options.fontPath;
+  const align = options.align ?? 'left';
+  const textX = align === 'center' ? Math.round(options.width / 2) : 0;
+  const textAnchor = align === 'center' ? 'middle' : 'start';
 
   if (existsSync(fontPath)) {
     let fontB64 = fontBase64Cache.get(fontPath);
@@ -146,7 +155,8 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
       `<defs><style><![CDATA[` +
       `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${fontB64}) format('truetype');}` +
       `]]></style></defs>` +
-      `<text x="0" y="${Math.min(options.height - 2, Math.round(fontSize * 0.9))}" ` +
+      `<text x="${textX}" y="${Math.min(options.height - 2, Math.round(fontSize * 0.9))}" ` +
+      `text-anchor="${textAnchor}" ` +
       `font-family="${family}" font-size="${fontSize}" fill="${ink}">` +
       `${escapeXml(options.text)}</text></svg>`;
     return sharp(Buffer.from(svg)).png().toBuffer();
@@ -159,7 +169,7 @@ async function drawTextRaster(options: DrawTextOptions): Promise<Buffer> {
       fontfile: fontPath,
       width: options.width,
       height: options.height,
-      align: 'left',
+      align: align === 'center' ? 'center' : 'left',
       rgba: true,
     },
   })
@@ -266,35 +276,37 @@ async function loadTile(
 
 type QuantityBadge = { input: Buffer; width: number; height: number };
 
-/** Mirrors the deck-builder `.db-badge-qty` pill: dark fill, white rule, `×n`. */
+/** Compact barely-rounded qty chip: muted slate, soft silver border, `×n` (capped at 99). */
 async function drawQuantityBadge(qty: number, cardWidth: number): Promise<QuantityBadge> {
   const sharp = await loadSharp();
-  const label = `\u00d7${qty}`;
-  const height = Math.max(18, Math.round(cardWidth * 0.19));
-  const fontSize = Math.max(11, Math.round(height * 0.6));
-  const padX = Math.round(fontSize * 0.36);
+  const displayQty = Math.min(99, Math.max(0, Math.floor(Number(qty) || 0)));
+  const digits = String(displayQty);
+  const label = `\u00d7${digits}`;
+  const height = Math.max(14, Math.round(cardWidth * 0.11));
+  const fontSize = Math.max(10, Math.round(height * 0.62));
+  const padX = Math.round(fontSize * 0.28);
   // DejaVu Sans advance widths: digits ~0.64em, multiplication sign ~0.84em.
-  const textWidth = Math.ceil(fontSize * (0.84 + 0.64 * String(qty).length));
+  const textWidth = Math.ceil(fontSize * (0.84 + 0.64 * digits.length));
   const width = textWidth + padX * 2;
-  const stroke = Math.max(2, Math.round(height * 0.11));
-  const radius = Math.round(height / 2);
-  const pillSvg = Buffer.from(
+  const stroke = 1;
+  const radius = 3;
+  const chipSvg = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
       `<rect x="${stroke / 2}" y="${stroke / 2}" width="${width - stroke}" height="${height - stroke}" ` +
-      `rx="${radius}" ry="${radius}" fill="#0d1117" stroke="#ffffff" stroke-width="${stroke}"/>` +
+      `rx="${radius}" ry="${radius}" fill="#3f4550" stroke="#c8ced6" stroke-width="${stroke}"/>` +
       `</svg>`,
   );
-  const pill = await sharp(pillSvg).png().toBuffer();
+  const chip = await sharp(chipSvg).png().toBuffer();
   const text = await drawTextRaster({
     text: label,
     fontPath: sansFontPath(),
     width: textWidth,
     height,
-    ink: TEXT_INK_LIGHT,
+    ink: '#f1f5f9',
     fontFamily: 'GlanceSans',
     fontSize,
   });
-  const input = await sharp(pill)
+  const input = await sharp(chip)
     .composite([{ input: text, left: padX, top: Math.round(height * 0.17) }])
     .png()
     .toBuffer();
@@ -318,6 +330,7 @@ async function drawHeaderStrip(
   canvasWidth: number,
   deckName: string | null,
   titlePips: string[],
+  theme: GlanceChromeTheme,
 ): Promise<Buffer> {
   const sharp = await loadSharp();
   const strip = await sharp({
@@ -325,7 +338,7 @@ async function drawHeaderStrip(
       width: canvasWidth,
       height: HEADER_HEIGHT,
       channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0.35 },
+      background: sharpBackgroundFromBarFill(theme.headerFill),
     },
   })
     .png()
@@ -334,6 +347,11 @@ async function drawHeaderStrip(
   const overlays: import('sharp').OverlayOptions[] = [];
   let cursorX = TITLE_PAD_X;
   const pipTop = Math.round((HEADER_HEIGHT - PIP_SIZE) / 2);
+  const ink = theme.headerInk;
+  const ruleRgb =
+    ink === TEXT_INK_DARK
+      ? { r: 17, g: 24, b: 39, alpha: 0.85 }
+      : { r: 255, g: 255, b: 255, alpha: 0.85 };
 
   for (const pip of titlePips) {
     const tile = await loadManaPip(pip, PIP_SIZE);
@@ -349,7 +367,7 @@ async function drawHeaderStrip(
         width: SEP_RULE_W,
         height: SEP_RULE_H,
         channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 0.85 },
+        background: ruleRgb,
       },
     })
       .png()
@@ -368,7 +386,7 @@ async function drawHeaderStrip(
     fontPath: sansFontPath(),
     width: Math.max(200, canvasWidth - cursorX - TITLE_PAD_X),
     height: 56,
-    ink: TEXT_INK_LIGHT,
+    ink,
     fontFamily: 'GlanceSans',
     fontSize: TITLE_FONT_SIZE,
   });
@@ -381,14 +399,14 @@ async function drawHeaderStrip(
   return sharp(strip).composite(overlays).png().toBuffer();
 }
 
-async function drawWatermark(canvasWidth: number): Promise<Buffer> {
+async function drawWatermark(canvasWidth: number, theme: GlanceChromeTheme): Promise<Buffer> {
   const sharp = await loadSharp();
   const strip = await sharp({
     create: {
       width: canvasWidth,
       height: WATERMARK_HEIGHT,
       channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0.35 },
+      background: sharpBackgroundFromBarFill(theme.footerFill),
     },
   })
     .png()
@@ -408,7 +426,7 @@ async function drawWatermark(canvasWidth: number): Promise<Buffer> {
       ? `<defs><style><![CDATA[@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${fontB64}) format('truetype');}]]></style></defs>`
       : '') +
     `<text x="${canvasWidth - TITLE_PAD_X}" y="36" text-anchor="end" ` +
-    `font-family="${family}" font-size="32" fill="${TEXT_INK_LIGHT}">Rayenz</text></svg>`;
+    `font-family="${family}" font-size="32" fill="${theme.footerInk}">Rayenz</text></svg>`;
   const text = await sharp(Buffer.from(textSvg)).png().toBuffer();
   return sharp(strip).composite([{ input: text, left: 0, top: 0 }]).png().toBuffer();
 }
@@ -511,9 +529,53 @@ async function drawPairConnector(
   return sharp(svg).png().toBuffer();
 }
 
-async function drawLabel(text: string): Promise<Buffer> {
+async function drawFrostedSectionLabel(
+  text: string,
+  width: number,
+  bandFill: string,
+  bandInk: string,
+  fontSize = 20,
+): Promise<Buffer> {
+  const sharp = await loadSharp();
+  const boxW = Math.max(40, width);
+  const boxH = SECTION_LABEL_HEIGHT;
+  const maxChars = Math.max(8, Math.floor((boxW - 16) / (fontSize * 0.55)));
+  const label = truncateName(text, maxChars);
+  const textTile = await drawTextRaster({
+    text: label,
+    fontPath: sansFontPath(),
+    width: boxW,
+    height: boxH,
+    ink: bandInk,
+    fontFamily: 'GlanceSans',
+    fontSize,
+    align: 'center',
+  });
+  const bandSvg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${boxW}" height="${boxH}">` +
+      `<rect x="0" y="0" width="${boxW}" height="${boxH}" ` +
+      `rx="${SECTION_BAND_RADIUS}" ry="${SECTION_BAND_RADIUS}" fill="${bandFill}"/>` +
+      `</svg>`,
+  );
+  const band = await sharp(bandSvg).png().toBuffer();
+  return sharp(band)
+    .composite([{ input: textTile, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+}
+
+async function drawLabel(label: GlanceLabel, theme: GlanceChromeTheme): Promise<Buffer> {
+  if (label.role === 'section' && label.width != null) {
+    return drawFrostedSectionLabel(
+      label.text,
+      label.width,
+      theme.sectionBandFill,
+      theme.sectionBandInk,
+      20,
+    );
+  }
   return drawTextRaster({
-    text,
+    text: label.text,
     fontPath: sansFontPath(),
     width: 400,
     height: 28,
@@ -532,6 +594,39 @@ async function drawBackdrop(backdrop: GlanceBackdrop): Promise<Buffer> {
       `</svg>`,
   );
   return sharp(svg).png().toBuffer();
+}
+
+async function createGlanceCanvasBackground(
+  width: number,
+  height: number,
+  theme: GlanceChromeTheme,
+): Promise<Buffer> {
+  const sharp = await loadSharp();
+  if (theme.background.kind === 'softBlend') {
+    const { leftHex, rightHex } = theme.background;
+    const svg = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        `<defs><linearGradient id="ci" x1="0" y1="0" x2="1" y2="0">` +
+        `<stop offset="0%" stop-color="${leftHex}"/>` +
+        `<stop offset="38%" stop-color="${leftHex}"/>` +
+        `<stop offset="62%" stop-color="${rightHex}"/>` +
+        `<stop offset="100%" stop-color="${rightHex}"/>` +
+        `</linearGradient></defs>` +
+        `<rect width="${width}" height="${height}" fill="url(#ci)"/>` +
+        `</svg>`,
+    );
+    return sharp(svg).png().toBuffer();
+  }
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: theme.background.hex,
+    },
+  })
+    .png()
+    .toBuffer();
 }
 
 export type RenderGlanceOptions = {
@@ -557,6 +652,7 @@ export async function renderGlancePng(
   ensureFontconfig();
   const sharp = await loadSharp();
   const loader = options.imageLoader ?? defaultImageLoader;
+  const theme = resolveGlanceChromeTheme(plan.titlePips || []);
   const composites: import('sharp').OverlayOptions[] = [];
 
   for (const backdrop of plan.backdrops || []) {
@@ -565,7 +661,7 @@ export async function renderGlancePng(
   }
 
   for (const label of plan.labels) {
-    const tile = await drawLabel(label.text);
+    const tile = await drawLabel(label, theme);
     composites.push({
       input: tile,
       left: label.x,
@@ -592,24 +688,23 @@ export async function renderGlancePng(
     }
   }
 
-  const header = await drawHeaderStrip(plan.canvasWidth, plan.deckName, plan.titlePips || []);
+  const header = await drawHeaderStrip(
+    plan.canvasWidth,
+    plan.deckName,
+    plan.titlePips || [],
+    theme,
+  );
   composites.push({ input: header, left: 0, top: 0 });
 
-  const watermark = await drawWatermark(plan.canvasWidth);
+  const watermark = await drawWatermark(plan.canvasWidth, theme);
   composites.push({
     input: watermark,
     left: 0,
     top: plan.canvasHeight - WATERMARK_HEIGHT,
   });
 
-  const png = await sharp({
-    create: {
-      width: plan.canvasWidth,
-      height: plan.canvasHeight,
-      channels: 3,
-      background: BACKGROUND,
-    },
-  })
+  const base = await createGlanceCanvasBackground(plan.canvasWidth, plan.canvasHeight, theme);
+  const png = await sharp(base)
     .composite(composites)
     .png(pngEncodeOptions(options.fastPng))
     .toBuffer();
@@ -634,18 +729,13 @@ async function drawSwapGlanceLabel(
     });
   }
   if (role === 'section') {
-    const fontSize = 22;
-    const boxW = Math.max(40, maxWidth);
-    const maxChars = Math.max(8, Math.floor(boxW / (fontSize * 0.55)));
-    return drawTextRaster({
-      text: truncateName(text, maxChars),
-      fontPath: sansFontPath(),
-      width: boxW,
-      height: 28,
-      ink: TEXT_INK_DARK,
-      fontFamily: 'GlanceSans',
-      fontSize,
-    });
+    return drawFrostedSectionLabel(
+      text,
+      Math.max(40, maxWidth),
+      'rgba(255,255,255,0.72)',
+      TEXT_INK_DARK,
+      22,
+    );
   }
   return drawTextRaster({
     text,

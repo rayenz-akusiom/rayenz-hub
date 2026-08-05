@@ -16,7 +16,7 @@ const postGlance = vi.fn(
   ) => ({
     blob: new Blob(['png'], { type: 'image/png' }),
     cache: 'MISS',
-    generation: 'glance-gen-14',
+    generation: 'glance-gen-16',
     delivery: 'inline' as const,
   }),
 );
@@ -80,7 +80,7 @@ describe('GlanceGenerateButton', () => {
       expect(postGlance).toHaveBeenCalledWith(deck.deckId, { mode: 'type_line' }),
     );
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(/gen glance-gen-14 · cache MISS/i)).toBeInTheDocument();
+    expect(screen.getByText(/gen glance-gen-16 · cache MISS/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 

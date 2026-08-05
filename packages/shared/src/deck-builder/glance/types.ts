@@ -1,5 +1,5 @@
 /** Bump when layout, art tier, render pipeline, or delivery changes — invalidates S3 cache. */
-export const GLANCE_GENERATION_VERSION = 'glance-gen-14';
+export const GLANCE_GENERATION_VERSION = 'glance-gen-16';
 
 /** Maximum commanders/lieutenants shown on their highlight plates. */
 export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;
@@ -76,6 +76,12 @@ export type GlanceLabel = {
   text: string;
   x: number;
   y: number;
+  /**
+   * Horizontal span for centered frosted section bands.
+   * Role labels omit this and stay left-aligned on plates.
+   */
+  width?: number;
+  role?: 'section' | 'role';
 };
 
 export type GlanceBackdrop = {

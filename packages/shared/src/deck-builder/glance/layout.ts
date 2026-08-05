@@ -18,11 +18,14 @@ import {
   GLANCE_ROLE_HIGHLIGHT_LIMIT,
 } from './types.js';
 
-const BACKGROUND = '#b8d4e8';
+import { GLANCE_SKY_BLUE } from './chrome-theme.js';
+
+const BACKGROUND = GLANCE_SKY_BLUE;
 /** Title strip height (matches footer treatment, taller for large type). */
 const HEADER_HEIGHT = 72;
 const WATERMARK_HEIGHT = 48;
-const LABEL_HEIGHT = 28;
+/** Room for centered frosted section band + text. */
+const LABEL_HEIGHT = 32;
 const COL_GAP = 8;
 const ROLE_GAP = 12;
 const PLATE_PAD = 12;
@@ -421,6 +424,7 @@ function placeRoles(
       text: roleLabel('commander', commanders.length),
       x: plateX + PLATE_PAD,
       y: plateY + PLATE_PAD,
+      role: 'role',
     });
     backdrops.push({
       region: 'commander',
@@ -456,6 +460,7 @@ function placeRoles(
       text: roleLabel('lieutenant', lieutenants.length),
       x: plateX + PLATE_PAD,
       y: plateY + PLATE_PAD,
+      role: 'role',
     });
     backdrops.push({
       region: 'lieutenant',
@@ -529,10 +534,15 @@ function tryPackAtSize(
   const placements = [...roles.placements];
   for (const block of packed) {
     if (!block.placements.length) continue;
+    const firstX = block.slots[0]!.x;
+    const lastSlot = block.slots[block.slots.length - 1]!;
+    const spanWidth = Math.round(lastSlot.x + cardWidth - firstX);
     labels.push({
       text: block.section.name,
-      x: Math.round(block.slots[0]!.x),
+      x: Math.round(firstX),
       y: Math.round(block.startY),
+      width: Math.max(40, spanWidth),
+      role: 'section',
     });
     placements.push(...block.placements);
   }

@@ -1,5 +1,9 @@
 export * from './types.js';
 export {
+  GLANCE_CANVAS_WIDTH,
+  GLANCE_CANVAS_HEIGHT,
+  GLANCE_CARD_WIDTH,
+  GLANCE_CARD_HEIGHT,
   GLANCE_CARD_ASPECT,
   GLANCE_HEADER_HEIGHT,
   GLANCE_WATERMARK_HEIGHT,
@@ -10,10 +14,6 @@ export {
   glanceMaxStackedRows,
   glanceCardHeightForWidth,
   glanceCardWidthForHeight,
-  HEADER_HEIGHT,
-  WATERMARK_HEIGHT,
-  MIN_VISIBLE_Y,
-  BACKGROUND,
 } from './plate.js';
 export { toGlanceCard, frontFaceTypeLine, isLandType } from './card-from-instance.js';
 export { glanceCardIdentityBase } from './card-identity.js';

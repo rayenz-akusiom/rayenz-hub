@@ -4,16 +4,6 @@ export const GLANCE_GENERATION_VERSION = 'glance-gen-17';
 /** Maximum commanders/lieutenants shown on their highlight plates. */
 export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;
 
-/** @deprecated Use GLANCE_GENERATION_VERSION for cache keys. */
-export const GLANCE_LAYOUT_VERSION = GLANCE_GENERATION_VERSION;
-
-export {
-  GLANCE_CANVAS_WIDTH,
-  GLANCE_CANVAS_HEIGHT,
-  GLANCE_CARD_WIDTH,
-  GLANCE_CARD_HEIGHT,
-} from './plate.js';
-
 /** How the post-role remainder is partitioned into labeled stacks. */
 export type GlanceLayoutMode = 'type_line' | 'primary_category';
 

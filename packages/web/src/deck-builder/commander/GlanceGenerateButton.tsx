@@ -3,7 +3,8 @@ import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/sha
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
-import { apiPostDeckGlance } from '../store/deck-api';
+import { apiPostDeckGlance } from '../store/deck-glance-api';
+import { canCopyPng, copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
 
 type Props = {
   deck: DeckDocument;
@@ -207,22 +208,15 @@ export function GlanceGenerateButton({ deck }: Props) {
 
   const onDownload = useCallback(() => {
     if (!pngBlob) return;
-    const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(pngBlob);
-    anchor.download = `${deck.name || 'deck'}-glance.png`;
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
+    downloadPngBlob(pngBlob, `${deck.name || 'deck'}-glance.png`);
   }, [deck.name, pngBlob]);
 
   const onCopy = useCallback(async () => {
-    if (!pngBlob || !navigator.clipboard?.write) return;
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+    if (!pngBlob) return;
+    await copyPngBlob(pngBlob);
   }, [pngBlob]);
 
-  const canCopy =
-    typeof ClipboardItem !== 'undefined' &&
-    Boolean(navigator.clipboard?.write) &&
-    Boolean(pngBlob);
+  const canCopy = canCopyPng() && Boolean(pngBlob);
   const picking = phase === 'pick';
   const canConfirmPick = picked.length === GLANCE_ROLE_HIGHLIGHT_LIMIT;
   const hasMatchingPreview = Boolean(previewUrl && pngBlob);

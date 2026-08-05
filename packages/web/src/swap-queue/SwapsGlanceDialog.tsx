@@ -6,6 +6,7 @@ import {
   type WantSource,
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
+import { canCopyPng, copyPngBlob, downloadPngBlob } from '../lib/glance-png';
 import { apiPostSwapsGlance } from './swaps-glance-api';
 
 type Props = {
@@ -98,37 +99,26 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
 
   const onDownload = useCallback(() => {
     if (!currentBlob) return;
-    const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(currentBlob);
     const name =
       pageCount > 1
         ? `swaps-at-a-glance-${pageIndex + 1}.png`
         : 'swaps-at-a-glance.png';
-    anchor.download = name;
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
+    downloadPngBlob(currentBlob, name);
   }, [currentBlob, pageCount, pageIndex]);
 
   const onDownloadAll = useCallback(() => {
     if (pngBlobs.length <= 1) return;
     pngBlobs.forEach((blob, i) => {
-      const anchor = document.createElement('a');
-      anchor.href = URL.createObjectURL(blob);
-      anchor.download = `swaps-at-a-glance-${i + 1}.png`;
-      anchor.click();
-      URL.revokeObjectURL(anchor.href);
+      downloadPngBlob(blob, `swaps-at-a-glance-${i + 1}.png`);
     });
   }, [pngBlobs]);
 
   const onCopy = useCallback(async () => {
-    if (!currentBlob || !navigator.clipboard?.write) return;
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': currentBlob })]);
+    if (!currentBlob) return;
+    await copyPngBlob(currentBlob);
   }, [currentBlob]);
 
-  const canCopy =
-    typeof ClipboardItem !== 'undefined' &&
-    Boolean(navigator.clipboard?.write) &&
-    Boolean(currentBlob);
+  const canCopy = canCopyPng() && Boolean(currentBlob);
 
   if (!open) return null;
 
@@ -142,9 +132,9 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
       <div className="db-modal-card db-modal-wide db-glance-modal">
         <h2>Swaps at a glance</h2>
         <div className="sq-glance-options">
-          <fieldset className="sq-glance-mode">
+          <fieldset className="db-glance-mode">
             <legend>Show</legend>
-            <label className="sq-glance-option">
+            <label className="db-glance-option">
               <input
                 type="radio"
                 name="sq-glance-mode"
@@ -156,7 +146,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
               />
               Looking for (In)
             </label>
-            <label className="sq-glance-option">
+            <label className="db-glance-option">
               <input
                 type="radio"
                 name="sq-glance-mode"
@@ -169,7 +159,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
               Full swaps (Out → In)
             </label>
           </fieldset>
-          <label className="sq-glance-option">
+          <label className="db-glance-option">
             <input
               type="checkbox"
               checked={includeSeeking}

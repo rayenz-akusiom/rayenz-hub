@@ -9,11 +9,19 @@ import {
   GLANCE_CARD_HEIGHT,
   GLANCE_CARD_WIDTH,
   GLANCE_GENERATION_VERSION,
-  HEADER_HEIGHT,
-  MIN_VISIBLE_Y,
-  WATERMARK_HEIGHT,
+  GLANCE_HEADER_HEIGHT,
+  GLANCE_MIN_VISIBLE_Y,
+  GLANCE_WATERMARK_HEIGHT,
+  type DeckDocument,
 } from '@rayenz-hub/shared';
 import { buildEligibleCommanderDeck } from '../../fixtures/deck-builder/glance-eligible.ts';
+
+function planFor(deck: DeckDocument) {
+  const include = buildGlanceIncludeSet(deck);
+  expect(include.ok).toBe(true);
+  if (!include.ok) throw new Error('expected eligible include set');
+  return buildGlanceLayoutPlan(include.includeSet, deck.name);
+}
 
 describe('deck-builder glance layout', () => {
   it('is deterministic for the same include-set', () => {
@@ -32,21 +40,22 @@ describe('deck-builder glance layout', () => {
   });
 
   it('uses a fixed 1920×1080 canvas', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     expect(plan.canvasWidth).toBe(GLANCE_CANVAS_WIDTH);
     expect(plan.canvasHeight).toBe(GLANCE_CANVAS_HEIGHT);
   });
 
+  it('sets showQuantity for any card with quantity > 1', () => {
+    const plan = planFor(buildEligibleCommanderDeck());
+    for (const placement of plan.placements) {
+      expect(placement.showQuantity).toBe(placement.card.quantity > 1);
+    }
+    const forest = plan.placements.find((p) => p.card.instanceId === 'forest-stack');
+    expect(forest?.showQuantity).toBe(true);
+  });
+
   it('uses one shared card size across all regions (≤ M)', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     expect(plan.placements.length).toBeGreaterThan(0);
     const w = plan.placements[0]!.width;
     const h = plan.placements[0]!.height;
@@ -196,7 +205,7 @@ describe('deck-builder glance layout', () => {
       for (let i = 1; i < sorted.length; i++) {
         expect(sorted[i]!.x).toBe(sorted[0]!.x);
         const pitch = sorted[i]!.y - sorted[i - 1]!.y;
-        expect(pitch).toBeGreaterThanOrEqual(MIN_VISIBLE_Y);
+        expect(pitch).toBeGreaterThanOrEqual(GLANCE_MIN_VISIBLE_Y);
         expect(pitch).toBeLessThanOrEqual(sorted[0]!.height);
         expect(sorted[i]!.zIndex).toBeGreaterThan(sorted[i - 1]!.zIndex);
         colPitches.add(pitch);
@@ -267,7 +276,7 @@ describe('deck-builder glance layout', () => {
     expect(plan.placements.some((p) => p.region === 'category')).toBe(true);
     expect(plan.placements.every((p) => p.region !== 'nonland' && p.region !== 'land')).toBe(true);
     const maxBottom = Math.max(...plan.placements.map((p) => p.y + p.height));
-    expect(maxBottom + WATERMARK_HEIGHT).toBeLessThanOrEqual(plan.canvasHeight);
+    expect(maxBottom + GLANCE_WATERMARK_HEIGHT).toBeLessThanOrEqual(plan.canvasHeight);
   });
 
   it('keeps role plates and fingerprints differently across layout modes', () => {
@@ -291,8 +300,8 @@ describe('deck-builder glance layout', () => {
     if (!include.ok) return;
     const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
     const maxBottom = Math.max(...plan.placements.map((p) => p.y + p.height));
-    expect(maxBottom + WATERMARK_HEIGHT).toBeLessThanOrEqual(plan.canvasHeight);
-    expect(Math.min(...plan.placements.map((p) => p.y))).toBeGreaterThanOrEqual(HEADER_HEIGHT);
+    expect(maxBottom + GLANCE_WATERMARK_HEIGHT).toBeLessThanOrEqual(plan.canvasHeight);
+    expect(Math.min(...plan.placements.map((p) => p.y))).toBeGreaterThanOrEqual(GLANCE_HEADER_HEIGHT);
   });
 
   it('keeps each section in a contiguous column run (no disconnected orphans)', () => {
@@ -393,7 +402,7 @@ describe('deck-builder glance layout', () => {
     const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
     expect(plan.placements.length).toBeGreaterThan(0);
     // Should not collapse to near-minimum solely because section count was high.
-    expect(plan.placements[0]!.height).toBeGreaterThan(MIN_VISIBLE_Y * 2);
+    expect(plan.placements[0]!.height).toBeGreaterThan(GLANCE_MIN_VISIBLE_Y * 2);
     expect(plan.placements[0]!.height).toBeGreaterThanOrEqual(Math.round(GLANCE_CARD_HEIGHT * 0.35));
   });
 

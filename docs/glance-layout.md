@@ -105,7 +105,7 @@ flowchart TB
 
 **Source:** [`packages/shared/src/deck-builder/swap-glance/layout.ts`](../packages/shared/src/deck-builder/swap-glance/layout.ts)
 
-Named strategies: pack modes plus a progressive **densify ladder**. Card size stays fixed at M (`SWAP_GLANCE_CARD_WIDTH` / `HEIGHT`). Max pages: `SWAP_GLANCE_MAX_PAGES` (5).
+Named strategies: pack modes plus a progressive **densify ladder**. Card size stays fixed at M (`GLANCE_CARD_WIDTH` / `GLANCE_CARD_HEIGHT`). Max pages: `SWAP_GLANCE_MAX_PAGES` (5).
 
 ### Categories
 

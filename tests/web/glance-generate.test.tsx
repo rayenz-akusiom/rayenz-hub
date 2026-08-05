@@ -25,7 +25,7 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
 }));
 
-vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
+vi.mock('../../packages/web/src/deck-builder/store/deck-glance-api', () => ({
   apiPostDeckGlance: (
     deckId: string,
     request?: { lieutenantInstanceIds?: string[]; mode?: 'type_line' | 'primary_category' },

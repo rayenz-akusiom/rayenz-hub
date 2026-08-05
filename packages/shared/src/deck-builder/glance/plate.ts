@@ -50,12 +50,3 @@ export function glanceCardHeightForWidth(cardW: number): number {
 export function glanceCardWidthForHeight(cardH: number): number {
   return Math.round(cardH * GLANCE_CARD_ASPECT);
 }
-
-/** @deprecated Prefer GLANCE_HEADER_HEIGHT. */
-export const HEADER_HEIGHT = GLANCE_HEADER_HEIGHT;
-/** @deprecated Prefer GLANCE_WATERMARK_HEIGHT. */
-export const WATERMARK_HEIGHT = GLANCE_WATERMARK_HEIGHT;
-/** @deprecated Prefer GLANCE_MIN_VISIBLE_Y. */
-export const MIN_VISIBLE_Y = GLANCE_MIN_VISIBLE_Y;
-/** @deprecated Prefer GLANCE_PLATE_BACKGROUND / GLANCE_SKY_BLUE. */
-export const BACKGROUND = GLANCE_PLATE_BACKGROUND;

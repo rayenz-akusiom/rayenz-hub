@@ -18,8 +18,8 @@ import {
   GLANCE_CANVAS_HEIGHT,
   GLANCE_CANVAS_WIDTH,
   GLANCE_CARD_HEIGHT,
-  GLANCE_HEADER_HEIGHT as HEADER_HEIGHT,
-  GLANCE_WATERMARK_HEIGHT as WATERMARK_HEIGHT,
+  GLANCE_HEADER_HEIGHT,
+  GLANCE_WATERMARK_HEIGHT,
   glanceCardWidthForHeight,
   glanceMaxStackedRows,
   glanceTitlePeek,
@@ -645,8 +645,8 @@ export function buildGlanceLayoutPlan(
   const lieutenants = includeSet.lieutenants.slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
   const contentLeft = ORIGIN_X;
   const contentRight = GLANCE_CANVAS_WIDTH - ORIGIN_X;
-  const contentTop = HEADER_HEIGHT + CONTENT_MARGIN_Y;
-  const contentBottom = GLANCE_CANVAS_HEIGHT - WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
+  const contentTop = GLANCE_HEADER_HEIGHT + CONTENT_MARGIN_Y;
+  const contentBottom = GLANCE_CANVAS_HEIGHT - GLANCE_WATERMARK_HEIGHT - CONTENT_MARGIN_Y;
 
   let best: {
     cardHeight: number;

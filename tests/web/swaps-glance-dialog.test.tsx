@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DeckDocument, WantSource } from '@rayenz-hub/shared';
+import { aggregateSwapWants } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 import { SwapsGlanceDialog } from '../../packages/web/src/swap-queue/SwapsGlanceDialog';
 import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
@@ -53,56 +53,6 @@ vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
   enrichWantSourcesUsd: async (sources: unknown) => sources,
 }));
 
-function sourcesFromDeck(deck: DeckDocument): WantSource[] {
-  return [
-    {
-      deckId: deck.deckId,
-      deckName: deck.name,
-      format: deck.format,
-      kind: 'queued_in',
-      entryId: 'swap-1',
-      cardInstanceId: 'swap-in-1',
-      cardName: 'Swap In Spell',
-      mergeKey: 'swap in spell',
-      quantity: 1,
-      usd: null,
-      outInstanceId: 'spell-0',
-      inInstanceId: 'swap-in-1',
-      pairIncomplete: false,
-    },
-    {
-      deckId: deck.deckId,
-      deckName: deck.name,
-      format: deck.format,
-      kind: 'queued_out',
-      entryId: 'swap-1',
-      cardInstanceId: 'spell-0',
-      cardName: 'Spell 0',
-      mergeKey: 'spell 0',
-      quantity: 1,
-      usd: null,
-      outInstanceId: 'spell-0',
-      inInstanceId: 'swap-in-1',
-      pairIncomplete: false,
-    },
-    {
-      deckId: deck.deckId,
-      deckName: deck.name,
-      format: deck.format,
-      kind: 'seeking',
-      entryId: 'seek-1',
-      cardInstanceId: 'spell-1',
-      cardName: 'Spell 1',
-      mergeKey: 'spell 1',
-      quantity: 1,
-      usd: null,
-      outInstanceId: null,
-      inInstanceId: null,
-      pairIncomplete: false,
-    },
-  ];
-}
-
 afterEach(() => {
   cleanup();
   apiConfigured.value = true;
@@ -117,7 +67,7 @@ describe('Swaps at a glance dialog', () => {
     });
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],
-      sources: sourcesFromDeck(deck),
+      sources: aggregateSwapWants([deck]),
     });
     vi.stubGlobal('URL', {
       ...URL,
@@ -170,7 +120,7 @@ describe('Swaps at a glance dialog', () => {
   it('posts setCodes when provided', async () => {
     const user = userEvent.setup();
     const deck = buildGlanceSwapCommanderDeck({ deckId: 'sq-glance-sets' });
-    const sources = sourcesFromDeck(deck).filter((s) => s.kind === 'queued_in');
+    const sources = aggregateSwapWants([deck]).filter((s) => s.kind === 'queued_in');
     render(
       <SwapsGlanceDialog
         open
@@ -211,7 +161,7 @@ describe('Swaps at a glance dialog', () => {
 
     const user = userEvent.setup();
     const deck = buildGlanceSwapCommanderDeck({ deckId: 'sq-glance-multi' });
-    const sources = sourcesFromDeck(deck).filter((s) => s.kind === 'queued_in');
+    const sources = aggregateSwapWants([deck]).filter((s) => s.kind === 'queued_in');
     render(<SwapsGlanceDialog open sources={sources} onClose={() => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Generate' }));

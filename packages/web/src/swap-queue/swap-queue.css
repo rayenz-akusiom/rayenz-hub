@@ -361,32 +361,6 @@
   margin: 0 0 0.75rem;
 }
 
-.sq-glance-mode {
-  margin: 0;
-  padding: 0;
-  border: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  align-items: center;
-}
-
-.sq-glance-mode legend {
-  padding: 0;
-  margin: 0 0.75rem 0 0;
-  font-weight: 600;
-  float: left;
-  width: auto;
-}
-
-.sq-glance-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
 .sq-glance-carousel {
   display: flex;
   align-items: center;

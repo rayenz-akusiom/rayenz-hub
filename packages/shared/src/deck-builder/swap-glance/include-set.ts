@@ -2,7 +2,6 @@ import type { CardInstance, DeckDocument } from '../../schemas/deck-builder.js';
 import { cardDisplayName, getOracle, resolveCardView } from '../card-oracle.js';
 import { collectCommanders, pickCommanderPair } from '../partner.js';
 import { toGlanceCard } from '../glance/card-from-instance.js';
-import type { GlanceCard } from '../glance/types.js';
 import type {
   BuildSwapGlanceOptions,
   SwapGlanceCard,
@@ -192,20 +191,4 @@ export function buildSwapGlanceIncludeSet(
     ok: true,
     includeSet: { mode, includeSeeking, filterSetCodes, sections },
   };
-}
-
-/** Flatten all glance cards in an include set (for art enrichment). */
-export function listSwapGlanceCards(includeSet: SwapGlanceIncludeSet): GlanceCard[] {
-  const out: GlanceCard[] = [];
-  for (const section of includeSet.sections) {
-    for (const row of section.rows) {
-      if (row.kind === 'pair') {
-        if (row.out) out.push(row.out);
-        if (row.in) out.push(row.in);
-      } else {
-        out.push(row.card);
-      }
-    }
-  }
-  return out;
 }

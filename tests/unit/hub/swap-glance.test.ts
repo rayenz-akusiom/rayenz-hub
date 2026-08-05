@@ -7,19 +7,86 @@ import {
   countSwapGlanceItems,
   PAIR_INNER_GAP,
   selectSwapGlanceItems,
-  SWAP_GLANCE_CANVAS_HEIGHT,
-  SWAP_GLANCE_CANVAS_WIDTH,
-  SWAP_GLANCE_CARD_WIDTH,
+  GLANCE_CANVAS_HEIGHT,
+  GLANCE_CANVAS_WIDTH,
+  GLANCE_CARD_WIDTH,
   SWAP_GLANCE_GENERATION_VERSION,
   swapGlanceFingerprint,
   swapGlanceHeaderText,
   type DeckDocument,
+  type SwapGlanceCard,
   type SwapGlanceIncludeSet,
 } from '@rayenz-hub/shared';
 import {
   buildEligibleCommanderDeck,
   buildGlanceSwapCommanderDeck,
 } from '../../fixtures/deck-builder/glance-eligible.ts';
+
+function glanceFace(partial: Partial<SwapGlanceCard> & Pick<SwapGlanceCard, 'instanceId' | 'name'>): SwapGlanceCard {
+  return {
+    setCode: 'MH3',
+    collectorNumber: '1',
+    typeLine: 'Creature',
+    colours: [],
+    colourIdentity: [],
+    primaryCategory: null,
+    quantity: 1,
+    imageUrl: null,
+    isBasicLand: false,
+    isLand: false,
+    ...partial,
+  };
+}
+
+function singleSection(
+  deckId: string,
+  deckName: string,
+  headerText: string,
+  cards: Array<{ entryId: string; sourceKind: 'seeking' | 'queued_in'; card: SwapGlanceCard }>,
+): SwapGlanceIncludeSet['sections'][number] {
+  return {
+    deckId,
+    deckName,
+    headerText,
+    rows: cards.map((c) => ({
+      kind: 'single' as const,
+      entryId: c.entryId,
+      sourceKind: c.sourceKind,
+      card: c.card,
+    })),
+  };
+}
+
+function pairSection(
+  deckId: string,
+  deckName: string,
+  headerText: string,
+  pairs: Array<{ entryId: string; out: SwapGlanceCard | null; in: SwapGlanceCard | null }>,
+): SwapGlanceIncludeSet['sections'][number] {
+  return {
+    deckId,
+    deckName,
+    headerText,
+    rows: pairs.map((p) => ({
+      kind: 'pair' as const,
+      entryId: p.entryId,
+      out: p.out,
+      in: p.in,
+    })),
+  };
+}
+
+function includeFromSections(
+  sections: SwapGlanceIncludeSet['sections'],
+  opts: Partial<Pick<SwapGlanceIncludeSet, 'mode' | 'includeSeeking' | 'filterSetCodes'>> = {},
+): SwapGlanceIncludeSet {
+  return {
+    mode: opts.mode ?? 'in_only',
+    includeSeeking: opts.includeSeeking ?? true,
+    filterSetCodes: opts.filterSetCodes ?? [],
+    sections,
+  };
+}
 
 function withSeeking(deck: DeckDocument, instanceId: string, entryId = 'seek-1'): DeckDocument {
   return {
@@ -132,8 +199,8 @@ describe('swap glance include-set + layout', () => {
 
     const a = buildSwapGlanceLayoutPlan(include.includeSet);
     const b = buildSwapGlanceLayoutPlan(include.includeSet);
-    expect(a.canvasWidth).toBe(SWAP_GLANCE_CANVAS_WIDTH);
-    expect(a.canvasHeight).toBe(SWAP_GLANCE_CANVAS_HEIGHT);
+    expect(a.canvasWidth).toBe(GLANCE_CANVAS_WIDTH);
+    expect(a.canvasHeight).toBe(GLANCE_CANVAS_HEIGHT);
     expect(a.layoutVersion).toBe(SWAP_GLANCE_GENERATION_VERSION);
     expect(a.fingerprint).toBe(b.fingerprint);
     expect(a.placements).toEqual(b.placements);
@@ -232,43 +299,28 @@ describe('swap glance include-set + layout', () => {
 
   it('masonry packs many single-row decks without omitting', () => {
     const sectionCount = 16;
-    const includeSet: SwapGlanceIncludeSet = {
-      mode: 'in_only',
-      includeSeeking: false,
-      filterSetCodes: [],
-      sections: Array.from({ length: sectionCount }, (_, i) => ({
-        deckId: `deck-${i}`,
-        deckName: `Deck ${i}`,
-        headerText: `Deck ${i}`,
-        rows: [
+    const includeSet = includeFromSections(
+      Array.from({ length: sectionCount }, (_, i) =>
+        singleSection(`deck-${i}`, `Deck ${i}`, `Deck ${i}`, [
           {
-            kind: 'single',
             entryId: `in-${i}`,
             sourceKind: 'queued_in',
-            card: {
+            card: glanceFace({
               instanceId: `card-${i}`,
               name: `Card ${i}`,
-              setCode: 'MH3',
               collectorNumber: String(i + 1),
-              typeLine: 'Creature',
-              colours: [],
-              colourIdentity: [],
-              primaryCategory: null,
-              quantity: 1,
-              imageUrl: null,
-              isBasicLand: false,
-              isLand: false,
-            },
+            }),
           },
-        ],
-      })),
-    };
+        ]),
+      ),
+      { includeSeeking: false },
+    );
 
     const result = buildSwapGlanceLayoutPlans(includeSet);
     const placed = result.plans.reduce((n, p) => n + p.placements.length, 0);
     expect(placed).toBe(sectionCount);
     expect(result.omittedCardCount).toBe(0);
-    expect(result.plans.every((p) => p.placements.every((c) => c.width === SWAP_GLANCE_CARD_WIDTH))).toBe(
+    expect(result.plans.every((p) => p.placements.every((c) => c.width === GLANCE_CARD_WIDTH))).toBe(
       true,
     );
     expect(result.plans.some((p) => p.labels.some((l) => l.role === 'more' && /more decks/.test(l.text)))).toBe(
@@ -278,35 +330,25 @@ describe('swap glance include-set + layout', () => {
 
   it('masonry fits 10 decks with 16 looking-for cards at fixed M size', () => {
     const cardCounts = [2, 2, 2, 2, 2, 2, 1, 1, 1, 1]; // 16 cards, 10 decks
-    const includeSet: SwapGlanceIncludeSet = {
-      mode: 'in_only',
-      includeSeeking: false,
-      filterSetCodes: [],
-      sections: cardCounts.map((count, i) => ({
-        deckId: `deck-${i}`,
-        deckName: `Deck ${i}`,
-        headerText: `Deck ${i}`,
-        rows: Array.from({ length: count }, (_, j) => ({
-          kind: 'single' as const,
-          entryId: `in-${i}-${j}`,
-          sourceKind: 'queued_in' as const,
-          card: {
-            instanceId: `card-${i}-${j}`,
-            name: `Card ${i}-${j}`,
-            setCode: 'MH3',
-            collectorNumber: `${i}${j}`,
-            typeLine: 'Creature',
-            colours: [],
-            colourIdentity: [],
-            primaryCategory: null,
-            quantity: 1,
-            imageUrl: null,
-            isBasicLand: false,
-            isLand: false,
-          },
-        })),
-      })),
-    };
+    const includeSet = includeFromSections(
+      cardCounts.map((count, i) =>
+        singleSection(
+          `deck-${i}`,
+          `Deck ${i}`,
+          `Deck ${i}`,
+          Array.from({ length: count }, (_, j) => ({
+            entryId: `in-${i}-${j}`,
+            sourceKind: 'queued_in' as const,
+            card: glanceFace({
+              instanceId: `card-${i}-${j}`,
+              name: `Card ${i}-${j}`,
+              collectorNumber: `${i}${j}`,
+            }),
+          })),
+        ),
+      ),
+      { includeSeeking: false },
+    );
 
     const result = buildSwapGlanceLayoutPlans(includeSet);
     const placed = result.plans.reduce((n, p) => n + p.placements.length, 0);
@@ -315,73 +357,44 @@ describe('swap glance include-set + layout', () => {
     expect(result.pageCount).toBeGreaterThanOrEqual(1);
     expect(result.pageCount).toBeLessThanOrEqual(5);
     for (const plan of result.plans) {
-      expect(plan.placements.every((p) => p.width === SWAP_GLANCE_CARD_WIDTH)).toBe(true);
-      expect(plan.placements.every((p) => p.height === Math.round(SWAP_GLANCE_CARD_WIDTH / (61 / 85)))).toBe(
+      expect(plan.placements.every((p) => p.width === GLANCE_CARD_WIDTH)).toBe(true);
+      expect(plan.placements.every((p) => p.height === Math.round(GLANCE_CARD_WIDTH / (61 / 85)))).toBe(
         true,
       );
     }
   });
 
   it('groups seeking onto later pages after formal content', () => {
-    const formalSections = Array.from({ length: 12 }, (_, i) => ({
-      deckId: `formal-${i}`,
-      deckName: `Formal ${i}`,
-      headerText: `Formal ${i}`,
-      rows: [
+    const formalSections = Array.from({ length: 12 }, (_, i) =>
+      singleSection(`formal-${i}`, `Formal ${i}`, `Formal ${i}`, [
         {
-          kind: 'single' as const,
           entryId: `in-${i}`,
-          sourceKind: 'queued_in' as const,
-          card: {
+          sourceKind: 'queued_in',
+          card: glanceFace({
             instanceId: `f-${i}`,
             name: `Formal Card ${i}`,
-            setCode: 'MH3',
             collectorNumber: String(i),
-            typeLine: 'Creature',
-            colours: [],
-            colourIdentity: [],
-            primaryCategory: null,
-            quantity: 1,
-            imageUrl: null,
-            isBasicLand: false,
-            isLand: false,
-          },
+          }),
         },
-      ],
-    }));
-    const seekingSections = Array.from({ length: 12 }, (_, i) => ({
-      deckId: `seek-${i}`,
-      deckName: `Seek ${i}`,
-      headerText: `Seek ${i}`,
-      rows: [
+      ]),
+    );
+    const seekingSections = Array.from({ length: 12 }, (_, i) =>
+      singleSection(`seek-${i}`, `Seek ${i}`, `Seek ${i}`, [
         {
-          kind: 'single' as const,
           entryId: `seek-${i}`,
-          sourceKind: 'seeking' as const,
-          card: {
+          sourceKind: 'seeking',
+          card: glanceFace({
             instanceId: `s-${i}`,
             name: `Seek Card ${i}`,
-            setCode: 'MH3',
             collectorNumber: String(i + 100),
-            typeLine: 'Creature',
-            colours: [],
-            colourIdentity: [],
-            primaryCategory: null,
-            quantity: 1,
-            imageUrl: null,
-            isBasicLand: false,
-            isLand: false,
-          },
+          }),
         },
-      ],
-    }));
+      ]),
+    );
     // Merge by deck so include set has both kinds — alternate by concatenating sections
-    const includeSet: SwapGlanceIncludeSet = {
-      mode: 'in_only',
+    const includeSet = includeFromSections([...formalSections, ...seekingSections], {
       includeSeeking: true,
-      filterSetCodes: [],
-      sections: [...formalSections, ...seekingSections],
-    };
+    });
 
     const result = buildSwapGlanceLayoutPlans(includeSet);
     expect(result.pageCount).toBeGreaterThan(1);
@@ -403,52 +416,25 @@ describe('swap glance include-set + layout', () => {
 
   it('converts full pairs to looking-for when densifying', () => {
     // Many full pairs that cannot fit as Out→In at M across 5 pages without densify
-    const sections = Array.from({ length: 40 }, (_, i) => ({
-      deckId: `deck-${i}`,
-      deckName: `Deck ${i}`,
-      headerText: `Deck ${i}`,
-      rows: [
+    const sections = Array.from({ length: 40 }, (_, i) =>
+      pairSection(`deck-${i}`, `Deck ${i}`, `Deck ${i}`, [
         {
-          kind: 'pair' as const,
           entryId: `swap-${i}`,
-          out: {
+          out: glanceFace({
             instanceId: `out-${i}`,
             name: `Out ${i}`,
-            setCode: 'MH3',
             collectorNumber: String(i),
-            typeLine: 'Creature',
-            colours: [],
-            colourIdentity: [],
-            primaryCategory: null,
-            quantity: 1,
-            imageUrl: null,
-            isBasicLand: false,
-            isLand: false,
             proxy: false,
-          },
-          in: {
+          }),
+          in: glanceFace({
             instanceId: `in-${i}`,
             name: `In ${i}`,
-            setCode: 'MH3',
             collectorNumber: String(i + 50),
-            typeLine: 'Creature',
-            colours: [],
-            colourIdentity: [],
-            primaryCategory: null,
-            quantity: 1,
-            imageUrl: null,
-            isBasicLand: false,
-            isLand: false,
-          },
+          }),
         },
-      ],
-    }));
-    const includeSet: SwapGlanceIncludeSet = {
-      mode: 'full',
-      includeSeeking: false,
-      filterSetCodes: [],
-      sections,
-    };
+      ]),
+    );
+    const includeSet = includeFromSections(sections, { mode: 'full', includeSeeking: false });
 
     const result = buildSwapGlanceLayoutPlans(includeSet);
     expect(result.pageCount).toBeLessThanOrEqual(5);
@@ -466,7 +452,7 @@ describe('swap glance include-set + layout', () => {
       expect(allConnectors).toBe(0);
       expect(outFaces).toBe(0);
     }
-    expect(result.plans.every((p) => p.placements.every((c) => c.width === SWAP_GLANCE_CARD_WIDTH))).toBe(
+    expect(result.plans.every((p) => p.placements.every((c) => c.width === GLANCE_CARD_WIDTH))).toBe(
       true,
     );
     // Pair columns must be wide enough — no colliding faces across masonry columns.
@@ -489,36 +475,23 @@ describe('swap glance include-set + layout', () => {
   });
 
   it('titles multi-page plates with page index', () => {
-    const sections = Array.from({ length: 30 }, (_, i) => ({
-      deckId: `deck-${i}`,
-      deckName: `Deck ${i}`,
-      headerText: `Deck ${i}`,
-      rows: Array.from({ length: 3 }, (_, j) => ({
-        kind: 'single' as const,
-        entryId: `in-${i}-${j}`,
-        sourceKind: 'queued_in' as const,
-        card: {
-          instanceId: `card-${i}-${j}`,
-          name: `Card ${i}-${j}`,
-          setCode: 'MH3',
-          collectorNumber: `${i}${j}`,
-          typeLine: 'Creature',
-          colours: [],
-          colourIdentity: [],
-          primaryCategory: null,
-          quantity: 1,
-          imageUrl: null,
-          isBasicLand: false,
-          isLand: false,
-        },
-      })),
-    }));
-    const includeSet: SwapGlanceIncludeSet = {
-      mode: 'in_only',
-      includeSeeking: false,
-      filterSetCodes: [],
-      sections,
-    };
+    const sections = Array.from({ length: 30 }, (_, i) =>
+      singleSection(
+        `deck-${i}`,
+        `Deck ${i}`,
+        `Deck ${i}`,
+        Array.from({ length: 3 }, (_, j) => ({
+          entryId: `in-${i}-${j}`,
+          sourceKind: 'queued_in' as const,
+          card: glanceFace({
+            instanceId: `card-${i}-${j}`,
+            name: `Card ${i}-${j}`,
+            collectorNumber: `${i}${j}`,
+          }),
+        })),
+      ),
+    );
+    const includeSet = includeFromSections(sections, { includeSeeking: false });
     const result = buildSwapGlanceLayoutPlans(includeSet);
     expect(result.pageCount).toBeGreaterThan(1);
     for (let i = 0; i < result.plans.length; i++) {

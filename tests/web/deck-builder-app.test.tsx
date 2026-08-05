@@ -186,6 +186,72 @@ describe('CommanderBuilderApp', () => {
     expect(screen.queryByText('Vintage Cube')).not.toBeInTheDocument();
     expect(screen.queryByText(SAMPLE_COMMANDER_DECK_NAME)).not.toBeInTheDocument();
     expect(screen.queryByText(/No Commander decks saved/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Owned' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Theory' })).toBeInTheDocument();
+  });
+
+  it('splits Owned and Theory swimlanes and marks Theory via context menu', async () => {
+    const theoryDoc = { ...commanderDoc, deckId: 'theory-1', name: 'Theory Brew', ownership: 'theory' as const };
+    const ownedSummary = toDeckSummary(commanderDoc);
+    const theorySummary = toDeckSummary(theoryDoc);
+    listDecks.mockResolvedValue([ownedSummary, theorySummary]);
+    readLibraryIndex.mockReturnValue([ownedSummary, theorySummary]);
+    getDeck.mockImplementation(async (id) => {
+      if (id === theoryDoc.deckId) return theoryDoc;
+      if (id === commanderDoc.deckId) return commanderDoc;
+      return null;
+    });
+    saveDeck.mockImplementation(async (doc) => doc);
+
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Theory Brew', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+
+    const ownedLane = screen.getByRole('region', { name: 'Owned' });
+    const theoryLane = screen.getByRole('region', { name: 'Theory' });
+    expect(
+      within(ownedLane).getByText('Fixture Commander', { selector: '.db-library-tile-name' }),
+    ).toBeInTheDocument();
+    expect(
+      within(theoryLane).getByText('Theory Brew', { selector: '.db-library-tile-name' }),
+    ).toBeInTheDocument();
+
+    const ownedTile = within(ownedLane)
+      .getByText('Fixture Commander', { selector: '.db-library-tile-name' })
+      .closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: ownedTile });
+    await user.click(screen.getByRole('menuitem', { name: 'Mark as Theory' }));
+
+    await waitFor(() => {
+      expect(saveDeck).toHaveBeenCalledWith(
+        expect.objectContaining({ deckId: commanderDoc.deckId, ownership: 'theory' }),
+      );
+    });
+  });
+
+  it('shows Theory read-only swap notice when opening a Theory deck', async () => {
+    const theoryDoc = { ...commanderDoc, ownership: 'theory' as const };
+    const theorySummary = toDeckSummary(theoryDoc);
+    listDecks.mockResolvedValue([theorySummary]);
+    readLibraryIndex.mockReturnValue([theorySummary]);
+    getDeck.mockResolvedValue(theoryDoc);
+
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Theory deck — swap queue is view-only/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
   });
 
   it('shows library error when listDecks fails', async () => {

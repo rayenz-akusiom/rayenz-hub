@@ -178,4 +178,11 @@ describe('applyDeckPatch', () => {
     expect(next.coverInstanceId).toBe('c1');
     expect(next.oracle['name:Sol Ring']?.typeLine).toBe('Artifact');
   });
+
+  it('applies ownership patch', () => {
+    const deck = baseDeck();
+    expect(deck.ownership).toBe('owned');
+    const next = applyDeckPatch(deck, { ownership: 'theory' });
+    expect(next.ownership).toBe('theory');
+  });
 });

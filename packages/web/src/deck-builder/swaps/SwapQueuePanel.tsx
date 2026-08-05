@@ -42,6 +42,7 @@ function SwapPairButton({
   incompleteEntry,
   isEditing,
   onStartEdit,
+  readOnly = false,
 }: {
   entry: FormalSwapEntry;
   outCard: CardView | null;
@@ -49,6 +50,7 @@ function SwapPairButton({
   incompleteEntry: boolean;
   isEditing: boolean;
   onStartEdit: (entry: FormalSwapEntry) => void;
+  readOnly?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
@@ -90,8 +92,12 @@ function SwapPairButton({
       <button
         ref={triggerRef}
         type="button"
-        className={`db-swap-pair${incompleteEntry ? ' is-draft' : ''}${isEditing ? ' is-editing' : ''}`}
-        onClick={() => onStartEdit(entry)}
+        className={`db-swap-pair${incompleteEntry ? ' is-draft' : ''}${isEditing ? ' is-editing' : ''}${readOnly ? ' is-readonly' : ''}`}
+        onClick={() => {
+          if (readOnly) return;
+          onStartEdit(entry);
+        }}
+        disabled={readOnly}
         onDragStart={blockDrag}
         onMouseEnter={() => {
           if (popoutEligible) setHover(true);
@@ -101,7 +107,7 @@ function SwapPairButton({
           if (popoutEligible) setHover(true);
         }}
         onBlur={() => setHover(false)}
-        title="Click to edit swap"
+        title={readOnly ? 'Theory deck — view only' : 'Click to edit swap'}
       >
         <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
         {entry.inTargetCategory ? (
@@ -139,6 +145,7 @@ export function SwapQueuePanel({
   onRemoveEdit,
   onFinalizeEdit,
   setMembership = null,
+  readOnly = false,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
@@ -151,6 +158,8 @@ export function SwapQueuePanel({
   onFinalizeEdit?: () => void;
   /** Scryfall set membership (`in:`/`set:`); pairs show when either side matches. */
   setMembership?: ReadonlySet<string> | null;
+  /** Theory decks: queue visible but not editable. */
+  readOnly?: boolean;
 }) {
   const allEntries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
@@ -168,6 +177,7 @@ export function SwapQueuePanel({
   const filteredOut = allEntries.length > 0 && entries.length === 0;
 
   function updateEntries(next: FormalSwapEntry[]) {
+    if (readOnly) return;
     onChange(syncCardsWithFormalSwaps(deck, next));
   }
 
@@ -177,26 +187,33 @@ export function SwapQueuePanel({
   } as CSSProperties;
 
   return (
-    <div className="db-swaps" style={panelStyle}>
+    <div className={`db-swaps${readOnly ? ' is-readonly' : ''}`} style={panelStyle}>
       <div className="db-swaps-header">
         <h3>Swap queue</h3>
-        <button
-          type="button"
-          className="db-btn"
-          onClick={() =>
-            updateEntries([...allEntries, newFormalSwapEntry(allEntries.length)])
-          }
-        >
-          Add
-        </button>
+        {!readOnly ? (
+          <button
+            type="button"
+            className="db-btn"
+            onClick={() =>
+              updateEntries([...allEntries, newFormalSwapEntry(allEntries.length)])
+            }
+          >
+            Add
+          </button>
+        ) : null}
       </div>
+      {readOnly ? (
+        <p className="db-theory-queue-notice" role="status">
+          Theory deck — swap queue is view-only (no acquire or trade pipeline).
+        </p>
+      ) : null}
       {incomplete ? <p className="db-warn">{incomplete} incomplete pairing(s)</p> : null}
       <ul className="db-swap-visual-list">
         {entries.map((entry) => {
           const incompleteEntry = !entry.inInstanceId || !entry.outInstanceId;
           const inCard = entry.inInstanceId ? byId.get(entry.inInstanceId) || null : null;
           const outCard = entry.outInstanceId ? byId.get(entry.outInstanceId) || null : null;
-          const isEditing = draft?.entryId === entry.id;
+          const isEditing = !readOnly && draft?.entryId === entry.id;
           return (
             <li key={entry.id}>
               <SwapPairButton
@@ -205,7 +222,8 @@ export function SwapQueuePanel({
                 inCard={inCard}
                 incompleteEntry={incompleteEntry}
                 isEditing={isEditing}
-                onStartEdit={onStartEdit}
+                onStartEdit={readOnly ? () => {} : onStartEdit}
+                readOnly={readOnly}
               />
             </li>
           );
@@ -217,7 +235,7 @@ export function SwapQueuePanel({
         <p className="db-empty">No swap pairings yet.</p>
       ) : null}
 
-      {draft ? (
+      {!readOnly && draft ? (
         <SwapEditChrome
           deck={deck}
           draft={draft}

@@ -133,6 +133,7 @@ describe('mcp summarize + helpers', () => {
     });
     expect(summary.commanders).toContain("Atraxa, Praetors' Voice");
     expect(summary.colourIdentity).toEqual(['W', 'U', 'B', 'G']);
+    expect(summary.ownership).toBe('owned');
     expect(summary.proxyCount).toBe(1);
     expect(summary.formalSwaps.total).toBe(2);
     expect(summary.formalSwaps.complete).toBe(1);

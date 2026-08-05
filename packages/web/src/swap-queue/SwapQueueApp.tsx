@@ -5,6 +5,7 @@ import {
   filterAcquireSources,
   filterWantSources,
   finalizeFormalSwap,
+  isTheoryDeck,
   isValidSwapInTargetCategory,
   newFormalSwapEntry,
   partitionWantSourcesBySwimlane,
@@ -322,12 +323,14 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
   const libraryDeckOptions = useMemo((): DeckFilterOption[] => {
     return [...decks]
+      .filter((d) => !isTheoryDeck(d))
       .map((d) => ({ deckId: d.deckId, deckName: d.name }))
       .sort((a, b) => a.deckName.localeCompare(b.deckName));
   }, [decks]);
 
   const libraryDeckSummaries = useMemo((): DeckSummary[] => {
     return [...decks]
+      .filter((d) => !isTheoryDeck(d))
       .map((d) => toDeckSummary(d))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [decks]);
@@ -410,7 +413,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     window.clearTimeout(autosaveTimerRef.current);
     setInterstitial(null);
     const deck = findDeck(decksRef.current, source.deckId);
-    if (!deck) return;
+    if (!deck || isTheoryDeck(deck)) return;
     setEditing(source);
     setEditingDeck(deck);
     setPairOriginDeckId(deck.deckId);
@@ -648,7 +651,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
   async function createEmptySwap(deckId: string) {
     const deck = findDeck(decksRef.current, deckId);
-    if (!deck) return;
+    if (!deck || isTheoryDeck(deck)) return;
     const entry = newFormalSwapEntry(deck.formalSwapEntries.length);
     const next = syncCardsWithFormalSwaps(deck, [...deck.formalSwapEntries, entry]);
     const saved = await persistDeck(next, { closeEdit: false });

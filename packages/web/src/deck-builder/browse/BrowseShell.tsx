@@ -42,11 +42,13 @@ import {
   syncCardsWithFormalSwaps,
   finalizeFormalSwap,
   upsertOracle,
+  isTheoryDeck,
   type BrowseView,
   type CardView,
   type CardLayout,
   type CardSortMode,
   type DeckDocument,
+  type DeckOwnership,
   type PrintingFields,
   type ScryfallCard,
 } from '@rayenz-hub/shared';
@@ -196,6 +198,7 @@ export function BrowseShell({
 
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
+  const queuesReadOnly = isTheoryDeck(deck);
 
   const deckRef = useRef(deck);
   const draftRef = useRef(draft);
@@ -426,17 +429,22 @@ export function BrowseShell({
   }
 
   function onAddToSwapQueue() {
-    if (!selectionCount) return;
+    if (queuesReadOnly || !selectionCount) return;
     commit(queueCardsAsOut(deckRef.current, selectionIdList));
   }
 
   function onMarkSeekingInDeck() {
-    if (!selectionCount) return;
+    if (queuesReadOnly || !selectionCount) return;
     commit(markCardsSeekingSecondary(deckRef.current, selectionIdList));
   }
 
   function onMarkMainDeckSeeking() {
+    if (queuesReadOnly) return;
     commit(markMainDeckSeekingSecondary(deckRef.current));
+  }
+
+  function onSetOwnership(ownership: DeckOwnership) {
+    commitPatch({ ownership });
   }
 
   function setViewAndPersist(next: BrowseView) {
@@ -780,10 +788,10 @@ export function BrowseShell({
                   ) : null}
                   <DbMenuItem onSelect={() => setMoveOpen(true)}>Move…</DbMenuItem>
                   <DbMenuItem onSelect={onMoveToDefault}>Move to default</DbMenuItem>
-                  <DbMenuItem onSelect={onAddToSwapQueue}>
+                  <DbMenuItem onSelect={onAddToSwapQueue} disabled={queuesReadOnly}>
                     {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
                   </DbMenuItem>
-                  <DbMenuItem onSelect={onMarkSeekingInDeck}>
+                  <DbMenuItem onSelect={onMarkSeekingInDeck} disabled={queuesReadOnly}>
                     {multi
                       ? `Mark ${selectionCount} Seeking (in deck)`
                       : 'Mark Seeking (in deck)'}
@@ -817,6 +825,7 @@ export function BrowseShell({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
+              onSetOwnership={onSetOwnership}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -831,6 +840,7 @@ export function BrowseShell({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
+              onSetOwnership={onSetOwnership}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -874,6 +884,7 @@ export function BrowseShell({
             <SwapQueuePanel
               deck={deck}
               setMembership={setFilter.active ? setFilter.membership : null}
+              readOnly={queuesReadOnly}
               onChange={(next) => {
                 commit(syncCardsWithFormalSwaps(deckRef.current, next.formalSwapEntries));
               }}
@@ -901,6 +912,7 @@ export function BrowseShell({
               onEditCategory={(cat) => setEditingCategory(cat)}
               onMarkMainDeckSeeking={onMarkMainDeckSeeking}
               onVisibleOrderChange={onAsideVisibleOrderChange}
+              queuesReadOnly={queuesReadOnly}
               mode="aside"
               browseView={isCategoryBrowseView(view) ? view : 'category'}
             />
@@ -1028,8 +1040,8 @@ export function BrowseShell({
           onClearCover={onClearCover}
           onMove={() => setMoveOpen(true)}
           onMoveToDefault={onMoveToDefault}
-          onAddToSwapQueue={onAddToSwapQueue}
-          onMarkSeekingInDeck={onMarkSeekingInDeck}
+          onAddToSwapQueue={queuesReadOnly ? undefined : onAddToSwapQueue}
+          onMarkSeekingInDeck={queuesReadOnly ? undefined : onMarkSeekingInDeck}
           onChangePrinting={() => setPrintingOpen(true)}
           onRemove={onRemoveSelected}
           onRemoveSecondary={(category) => {

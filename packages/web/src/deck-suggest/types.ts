@@ -51,6 +51,8 @@ export type DeckRecord = {
   deck_name: string;
   archidekt_url?: string;
   format?: string;
+  /** Hub ownership; theory decks skip swap-queue rules. */
+  ownership?: 'owned' | 'theory';
   profile?: DeckProfile;
   profile_preferences?: { protected_cards: string[]; blocked_cards: string[] };
   deck_snapshot?: {

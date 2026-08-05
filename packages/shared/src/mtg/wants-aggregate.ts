@@ -1,4 +1,4 @@
-import type { CardInstance, DeckDocument } from '../schemas/deck-builder.js';
+import { isTheoryDeck, type CardInstance, type DeckDocument } from '../schemas/deck-builder.js';
 import { cardDisplayName, getOracle, resolveCardView } from '../deck-builder/card-oracle.js';
 
 export type WantSourceKind = 'seeking' | 'queued_in' | 'queued_out';
@@ -103,6 +103,8 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
 
   for (const deck of decks || []) {
     if (deck.format !== 'commander' && deck.format !== 'cube') continue;
+    // Theory decks are speculative — queues are not acquire/trade intent.
+    if (isTheoryDeck(deck)) continue;
     const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));
 
     for (const entry of deck.formalSwapEntries || []) {

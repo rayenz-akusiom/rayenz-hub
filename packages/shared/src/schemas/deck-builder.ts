@@ -10,6 +10,10 @@ import {
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
+/** Physical collection vs speculative list (no acquire/trade pipeline). */
+export const DeckOwnershipSchema = z.enum(['owned', 'theory']);
+export type DeckOwnership = z.infer<typeof DeckOwnershipSchema>;
+
 export const BrowseViewSchema = z.enum([
   'category',
   'category_custom',
@@ -110,6 +114,8 @@ const DeckDocumentObjectSchema = z.object({
   deckId: z.string().min(1),
   name: z.string().min(1),
   format: DeckFormatSchema,
+  /** Owned = physical; Theory = speculative (default owned for legacy docs). */
+  ownership: DeckOwnershipSchema.optional().default('owned'),
   archidektId: z.number().nullable().default(null),
   archidektUrl: z.string().nullable().default(null),
   categories: z.array(CategoryDefSchema).default([]),
@@ -141,6 +147,7 @@ export const DeckSummarySchema = z.object({
   deckId: z.string(),
   name: z.string(),
   format: DeckFormatSchema,
+  ownership: DeckOwnershipSchema.optional().default('owned'),
   updatedAt: z.string(),
   archidektId: z.number().nullable().default(null),
   /** Scryfall image URL for library cover (commander, or first card for cubes). */
@@ -154,12 +161,26 @@ export const DeckSummarySchema = z.object({
 });
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
 
+/** Normalize ownership; missing/legacy → owned. */
+export function deckOwnership(
+  doc: Pick<DeckDocument, 'ownership'> | Pick<DeckSummary, 'ownership'> | null | undefined,
+): DeckOwnership {
+  return doc?.ownership === 'theory' ? 'theory' : 'owned';
+}
+
+export function isTheoryDeck(
+  doc: Pick<DeckDocument, 'ownership'> | Pick<DeckSummary, 'ownership'> | null | undefined,
+): boolean {
+  return deckOwnership(doc) === 'theory';
+}
+
 export function toDeckSummary(doc: DeckDocument): DeckSummary {
   const coverCard = pickDeckCoverCard(doc);
   return {
     deckId: doc.deckId,
     name: doc.name,
     format: doc.format,
+    ownership: deckOwnership(doc),
     updatedAt: doc.updatedAt,
     archidektId: doc.archidektId ?? null,
     coverImageUrl: deckCoverImageUrl(doc),

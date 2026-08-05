@@ -14,6 +14,8 @@ export type DeckSummaryForAgent = {
   deckId: string;
   name: string;
   format: DeckDocument['format'];
+  /** owned = physical; theory = speculative (no acquire/trade / cascade). */
+  ownership: 'owned' | 'theory';
   archidektId: number | null;
   archidektUrl: string | null;
   cardCount: number;
@@ -109,6 +111,7 @@ export function summarizeDeck(
     deckId: deck.deckId,
     name: deck.name,
     format: deck.format,
+    ownership: deck.ownership === 'theory' ? 'theory' : 'owned',
     archidektId: deck.archidektId ?? null,
     archidektUrl: deck.archidektUrl ?? null,
     cardCount: (deck.cards || []).reduce(
@@ -134,6 +137,7 @@ export function listSwapsResolved(deck: DeckDocument) {
   return {
     deckId: deck.deckId,
     name: deck.name,
+    ownership: deck.ownership === 'theory' ? 'theory' : 'owned',
     formalSwapEntries: mapSwapEntries(deck, deck.formalSwapEntries || []).entries,
     lookingForEntries: mapLookingFor(deck, deck.lookingForEntries || []),
   };

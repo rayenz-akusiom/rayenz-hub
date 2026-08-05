@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
+import type { DeckDocument, DeckOwnership, DeckSummary } from '@rayenz-hub/shared';
 import { filterLibraryByFormat } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import {
@@ -377,6 +377,30 @@ export function BuilderApp({
     await refreshLibrary();
   }
 
+  async function setDeckOwnership(deckId: string, ownership: DeckOwnership) {
+    setApiWarning(null);
+    const doc = await store.getDeck(deckId);
+    if (!doc) return;
+    const current = doc.ownership === 'theory' ? 'theory' : 'owned';
+    if (current === ownership) return;
+    // Save without going through persist()'s "must have open-deck route" gate —
+    // library ownership changes happen with no deck slug in the hash.
+    const sample = isSampleDeckId(doc.deckId);
+    if (isApiConfigured() && !sample) setSyncStatus('syncing');
+    const { saved, apiError } = await saveDualMode({ ...doc, ownership });
+    if (apiError) {
+      setApiWarning(apiError);
+      if (isApiConfigured()) setSyncStatus('error');
+    } else if (isApiConfigured() && !sample) {
+      setSyncStatus('synced');
+    }
+    if (activeRef.current?.deckId === saved.deckId) {
+      activeRef.current = saved;
+      setActive(saved);
+    }
+    await refreshLibrary({ applyRoute: false });
+  }
+
   if (active) {
     return (
       <div className="db-app">
@@ -424,6 +448,7 @@ export function BuilderApp({
         onOpen={(id) => void openDeck(id)}
         onAdd={() => setAddOpen(true)}
         onDelete={(id) => void removeDeck(id)}
+        onSetOwnership={(id, ownership) => void setDeckOwnership(id, ownership)}
         onRefreshRemote={isApiConfigured() ? () => void refreshLibrary() : undefined}
       />
       {addOpen ? (

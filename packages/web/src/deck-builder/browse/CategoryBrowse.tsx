@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  deckOwnership,
   pickCommanderPair,
   partitionCategories,
   resolveDeckCards,
@@ -26,11 +27,16 @@ import {
   type CategoryMembership,
   type DeckDocument,
   type DeckFormat,
+  type DeckOwnership,
   type FormalSwapEntry,
   categoryKeySortFor,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
+import {
+  DeckOwnershipContextMenu,
+  type DeckOwnershipMenuState,
+} from '../library/DeckOwnershipContextMenu';
 import {
   CardTile,
   isDeckBuilderDragTypes,
@@ -197,7 +203,12 @@ export function DropSection({
   onCardContextMenu?: CardContextMenuHandler;
   onEditCategory?: (category: string) => void;
   /** Optional action under the section title (e.g. Seeking “Mark main deck”). */
-  sectionAction?: { label: string; onClick: () => void; ariaLabel?: string };
+  sectionAction?: {
+    label: string;
+    onClick: () => void;
+    ariaLabel?: string;
+    disabled?: boolean;
+  };
   variant?: 'section' | 'header' | 'column';
   cardSort?: CardSortMode;
   target?: number | null;
@@ -270,6 +281,12 @@ export function DropSection({
             className="db-btn db-section-action"
             onClick={sectionAction.onClick}
             aria-label={sectionAction.ariaLabel || sectionAction.label}
+            disabled={sectionAction.disabled}
+            title={
+              sectionAction.disabled
+                ? 'Theory decks do not use Seeking queues'
+                : undefined
+            }
           >
             {sectionAction.label}
           </button>
@@ -454,6 +471,9 @@ export function DeckHeaderRow({
   format,
   cardSort = 'name_asc',
   deckName,
+  deckId,
+  ownership,
+  onSetOwnership,
   deckMeta,
   deckMetaWarn,
   syncStatus,
@@ -470,16 +490,22 @@ export function DeckHeaderRow({
   format?: DeckFormat | null;
   cardSort?: CardSortMode;
   deckName?: string;
+  deckId?: string;
+  ownership?: DeckOwnership;
+  onSetOwnership?: (ownership: DeckOwnership) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
   swapInIds?: ReadonlySet<string> | null;
 }) {
+  const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
   const dragging = useDeckBuilderDragging();
   const showLieutenants = lieutenants.length > 0 || dragging;
   const badgeFormat: DeckFormat = format === 'commander' || format === 'cube' ? format : 'other';
+  const resolvedOwnership = deckOwnership({ ownership });
+  const theory = resolvedOwnership === 'theory';
 
   let slots: ReactNode = null;
   if (format === 'commander') {
@@ -551,8 +577,26 @@ export function DeckHeaderRow({
     <div className="db-deck-leaders" aria-label="Deck leaders">
       {deckName ? (
         <div className="db-deck-leaders-identity">
-          <h2 className="db-header-title">
+          <h2
+            className="db-header-title"
+            onContextMenu={(e) => {
+              if (!onSetOwnership || !deckId) return;
+              e.preventDefault();
+              setOwnershipMenu({
+                x: e.clientX,
+                y: e.clientY,
+                deckId,
+                current: resolvedOwnership,
+              });
+            }}
+            title={onSetOwnership ? 'Right-click to mark Owned or Theory' : undefined}
+          >
             <FormatBadge format={badgeFormat} />
+            {theory ? (
+              <span className="db-theory-badge" aria-label="Theory deck">
+                Theory
+              </span>
+            ) : null}
             <span>{deckName}</span>
           </h2>
           {deckMeta || syncStatus ? (
@@ -566,6 +610,13 @@ export function DeckHeaderRow({
         </div>
       ) : null}
       {slots}
+      {ownershipMenu && onSetOwnership ? (
+        <DeckOwnershipContextMenu
+          state={ownershipMenu}
+          onClose={() => setOwnershipMenu(null)}
+          onSetOwnership={(_id, next) => onSetOwnership(next)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -582,6 +633,8 @@ export function CategoryBrowse({
   onEditCategory,
   onMarkMainDeckSeeking,
   onVisibleOrderChange,
+  onSetOwnership,
+  queuesReadOnly = false,
   mode = 'main',
   deckMeta,
   deckMetaWarn,
@@ -589,13 +642,18 @@ export function CategoryBrowse({
   browseView = 'category',
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'formalSwapEntries'>
+    | Pick<
+        DeckDocument,
+        'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'deckId' | 'ownership' | 'formalSwapEntries'
+      >
     | {
         cards: CardView[];
         categories: CategoryDef[];
         format?: DeckFormat;
         oracle?: DeckDocument['oracle'];
         name?: string;
+        deckId?: string;
+        ownership?: DeckOwnership;
         formalSwapEntries?: FormalSwapEntry[];
       };
   onSelectCard?: SelectCardHandler;
@@ -610,6 +668,9 @@ export function CategoryBrowse({
   onMarkMainDeckSeeking?: () => void;
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
+  onSetOwnership?: (ownership: DeckOwnership) => void;
+  /** Theory decks: Seeking actions stay visible but disabled. */
+  queuesReadOnly?: boolean;
   mode?: 'main' | 'aside';
   deckMeta?: string;
   deckMetaWarn?: boolean;
@@ -704,7 +765,8 @@ export function CategoryBrowse({
                 ? {
                     label: 'Mark main deck',
                     ariaLabel: 'Mark main deck Seeking',
-                    onClick: onMarkMainDeckSeeking,
+                    onClick: queuesReadOnly ? () => {} : onMarkMainDeckSeeking,
+                    disabled: queuesReadOnly,
                   }
                 : undefined
             }
@@ -777,6 +839,9 @@ export function CategoryBrowse({
         format={format}
         cardSort={cardSort}
         deckName={deckName}
+        deckId={'deckId' in deck ? deck.deckId : undefined}
+        ownership={'ownership' in deck ? deck.ownership : undefined}
+        onSetOwnership={onSetOwnership}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

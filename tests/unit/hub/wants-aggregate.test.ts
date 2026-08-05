@@ -190,4 +190,46 @@ describe('wants-aggregate', () => {
     expect(rows[0].displayName).toBe('The Arvinox, the Mind Flayer');
     expect(rows[0].totalQuantity).toBe(2);
   });
+
+  it('skips Theory decks even when they have queues', () => {
+    const owned = deck({
+      deckId: 'owned',
+      name: 'Owned',
+      format: 'commander',
+      ownership: 'owned',
+      cards: [card('in1', 'Sol Ring'), card('out1', 'Cut')],
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: 'in1',
+          outInstanceId: 'out1',
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    });
+    const theory = deck({
+      deckId: 'theory',
+      name: 'Theory',
+      format: 'commander',
+      ownership: 'theory',
+      cards: [card('in2', 'Mana Crypt'), card('out2', 'Cut2')],
+      formalSwapEntries: [
+        {
+          id: 's2',
+          inInstanceId: 'in2',
+          outInstanceId: 'out2',
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [{ id: 'lf', instanceId: 'in2', sortIndex: 0, notes: null }],
+    });
+
+    const sources = aggregateSwapWants([owned, theory]);
+    expect(sources.every((s) => s.deckId === 'owned')).toBe(true);
+    expect(sources).toHaveLength(2);
+  });
 });

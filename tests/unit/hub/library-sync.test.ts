@@ -65,7 +65,10 @@ describe('pullRemoteLibraryUpdates', () => {
     apiGetDeck.mockReset();
     listDecks.mockResolvedValue([toDeckSummary(localDoc)]);
     getDeck.mockResolvedValue(localDoc);
-    saveDeck.mockImplementation(async (doc) => doc);
+    saveDeck.mockImplementation(async (doc) => {
+      listDecks.mockResolvedValue([toDeckSummary(doc)]);
+      return doc;
+    });
   });
 
   afterEach(() => {
@@ -89,8 +92,35 @@ describe('pullRemoteLibraryUpdates', () => {
     expect(apiListDecks).toHaveBeenCalled();
     expect(apiGetDeck).toHaveBeenCalledWith(remoteDoc.deckId);
     expect(saveDeck).toHaveBeenCalledWith(remoteDoc);
+    expect(listDecks).toHaveBeenCalledTimes(2);
     expect(list[0]?.name).toBe('Remote Commander');
     expect(list[0]?.updatedAt).toBe(remoteDoc.updatedAt);
+  });
+
+  it('keeps local Theory ownership when remote full doc defaults to owned', async () => {
+    apiConfigured.value = true;
+    const localTheory = {
+      ...localDoc,
+      ownership: 'theory' as const,
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    } as DeckDocument;
+    const remoteOwned = {
+      ...remoteDoc,
+      ownership: 'owned' as const,
+      updatedAt: '2026-07-01T00:00:01.000Z',
+    } as DeckDocument;
+    listDecks.mockResolvedValue([toDeckSummary(localTheory)]);
+    getDeck.mockResolvedValue(localTheory);
+    apiListDecks.mockResolvedValue([toDeckSummary(remoteOwned)]);
+    apiGetDeck.mockResolvedValue(remoteOwned);
+    mergeDeckDocuments.mockReturnValue(remoteOwned);
+
+    const list = await pullRemoteLibraryUpdates();
+
+    expect(saveDeck).toHaveBeenCalledWith(
+      expect.objectContaining({ ownership: 'theory', name: remoteOwned.name }),
+    );
+    expect(list[0]?.ownership).toBe('theory');
   });
 
   it('skips remote decks that are older than local', async () => {

@@ -18,11 +18,12 @@ export async function saveDualMode(
   if (isApiConfigured()) {
     try {
       const remote = await deckApi.apiPutDeck(saved);
-      // Deployed APIs that omit CategoryDef.target still bump updatedAt; keep Hub targets
-      // and re-save so local clock stays ahead of remote and refreshLibrary won't wipe IDB.
+      // Deployed APIs that omit CategoryDef.target / ownership still bump updatedAt;
+      // keep Hub fields and re-save so local clock stays ahead of remote.
       const reconciled = store.reconcileDeckAfterApiPut(saved, remote);
       if (
         reconciled.updatedAt !== saved.updatedAt ||
+        reconciled.ownership !== saved.ownership ||
         JSON.stringify(reconciled.categories) !== JSON.stringify(saved.categories)
       ) {
         return { saved: await store.saveDeck(reconciled) };

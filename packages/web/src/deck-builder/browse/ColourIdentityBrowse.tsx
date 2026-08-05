@@ -14,6 +14,7 @@ import {
   type CategoryDef,
   type DeckBuilderSettingsPayload,
   type DeckDocument,
+  type DeckOwnership,
   type FormalSwapEntry,
 } from '@rayenz-hub/shared';
 import { loadDeckBuilderSettings } from '../../api/hub-api';
@@ -41,18 +42,24 @@ export function ColourIdentityBrowse({
   onDropCard,
   onCardContextMenu,
   onVisibleOrderChange,
+  onSetOwnership,
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
 }: {
   deck:
-    | Pick<DeckDocument, 'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'formalSwapEntries'>
+    | Pick<
+        DeckDocument,
+        'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'deckId' | 'ownership' | 'formalSwapEntries'
+      >
     | {
         cards: CardView[];
         categories: CategoryDef[];
         format?: DeckDocument['format'];
         oracle?: DeckDocument['oracle'];
         name?: string;
+        deckId?: string;
+        ownership?: DeckOwnership;
         formalSwapEntries?: FormalSwapEntry[];
       };
   onSelectCard?: SelectCardHandler;
@@ -64,6 +71,7 @@ export function ColourIdentityBrowse({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
   onVisibleOrderChange?: (ids: string[]) => void;
+  onSetOwnership?: (ownership: DeckOwnership) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -181,6 +189,9 @@ export function ColourIdentityBrowse({
         format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
         cardSort={cardSort}
         deckName={deckName}
+        deckId={'deckId' in resolvedDeck ? resolvedDeck.deckId : undefined}
+        ownership={'ownership' in resolvedDeck ? resolvedDeck.ownership : undefined}
+        onSetOwnership={onSetOwnership}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

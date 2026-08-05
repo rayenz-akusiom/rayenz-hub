@@ -245,6 +245,7 @@ export function applyDeckPatch(deck: DeckDocument, patch: DeckPatch): DeckDocume
 
   if (patch.name !== undefined) next = { ...next, name: patch.name };
   if (patch.format !== undefined) next = { ...next, format: patch.format };
+  if (patch.ownership !== undefined) next = { ...next, ownership: patch.ownership };
   if (patch.archidektId !== undefined) next = { ...next, archidektId: patch.archidektId };
   if (patch.archidektUrl !== undefined) next = { ...next, archidektUrl: patch.archidektUrl };
   if (patch.coverInstanceId !== undefined) {

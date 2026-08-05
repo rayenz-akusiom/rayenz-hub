@@ -375,9 +375,99 @@ body,
   flex: 0 0 auto;
 }
 
+.db-theory-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #3a3a4a;
+  color: #c8c8e0;
+  border: 1px solid #5a5a7a;
+  flex: 0 0 auto;
+}
+
 .db-library-tile.is-sample .db-library-tile-open {
   outline: 1px dashed rgba(61, 107, 82, 0.55);
   outline-offset: -1px;
+}
+
+.db-library-tile.is-theory .db-library-tile-open {
+  outline: 1px dashed rgba(90, 90, 122, 0.45);
+  outline-offset: -1px;
+}
+
+.db-library-tile[draggable='true'] {
+  cursor: grab;
+}
+
+.db-library-tile[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.db-library-ownership-lane.is-drop-target {
+  outline: 2px dashed rgba(60, 100, 160, 0.55);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.db-library-lane-empty {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.db-library-section-title .db-count {
+  margin-left: 0.35rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.db-theory-queue-notice {
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  border-radius: 4px;
+  background: rgba(90, 90, 122, 0.15);
+  border: 1px solid rgba(90, 90, 122, 0.35);
+  color: var(--db-muted, #667);
+}
+
+.db-swaps.is-readonly .db-swap-pair.is-readonly {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.db-deck-ownership-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 10rem;
+  padding: 0.25rem;
+  background: var(--db-panel, #1a1e26);
+  border: 1px solid var(--db-border, #3a4250);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.db-deck-ownership-menu .db-context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.db-deck-ownership-menu .db-context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .db-library-tile-name {

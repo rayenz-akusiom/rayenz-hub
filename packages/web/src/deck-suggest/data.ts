@@ -441,6 +441,7 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
     deck_name: doc.name,
     archidekt_url: doc.archidektUrl || '',
     format: doc.format,
+    ownership: doc.ownership === 'theory' ? 'theory' : 'owned',
     deck_snapshot: {
       fetched_at: new Date().toISOString().slice(0, 10),
       source: 'hub-library',

@@ -55,4 +55,20 @@ describe('deck sync merge', () => {
     expect(reconciled.updatedAt).toBe(remote.updatedAt);
     expect(reconciled.categories[0]?.target).toBe(12);
   });
+
+  it('reconcileDeckAfterApiPut preserves local Theory ownership when API strips it', () => {
+    const local = {
+      ...commander,
+      ownership: 'theory' as const,
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    };
+    const remote = {
+      ...commander,
+      ownership: 'owned' as const,
+      updatedAt: '2026-07-01T00:00:05.000Z',
+    };
+    const reconciled = reconcileDeckAfterApiPut(local, remote);
+    expect(reconciled.ownership).toBe('theory');
+    expect(reconciled.updatedAt).toBe(remote.updatedAt);
+  });
 });

@@ -30,6 +30,18 @@ function getSwapQueue(deck: DeckRecord) {
 }
 
 export function buildSwapQueueAnalysis(deck: DeckRecord) {
+  if (deck.ownership === 'theory') {
+    return {
+      new_set_in: [] as string[],
+      new_set_out: [] as string[],
+      metadata_flags: [] as string[],
+      in_count: 0,
+      out_count: 0,
+      unpaired_in: null as string[] | null,
+      unpaired_out: null as string[] | null,
+      reconciliation_notes: ['Theory deck — swap queue ignored'],
+    };
+  }
   const queue = getSwapQueue(deck);
   if (!queue) {
     return null;
@@ -90,7 +102,26 @@ export function runRulesForDeck(
     { id: 'role_synergy', fn: RoleRules.runRoleSynergy },
   ] as const;
 
+  const skipQueueRules = deck.ownership === 'theory';
+
   rules.forEach((rule) => {
+    if (skipQueueRules && (rule.id === 'queue_in_pair' || rule.id === 'queue_out_fill')) {
+      audit.push({
+        ruleId: rule.id,
+        deckId: deck.deck_id,
+        suggestionsAdded: 0,
+        skippedReason: '* (theory_deck)',
+      });
+      if (collector) {
+        collector.push({
+          ruleId: rule.id,
+          outcome: 'skipped',
+          subject: '*',
+          reason: 'theory_deck',
+        });
+      }
+      return;
+    }
     const before = suggestions.length;
     const ruleDebug = collector ? { ruleId: rule.id, collector: collector as { push: (e: Record<string, unknown>) => void } } : undefined;
     const raw = rule.fn(deck, setScope, profile, suggestions, taggerCtx, ruleDebug) || [];

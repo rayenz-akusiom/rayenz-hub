@@ -20,19 +20,33 @@ export async function pullRemoteLibraryUpdates(): Promise<DeckSummary[]> {
     if (!local || r.updatedAt >= local.updatedAt) {
       byId.set(r.deckId, {
         ...r,
+        // Keep local ownership when the list projection omits / defaults it (older API).
+        ownership:
+          r.ownership === 'theory' || r.ownership === 'owned'
+            ? r.ownership
+            : local?.ownership === 'theory'
+              ? 'theory'
+              : 'owned',
         coverImageUrl: r.coverImageUrl || local?.coverImageUrl || null,
         coverImageUrlSecondary: r.coverImageUrlSecondary || local?.coverImageUrlSecondary || null,
         coverPartnerStatus: r.coverPartnerStatus ?? local?.coverPartnerStatus ?? null,
       });
       const full = await apiGetDeck(r.deckId);
       if (full && !isSampleDeckId(full.deckId)) {
-        const merged = mergeDeckDocuments(await getDeck(r.deckId), full);
-        if (merged) await saveDeck(merged);
+        const prior = await getDeck(r.deckId);
+        const merged = mergeDeckDocuments(prior, full);
+        if (merged) {
+          // Prefer local theory when remote doc defaulted to owned after a strip.
+          const withOwnership =
+            prior?.ownership === 'theory' && merged.ownership !== 'theory'
+              ? { ...merged, ownership: 'theory' as const }
+              : merged;
+          await saveDeck(withOwnership);
+        }
       }
     }
   }
-  list = [...byId.values()].sort(
-    (a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name),
-  );
-  return list;
+  // Re-read local index after merges — do not return remote list projections
+  // (they can omit ownership and wipe Theory swimlanes in the UI).
+  return listDecks();
 }

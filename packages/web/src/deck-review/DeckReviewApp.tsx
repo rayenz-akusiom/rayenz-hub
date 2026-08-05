@@ -12,6 +12,7 @@ import {
   getDeckById,
   handoffSnapshotDate,
   handoffStatusMessage,
+  jumpToPendingSuggestion,
   loadSuggestionsData,
   navigatePendingSuggestion,
   recordDecision,
@@ -40,16 +41,16 @@ function buildMetaHtml(state: DeckReviewState): string {
   if (state.transferSource === 'deck-suggest') {
     const snapDate = handoffSnapshotDate(state.data);
     const snapSummary = handoffSnapshotSummary(state.data);
-    html += '<div class="dr-meta-notes">Transferred from Deck Suggest — review swaps deck by deck.';
+    html += '<span class="dr-meta-chip">Suggest';
     if (snapSummary.allReady) {
-      html += ' Ready to review — snapshots included.';
+      html += ' · ready';
     }
     if (snapDate) {
-      html += ' Snapshots as of ' + escapeHtml(snapDate) + '.';
+      html += ' · ' + escapeHtml(snapDate);
     }
-    html += '</div>';
+    html += '</span>';
   } else if (meta.notes) {
-    html += '<div class="dr-meta-notes">' + escapeHtml(String(meta.notes)) + '</div>';
+    html += '<span class="dr-meta-chip" title="' + escapeHtml(String(meta.notes)) + '">Notes</span>';
   }
   return html;
 }
@@ -149,6 +150,10 @@ export function DeckReviewApp() {
     setState((prev) => navigatePendingSuggestion(prev, delta));
   }, []);
 
+  const handleJumpSuggestion = useCallback((index: number) => {
+    setState((prev) => jumpToPendingSuggestion(prev, index));
+  }, []);
+
   function handleSelectDeck(deckId: string) {
     setState((prev) => selectDeck(prev, deckId));
   }
@@ -236,11 +241,35 @@ export function DeckReviewApp() {
       <div className="dr-layout">
         <div className="dr-main-area">
           <div className="hub-sticky-chrome">
-            <header className="dr-header">
-              <h2>Deck Review</h2>
-              <div className="dr-meta" id="dr-meta" dangerouslySetInnerHTML={{ __html: buildMetaHtml(state) }} />
+            <header className="dr-chrome">
+              <div className="dr-chrome-primary">
+                <h2>Deck Review</h2>
+                <div className="dr-meta" id="dr-meta" dangerouslySetInnerHTML={{ __html: buildMetaHtml(state) }} />
+              </div>
+              <div className="hub-progress-host dr-chrome-progress" id="dr-progress-host" ref={progressHostRef} />
+              {loaded ? (
+                <div className="dr-chrome-actions">
+                  {activeDeck?.archidekt_url ? (
+                    <a
+                      className="dr-deck-archidekt-link dr-chrome-archidekt"
+                      href={activeDeck.archidekt_url}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Archidekt
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost"
+                    id="dr-toggle-view"
+                    onClick={() => setState((prev) => ({ ...prev, showAllMode: !prev.showAllMode }))}
+                  >
+                    {state.showAllMode ? 'One at a time' : 'Show all'}
+                  </button>
+                </div>
+              ) : null}
             </header>
-            <div className="hub-progress-host" id="dr-progress-host" ref={progressHostRef} />
           </div>
 
           {error ? (
@@ -279,7 +308,6 @@ export function DeckReviewApp() {
                   <DeckReviewSuggestionPanel
                     deck={activeDeck}
                     state={state}
-                    onToggleShowAll={() => setState((prev) => ({ ...prev, showAllMode: !prev.showAllMode }))}
                     onDecision={handleDecision}
                     onProfileUpdate={(patch) => setState((prev) => ({ ...prev, ...patch }))}
                     onTabChange={(tab: StatusCardTab) => setState((prev) => ({ ...prev, statusCardTab: tab }))}
@@ -287,6 +315,7 @@ export function DeckReviewApp() {
                     onApplyStaged={(message) => setState((prev) => ({ ...prev, profileStatus: message }))}
                     onError={setError}
                     onNavigateSuggestion={handleNavigateSuggestion}
+                    onJumpSuggestion={handleJumpSuggestion}
                   />
                 </div>
               </div>

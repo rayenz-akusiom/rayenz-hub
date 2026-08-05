@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
 import { currentSuggestion, allVisibleSuggestions, pendingSuggestions } from './review';
 import { DeckReviewStatusCard } from './DeckReviewStatusCard';
 import { SuggestionCard } from './SuggestionCard';
@@ -8,7 +9,6 @@ import type { DeckReviewState, ReviewDecision, StatusCardTab } from './types';
 type DeckReviewSuggestionPanelProps = {
   deck: DeckEntry | null;
   state: DeckReviewState;
-  onToggleShowAll: () => void;
   onDecision: (suggestionId: string, decision: ReviewDecision, advance: boolean) => void;
   onProfileUpdate: (patch: Partial<Pick<DeckReviewState, 'deckPrefs' | 'profilesConnected' | 'profileStatus'>>) => void;
   onTabChange: (tab: StatusCardTab) => void;
@@ -16,22 +16,8 @@ type DeckReviewSuggestionPanelProps = {
   onApplyStaged: (message: string) => void;
   onError: (message: string) => void;
   onNavigateSuggestion: (delta: number) => void;
+  onJumpSuggestion: (index: number) => void;
 };
-
-function ViewToolbar({ deck, showAllMode, onToggle }: { deck: DeckEntry; showAllMode: boolean; onToggle: () => void }) {
-  return (
-    <div className="dr-view-toolbar">
-      {deck.archidekt_url ? (
-        <a className="dr-deck-archidekt-link" href={deck.archidekt_url} target="_blank" rel="noopener">
-          Open {deck.deck_name} on Archidekt
-        </a>
-      ) : null}
-      <button type="button" className="dr-btn dr-btn-ghost" id="dr-toggle-view" onClick={onToggle}>
-        {showAllMode ? 'One at a time' : 'Show all'}
-      </button>
-    </div>
-  );
-}
 
 function PanelShell({
   statusCard,
@@ -48,10 +34,100 @@ function PanelShell({
   );
 }
 
+function suggestionInThumb(suggestion: Suggestion): string {
+  const card = suggestion.card as {
+    scryfall_id?: string;
+    set_code?: string;
+    collector_number?: string;
+    name?: string;
+  };
+  if (card.scryfall_id) {
+    return scryfallImageFromId(card.scryfall_id);
+  }
+  if (card.set_code && card.collector_number) {
+    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+  }
+  return scryfallImageFromName(card.name);
+}
+
+function suggestionOutThumb(suggestion: Suggestion): string {
+  const rep = (suggestion.replaces || [])[0] as
+    | { name?: string; set_code?: string; collector_number?: string; scryfall_id?: string }
+    | undefined;
+  if (!rep?.name) {
+    return '';
+  }
+  if (rep.scryfall_id) {
+    return scryfallImageFromId(rep.scryfall_id);
+  }
+  if (rep.set_code && rep.collector_number) {
+    return scryfallImageFromPrinting(rep.set_code, rep.collector_number);
+  }
+  return scryfallImageFromName(rep.name);
+}
+
+function PendingFilmstrip({
+  pending,
+  activeIndex,
+  onJump,
+}: {
+  pending: Suggestion[];
+  activeIndex: number;
+  onJump: (index: number) => void;
+}) {
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) {
+      return;
+    }
+    const active = strip.querySelector('.dr-filmstrip-item.is-active') as HTMLElement | null;
+    if (active && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
+  }, [activeIndex, pending.length]);
+
+  if (pending.length < 2) {
+    return null;
+  }
+
+  return (
+    <div className="dr-filmstrip" aria-label="Pending suggestions">
+      <div className="dr-filmstrip-track" ref={stripRef}>
+        {pending.map((s, i) => {
+          const card = s.card as { name?: string };
+          const inSrc = suggestionInThumb(s);
+          const outSrc = suggestionOutThumb(s);
+          const label = (card.name || 'Suggestion') + (outSrc ? ' → cut' : '');
+          return (
+            <button
+              key={String(s.suggestion_id)}
+              type="button"
+              className={'dr-filmstrip-item' + (i === activeIndex ? ' is-active' : '')}
+              aria-current={i === activeIndex ? 'true' : undefined}
+              aria-label={`Suggestion ${i + 1}: ${label}`}
+              title={label}
+              onClick={() => onJump(i)}
+            >
+              <span className="dr-filmstrip-pair">
+                {inSrc ? <img src={inSrc} alt="" /> : <span className="dr-filmstrip-empty" />}
+                <span className="dr-filmstrip-arrow" aria-hidden="true">
+                  →
+                </span>
+                {outSrc ? <img src={outSrc} alt="" /> : <span className="dr-filmstrip-empty" />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function DeckReviewSuggestionPanel({
   deck,
   state,
-  onToggleShowAll,
   onDecision,
   onProfileUpdate,
   onTabChange,
@@ -59,6 +135,7 @@ export function DeckReviewSuggestionPanel({
   onApplyStaged,
   onError,
   onNavigateSuggestion,
+  onJumpSuggestion,
 }: DeckReviewSuggestionPanelProps) {
   const oneAtATime = !!deck && !state.showAllMode;
 
@@ -118,14 +195,12 @@ export function DeckReviewSuggestionPanel({
     if (!allSuggestions.length) {
       return (
         <PanelShell statusCard={statusCard}>
-          <ViewToolbar deck={deck} showAllMode={showAllMode} onToggle={onToggleShowAll} />
           <div className="dr-empty">No suggestions for {deck.deck_name}.</div>
         </PanelShell>
       );
     }
     return (
       <PanelShell statusCard={statusCard}>
-        <ViewToolbar deck={deck} showAllMode={showAllMode} onToggle={onToggleShowAll} />
         {profileStatus ? <p className="dr-profile-status dr-profile-status-global">{profileStatus}</p> : null}
         <div className="dr-suggestions-all" id="dr-suggestions-all">
           {allSuggestions.map((s: Suggestion) => (
@@ -150,7 +225,6 @@ export function DeckReviewSuggestionPanel({
   if (!suggestion) {
     return (
       <PanelShell statusCard={statusCard}>
-        <ViewToolbar deck={deck} showAllMode={showAllMode} onToggle={onToggleShowAll} />
         <div className="dr-empty">All suggestions reviewed for {deck.deck_name}.</div>
       </PanelShell>
     );
@@ -163,8 +237,8 @@ export function DeckReviewSuggestionPanel({
 
   return (
     <PanelShell statusCard={statusCard}>
-      <ViewToolbar deck={deck} showAllMode={showAllMode} onToggle={onToggleShowAll} />
       {profileStatus ? <p className="dr-profile-status dr-profile-status-global">{profileStatus}</p> : null}
+      <PendingFilmstrip pending={pending} activeIndex={safeIndex} onJump={onJumpSuggestion} />
       <SuggestionCard
         deck={deck}
         suggestion={suggestion}

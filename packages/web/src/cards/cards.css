@@ -296,6 +296,23 @@
   flex-direction: column;
 }
 
+/* Wide Review: dock beside the In→Out pair instead of covering it */
+.hub-picker-dialog--react.hub-picker-dialog--dock {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.hub-picker-dialog--react.hub-picker-dialog--dock .hub-picker-dialog-inner {
+  max-width: min(540px, 46vw);
+  width: min(540px, 46vw);
+  max-height: 100vh;
+  height: 100%;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.18);
+}
+
 .hub-picker-dialog--react .hub-picker-dialog-header {
   flex-shrink: 0;
 }

@@ -146,7 +146,7 @@ describe('DeckReviewApp handoff and sidebar', () => {
     const latestCalls = fetchSpy.mock.calls.filter((call) => String(call[0]).indexOf('latest.json') >= 0);
     expect(latestCalls).toHaveLength(0);
     expect(screen.getByText(/Marvel Super Heroes/i)).toBeInTheDocument();
-    expect(screen.getByText(/Transferred from Deck Suggest/i)).toBeInTheDocument();
+    expect(document.querySelector('.dr-meta-chip')?.textContent).toMatch(/Suggest/i);
   });
 
   it('shows deck-suggest handoff controls in the sidebar', async () => {
@@ -199,7 +199,7 @@ describe('DeckReviewApp suggestion panel', () => {
     render(<DeckReviewApp />);
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /Open Baird on Archidekt/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Archidekt' })).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();

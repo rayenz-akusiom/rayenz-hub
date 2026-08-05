@@ -237,6 +237,25 @@ describe('CardPickerModal', () => {
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('docks as a side sheet when layout=dock and viewport is wide', () => {
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('1100'),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      onchange: null,
+    }));
+    vi.stubGlobal('matchMedia', matchMedia);
+
+    render(<CardPickerModal config={{ title: 'Dock pick', items, layout: 'dock' }} onClose={() => {}} />);
+    expect(screen.getByRole('dialog', { name: 'Dock pick' })).toHaveClass('hub-picker-dialog--dock');
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('resolveFinish', () => {

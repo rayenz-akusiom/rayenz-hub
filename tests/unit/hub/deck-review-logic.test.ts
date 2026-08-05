@@ -58,6 +58,7 @@ import {
   handoffStatusMessage,
   pendingSuggestions,
   navigatePendingSuggestion,
+  jumpToPendingSuggestion,
   recordDecision,
   refreshAllDecksLabel,
   refreshAllDecksTitle,
@@ -432,7 +433,7 @@ describe('deck-review pickers', () => {
       resolveFinish: () => 'foil',
     };
     openPrintPicker({ card: { name: 'Bolt' } } as never, [{ id: 'p1', name: 'Bolt', set: 'MH2', collector_number: '1' }], 'p1', true, () => {});
-    expect(open).toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ layout: 'dock' }));
     openCutPicker(
       { deck_snapshot: { cards: [] } } as never,
       { action: 'replace', replaces: [] } as never,
@@ -442,6 +443,7 @@ describe('deck-review pickers', () => {
       () => {},
     );
     expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ layout: 'dock' }));
     delete (window as Window & { HubCardPicker?: unknown }).HubCardPicker;
   });
 
@@ -562,6 +564,10 @@ describe('deck-review review helpers', () => {
     expect(same.suggestionIndex).toBe(1);
     const back = navigatePendingSuggestion(next as never, -1);
     expect(back.suggestionIndex).toBe(0);
+    const jumped = jumpToPendingSuggestion(state as never, 1);
+    expect(jumped.suggestionIndex).toBe(1);
+    const clamped = jumpToPendingSuggestion(state as never, 99);
+    expect(clamped.suggestionIndex).toBe(1);
   });
 
   it('selectDeck without fileId skips progress persistence', () => {

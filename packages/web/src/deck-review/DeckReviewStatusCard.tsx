@@ -2,18 +2,27 @@ import { useState, type MouseEvent } from 'react';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import type { ReviewProgress } from '../lib/hub-storage';
-import { BRIDGE_SCRIPT_URL, deriveSwapQueue, formatSwapQueueItem, getSuggestionStaleness, getSwapQueueReconciliation } from './data';
+import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import {
+  BRIDGE_SCRIPT_URL,
+  cutOptionImageSrc,
+  deriveSwapQueue,
+  findSnapshotCard,
+  formatSwapQueueItem,
+  getSuggestionStaleness,
+  getSwapQueueReconciliation,
+  needsSuggestedCut,
+  archidektApplyOpenUrl,
+} from './data';
 import {
   acceptedForDeck,
   decisionRecapInOut,
   decisionStatusLabel,
   getDecision,
 } from './decisions';
-import { isMissingSuggestedCut, needsSuggestedCut } from './data';
 import { allVisibleSuggestions } from './review';
 import { bridgeApplyAvailable, bridgeAvailable, stageDeckApply } from './archidekt-bridge';
-import { archidektApplyOpenUrl } from './data';
-import type { DeckPrefs, StatusCardTab, TransferSource } from './types';
+import type { DeckPrefs, ReviewDecision, StatusCardTab, TransferSource } from './types';
 
 const STATUS_EXPANDED_KEY = 'dr-status-expanded';
 
@@ -75,6 +84,74 @@ function archidektDeckLink(deck: DeckEntry, label?: string) {
   );
 }
 
+function decisionInThumb(suggestion: Suggestion, decision: ReviewDecision | null): string {
+  if (decision?.status === 'accepted' && decision.accepted?.card_in?.scryfall_id) {
+    return scryfallImageFromId(decision.accepted.card_in.scryfall_id);
+  }
+  const card = suggestion.card as {
+    scryfall_id?: string;
+    set_code?: string;
+    collector_number?: string;
+    name?: string;
+  };
+  if (card.scryfall_id) {
+    return scryfallImageFromId(card.scryfall_id);
+  }
+  if (card.set_code && card.collector_number) {
+    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+  }
+  return scryfallImageFromName(card.name);
+}
+
+function decisionOutThumb(deck: DeckEntry, suggestion: Suggestion, decision: ReviewDecision | null): string {
+  if (decision?.status === 'accepted' && decision.accepted?.card_out) {
+    const out = decision.accepted.card_out;
+    return cutOptionImageSrc(
+      {
+        name: out.name || '',
+        set_code: out.set_code || null,
+        collector_number: out.collector_number || null,
+      },
+      deck,
+    );
+  }
+  const rep = (suggestion.replaces || [])[0] as
+    | { name?: string; set_code?: string; collector_number?: string; scryfall_id?: string }
+    | undefined;
+  if (!rep?.name) {
+    return '';
+  }
+  if (rep.scryfall_id) {
+    return scryfallImageFromId(rep.scryfall_id);
+  }
+  return cutOptionImageSrc(
+    { name: rep.name, set_code: rep.set_code || null, collector_number: rep.collector_number || null },
+    deck,
+  );
+}
+
+function queueCardThumb(
+  deck: DeckEntry,
+  card: { name: string; set_code?: string; collector_number?: string },
+): string {
+  if (card.set_code && card.collector_number) {
+    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+  }
+  const snap = findSnapshotCard(deck, card.name, card.set_code, card.collector_number);
+  if (snap?.set_code && snap.collector_number) {
+    return scryfallImageFromPrinting(snap.set_code, snap.collector_number);
+  }
+  return scryfallImageFromName(card.name);
+}
+
+function MiniFace({ src, label }: { src: string; label: string }) {
+  return src ? (
+    <img className="dr-mini-face" src={src} alt="" title={label} />
+  ) : (
+    <span className="dr-mini-face dr-mini-face-empty" title={label || '—'} />
+  );
+}
+
 function DecisionsPane({
   deck,
   progress,
@@ -100,24 +177,33 @@ function DecisionsPane({
           const status = decision?.status || 'pending';
           const recap = decisionRecapInOut(s, decision);
           const stale = getSuggestionStaleness(deck, s);
+          const inSrc = decisionInThumb(s, decision);
+          const outSrc = decisionOutThumb(deck, s, decision);
           return (
             <div key={String(s.suggestion_id)} className={'dr-decision-recap-row dr-decision-recap-' + status}>
-              <div
-                className="dr-decision-recap-status"
-                dangerouslySetInnerHTML={{
-                  __html:
-                    decisionStatusLabel(status) +
-                    (stale.stale ? '<span class="dr-badge dr-badge-stale">Stale</span>' : ''),
-                }}
-              />
-              <div className="dr-decision-recap-swap">
-                <strong>{recap.inName}</strong>
-                {recap.inSet ? <span className="dr-decision-recap-set"> ({recap.inSet})</span> : null}
-                {recap.outName ? (
-                  <> → {recap.outName}</>
-                ) : needsSuggestedCut(s) ? (
-                  <> → <em>(pick cut)</em></>
-                ) : null}
+              <div className="dr-decision-recap-faces" aria-hidden="true">
+                <MiniFace src={inSrc} label={recap.inName} />
+                <span className="dr-decision-recap-arrow">→</span>
+                <MiniFace src={outSrc} label={recap.outName || '(pick cut)'} />
+              </div>
+              <div className="dr-decision-recap-text">
+                <div
+                  className="dr-decision-recap-status"
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      decisionStatusLabel(status) +
+                      (stale.stale ? '<span class="dr-badge dr-badge-stale">Stale</span>' : ''),
+                  }}
+                />
+                <div className="dr-decision-recap-swap">
+                  <strong>{recap.inName}</strong>
+                  {recap.inSet ? <span className="dr-decision-recap-set"> ({recap.inSet})</span> : null}
+                  {recap.outName ? (
+                    <> → {recap.outName}</>
+                  ) : needsSuggestedCut(s) ? (
+                    <> → <em>(pick cut)</em></>
+                  ) : null}
+                </div>
               </div>
             </div>
           );
@@ -182,6 +268,32 @@ function QueuePane({
       ? 'From Deck Suggest · as of ' + fetchedAt
       : 'From Archidekt · as of ' + fetchedAt;
 
+  function renderQueueList(
+    cards: Array<{ name: string; set_code?: string; collector_number?: string }>,
+    uncovered: string[],
+  ) {
+    if (!cards.length) {
+      return (
+        <li>
+          <em>empty</em>
+        </li>
+      );
+    }
+    return cards.map((c) => {
+      const uncoveredItem = uncovered.includes(c.name);
+      const thumb = queueCardThumb(deck, c);
+      return (
+        <li
+          key={[c.name, c.set_code || '', c.collector_number || ''].join('|')}
+          className={'dr-swap-queue-item' + (uncoveredItem ? ' dr-swap-item-uncovered' : '')}
+        >
+          <MiniFace src={thumb} label={c.name} />
+          <span className="dr-swap-queue-label">{formatSwapQueueItem(c)}</span>
+        </li>
+      );
+    });
+  }
+
   return (
     <>
       <div className="dr-swap-panel-meta">
@@ -196,35 +308,11 @@ function QueuePane({
       <div className="dr-swap-cols">
         <div>
           <strong>In</strong>
-          <ul>
-            {(queue.new_set_in || []).length ? (
-              queue.new_set_in.map((c) => (
-                <li key={c.name} className={recon.uncoveredIn.includes(c.name) ? 'dr-swap-item-uncovered' : undefined}>
-                  {formatSwapQueueItem(c)}
-                </li>
-              ))
-            ) : (
-              <li>
-                <em>empty</em>
-              </li>
-            )}
-          </ul>
+          <ul className="dr-swap-queue-list">{renderQueueList(queue.new_set_in || [], recon.uncoveredIn)}</ul>
         </div>
         <div>
           <strong>Out</strong>
-          <ul>
-            {(queue.new_set_out || []).length ? (
-              queue.new_set_out.map((c) => (
-                <li key={c.name} className={recon.uncoveredOut.includes(c.name) ? 'dr-swap-item-uncovered' : undefined}>
-                  {formatSwapQueueItem(c)}
-                </li>
-              ))
-            ) : (
-              <li>
-                <em>empty</em>
-              </li>
-            )}
-          </ul>
+          <ul className="dr-swap-queue-list">{renderQueueList(queue.new_set_out || [], recon.uncoveredOut)}</ul>
         </div>
       </div>
       {recon.uncoveredIn.length || recon.uncoveredOut.length ? (

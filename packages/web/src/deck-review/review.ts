@@ -209,7 +209,7 @@ export function recordDecision(
   return { ...state, progress };
 }
 
-export function navigatePendingSuggestion(state: DeckReviewState, delta: number): DeckReviewState {
+export function jumpToPendingSuggestion(state: DeckReviewState, index: number): DeckReviewState {
   if (!state.fileId || !state.activeDeckId || !state.data) {
     return state;
   }
@@ -222,7 +222,7 @@ export function navigatePendingSuggestion(state: DeckReviewState, delta: number)
     return state;
   }
   const max = pending.length - 1;
-  const suggestionIndex = Math.max(0, Math.min(max, state.suggestionIndex + delta));
+  const suggestionIndex = Math.max(0, Math.min(max, index));
   if (suggestionIndex === state.suggestionIndex) {
     return state;
   }
@@ -235,6 +235,10 @@ export function navigatePendingSuggestion(state: DeckReviewState, delta: number)
   };
   saveReviewProgress(state.fileId, progress);
   return { ...state, progress, suggestionIndex };
+}
+
+export function navigatePendingSuggestion(state: DeckReviewState, delta: number): DeckReviewState {
+  return jumpToPendingSuggestion(state, state.suggestionIndex + delta);
 }
 
 export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewState {

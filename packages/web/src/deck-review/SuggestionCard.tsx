@@ -238,6 +238,12 @@ export function SuggestionCard({
 
   const showDetails = !compact || detailsOpen;
   const inImgSrc = printId ? scryfallImageFromId(printId) : undefined;
+  const warningLine =
+    showDetails && staleness.stale
+      ? staleness.reasons.join(' ')
+      : showDetails && missingCut
+        ? 'No cut suggested — choose an Out card manually.'
+        : '';
 
   return (
     <div
@@ -253,6 +259,43 @@ export function SuggestionCard({
       data-suggestion-id={String(suggestion.suggestion_id)}
     >
       <div className="dr-suggestion-body">
+        <div className="dr-swap-pair">
+          <div className="dr-swap-col dr-swap-in">
+            <div className="dr-swap-label dr-swap-label-in">In</div>
+            <button
+              type="button"
+              className="dr-card-image dr-card-image-btn"
+              aria-label="Choose printing"
+              onClick={() =>
+                openPrintPicker(suggestion, prints, printId, finish === 'foil', (nextPrintId, nextFinish) => {
+                  setPrintId(nextPrintId);
+                  setFinish(nextFinish);
+                })
+              }
+            >
+              <img data-dr-img-in src={inImgSrc} alt="" />
+            </button>
+          </div>
+
+          <div className="dr-swap-arrow" aria-hidden="true">
+            →
+          </div>
+
+          <div className="dr-swap-col dr-swap-out">
+            <div className="dr-swap-label dr-swap-label-out">Out</div>
+            <button
+              type="button"
+              className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
+              aria-label="Choose cut"
+              onClick={() =>
+                openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
+              }
+            >
+              <img data-dr-img-out src={outImgSrc || undefined} alt="" />
+            </button>
+          </div>
+        </div>
+
         <div className="dr-reasoning dr-reasoning-header">
           <div className="dr-badge-row">
             {suggestion.priority_tier === 'swap' ? <span className="dr-badge dr-badge-swap">Swap</span> : null}
@@ -273,38 +316,22 @@ export function SuggestionCard({
           <h3>{card.name}</h3>
         </div>
 
-        <div className="dr-swap-pair">
-          {showDetails && staleness.stale ? (
-            <div className="dr-stale-notice-row">
-              <p className="dr-stale-notice">{staleness.reasons.join(' ')}</p>
-            </div>
-          ) : null}
-          {showDetails && missingCut ? (
-            <div className="dr-cut-warning-row">
-              <p className="dr-cut-warning">
-                No cut was suggested for this swap. Choose an Out card manually — the generator may have omitted{' '}
-                <code>replaces</code>.
-              </p>
-            </div>
-          ) : null}
+        {warningLine ? (
+          <p
+            className={
+              'dr-edge-warning' +
+              (staleness.stale ? ' dr-edge-warning-stale' : '') +
+              (missingCut && !staleness.stale ? ' dr-edge-warning-cut' : '')
+            }
+          >
+            {warningLine}
+          </p>
+        ) : null}
 
-          <div className="dr-swap-col dr-swap-in">
-            <div className="dr-swap-label dr-swap-label-in">In</div>
-            <button
-              type="button"
-              className="dr-card-image dr-card-image-btn"
-              aria-label="Choose printing"
-              onClick={() =>
-                openPrintPicker(suggestion, prints, printId, finish === 'foil', (nextPrintId, nextFinish) => {
-                  setPrintId(nextPrintId);
-                  setFinish(nextFinish);
-                })
-              }
-            >
-              <img data-dr-img-in src={inImgSrc} alt="" />
-            </button>
-            {showDetails ? (
-              <>
+        {showDetails ? (
+          <>
+            <div className="dr-swap-summaries">
+              <div className="dr-swap-summary-col">
                 <p className="dr-picker-summary">{printSummaryLabel(printId, prints, suggestion, finish)}</p>
                 <button
                   type="button"
@@ -315,28 +342,8 @@ export function SuggestionCard({
                 >
                   Never suggest again
                 </button>
-              </>
-            ) : null}
-          </div>
-
-          <div className="dr-swap-arrow" aria-hidden="true">
-            →
-          </div>
-
-          <div className="dr-swap-col dr-swap-out">
-            <div className="dr-swap-label dr-swap-label-out">Out</div>
-            <button
-              type="button"
-              className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
-              aria-label="Choose cut"
-              onClick={() =>
-                openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
-              }
-            >
-              <img data-dr-img-out src={outImgSrc || undefined} alt="" />
-            </button>
-            {showDetails ? (
-              <>
+              </div>
+              <div className="dr-swap-summary-col">
                 <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
                 <button
                   type="button"
@@ -347,18 +354,15 @@ export function SuggestionCard({
                 >
                   Never suggest again
                 </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        {showDetails ? (
-          <div className="dr-reasoning dr-reasoning-detail">
-            <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
-            <p className="dr-roles">
-              Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
-            </p>
-          </div>
+              </div>
+            </div>
+            <div className="dr-reasoning dr-reasoning-detail">
+              <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
+              <p className="dr-roles">
+                Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
+              </p>
+            </div>
+          </>
         ) : null}
 
         {compact ? (

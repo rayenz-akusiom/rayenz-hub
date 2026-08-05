@@ -75,6 +75,7 @@ type HubCardPickerApi = {
     groupByCategory?: boolean;
     showFoilToggle?: boolean;
     foilDefault?: boolean;
+    layout?: 'modal' | 'dock';
     onPick?: (value: unknown, item: CardPickerItem, ctx?: { foil?: boolean }) => void;
   }) => void;
   resolveFinish: (item: CardPickerItem | null | undefined, foilOn: boolean) => string;
@@ -170,6 +171,7 @@ export function openPrintPicker(
     title: 'Choose printing — ' + card.name,
     showFoilToggle: true,
     foilDefault,
+    layout: 'dock',
     items: buildPrintPickerItems(prints, suggestion),
     selectedValue: selectedPrintId,
     onPick: (value, item, ctx) => {
@@ -194,6 +196,7 @@ export function openCutPicker(
   picker.open({
     title: 'Choose card to cut',
     groupByCategory: true,
+    layout: 'dock',
     items: buildCutPickerItems(options, deck, suggestion, selectedKey, currentCut),
     selectedValue: selectedKey,
     onPick: (value) => {

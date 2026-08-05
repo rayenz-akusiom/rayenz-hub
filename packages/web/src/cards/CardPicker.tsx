@@ -28,6 +28,8 @@ export type CardPickerConfig = {
   groupByCategory?: boolean;
   showFoilToggle?: boolean;
   foilDefault?: boolean;
+  /** Prefer a right side-sheet on wide viewports (Review print/cut). */
+  layout?: 'modal' | 'dock';
   onPick?: (value: unknown, item: CardPickerItem, ctx: CardPickerPickContext) => void;
 };
 
@@ -89,6 +91,8 @@ export function resolveFinish(item: CardPickerItem | null | undefined, foilOn: b
   return 'nonfoil';
 }
 
+const DOCK_MQ = '(min-width: 1100px)';
+
 export function CardPickerModal({
   config,
   onClose,
@@ -99,11 +103,24 @@ export function CardPickerModal({
   const { size, setSize, widthPx } = useCardSize();
   const [foil, setFoil] = useState(!!config.foilDefault);
   const [filter, setFilter] = useState('');
+  const [docked, setDocked] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setFoil(!!config.foilDefault);
   }, [config]);
+
+  useEffect(() => {
+    if (config.layout !== 'dock' || typeof window.matchMedia !== 'function') {
+      setDocked(false);
+      return;
+    }
+    const mq = window.matchMedia(DOCK_MQ);
+    const update = () => setDocked(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [config.layout]);
 
   useEffect(() => {
     filterRef.current?.focus();
@@ -141,7 +158,9 @@ export function CardPickerModal({
 
   return (
     <div
-      className="hub-picker-dialog hub-picker-dialog--react"
+      className={
+        'hub-picker-dialog hub-picker-dialog--react' + (docked ? ' hub-picker-dialog--dock' : '')
+      }
       role="dialog"
       aria-modal="true"
       aria-label={config.title || 'Choose'}

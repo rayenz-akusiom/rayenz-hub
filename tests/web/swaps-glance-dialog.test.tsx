@@ -1,22 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { aggregateSwapWants } from '@rayenz-hub/shared';
+import { aggregateSwapWants, SWAP_GLANCE_GENERATION_VERSION } from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 import { SwapsGlanceDialog } from '../../packages/web/src/swap-queue/SwapsGlanceDialog';
 import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
+import { stubGlanceObjectUrls } from './helpers/glance-stub.ts';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
-const postSwapsGlance = vi.fn(async () => ({
-  blobs: [new Blob(['png'], { type: 'image/png' })],
-  pageCount: 1,
-  densifyStage: 'base',
-  omittedCardCount: 0,
-  cache: 'MISS',
-  generation: 'swap-glance-gen-9',
-  delivery: 'inline' as const,
-}));
-
+const postSwapsGlance = vi.hoisted(() =>
+  vi.fn(async () => ({
+    blobs: [new Blob(['png'], { type: 'image/png' })],
+    pageCount: 1,
+    densifyStage: 'base',
+    omittedCardCount: 0,
+    cache: 'MISS',
+    generation: 'swap-glance-gen-9',
+    delivery: 'inline' as const,
+  })),
+);
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
 }));
@@ -69,11 +71,16 @@ describe('Swaps at a glance dialog', () => {
       decks: [deck],
       sources: aggregateSwapWants([deck]),
     });
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:swaps-glance-preview'),
-      revokeObjectURL: vi.fn(),
-    });
+    stubGlanceObjectUrls('blob:swaps-glance-preview');
+    postSwapsGlance.mockImplementation(async () => ({
+      blobs: [new Blob(['png'], { type: 'image/png' })],
+      pageCount: 1,
+      densifyStage: 'base',
+      omittedCardCount: 0,
+      cache: 'MISS',
+      generation: SWAP_GLANCE_GENERATION_VERSION,
+      delivery: 'inline' as const,
+    }));
   });
 
   it('opens from Actions and updates row count when Seeking is toggled', async () => {
@@ -150,7 +157,7 @@ describe('Swaps at a glance dialog', () => {
       densifyStage: 'base',
       omittedCardCount: 0,
       cache: 'MISS',
-      generation: 'swap-glance-gen-9',
+      generation: SWAP_GLANCE_GENERATION_VERSION,
       delivery: 'bundle' as const,
     });
     vi.stubGlobal('URL', {

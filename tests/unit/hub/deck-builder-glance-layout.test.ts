@@ -14,23 +14,31 @@ import {
   GLANCE_WATERMARK_HEIGHT,
   type DeckDocument,
 } from '@rayenz-hub/shared';
-import { buildEligibleCommanderDeck } from '../../fixtures/deck-builder/glance-eligible.ts';
+import { buildEligibleCommanderDeck, redistributeAcrossCategories, splitInstantIntoCreature } from '../../fixtures/deck-builder/glance-eligible.ts';
 
-function planFor(deck: DeckDocument) {
-  const include = buildGlanceIncludeSet(deck);
+function includeFor(
+  deck: DeckDocument,
+  options?: Parameters<typeof buildGlanceIncludeSet>[1],
+) {
+  const include = buildGlanceIncludeSet(deck, options);
   expect(include.ok).toBe(true);
   if (!include.ok) throw new Error('expected eligible include set');
-  return buildGlanceLayoutPlan(include.includeSet, deck.name);
+  return include.includeSet;
+}
+
+function planFor(
+  deck: DeckDocument,
+  options?: Parameters<typeof buildGlanceIncludeSet>[1],
+) {
+  return buildGlanceLayoutPlan(includeFor(deck, options), deck.name);
 }
 
 describe('deck-builder glance layout', () => {
   it('is deterministic for the same include-set', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const a = buildGlanceLayoutPlan(include.includeSet, deck.name);
-    const b = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck);
+    const a = buildGlanceLayoutPlan(includeSet, deck.name);
+    const b = buildGlanceLayoutPlan(includeSet, deck.name);
     expect(a.placements).toEqual(b.placements);
     expect(a.labels).toEqual(b.labels);
     expect(a.backdrops).toEqual(b.backdrops);
@@ -68,11 +76,7 @@ describe('deck-builder glance layout', () => {
   });
 
   it('places commanders side-by-side with a backdrop plate', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     const cmds = plan.placements.filter((p) => p.region === 'commander');
     expect(cmds.length).toBeGreaterThanOrEqual(1);
     expect(cmds.every((p) => p.y === cmds[0]!.y)).toBe(true);
@@ -84,11 +88,7 @@ describe('deck-builder glance layout', () => {
   });
 
   it('gives section category labels a width spanning their columns', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     const sectionLabels = plan.labels.filter((l) => l.role === 'section');
     expect(sectionLabels.length).toBeGreaterThan(0);
     for (const label of sectionLabels) {
@@ -102,24 +102,20 @@ describe('deck-builder glance layout', () => {
 
   it('uses singular Commander label for one commander', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.commanders).toHaveLength(1);
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck);
+    expect(includeSet.commanders).toHaveLength(1);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     expect(plan.labels.map((l) => l.text)).toContain('Commander');
     expect(plan.labels.map((l) => l.text)).not.toContain('Commanders');
   });
 
   it('does not blank the second column beside a single commander plate', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.commanders).toHaveLength(1);
-    expect(include.includeSet.lieutenants.length).toBeLessThanOrEqual(1);
+    const includeSet = includeFor(deck);
+    expect(includeSet.commanders).toHaveLength(1);
+    expect(includeSet.lieutenants.length).toBeLessThanOrEqual(1);
 
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const cmdPlate = plan.backdrops.find((b) => b.region === 'commander');
     expect(cmdPlate).toBeTruthy();
     if (!cmdPlate) return;
@@ -144,21 +140,17 @@ describe('deck-builder glance layout', () => {
 
   it('emits WUBRG-ordered title pips from commander colour identity', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
-    expect(plan.titlePips).toEqual(buildTitlePips(include.includeSet.commanders));
+    const includeSet = includeFor(deck);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
+    expect(plan.titlePips).toEqual(buildTitlePips(includeSet.commanders));
     expect(plan.titlePips.length).toBeGreaterThan(0);
   });
 
   it('keeps lands in the land region only', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
-    const landIds = new Set(include.includeSet.lands.map((c) => c.instanceId));
+    const includeSet = includeFor(deck);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
+    const landIds = new Set(includeSet.lands.map((c) => c.instanceId));
     for (const placement of plan.placements) {
       if (landIds.has(placement.card.instanceId)) {
         expect(placement.region).toBe('land');
@@ -171,21 +163,15 @@ describe('deck-builder glance layout', () => {
 
   it('orders non-land placements by colour-sort within the nonland band', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const nonland = plan.placements.filter((p) => p.region === 'nonland').map((p) => p.card);
     const sorted = [...nonland].sort(compareGlanceCardsForColourSort);
     expect(nonland.map((c) => c.instanceId)).toEqual(sorted.map((c) => c.instanceId));
   });
 
   it('fans non-role cards vertically at a constant, fixed title-peek pitch', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     const stackable = plan.placements.filter(
       (p) => p.region === 'nonland' || p.region === 'land',
     );
@@ -221,25 +207,23 @@ describe('deck-builder glance layout', () => {
 
   it('emits section labels and omits empty sections', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const texts = plan.labels.map((l) => l.text);
     expect(texts).toContain('Commander');
     expect(texts).toContain('Main deck');
     expect(texts).toContain('Lands');
-    if (!include.includeSet.lieutenants.length) {
+    if (!includeSet.lieutenants.length) {
       expect(texts).not.toContain('Lieutenant');
       expect(texts).not.toContain('Lieutenants');
     }
 
     const noLands = {
-      ...include.includeSet,
+      ...includeSet,
       lands: [],
-      cards: include.includeSet.cards.filter((c) => !c.isLand),
-      nonLands: include.includeSet.nonLands,
-      sections: include.includeSet.sections.filter((s) => s.name !== 'Lands'),
+      cards: includeSet.cards.filter((c) => !c.isLand),
+      nonLands: includeSet.nonLands,
+      sections: includeSet.sections.filter((s) => s.name !== 'Lands'),
     };
     const planNoLands = buildGlanceLayoutPlan(noLands, deck.name);
     expect(planNoLands.placements.some((p) => p.region === 'land')).toBe(false);
@@ -247,26 +231,11 @@ describe('deck-builder glance layout', () => {
   });
 
   it('groups by primary category and labels sections in deck category order', () => {
-    const deck = buildEligibleCommanderDeck({
-      categories: [
-        { name: 'Commander', includedInDeck: true, includedInPrice: true },
-        { name: 'Land', includedInDeck: true, includedInPrice: true },
-        { name: 'Instant', includedInDeck: true, includedInPrice: true },
-        { name: 'Creature', includedInDeck: true, includedInPrice: true },
-      ],
-    });
-    // Move some Instant cards into Creature so both categories appear.
-    deck.cards = deck.cards.map((c, i) =>
-      c.primaryCategory === 'Instant' && i % 3 === 0
-        ? { ...c, primaryCategory: 'Creature', categories: ['Creature'] }
-        : c,
-    );
-    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.mode).toBe('primary_category');
-    expect(include.includeSet.sections.map((s) => s.name)).toEqual(['Land', 'Instant', 'Creature']);
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const deck = splitInstantIntoCreature(buildEligibleCommanderDeck());
+    const includeSet = includeFor(deck, { mode: 'primary_category' });
+    expect(includeSet.mode).toBe('primary_category');
+    expect(includeSet.sections.map((s) => s.name)).toEqual(['Land', 'Instant', 'Creature']);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const texts = plan.labels.map((l) => l.text);
     expect(texts).toContain('Commander');
     expect(texts).toContain('Land');
@@ -281,24 +250,18 @@ describe('deck-builder glance layout', () => {
 
   it('keeps role plates and fingerprints differently across layout modes', () => {
     const deck = buildEligibleCommanderDeck();
-    const typeLine = buildGlanceIncludeSet(deck, { mode: 'type_line' });
-    const byCategory = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(typeLine.ok && byCategory.ok).toBe(true);
-    if (!typeLine.ok || !byCategory.ok) return;
-    expect(typeLine.includeSet.commanders).toEqual(byCategory.includeSet.commanders);
-    const planType = buildGlanceLayoutPlan(typeLine.includeSet, deck.name);
-    const planCat = buildGlanceLayoutPlan(byCategory.includeSet, deck.name);
+    const typeLine = includeFor(deck, { mode: 'type_line' });
+    const byCategory = includeFor(deck, { mode: 'primary_category' });
+    expect(typeLine.commanders).toEqual(byCategory.commanders);
+    const planType = buildGlanceLayoutPlan(typeLine, deck.name);
+    const planCat = buildGlanceLayoutPlan(byCategory, deck.name);
     expect(planType.fingerprint).not.toBe(planCat.fingerprint);
     expect(planType.placements.some((p) => p.region === 'commander')).toBe(true);
     expect(planCat.placements.some((p) => p.region === 'commander')).toBe(true);
   });
 
   it('fits a 100-card fixture within the canvas height', () => {
-    const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = planFor(buildEligibleCommanderDeck());
     const maxBottom = Math.max(...plan.placements.map((p) => p.y + p.height));
     expect(maxBottom + GLANCE_WATERMARK_HEIGHT).toBeLessThanOrEqual(plan.canvasHeight);
     expect(Math.min(...plan.placements.map((p) => p.y))).toBeGreaterThanOrEqual(GLANCE_HEADER_HEIGHT);
@@ -306,12 +269,10 @@ describe('deck-builder glance layout', () => {
 
   it('keeps each section in a contiguous column run (no disconnected orphans)', () => {
     const deck = buildEligibleCommanderDeck();
-    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck, { mode: 'primary_category' });
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
 
-    for (const section of include.includeSet.sections) {
+    for (const section of includeSet.sections) {
       const xs = [
         ...new Set(
           plan.placements
@@ -341,26 +302,8 @@ describe('deck-builder glance layout', () => {
       'Tech',
       'Land',
     ];
-    const deck = buildEligibleCommanderDeck({
-      categories: [
-        { name: 'Commander', includedInDeck: true, includedInPrice: true },
-        ...catNames.map((name) => ({
-          name,
-          includedInDeck: true,
-          includedInPrice: true,
-        })),
-      ],
-    });
-    let ci = 0;
-    deck.cards = deck.cards.map((c) => {
-      if (c.primaryCategory === 'Commander') return c;
-      const cat = catNames[ci++ % catNames.length]!;
-      return { ...c, primaryCategory: cat, categories: [cat] };
-    });
-    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const deck = redistributeAcrossCategories(buildEligibleCommanderDeck(), catNames);
+    const plan = planFor(deck, { mode: 'primary_category' });
     const sectionLabels = plan.labels.filter(
       (l) =>
         l.text !== 'Commander' &&
@@ -374,32 +317,13 @@ describe('deck-builder glance layout', () => {
   });
 
   it('prefers keeping cards near M when densify can fit many categories', () => {
-    const deck = buildEligibleCommanderDeck({
-      categories: [
-        { name: 'Commander', includedInDeck: true, includedInPrice: true },
-        { name: 'Ramp', includedInDeck: true, includedInPrice: true },
-        { name: 'Draw', includedInDeck: true, includedInPrice: true },
-        { name: 'Removal', includedInDeck: true, includedInPrice: true },
-        { name: 'Land', includedInDeck: true, includedInPrice: true },
-        { name: 'Interaction', includedInDeck: true, includedInPrice: true },
-      ],
+    const cats = ['Ramp', 'Draw', 'Removal', 'Interaction', 'Land'];
+    const deck = redistributeAcrossCategories(buildEligibleCommanderDeck(), cats, {
+      keepLandCategory: true,
     });
-    const cats = ['Ramp', 'Draw', 'Removal', 'Interaction', 'Land'] as const;
-    let ci = 0;
-    deck.cards = deck.cards.map((c) => {
-      if (c.primaryCategory === 'Commander') return c;
-      if (c.primaryCategory === 'Land' || c.name === 'Forest') {
-        return { ...c, primaryCategory: 'Land', categories: ['Land'] };
-      }
-      const cat = cats[ci % 4]!;
-      ci += 1;
-      return { ...c, primaryCategory: cat, categories: [cat] };
-    });
-    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.sections.length).toBeGreaterThanOrEqual(4);
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck, { mode: 'primary_category' });
+    expect(includeSet.sections.length).toBeGreaterThanOrEqual(4);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     expect(plan.placements.length).toBeGreaterThan(0);
     // Should not collapse to near-minimum solely because section count was high.
     expect(plan.placements[0]!.height).toBeGreaterThan(GLANCE_MIN_VISIBLE_Y * 2);
@@ -473,17 +397,15 @@ describe('deck-builder glance layout', () => {
     add('Misc', 'Other', 'Artifact', 6);
     deck.cards = [...cmd, ...others];
 
-    const include = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.sections.map((s) => s.name)).toContain('Land');
+    const includeSet = includeFor(deck, { mode: 'primary_category' });
+    expect(includeSet.sections.map((s) => s.name)).toContain('Land');
     // Deck category order still lists Land mid-list.
-    expect(include.includeSet.sections.map((s) => s.name).indexOf('Land')).toBeGreaterThan(0);
-    expect(include.includeSet.sections.map((s) => s.name).indexOf('Land')).toBeLessThan(
-      include.includeSet.sections.length - 1,
+    expect(includeSet.sections.map((s) => s.name).indexOf('Land')).toBeGreaterThan(0);
+    expect(includeSet.sections.map((s) => s.name).indexOf('Land')).toBeLessThan(
+      includeSet.sections.length - 1,
     );
 
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const sectionLabels = plan.labels.filter((l) => l.role === 'section');
     const land = sectionLabels.find((l) => l.text === 'Land');
     expect(land).toBeTruthy();
@@ -495,11 +417,9 @@ describe('deck-builder glance layout', () => {
   it('places underfull-deck placeholders in the nonland region', () => {
     const deck = buildEligibleCommanderDeck();
     deck.cards = deck.cards.slice(0, 20);
-    const include = buildGlanceIncludeSet(deck);
-    expect(include.ok).toBe(true);
-    if (!include.ok) return;
-    expect(include.includeSet.cards.filter((c) => c.isPlaceholder).length).toBe(80);
-    const plan = buildGlanceLayoutPlan(include.includeSet, deck.name);
+    const includeSet = includeFor(deck);
+    expect(includeSet.cards.filter((c) => c.isPlaceholder).length).toBe(80);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
     const placeholderPlacements = plan.placements.filter((p) => p.card.isPlaceholder);
     expect(placeholderPlacements).toHaveLength(80);
     expect(placeholderPlacements.every((p) => p.region === 'nonland')).toBe(true);

@@ -109,11 +109,7 @@ export async function renderSwapGlancePng(
   composites.push({ input: titleStrip, left: 0, top: 0 });
 
   for (const label of plan.labels) {
-    const maxWidth =
-      label.maxWidth ??
-      (label.role === 'title'
-        ? plan.canvasWidth - label.x - 24
-        : plan.canvasWidth - label.x - 24);
+    const maxWidth = label.maxWidth ?? plan.canvasWidth - label.x - 24;
     const tile = await drawSwapGlanceLabel(label.text, label.role, maxWidth);
     composites.push({
       input: tile,

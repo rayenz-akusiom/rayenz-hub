@@ -43,7 +43,7 @@ function assetRootCandidates(): string[] {
   ].filter(Boolean) as string[];
 }
 
-export function resolveAssetPath(...parts: string[]): string {
+function resolveAssetPath(...parts: string[]): string {
   const candidates = assetRootCandidates().map((root) => path.join(root, ...parts));
   return candidates.find((p) => existsSync(p)) ?? candidates[0]!;
 }

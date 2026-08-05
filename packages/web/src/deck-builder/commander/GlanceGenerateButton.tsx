@@ -4,7 +4,13 @@ import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
 import { apiPostDeckGlance } from '../store/deck-glance-api';
-import { canCopyPng, copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
+import { copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
+import {
+  formatGlanceStatusLine,
+  GlanceModalActions,
+  GlancePreviewSlot,
+  GlanceStatusLine,
+} from '../../lib/glance-ui';
 
 type Props = {
   deck: DeckDocument;
@@ -110,11 +116,11 @@ export function GlanceGenerateButton({ deck }: Props) {
           mode: layoutMode,
         });
         const url = URL.createObjectURL(result.blob);
-        const parts = ['Generated'];
-        if (result.generation) parts.push(`gen ${result.generation}`);
-        if (result.cache) parts.push(`cache ${result.cache}`);
-        if (result.delivery === 'presigned') parts.push('presigned fetch');
-        const line = parts.join(' · ');
+        const line = formatGlanceStatusLine({
+          generation: result.generation,
+          cache: result.cache,
+          delivery: result.delivery,
+        });
         const entry: CachedPreview = {
           blob: result.blob,
           url,
@@ -216,7 +222,6 @@ export function GlanceGenerateButton({ deck }: Props) {
     await copyPngBlob(pngBlob);
   }, [pngBlob]);
 
-  const canCopy = canCopyPng() && Boolean(pngBlob);
   const picking = phase === 'pick';
   const canConfirmPick = picked.length === GLANCE_ROLE_HIGHLIGHT_LIMIT;
   const hasMatchingPreview = Boolean(previewUrl && pngBlob);
@@ -273,7 +278,11 @@ export function GlanceGenerateButton({ deck }: Props) {
                 </label>
               </fieldset>
             ) : null}
-            <div className="db-glance-statusline">
+            <GlanceStatusLine
+              loading={loading}
+              error={error}
+              statusLine={!picking ? statusLine : null}
+            >
               {picking ? (
                 <p className="db-glance-status">
                   {`This deck has ${lieutenants.length} lieutenants. Choose ${GLANCE_ROLE_HIGHLIGHT_LIMIT} to highlight (${picked.length}/${GLANCE_ROLE_HIGHLIGHT_LIMIT} selected).`}
@@ -282,14 +291,9 @@ export function GlanceGenerateButton({ deck }: Props) {
               {!picking && !loading && !error && !hasMatchingPreview ? (
                 <p className="db-glance-status">Choose a layout, then generate.</p>
               ) : null}
-              {loading ? <p>Generating glance image…</p> : null}
-              {error ? <p className="db-error">{error}</p> : null}
-              {!picking && !loading && !error && statusLine ? (
-                <p className="db-glance-status">{statusLine}</p>
-              ) : null}
-            </div>
-            <div className="db-glance-slot">
-              {picking ? (
+            </GlanceStatusLine>
+            {picking ? (
+              <GlancePreviewSlot previewUrl={null} alt="" loading={false}>
                 <div
                   className="db-glance-pick-grid"
                   role="listbox"
@@ -320,18 +324,21 @@ export function GlanceGenerateButton({ deck }: Props) {
                     );
                   })}
                 </div>
-              ) : previewUrl ? (
-                <img src={previewUrl} alt="Deck glance preview" className="db-glance-preview" />
-              ) : (
-                <div className="db-glance-skeleton" aria-hidden="true">
-                  {loading ? <span className="db-glance-spinner" /> : null}
-                </div>
-              )}
-            </div>
-            <div className="db-modal-actions">
-              <button type="button" className="db-btn" onClick={closeDialog}>
-                {picking ? 'Cancel' : 'Close'}
-              </button>
+              </GlancePreviewSlot>
+            ) : (
+              <GlancePreviewSlot
+                previewUrl={previewUrl}
+                alt="Deck glance preview"
+                loading={loading}
+              />
+            )}
+            <GlanceModalActions
+              onClose={closeDialog}
+              closeLabel={picking ? 'Cancel' : 'Close'}
+              onDownload={picking ? undefined : onDownload}
+              onCopy={picking ? undefined : onCopy}
+              downloadDisabled={!pngBlob}
+            >
               {picking ? (
                 <button
                   type="button"
@@ -342,29 +349,16 @@ export function GlanceGenerateButton({ deck }: Props) {
                   Continue
                 </button>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    className="db-btn"
-                    disabled={loading || !enabled}
-                    onClick={onConfirmGenerate}
-                  >
-                    {hasMatchingPreview ? 'Regenerate' : 'Generate'}
-                  </button>
-                  <button type="button" className="db-btn" disabled={!pngBlob} onClick={onDownload}>
-                    Download
-                  </button>
-                  <button
-                    type="button"
-                    className="db-btn"
-                    disabled={!canCopy}
-                    onClick={() => void onCopy()}
-                  >
-                    Copy image
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className="db-btn"
+                  disabled={loading || !enabled}
+                  onClick={onConfirmGenerate}
+                >
+                  {hasMatchingPreview ? 'Regenerate' : 'Generate'}
+                </button>
               )}
-            </div>
+            </GlanceModalActions>
           </div>
         </div>
       ) : null}

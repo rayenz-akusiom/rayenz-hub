@@ -2,23 +2,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument } from '@rayenz-hub/shared';
+import { GLANCE_GENERATION_VERSION } from '@rayenz-hub/shared';
 import { GlanceGenerateButton } from '../../packages/web/src/deck-builder/commander/GlanceGenerateButton';
 import {
   buildEligibleCommanderDeck,
   buildMultiLieutenantCommanderDeck,
 } from '../fixtures/deck-builder/glance-eligible.ts';
+import { stubGlanceObjectUrls } from './helpers/glance-stub.ts';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
-const postGlance = vi.fn(
-  async (
-    _deckId: string,
-    _request?: { lieutenantInstanceIds?: string[]; mode?: 'type_line' | 'primary_category' },
-  ) => ({
-    blob: new Blob(['png'], { type: 'image/png' }),
-    cache: 'MISS',
-    generation: 'glance-gen-16',
-    delivery: 'inline' as const,
-  }),
+const postGlance = vi.hoisted(() =>
+  vi.fn(
+    async (
+      _deckId: string,
+      _request?: { lieutenantInstanceIds?: string[]; mode?: 'type_line' | 'primary_category' },
+    ) => ({
+      blob: new Blob(['png'], { type: 'image/png' }),
+      cache: 'MISS',
+      generation: 'glance-gen-17',
+      delivery: 'inline' as const,
+    }),
+  ),
 );
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
@@ -40,11 +44,13 @@ describe('GlanceGenerateButton', () => {
   });
 
   beforeEach(() => {
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:glance-preview'),
-      revokeObjectURL: vi.fn(),
-    });
+    stubGlanceObjectUrls();
+    postGlance.mockImplementation(async () => ({
+      blob: new Blob(['png'], { type: 'image/png' }),
+      cache: 'MISS',
+      generation: GLANCE_GENERATION_VERSION,
+      delivery: 'inline' as const,
+    }));
   });
 
   it('is disabled when Hub API is not configured', async () => {
@@ -80,7 +86,7 @@ describe('GlanceGenerateButton', () => {
       expect(postGlance).toHaveBeenCalledWith(deck.deckId, { mode: 'type_line' }),
     );
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(/gen glance-gen-16 · cache MISS/i)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`gen ${GLANCE_GENERATION_VERSION} · cache MISS`, 'i'))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 

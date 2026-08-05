@@ -4,7 +4,6 @@ import {
   normalizeSetCodes,
   SWAP_GLANCE_GENERATION_VERSION,
   type DeckDocument,
-  type SwapGlanceLayoutPlan,
   type SwapGlanceMode,
   type SwapGlanceRequestItem,
   type WantSourceKind,
@@ -12,33 +11,17 @@ import {
 import { binaryResponse, errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
+import { swapGlanceCacheKey } from '../repositories/glance-cache.js';
+import { renderSwapGlancePng } from '../services/glance-render.js';
 import {
-  GLANCE_INLINE_MAX_BYTES,
-  GlanceCacheRepository,
-  swapGlanceCacheKey,
-} from '../repositories/glance-cache.js';
-import {
-  createGlanceImageLoader,
-  enrichSwapGlancePlanArt,
-  prefetchSwapGlanceImages,
-} from '../services/glance-art.js';
-import { renderSwapGlancePng, type RenderGlanceOptions } from '../services/glance-render.js';
-import type { BlobStore } from '../repositories/s3-blob-store.js';
-import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
+  createGlanceCacheFromOptions,
+  renderPlanThroughCache,
+  type GlanceHandlerOptions,
+} from './glance-pipeline.js';
 
-export type SwapsGlanceOptions = RenderGlanceOptions & {
-  blobStore?: BlobStore;
-  fetchImpl?: typeof fetch;
-  skipArtEnrichment?: boolean;
-  inlineMaxBytes?: number;
-  presignGet?: (
-    generationVersion: string,
-    fingerprint: string,
-  ) => Promise<{ url: string; expiresAt: string }>;
-};
+export type SwapsGlanceOptions = GlanceHandlerOptions;
 
 const KINDS = new Set<WantSourceKind>(['seeking', 'queued_in', 'queued_out']);
-const MODES = new Set<SwapGlanceMode>(['full', 'in_only']);
 
 function parseSwapsGlanceRequest(body: string | null | undefined):
   | {
@@ -104,9 +87,6 @@ function parseSwapsGlanceRequest(body: string | null | undefined):
       entryId: item.entryId,
     });
   }
-  if (!MODES.has(raw.mode)) {
-    return { ok: false, message: 'Invalid mode' };
-  }
   return {
     ok: true,
     mode: raw.mode,
@@ -126,47 +106,6 @@ type PageImageResult = {
   cache: 'HIT' | 'MISS';
   png: Uint8Array;
 };
-
-async function renderCachedPage(
-  plan: SwapGlanceLayoutPlan,
-  cache: GlanceCacheRepository,
-  decks: DeckDocument[],
-  options: SwapsGlanceOptions,
-  fetchImpl: typeof fetch,
-  sharedImageCache: Map<string, Uint8Array> | null,
-): Promise<{ page: PageImageResult; imageCache: Map<string, Uint8Array> }> {
-  let png = await cache.get(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint);
-  let cacheStatus: 'HIT' | 'MISS' = 'HIT';
-  let imageCache = sharedImageCache;
-  if (!png) {
-    cacheStatus = 'MISS';
-    const allCards = decks.flatMap((d) => d.cards || []);
-    const renderPlan = options.skipArtEnrichment
-      ? plan
-      : await enrichSwapGlancePlanArt(plan, allCards, fetchImpl);
-    if (!imageCache) {
-      imageCache = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
-    } else {
-      const extra = await prefetchSwapGlanceImages(renderPlan, fetchImpl);
-      for (const [k, v] of extra) imageCache.set(k, v);
-    }
-    const imageLoader = options.imageLoader ?? createGlanceImageLoader(imageCache, fetchImpl);
-    png = await renderSwapGlancePng(renderPlan, {
-      imageLoader,
-      fastPng: options.fastPng,
-    });
-    await cache.put(SWAP_GLANCE_GENERATION_VERSION, plan.fingerprint, png);
-  }
-  return {
-    page: {
-      index: plan.pageIndex ?? 1,
-      fingerprint: plan.fingerprint,
-      cache: cacheStatus,
-      png,
-    },
-    imageCache: imageCache ?? new Map(),
-  };
-}
 
 export async function handleSwapsGlance(
   headers: Record<string, string | undefined>,
@@ -202,30 +141,33 @@ export async function handleSwapsGlance(
 
     const layout = buildSwapGlanceLayoutPlans(includeResult.includeSet);
     const plans = layout.plans;
-    const bucket = env.HUB_BUCKET_NAME || 'rayenz-hub-data-local';
-    const s3Client = createS3Client(env);
-    const blob = options.blobStore ?? new S3BlobStore(s3Client, bucket);
-    const cache = new GlanceCacheRepository(
-      blob,
-      { client: s3Client, bucket },
+    const { cache, fetchImpl, inlineMaxBytes } = createGlanceCacheFromOptions(
+      env,
+      options,
       swapGlanceCacheKey,
     );
-    const fetchImpl = options.fetchImpl ?? fetch;
-    const inlineMaxBytes = options.inlineMaxBytes ?? GLANCE_INLINE_MAX_BYTES;
 
     const pages: PageImageResult[] = [];
     let sharedImageCache: Map<string, Uint8Array> | null = null;
+    const allCards = decks.flatMap((d) => d.cards || []);
     for (const plan of plans) {
-      const rendered = await renderCachedPage(
+      const rendered = await renderPlanThroughCache({
+        generationVersion: SWAP_GLANCE_GENERATION_VERSION,
         plan,
+        cards: allCards,
         cache,
-        decks,
         options,
         fetchImpl,
+        render: renderSwapGlancePng,
         sharedImageCache,
-      );
+      });
       sharedImageCache = rendered.imageCache;
-      pages.push(rendered.page);
+      pages.push({
+        index: plan.pageIndex ?? 1,
+        fingerprint: plan.fingerprint,
+        cache: rendered.cacheStatus,
+        png: rendered.png,
+      });
     }
 
     const pageCount = pages.length;

@@ -1,8 +1,4 @@
-import {
-  fetchImageBlob,
-  glanceResponseMeta,
-  postGlanceRequest,
-} from '../../lib/glance-http';
+import { postGlanceRequest, resolveInlineOrPresignedPng } from '../../lib/glance-http';
 
 export type DeckGlanceResult = {
   blob: Blob;
@@ -26,32 +22,14 @@ export async function apiPostDeckGlance(
     `/v1/decks/${encodeURIComponent(deckId)}/glance`,
     request,
   );
-  const { cache, generation, contentType } = glanceResponseMeta(res);
-
-  if (contentType.includes('application/json')) {
-    const body = (await res.json()) as {
-      delivery?: string;
-      url?: string;
-      cache?: string;
-      generation?: string;
+  const resolved = await resolveInlineOrPresignedPng(res, 'glance');
+  if (resolved.kind === 'png') {
+    return {
+      blob: resolved.blob,
+      cache: resolved.cache,
+      generation: resolved.generation,
+      delivery: resolved.delivery,
     };
-    if (body.delivery === 'presigned' && body.url) {
-      const blob = await fetchImageBlob(body.url, 'glance');
-      return {
-        blob,
-        cache: body.cache ?? null,
-        generation: body.generation ?? null,
-        delivery: 'presigned',
-      };
-    }
-    throw new Error('Unexpected glance API response.');
   }
-
-  const blob = await res.blob();
-  return {
-    blob,
-    cache,
-    generation,
-    delivery: 'inline',
-  };
+  throw new Error('Unexpected glance API response.');
 }

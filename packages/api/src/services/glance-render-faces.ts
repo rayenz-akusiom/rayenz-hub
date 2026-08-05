@@ -9,7 +9,7 @@ import {
   type GlanceImageLoader,
 } from './glance-render-assets.js';
 
-export async function applyRoundedCorners(
+async function applyRoundedCorners(
   tile: Buffer,
   width: number,
   height: number,

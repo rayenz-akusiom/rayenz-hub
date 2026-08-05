@@ -6,7 +6,13 @@ import {
   type WantSource,
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
-import { canCopyPng, copyPngBlob, downloadPngBlob } from '../lib/glance-png';
+import { copyPngBlob, downloadPngBlob } from '../lib/glance-png';
+import {
+  formatGlanceStatusLine,
+  GlanceModalActions,
+  GlancePreviewSlot,
+  GlanceStatusLine,
+} from '../lib/glance-ui';
 import { apiPostSwapsGlance } from './swaps-glance-api';
 
 type Props = {
@@ -72,14 +78,15 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
       setPngBlobs(result.blobs);
       setPreviewUrls(urls);
       setPageIndex(0);
-      const parts = ['Generated'];
-      if (result.pageCount > 1) parts.push(`${result.pageCount} images`);
-      if (result.generation) parts.push(`gen ${result.generation}`);
-      if (result.cache) parts.push(`cache ${result.cache}`);
-      if (result.delivery === 'presigned') parts.push('presigned fetch');
-      if (result.delivery === 'bundle') parts.push('bundle');
-      if (result.omittedCardCount > 0) parts.push(`+${result.omittedCardCount} omitted`);
-      setStatusLine(parts.join(' · '));
+      setStatusLine(
+        formatGlanceStatusLine({
+          pageCount: result.pageCount,
+          generation: result.generation,
+          cache: result.cache,
+          delivery: result.delivery,
+          omittedCardCount: result.omittedCardCount,
+        }),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate swaps glance image.');
     } finally {
@@ -117,8 +124,6 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     if (!currentBlob) return;
     await copyPngBlob(currentBlob);
   }, [currentBlob]);
-
-  const canCopy = canCopyPng() && Boolean(currentBlob);
 
   if (!open) return null;
 
@@ -176,30 +181,21 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
               : `${itemCount} row${itemCount === 1 ? '' : 's'} from current filters.`}
           </p>
         </div>
-        <div className="db-glance-statusline">
-          {loading ? <p>Generating swaps glance image…</p> : null}
-          {error ? <p className="db-error">{error}</p> : null}
-          {!loading && !error && statusLine ? (
-            <p className="db-glance-status">{statusLine}</p>
-          ) : null}
-        </div>
-        <div className="db-glance-slot">
-          {currentUrl ? (
-            <img
-              src={currentUrl}
-              alt={
-                pageCount > 1
-                  ? `Swaps at a glance preview ${pageIndex + 1} of ${pageCount}`
-                  : 'Swaps at a glance preview'
-              }
-              className="db-glance-preview"
-            />
-          ) : (
-            <div className="db-glance-skeleton" aria-hidden="true">
-              {loading ? <span className="db-glance-spinner" /> : null}
-            </div>
-          )}
-        </div>
+        <GlanceStatusLine
+          loading={loading}
+          loadingText="Generating swaps glance image…"
+          error={error}
+          statusLine={statusLine}
+        />
+        <GlancePreviewSlot
+          previewUrl={currentUrl}
+          alt={
+            pageCount > 1
+              ? `Swaps at a glance preview ${pageIndex + 1} of ${pageCount}`
+              : 'Swaps at a glance preview'
+          }
+          loading={loading}
+        />
         {pageCount > 1 ? (
           <div className="sq-glance-carousel" role="group" aria-label="Glance pages">
             <button
@@ -223,10 +219,24 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
             </button>
           </div>
         ) : null}
-        <div className="db-modal-actions">
-          <button type="button" className="db-btn" onClick={close}>
-            Close
-          </button>
+        <GlanceModalActions
+          onClose={close}
+          onDownload={onDownload}
+          onCopy={onCopy}
+          downloadDisabled={!currentBlob}
+          afterDownload={
+            pageCount > 1 ? (
+              <button
+                type="button"
+                className="db-btn"
+                disabled={!pngBlobs.length}
+                onClick={onDownloadAll}
+              >
+                Download all
+              </button>
+            ) : null
+          }
+        >
           <button
             type="button"
             className="db-btn"
@@ -236,18 +246,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
           >
             Generate
           </button>
-          <button type="button" className="db-btn" disabled={!currentBlob} onClick={onDownload}>
-            Download
-          </button>
-          {pageCount > 1 ? (
-            <button type="button" className="db-btn" disabled={!pngBlobs.length} onClick={onDownloadAll}>
-              Download all
-            </button>
-          ) : null}
-          <button type="button" className="db-btn" disabled={!canCopy} onClick={() => void onCopy()}>
-            Copy image
-          </button>
-        </div>
+        </GlanceModalActions>
       </div>
     </div>
   );

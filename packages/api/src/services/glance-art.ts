@@ -5,11 +5,9 @@ import {
   scryfallCdnUrlWithSize,
   scryfallImageFromId,
   type GlanceCard,
-  type GlanceLayoutPlan,
-  type SwapGlanceLayoutPlan,
 } from '@rayenz-hub/shared';
 
-export const SCRYFALL_USER_AGENT = 'RayenzHub/1.0 (deck-glance; +https://github.com/rayenz-hub)';
+export const SCRYFALL_USER_AGENT = 'RayenzHub/1.0 (glance; +https://github.com/rayenz-hub)';
 
 const CDN_HOST = 'cards.scryfall.io';
 
@@ -124,21 +122,12 @@ export async function enrichGlancePlacementsArt<T extends GlanceArtPlacement>(
   });
 }
 
-export async function enrichGlancePlanArt(
-  plan: GlanceLayoutPlan,
+/** Enrich any plan whose placements carry GlanceCard art fields. */
+export async function enrichGlancePlanArt<T extends { placements: GlanceArtPlacement[] }>(
+  plan: T,
   deckCards: GlanceDeckCardRef[],
   fetchImpl: typeof fetch = fetch,
-): Promise<GlanceLayoutPlan> {
-  const placements = await enrichGlancePlacementsArt(plan.placements, deckCards, fetchImpl);
-  return { ...plan, placements };
-}
-
-/** Enrich swap-glance placements via the same Scryfall CDN / collection path as deck glance. */
-export async function enrichSwapGlancePlanArt(
-  plan: SwapGlanceLayoutPlan,
-  deckCards: GlanceDeckCardRef[],
-  fetchImpl: typeof fetch = fetch,
-): Promise<SwapGlanceLayoutPlan> {
+): Promise<T> {
   const placements = await enrichGlancePlacementsArt(plan.placements, deckCards, fetchImpl);
   return { ...plan, placements };
 }
@@ -207,19 +196,9 @@ export async function prefetchGlanceImagesFromCards(
   return cache;
 }
 
-/** Prefetch unique card art bytes keyed by instanceId. */
+/** Prefetch unique card art bytes keyed by instanceId from a layout plan. */
 export async function prefetchGlanceImages(
-  plan: GlanceLayoutPlan,
-  fetchImpl: typeof fetch = fetch,
-): Promise<Map<string, Uint8Array>> {
-  return prefetchGlanceImagesFromCards(
-    plan.placements.map((p) => p.card),
-    fetchImpl,
-  );
-}
-
-export async function prefetchSwapGlanceImages(
-  plan: SwapGlanceLayoutPlan,
+  plan: { placements: GlanceArtPlacement[] },
   fetchImpl: typeof fetch = fetch,
 ): Promise<Map<string, Uint8Array>> {
   return prefetchGlanceImagesFromCards(

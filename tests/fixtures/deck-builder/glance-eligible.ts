@@ -200,3 +200,54 @@ export function buildGlanceSwapCommanderDeck(overrides: Partial<DeckDocument> = 
     ],
   });
 }
+
+/** Assign non-commander cards round-robin across category names; set deck categories. */
+export function redistributeAcrossCategories(
+  deck: DeckDocument,
+  categoryNames: string[],
+  options?: { keepLandCategory?: boolean },
+): DeckDocument {
+  let ci = 0;
+  const cards = deck.cards.map((c) => {
+    if (c.primaryCategory === 'Commander') return c;
+    if (options?.keepLandCategory && (c.primaryCategory === 'Land' || c.name === 'Forest')) {
+      return { ...c, primaryCategory: 'Land', categories: ['Land'] };
+    }
+    const pool = options?.keepLandCategory
+      ? categoryNames.filter((n) => n !== 'Land')
+      : categoryNames;
+    const cat = pool[ci % pool.length]!;
+    ci += 1;
+    return { ...c, primaryCategory: cat, categories: [cat] };
+  });
+  return {
+    ...deck,
+    categories: [
+      { name: 'Commander', includedInDeck: true, includedInPrice: true },
+      ...categoryNames.map((name) => ({
+        name,
+        includedInDeck: true,
+        includedInPrice: true,
+      })),
+    ],
+    cards,
+  };
+}
+
+/** Move every Nth Instant card into Creature so both categories appear. */
+export function splitInstantIntoCreature(deck: DeckDocument, everyN = 3): DeckDocument {
+  return {
+    ...deck,
+    categories: [
+      { name: 'Commander', includedInDeck: true, includedInPrice: true },
+      { name: 'Land', includedInDeck: true, includedInPrice: true },
+      { name: 'Instant', includedInDeck: true, includedInPrice: true },
+      { name: 'Creature', includedInDeck: true, includedInPrice: true },
+    ],
+    cards: deck.cards.map((c, i) =>
+      c.primaryCategory === 'Instant' && i % everyN === 0
+        ? { ...c, primaryCategory: 'Creature', categories: ['Creature'] }
+        : c,
+    ),
+  };
+}

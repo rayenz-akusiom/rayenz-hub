@@ -1,12 +1,10 @@
 import { GLANCE_WATERMARK_HEIGHT } from '@rayenz-hub/shared';
-import { existsSync } from 'node:fs';
 import {
   ensureFontconfig,
   escapeXml,
   loadSharp,
   TITLE_PAD_X,
   watermarkFontBase64,
-  watermarkFontPath,
 } from './glance-render-assets.js';
 
 export type WatermarkBarOptions = {
@@ -37,9 +35,6 @@ export async function drawWatermarkBar(options: WatermarkBarOptions): Promise<Bu
     .toBuffer();
 
   ensureFontconfig();
-  // Preserve prior side effect of resolving the watermark font path before cache lookup.
-  const fontPath = watermarkFontPath();
-  void existsSync(fontPath);
   const fontB64 = watermarkFontBase64();
   const family = 'GlanceWatermark';
   const leftText = String(options.leftText || '').trim();

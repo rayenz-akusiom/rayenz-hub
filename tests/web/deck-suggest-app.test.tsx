@@ -146,9 +146,10 @@ describe('DeckSuggestApp chrome', () => {
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate suggestions' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Review in Deck Review' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Review in Deck Review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
     expect(screen.getByText('Run Generate to see suggestions.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Setup \d+\/\d+/ })).toBeInTheDocument();
   });
 
   it('mounts hub progress on load', () => {
@@ -169,6 +170,11 @@ describe('DeckSuggestSetup', () => {
       '#/settings/deck-suggest',
     );
 
+    expect(screen.getByRole('button', { name: 'Hub library' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hub library' }));
+    expect(document.getElementById('ds-deck-pane-hub')).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: 'Paste URLs' }));
     expect(document.getElementById('ds-deck-pane-paste-urls')).toBeInTheDocument();
 
@@ -179,6 +185,7 @@ describe('DeckSuggestSetup', () => {
   it('disables folder tab when Archidekt bridge is unavailable', () => {
     render(<DeckSuggestApp />);
     expect(screen.getByRole('button', { name: 'Folder' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hub library' })).not.toBeDisabled();
   });
 
   it('restores cached set pool on load', async () => {

@@ -178,7 +178,7 @@ describe('DeckReviewApp handoff and sidebar', () => {
     const nav = screen.getByRole('complementary', { name: 'Deck navigation' });
     expect(nav).not.toHaveClass('open');
 
-    await user.click(screen.getByRole('button', { name: 'Open deck menu' }));
+    await user.click(screen.getByRole('button', { name: 'Decks' }));
     expect(nav).toHaveClass('open');
 
     await user.click(document.getElementById('dr-right-nav-backdrop')!);

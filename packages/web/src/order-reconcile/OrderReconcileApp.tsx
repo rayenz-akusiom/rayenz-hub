@@ -236,10 +236,11 @@ export function OrderReconcileApp() {
         type="button"
         id="or-right-nav-toggle"
         className="or-right-nav-toggle"
-        aria-label="Open menu"
+        aria-label="Decks"
+        aria-expanded={navOpen}
         onClick={() => setNavOpen((o) => !o)}
       >
-        &#9776;
+        Decks
       </button>
       <div
         id="or-right-nav-backdrop"

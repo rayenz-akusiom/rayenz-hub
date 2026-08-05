@@ -4,6 +4,7 @@ import {
   buildDeckFromImportText,
   fetchSetPool,
   loadDeckRegistry,
+  loadHubLibraryDecks,
   loadSetScopeFromUpload,
   parseDeckListFromText,
 } from './data';
@@ -116,6 +117,25 @@ export function DeckSuggestSetup({
     }
   }
 
+  async function handleLoadHubLibrary() {
+    onClearError();
+    onProgressStart({ label: 'Loading decks from Hub library…', indeterminate: true });
+    try {
+      const loaded = await loadHubLibraryDecks();
+      if (!loaded.length) {
+        throw new Error('No commander decks in the Hub library yet.');
+      }
+      onDeckSelectionChange(applyDeckList(loaded, deckSelection));
+      onProgressFinish({ label: 'Loaded ' + loaded.length + ' commander deck(s) from Hub.' });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+      onProgressFinish({
+        label: err instanceof Error ? err.message : String(err),
+        variant: 'error',
+      });
+    }
+  }
+
   function tabClass(name: DeckLoadTab): string {
     return 'ds-deck-load-tab' + (deckLoadTab === name ? ' active' : '');
   }
@@ -165,6 +185,14 @@ export function DeckSuggestSetup({
       <div className="ds-deck-load-tabs">
         <button
           type="button"
+          className={tabClass('hub')}
+          data-deck-tab="hub"
+          onClick={() => onDeckLoadTab('hub')}
+        >
+          Hub library
+        </button>
+        <button
+          type="button"
           className={tabClass('folder')}
           data-deck-tab="folder"
           disabled={!bridge}
@@ -198,6 +226,22 @@ export function DeckSuggestSetup({
           Upload JSON
         </button>
       </div>
+
+      {deckLoadTab === 'hub' ? (
+        <div className="ds-deck-load-pane" id="ds-deck-pane-hub">
+          <p className="ds-meta">Load commander decks from your Hub library (Commander Builder).</p>
+          <div className="ds-actions">
+            <button
+              type="button"
+              className="ds-btn"
+              id="ds-load-hub"
+              onClick={() => void handleLoadHubLibrary()}
+            >
+              Load Hub decks
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {deckLoadTab === 'folder' ? (
         <div className="ds-deck-load-pane" id="ds-deck-pane-folder">

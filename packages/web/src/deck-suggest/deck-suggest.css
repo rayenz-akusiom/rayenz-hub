@@ -26,12 +26,41 @@
    gap: 16px;
 }
 
+.ds-header-copy {
+   min-width: 0;
+   flex: 1 1 220px;
+}
+
 .ds-action-bar {
    flex-shrink: 0;
    display: flex;
    flex-wrap: wrap;
    align-items: center;
    gap: 8px;
+}
+
+.ds-readiness {
+   margin-top: 10px;
+}
+
+.ds-readiness-toggle {
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+   margin: 0;
+   padding: 0;
+   border: none;
+   background: transparent;
+   font: inherit;
+   font-size: 0.85rem;
+   font-weight: 600;
+   cursor: pointer;
+   color: #4a5568;
+}
+
+.ds-readiness-caret {
+   font-size: 0.75rem;
+   color: #718096;
 }
 
 .ds-requirements-label {
@@ -45,7 +74,7 @@
 
 .ds-requirements {
    list-style: none;
-   margin: 12px 0 0;
+   margin: 8px 0 0;
    padding: 0;
    display: flex;
    flex-wrap: wrap;
@@ -407,4 +436,41 @@
 
 .ds-rules-debug-info {
    border-left-color: #3182ce;
+}
+
+@media (max-width: 768px) {
+   .ds-header {
+      padding: 12px 14px;
+   }
+
+   .ds-header h2 {
+      font-size: 1.15rem;
+      margin-bottom: 4px;
+   }
+
+   .ds-header-copy .ds-meta {
+      display: none;
+   }
+
+   .ds-action-bar {
+      width: 100%;
+   }
+
+   .ds-action-bar .ds-btn {
+      flex: 1 1 auto;
+      text-align: center;
+   }
+
+   .ds-body {
+      padding: 16px 14px 40px;
+   }
+
+   .ds-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+   }
+
+   .ds-deck-load-tabs {
+      flex-wrap: wrap;
+   }
 }

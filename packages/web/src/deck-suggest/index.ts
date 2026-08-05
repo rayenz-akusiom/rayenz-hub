@@ -8,8 +8,10 @@ import {
   fetchDeckSnapshot,
   fetchSetPool,
   getDeckSwapQueue,
+  hubDeckToRecord,
   indexSetPool,
   loadDeckRegistry,
+  loadHubLibraryDecks,
   loadSetScopeFromUpload,
   parseDeckListFromText,
   parseYamlProfile,
@@ -54,5 +56,7 @@ export const Data = {
   readProfileForDeck,
   enrichDeckWithProfile,
   attachProfileLists,
+  hubDeckToRecord,
+  loadHubLibraryDecks,
   clearSetPoolCache: clearDataSetPoolCache,
 };

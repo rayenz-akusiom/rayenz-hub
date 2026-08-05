@@ -193,7 +193,7 @@ describe('OrderReconcileApp assign phase', () => {
     const nav = document.getElementById('or-right-nav')!;
     expect(nav).not.toHaveClass('open');
 
-    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await user.click(screen.getByRole('button', { name: 'Decks' }));
     expect(nav).toHaveClass('open');
 
     await user.click(screen.getByRole('button', { name: 'New session' }));

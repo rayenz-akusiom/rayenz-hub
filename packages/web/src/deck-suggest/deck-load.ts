@@ -5,7 +5,16 @@ export function normalizeDeckLoadTab(tab: string | undefined | null): DeckLoadTa
   if (tab === 'paste') {
     return 'paste-urls';
   }
-  return (tab as DeckLoadTab) || 'paste-import';
+  if (
+    tab === 'hub' ||
+    tab === 'folder' ||
+    tab === 'paste-import' ||
+    tab === 'paste-urls' ||
+    tab === 'upload'
+  ) {
+    return tab;
+  }
+  return 'hub';
 }
 
 export function resolveDeckLoadTab(
@@ -18,10 +27,10 @@ export function resolveDeckLoadTab(
   } else if (settings.deckLoadTab) {
     tab = normalizeDeckLoadTab(settings.deckLoadTab);
   } else {
-    tab = bridgeAvailable() ? 'folder' : 'paste-import';
+    tab = 'hub';
   }
   if (tab === 'folder' && !bridgeAvailable()) {
-    return 'paste-import';
+    return 'hub';
   }
   return tab;
 }

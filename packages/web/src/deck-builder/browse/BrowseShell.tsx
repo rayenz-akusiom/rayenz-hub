@@ -75,6 +75,7 @@ import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { useSetMembershipFilter } from '../ui/SetFilterControl';
+import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 
 function BookIcon() {
   return (
@@ -753,41 +754,27 @@ export function BrowseShell({
                 >
                   <ProxyIcon filled={anyProxy} />
                 </button>
-                {!multi ? (
-                  isCover ? (
-                    <button type="button" className="db-btn" onClick={onClearCover}>
-                      Clear cover
-                    </button>
-                  ) : (
-                    <button type="button" className="db-btn" onClick={onSetCover}>
-                      Set as cover
-                    </button>
-                  )
-                ) : null}
-                <button type="button" className="db-btn" onClick={() => setMoveOpen(true)}>
-                  Move…
-                </button>
-                <button type="button" className="db-btn" onClick={onMoveToDefault}>
-                  Move to default
-                </button>
-                <button type="button" className="db-btn" onClick={onAddToSwapQueue}>
-                  {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
-                </button>
-                {!multi ? (
-                  <button
-                    type="button"
-                    className="db-btn"
-                    onClick={() => setPrintingOpen(true)}
-                  >
-                    Change printing…
-                  </button>
-                ) : null}
                 <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelected}>
                   Remove
                 </button>
-                <button type="button" className="db-btn" onClick={clearSelection}>
-                  Clear
-                </button>
+                <DbMenu label="Actions" align="end" ariaLabel="Selection actions">
+                  {!multi ? (
+                    isCover ? (
+                      <DbMenuItem onSelect={onClearCover}>Clear cover</DbMenuItem>
+                    ) : (
+                      <DbMenuItem onSelect={onSetCover}>Set as cover</DbMenuItem>
+                    )
+                  ) : null}
+                  <DbMenuItem onSelect={() => setMoveOpen(true)}>Move…</DbMenuItem>
+                  <DbMenuItem onSelect={onMoveToDefault}>Move to default</DbMenuItem>
+                  <DbMenuItem onSelect={onAddToSwapQueue}>
+                    {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
+                  </DbMenuItem>
+                  {!multi ? (
+                    <DbMenuItem onSelect={() => setPrintingOpen(true)}>Change printing…</DbMenuItem>
+                  ) : null}
+                  <DbMenuItem onSelect={clearSelection}>Clear selection</DbMenuItem>
+                </DbMenu>
               </div>
             </div>
           ) : null}

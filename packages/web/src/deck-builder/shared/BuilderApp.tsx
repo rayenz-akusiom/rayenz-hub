@@ -400,9 +400,15 @@ export function BuilderApp({
   }
 
   const deepLinkRoute = parseBuilderRoute(window.location.hash, builderFormat);
-  // Deep link still resolving — blank busy shell (no "Opening deck…" / library flash).
+  // Deep link still resolving — show minimal chrome (avoid library skeleton flash).
   if (deepLinkRoute && !error && loading) {
-    return <div className="db-app" aria-busy="true" />;
+    return (
+      <div className="db-app db-deep-link-loading" aria-busy="true">
+        <p className="hub-muted" role="status">
+          Opening deck…
+        </p>
+      </div>
+    );
   }
 
   return (

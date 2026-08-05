@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   applyDeckList,
   buildDeckFromImportText,
+  hubDeckToRecord,
   parseDeckListFromText,
   resolveDeckLoadTab,
 } from '../../../packages/web/src/deck-suggest/index.ts';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
+import type { DeckDocument } from '@rayenz-hub/shared';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
 beforeEach(() => {
@@ -53,6 +55,80 @@ describe('buildDeckFromImportText', () => {
   });
 });
 
+describe('hubDeckToRecord', () => {
+  it('projects formal swaps into Queued In/Out snapshot categories', () => {
+    const doc = {
+      schemaVersion: 1,
+      deckId: 'hub-1',
+      name: 'Test Commander',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: 'https://archidekt.com/decks/1/test',
+      categories: [],
+      cards: [
+        {
+          instanceId: 'in-1',
+          name: 'Sol Ring',
+          quantity: 1,
+          primaryCategory: 'Ramp',
+          categories: [],
+          stack: null,
+          setCode: 'cmm',
+          collectorNumber: '1',
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+        {
+          instanceId: 'out-1',
+          name: 'Arcane Signet',
+          quantity: 1,
+          primaryCategory: 'Ramp',
+          categories: [],
+          stack: null,
+          setCode: 'cmm',
+          collectorNumber: '2',
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+      ],
+      oracle: {},
+      formalSwapEntries: [
+        {
+          id: 'sw-1',
+          inInstanceId: 'in-1',
+          outInstanceId: 'out-1',
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      cardLayoutDefault: 'stacked',
+      cardSortDefault: 'name_asc',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+      cubeTargetSize: null,
+    } as DeckDocument;
+
+    const record = hubDeckToRecord(doc);
+    expect(record.deck_id).toBe('hub-1');
+    expect(record.deck_snapshot!.source).toBe('hub-library');
+    const byName = Object.fromEntries(
+      (record.deck_snapshot!.cards || []).map((c) => [c.name, c.primary_category]),
+    );
+    expect(byName['Sol Ring']).toBe('Queued In');
+    expect(byName['Arcane Signet']).toBe('Queued Out');
+  });
+});
+
 describe('applyDeckList', () => {
   it('selects all decks by default', () => {
     const result = applyDeckList(
@@ -68,16 +144,20 @@ describe('applyDeckList', () => {
 });
 
 describe('resolveDeckLoadTab', () => {
-  it('defaults to paste-import when bridge is unavailable', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, {})).toBe('paste-import');
+  it('defaults to hub when no saved tab', () => {
+    expect(resolveDeckLoadTab({ deckLoadTab: null }, {})).toBe('hub');
   });
 
-  it('falls back to paste-import when folder saved but bridge unavailable', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'folder' })).toBe('paste-import');
+  it('falls back to hub when folder saved but bridge unavailable', () => {
+    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'folder' })).toBe('hub');
   });
 
   it('maps legacy paste tab to paste-urls', () => {
     expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'paste' })).toBe('paste-urls');
+  });
+
+  it('keeps hub when explicitly saved', () => {
+    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'hub' })).toBe('hub');
   });
 });
 

@@ -255,7 +255,6 @@ describe('CommanderBuilderApp', () => {
 
     render(<CommanderBuilderApp />);
 
-    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
 
     await waitFor(() => {
@@ -273,7 +272,7 @@ describe('CommanderBuilderApp', () => {
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
   });
 
-  it('skips library skeleton while resolving an unknown deep-link slug', async () => {
+  it('shows opening chrome while resolving an unknown deep-link slug', async () => {
     let resolveList!: (value: DeckSummary[]) => void;
     listDecks.mockImplementation(
       () =>
@@ -286,7 +285,7 @@ describe('CommanderBuilderApp', () => {
 
     render(<CommanderBuilderApp />);
 
-    expect(screen.queryByText(/Opening deck/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Opening deck/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
     expect(document.querySelector('.db-app[aria-busy="true"]')).toBeTruthy();
 

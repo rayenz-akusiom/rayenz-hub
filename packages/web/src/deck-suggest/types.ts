@@ -166,4 +166,4 @@ export type TaggerContext = {
   coverage: { cardsResolved: number; cardsWithTags: number; percent: number };
 };
 
-export type DeckLoadTab = 'folder' | 'paste-import' | 'paste-urls' | 'upload';
+export type DeckLoadTab = 'hub' | 'folder' | 'paste-import' | 'paste-urls' | 'upload';

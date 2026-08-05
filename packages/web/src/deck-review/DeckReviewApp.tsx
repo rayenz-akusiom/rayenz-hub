@@ -216,10 +216,11 @@ export function DeckReviewApp() {
         type="button"
         id="dr-right-nav-toggle"
         className="dr-right-nav-toggle"
-        aria-label="Open deck menu"
+        aria-label="Decks"
+        aria-expanded={navOpen}
         onClick={() => setNavOpen((o) => !o)}
       >
-        &#9776;
+        Decks
       </button>
       <div
         id="dr-right-nav-backdrop"

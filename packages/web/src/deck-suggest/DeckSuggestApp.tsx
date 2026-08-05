@@ -35,6 +35,7 @@ export function DeckSuggestApp() {
   const [deckLoadTab, setDeckLoadTab] = useState<DeckLoadTab>(() =>
     resolveDeckLoadTab({ deckLoadTab: null }, loadDeckSuggestSettings() as DeckSuggestSettings),
   );
+  const [requirementsOpen, setRequirementsOpen] = useState(true);
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +77,16 @@ export function DeckSuggestApp() {
       }),
     [state],
   );
+
+  const readyCount = readiness.items.filter((item) => item.ok).length;
+  const readyTotal = readiness.items.length;
+  const showPostGenerate = !!state.generationRun;
+
+  useEffect(() => {
+    if (!readiness.ok) {
+      setRequirementsOpen(true);
+    }
+  }, [readiness.ok]);
 
   const canReview = !!state.generationRun && hasReviewableSuggestions(state);
   const summary = state.generationRun ? buildSummary(state) : null;
@@ -153,7 +164,7 @@ export function DeckSuggestApp() {
       <div className="hub-sticky-chrome">
         <header className="ds-header">
           <div className="ds-header-top">
-            <div>
+            <div className="ds-header-copy">
               <h2>Deck Suggest</h2>
               <p className="ds-meta">
                 Profile-based replacement suggestions for Commander decks (no LLM).
@@ -169,37 +180,60 @@ export function DeckSuggestApp() {
               >
                 Generate suggestions
               </button>
-              <button
-                type="button"
-                className="ds-btn ds-btn-primary"
-                id="ds-review-handoff"
-                disabled={!canReview}
-                title={
-                  canReview ? '' : 'Generate suggestions with at least one match first'
-                }
-                onClick={() => void handleReviewHandoff()}
-              >
-                Review in Deck Review
-              </button>
-              <button
-                type="button"
-                className="ds-btn"
-                id="ds-download"
-                disabled={!state.generationRun}
-                onClick={handleDownload}
-              >
-                Download JSON
-              </button>
+              {showPostGenerate ? (
+                <>
+                  <button
+                    type="button"
+                    className="ds-btn ds-btn-primary"
+                    id="ds-review-handoff"
+                    disabled={!canReview}
+                    title={
+                      canReview ? '' : 'Generate suggestions with at least one match first'
+                    }
+                    onClick={() => void handleReviewHandoff()}
+                  >
+                    Review in Deck Review
+                  </button>
+                  <button
+                    type="button"
+                    className="ds-btn"
+                    id="ds-download"
+                    onClick={handleDownload}
+                  >
+                    Download JSON
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
-          <p className="ds-requirements-label">Generate requires:</p>
-          <ul className="ds-requirements" id="ds-requirements">
-            {readiness.items.map((item) => (
-              <li key={item.id} className={item.ok ? 'ds-req-ok' : 'ds-req-missing'}>
-                {item.label}
-              </li>
-            ))}
-          </ul>
+          <div className="ds-readiness">
+            <button
+              type="button"
+              className="ds-readiness-toggle"
+              id="ds-requirements-toggle"
+              aria-expanded={requirementsOpen}
+              aria-controls="ds-requirements"
+              onClick={() => setRequirementsOpen((open) => !open)}
+            >
+              <span className={readiness.ok ? 'ds-req-ok' : 'ds-req-missing'}>
+                {readiness.ok
+                  ? 'Ready to generate'
+                  : `Setup ${readyCount}/${readyTotal}`}
+              </span>
+              <span className="ds-readiness-caret" aria-hidden="true">
+                {requirementsOpen ? '▴' : '▾'}
+              </span>
+            </button>
+            {requirementsOpen ? (
+              <ul className="ds-requirements" id="ds-requirements">
+                {readiness.items.map((item) => (
+                  <li key={item.id} className={item.ok ? 'ds-req-ok' : 'ds-req-missing'}>
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </header>
         <div className="hub-progress-host" id="ds-progress-host" ref={progressHostRef} />
       </div>

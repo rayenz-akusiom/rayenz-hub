@@ -1,4 +1,12 @@
-import { deriveSwapQueue, hasMaybeboardOnlySwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
+import {
+  applyFormalSwapsToCards,
+  applyLookingForToCards,
+  deriveSwapQueue,
+  getOracle,
+  hasMaybeboardOnlySwapQueue,
+  type DeckDocument,
+  type DeckWithSnapshot,
+} from '@rayenz-hub/shared';
 import {
   clearSetPoolCache,
   hydrateSetPoolFromApi,
@@ -15,6 +23,7 @@ import { sleep } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
+import { getDeck, listDecks } from '../deck-builder/store/deck-store';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
 const setPoolCache: Record<string, SetScope> = {};
@@ -405,6 +414,51 @@ export function buildDeckFromImportText(
       cards: cards as SnapshotCard[],
     },
   };
+}
+
+/** Project a Hub deck document into a Suggest DeckRecord (with swap categories applied). */
+export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
+  let cards = applyFormalSwapsToCards(doc.cards || [], doc.formalSwapEntries || [], doc.format);
+  cards = applyLookingForToCards(cards, doc.lookingForEntries || [], doc.format);
+  const snapshotCards: SnapshotCard[] = cards.map((c) => {
+    const oracle = getOracle(doc, c);
+    const categories = [c.primaryCategory, ...(c.categories || []).filter((x) => x !== c.primaryCategory)];
+    return {
+      name: c.name,
+      set_code: c.setCode,
+      collector_number: c.collectorNumber,
+      quantity: c.quantity,
+      primary_category: c.primaryCategory,
+      categories,
+      cmc: oracle?.manaValue ?? undefined,
+      type_line: oracle?.typeLine ?? undefined,
+      oracle_text: oracle?.oracleText ?? undefined,
+      keywords: oracle?.keywords ?? undefined,
+    } as SnapshotCard;
+  });
+  return {
+    deck_id: doc.deckId,
+    deck_name: doc.name,
+    archidekt_url: doc.archidektUrl || '',
+    format: doc.format,
+    deck_snapshot: {
+      fetched_at: new Date().toISOString().slice(0, 10),
+      source: 'hub-library',
+      cards: snapshotCards,
+    },
+  };
+}
+
+/** Load commander decks from the Hub library for Deck Suggest. */
+export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
+  const summaries = await listDecks();
+  const decks: DeckRecord[] = [];
+  for (const s of summaries) {
+    if (s.format !== 'commander') continue;
+    const doc = await getDeck(s.deckId);
+    if (doc) decks.push(hubDeckToRecord(doc));
+  }
+  return decks;
 }
 
 export function clearDataSetPoolCache(): void {

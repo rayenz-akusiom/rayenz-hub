@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { installHubGlobals, resetHubGlobalsInstalled } from '../../../packages/web/src/hub/install-hub-globals.ts';
+import { __resetHubStorageMemoryForTests } from '../../../packages/web/src/lib/hub-storage.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -53,6 +54,7 @@ export function resetHubModules(): void {
     delete (window as unknown as Record<string, unknown>)[name];
   });
   delete (window as Window & { StringUtils?: unknown }).StringUtils;
+  __resetHubStorageMemoryForTests();
 }
 
 export function resetDom(): void {

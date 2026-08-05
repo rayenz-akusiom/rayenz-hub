@@ -135,18 +135,14 @@ describe('HubStorage set pool cache', () => {
     expect(HubStorage.loadSetPoolCache('MSH')).toBe(null);
   });
 
-  it('ignores empty codesKey and incomplete cached scopes', () => {
+  it('ignores empty codesKey', () => {
     expect(HubStorage.saveSetPoolCache('', { complete: true, cards: [] })).toBe(false);
     expect(HubStorage.loadSetPoolCache('')).toBe(null);
-    localStorage.setItem('rayenz-deck-suggest-set-pool-BAD', JSON.stringify({ complete: false, cards: [] }));
-    expect(HubStorage.loadSetPoolCache('BAD')).toBe(null);
-    localStorage.setItem('rayenz-deck-suggest-set-pool-BROKEN', '{bad json');
-    expect(HubStorage.loadSetPoolCache('BROKEN')).toBe(null);
   });
 });
 
 describe('DeckSuggest tryRestoreSetPool', () => {
-  it('restores from localStorage when memory cache is empty', () => {
+  it('restores from HubStorage memory when data module cache is empty', () => {
     const scope = {
       complete: true,
       codes: ['MSH'],
@@ -190,21 +186,18 @@ describe('HubStorage settings loaders', () => {
     expect(HubStorage.loadDailiesSettings().trackingLists).toEqual({});
   });
 
-  it('merges stored JSON and tolerates malformed data', () => {
-    localStorage.setItem('rayenz-order-reconcile-settings', JSON.stringify({ folderUrl: 'https://x' }));
+  it('MTG settings use in-memory store; dailies still use localStorage', () => {
+    HubStorage.saveOrderReconcileSettings({ folderUrl: 'https://x' });
     expect(HubStorage.loadOrderReconcileSettings().folderUrl).toBe('https://x');
-    localStorage.setItem('rayenz-order-reconcile-settings', '{bad');
-    expect(HubStorage.loadOrderReconcileSettings().registrySource).toBe('folder');
+    expect(localStorage.getItem('rayenz-order-reconcile-settings')).toBe(null);
 
-    localStorage.setItem('rayenz-deck-suggest-settings', JSON.stringify({ setCodes: 'MSH' }));
+    HubStorage.saveDeckSuggestSettings({ setCodes: 'MSH' });
     expect(HubStorage.loadDeckSuggestSettings().setCodes).toBe('MSH');
-    localStorage.setItem('rayenz-deck-suggest-settings', 'not-json');
-    expect(HubStorage.loadDeckSuggestSettings().folderUrl).toBe('');
+    expect(localStorage.getItem('rayenz-deck-suggest-settings')).toBe(null);
 
-    localStorage.setItem('rayenz-deck-builder-settings', JSON.stringify({ enemyThreeColourNames: 'custom' }));
+    HubStorage.saveDeckBuilderSettings({ enemyThreeColourNames: 'custom' });
     expect(HubStorage.loadDeckBuilderSettings().enemyThreeColourNames).toBe('custom');
-    localStorage.setItem('rayenz-deck-builder-settings', '{');
-    expect(HubStorage.loadDeckBuilderSettings().allyThreeColourNames).toBe('shards');
+    expect(localStorage.getItem('rayenz-deck-builder-settings')).toBe(null);
 
     localStorage.setItem(
       'rayenz-dailies-settings',
@@ -219,33 +212,33 @@ describe('HubStorage settings loaders', () => {
     expect(HubStorage.loadDailiesSettings().faerieQuest).toBe('illusen');
   });
 
-  it('loadOrderReconcileProgress defaults and parses session data', () => {
+  it('loadOrderReconcileProgress defaults and parses session data from memory', () => {
     expect(HubStorage.loadOrderReconcileProgress()).toMatchObject({ phase: 'input' });
     HubStorage.saveOrderReconcileProgress('sess-1', { phase: 'assign', decisions: { a: 1 } });
     expect(HubStorage.loadOrderReconcileProgress('sess-1').phase).toBe('assign');
-    localStorage.setItem('rayenz-order-reconcile-default', '{broken');
-    expect(HubStorage.loadOrderReconcileProgress()).toMatchObject({ phase: 'input' });
+    expect(localStorage.getItem('rayenz-order-reconcile-sess-1')).toBe(null);
   });
 
-  it('loadReviewProgress returns empty object for missing or bad JSON', () => {
+  it('loadReviewProgress returns empty object when missing; ignores legacy localStorage', () => {
     expect(HubStorage.loadReviewProgress('MSH-2026')).toEqual({
       decisions: {},
       currentDeckId: null,
       currentSuggestionIndex: {},
     });
-    localStorage.setItem('rayenz-deck-review-MSH-2026', '{bad');
+    localStorage.setItem('rayenz-deck-review-MSH-2026', JSON.stringify({ decisions: { stale: true } }));
     expect(HubStorage.loadReviewProgress('MSH-2026').decisions).toEqual({});
   });
 });
 
-describe('HubStorage dual-mode settings push', () => {
-  it('saveOrderReconcileSettings pushes when API configured', async () => {
+describe('HubStorage MTG settings API push', () => {
+  it('saveOrderReconcileSettings pushes when API configured and does not write localStorage', async () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveOrderReconcileSettings({ folderUrl: 'https://archidekt.com' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/order-reconcile');
+    expect(localStorage.getItem('rayenz-order-reconcile-settings')).toBe(null);
   });
 
   it('saveDeckSuggestSettings pushes when API configured', async () => {
@@ -255,6 +248,7 @@ describe('HubStorage dual-mode settings push', () => {
     HubStorage.saveDeckSuggestSettings({ setCodes: 'MSH' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/deck-suggest');
+    expect(localStorage.getItem('rayenz-deck-suggest-settings')).toBe(null);
   });
 
   it('saveDeckBuilderSettings pushes when API configured', async () => {
@@ -264,20 +258,22 @@ describe('HubStorage dual-mode settings push', () => {
     HubStorage.saveDeckBuilderSettings({ allyThreeColourNames: 'custom' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/deck-builder');
+    expect(localStorage.getItem('rayenz-deck-builder-settings')).toBe(null);
   });
 
-  it('saveDailiesSettings pushes when API configured', async () => {
+  it('saveDailiesSettings still writes localStorage and pushes when API configured', async () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDailiesSettings({ faerieQuest: 'jhudora' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/dailies');
+    expect(localStorage.getItem('rayenz-dailies-settings')).toContain('jhudora');
   });
 });
 
 describe('HubStorage hydrateReviewProgressFromApi edge cases', () => {
-  it('returns local when fileId empty or API disabled', async () => {
+  it('returns memory when fileId empty or API disabled', async () => {
     HubStorage.saveReviewProgress('MSH-2026', {
       decisions: { s1: 'accept' },
       currentDeckId: null,
@@ -293,19 +289,27 @@ describe('HubStorage hydrateReviewProgressFromApi edge cases', () => {
     });
   });
 
-  it('falls back to local when remote null or fetch fails', async () => {
-    HubStorage.saveReviewProgress('MSH-2026', { decisions: { local: true }, currentDeckId: null, currentSuggestionIndex: {} });
+  it('falls back to memory when remote null or fetch fails', async () => {
+    HubStorage.saveReviewProgress('MSH-2026', {
+      decisions: { local: true },
+      currentDeckId: null,
+      currentSuggestionIndex: {},
+    });
     enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
-    await expect(HubStorage.hydrateReviewProgressFromApi('MSH-2026')).resolves.toMatchObject({ decisions: { local: true } });
+    await expect(HubStorage.hydrateReviewProgressFromApi('MSH-2026')).resolves.toMatchObject({
+      decisions: { local: true },
+    });
 
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('err', { status: 500, ok: false })));
-    await expect(HubStorage.hydrateReviewProgressFromApi('MSH-2026')).resolves.toMatchObject({ decisions: { local: true } });
+    await expect(HubStorage.hydrateReviewProgressFromApi('MSH-2026')).resolves.toMatchObject({
+      decisions: { local: true },
+    });
   });
 });
 
 describe('HubStorage hydrateSetPoolFromApi edge cases', () => {
-  it('returns local cache when API disabled or remote incomplete', async () => {
+  it('returns memory cache when API disabled or remote incomplete', async () => {
     const scope = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [{ name: 'A' }] };
     HubStorage.saveSetPoolCache('MSH', scope);
     await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
@@ -326,7 +330,12 @@ describe('HubStorage host helpers', () => {
   });
 
   it('getDailiesSettingsApi returns window DailiesSettings or null', () => {
-    const api = { getMainPet: () => 'Fluffy', getMainPetSlug: () => '', getWishlists: () => [], saveMainPet: () => {} };
+    const api = {
+      getMainPet: () => 'Fluffy',
+      getMainPetSlug: () => '',
+      getWishlists: () => [],
+      saveMainPet: () => {},
+    };
     (window as Window & { DailiesSettings?: typeof api }).DailiesSettings = api;
     expect(getDailiesSettingsApi()).toBe(api);
     delete (window as Window & { DailiesSettings?: unknown }).DailiesSettings;

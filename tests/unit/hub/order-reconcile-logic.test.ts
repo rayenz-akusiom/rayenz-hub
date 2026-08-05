@@ -70,7 +70,7 @@ import type {
   ReconcileItem,
 } from '../../../packages/web/src/order-reconcile/types.ts';
 import { STAGING_DECK_ID } from '../../../packages/web/src/order-reconcile/types.ts';
-import { loadOrderReconcileProgress } from '../../../packages/web/src/lib/hub-storage.ts';
+import { loadOrderReconcileProgress, saveOrderReconcileProgress } from '../../../packages/web/src/lib/hub-storage.ts';
 import * as scryfallCache from '../../../packages/web/src/lib/scryfall-cache.ts';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
@@ -382,7 +382,8 @@ describe('input.ts', () => {
 describe('progress.ts', () => {
   it('createInitialState normalizes progress missing decisions', () => {
     const date = new Date().toISOString().slice(0, 10);
-    localStorage.setItem('rayenz-order-reconcile-session-' + date, JSON.stringify({ phase: 'assign', acquiredCards: [{ name: 'X' }] }));
+    const sessionId = 'session-' + date;
+    saveOrderReconcileProgress(sessionId, { phase: 'assign', acquiredCards: [{ name: 'X' }] });
     const state = createInitialState();
     expect(state.phase).toBe('assign');
     expect(state.progress.decisions).toEqual({});

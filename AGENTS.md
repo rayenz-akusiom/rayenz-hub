@@ -110,8 +110,11 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 
 ## Dual-mode storage / API client
 
-- Local-first with optional Hub API sync when `rayenz-hub-api-url` + `rayenz-hub-api-key` are set.
-- Tests should cover **both** API-off and API-on paths for persistence helpers.
+- **MTG settings / review progress / set pools:** Hub API (DynamoDB) is required to persist; in-memory only within the tab when API is off (no durable localStorage). Order-reconcile session progress is memory-only (no API endpoint yet).
+- **Dailies (Neopets):** still localStorage-first with optional Hub API sync when `rayenz-hub-api-url` + `rayenz-hub-api-key` are set.
+- **Decks / swap queues:** IndexedDB local store with optional Hub API sync (`saveDualMode`) — unchanged.
+- Device config (API URL/key) and UI prefs (route, card size, etc.) stay in localStorage.
+- Tests should cover API-off and API-on paths for persistence helpers.
 - After changing `hub-api-client.ts` response handling, update **all** fetch mocks (`.text()`).
 
 ## TypeScript / React

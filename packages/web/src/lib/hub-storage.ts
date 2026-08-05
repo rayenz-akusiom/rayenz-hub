@@ -1,5 +1,6 @@
 /**
- * Hub localStorage / session handoff (full TS port of shared/storage.js).
+ * Hub storage: dailies still use localStorage; MTG durable state is in-memory + Hub API/DDB.
+ * UI prefs (route) and session handoff remain browser-local.
  */
 import {
   getHubApiConfig,
@@ -11,12 +12,6 @@ import {
 } from '../api/hub-api-client';
 
 const ROUTE_KEY = 'rayenz-hub-route';
-const REVIEW_PREFIX = 'rayenz-deck-review-';
-const ORDER_RECONCILE_SETTINGS_KEY = 'rayenz-order-reconcile-settings';
-const ORDER_RECONCILE_PROGRESS_PREFIX = 'rayenz-order-reconcile-';
-const DECK_SUGGEST_SETTINGS_KEY = 'rayenz-deck-suggest-settings';
-const DECK_BUILDER_SETTINGS_KEY = 'rayenz-deck-builder-settings';
-const SET_POOL_CACHE_PREFIX = 'rayenz-deck-suggest-set-pool-';
 const REVIEW_HANDOFF_KEY = 'rayenz-deck-suggest-review-handoff';
 const DAILIES_SETTINGS_KEY = 'rayenz-dailies-settings';
 
@@ -46,10 +41,6 @@ export function setLastRoute(route: string): void {
   setItem(ROUTE_KEY, route);
 }
 
-function reviewFileKey(fileId: string): string {
-  return REVIEW_PREFIX + fileId;
-}
-
 export type ReviewProgress = {
   decisions: Record<string, unknown>;
   currentDeckId: string | null;
@@ -60,42 +51,59 @@ function emptyReviewProgress(): ReviewProgress {
   return { decisions: {}, currentDeckId: null, currentSuggestionIndex: {} };
 }
 
-function loadReviewProgressLocal(fileId: string): ReviewProgress {
-  const raw = getItem(reviewFileKey(fileId));
-  if (!raw) {
-    return emptyReviewProgress();
-  }
-  try {
-    return JSON.parse(raw) as ReviewProgress;
-  } catch {
-    return emptyReviewProgress();
-  }
-}
+const reviewProgressMemory = new Map<string, ReviewProgress>();
 
 export function loadReviewProgress(fileId: string): ReviewProgress {
-  return loadReviewProgressLocal(fileId);
+  if (!fileId) {
+    return emptyReviewProgress();
+  }
+  const cached = reviewProgressMemory.get(fileId);
+  if (cached) {
+    return {
+      decisions: { ...cached.decisions },
+      currentDeckId: cached.currentDeckId,
+      currentSuggestionIndex: { ...cached.currentSuggestionIndex },
+    };
+  }
+  return emptyReviewProgress();
 }
 
 export function saveReviewProgress(fileId: string, progress: ReviewProgress): void {
-  setItem(reviewFileKey(fileId), JSON.stringify(progress));
+  if (!fileId) {
+    return;
+  }
+  const next = progress || emptyReviewProgress();
+  reviewProgressMemory.set(fileId, {
+    decisions: { ...(next.decisions || {}) },
+    currentDeckId: next.currentDeckId ?? null,
+    currentSuggestionIndex: { ...(next.currentSuggestionIndex || {}) },
+  });
   if (getHubApiConfig().enabled) {
-    void apiPushReviewProgress(fileId, progress || {}).catch(() => {});
+    void apiPushReviewProgress(fileId, next).catch(() => {});
   }
 }
 
 export function hydrateReviewProgressFromApi(fileId: string): Promise<ReviewProgress> {
-  if (!fileId || !getHubApiConfig().enabled) {
-    return Promise.resolve(loadReviewProgressLocal(fileId));
+  if (!fileId) {
+    return Promise.resolve(emptyReviewProgress());
+  }
+  if (!getHubApiConfig().enabled) {
+    return Promise.resolve(loadReviewProgress(fileId));
   }
   return apiPullReviewProgress(fileId)
     .then((remote) => {
       if (!remote) {
-        return loadReviewProgressLocal(fileId);
+        return loadReviewProgress(fileId);
       }
-      setItem(reviewFileKey(fileId), JSON.stringify(remote));
-      return remote;
+      const next: ReviewProgress = {
+        decisions: { ...(remote.decisions || {}) },
+        currentDeckId: remote.currentDeckId ?? null,
+        currentSuggestionIndex: { ...(remote.currentSuggestionIndex || {}) },
+      };
+      reviewProgressMemory.set(fileId, next);
+      return loadReviewProgress(fileId);
     })
-    .catch(() => loadReviewProgressLocal(fileId));
+    .catch(() => loadReviewProgress(fileId));
 }
 
 export function fileIdFromMeta(meta: { set_code?: string; generated_at?: string } | null | undefined): string {
@@ -109,61 +117,55 @@ const DEFAULT_ORDER_RECONCILE_SETTINGS = {
   customDeckUrls: '',
 };
 
+let orderReconcileSettingsMemory: Record<string, unknown> | null = null;
+
 export function loadOrderReconcileSettings(): Record<string, unknown> {
-  const raw = getItem(ORDER_RECONCILE_SETTINGS_KEY);
-  if (!raw) {
-    return { ...DEFAULT_ORDER_RECONCILE_SETTINGS };
+  if (orderReconcileSettingsMemory) {
+    return { ...DEFAULT_ORDER_RECONCILE_SETTINGS, ...orderReconcileSettingsMemory };
   }
-  try {
-    return { ...DEFAULT_ORDER_RECONCILE_SETTINGS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_ORDER_RECONCILE_SETTINGS };
-  }
+  return { ...DEFAULT_ORDER_RECONCILE_SETTINGS };
 }
 
 export function saveOrderReconcileSettings(settings: Record<string, unknown>): void {
-  setItem(ORDER_RECONCILE_SETTINGS_KEY, JSON.stringify(settings || {}));
+  orderReconcileSettingsMemory = { ...(settings || {}) };
   if (getHubApiConfig().enabled) {
     void pushSettingsDomain('order-reconcile', settings || {}).catch(() => {});
   }
 }
 
+const EMPTY_ORDER_RECONCILE_PROGRESS: Record<string, unknown> = {
+  decisions: {},
+  assignments: [],
+  needsReview: [],
+  copies: [],
+  acquiredCards: [],
+  activeDeckId: null,
+  phase: 'input',
+  completedDecks: {},
+};
+
+const orderReconcileProgressMemory = new Map<string, Record<string, unknown>>();
+
 function orderReconcileSessionKey(sessionId?: string): string {
-  return ORDER_RECONCILE_PROGRESS_PREFIX + (sessionId || 'default');
+  return sessionId || 'default';
 }
 
 export function loadOrderReconcileProgress(sessionId?: string): Record<string, unknown> {
-  const raw = getItem(orderReconcileSessionKey(sessionId));
-  if (!raw) {
-    return {
-      decisions: {},
-      assignments: [],
-      needsReview: [],
-      copies: [],
-      acquiredCards: [],
-      activeDeckId: null,
-      phase: 'input',
-      completedDecks: {},
-    };
+  const key = orderReconcileSessionKey(sessionId);
+  const cached = orderReconcileProgressMemory.get(key);
+  if (!cached) {
+    return { ...EMPTY_ORDER_RECONCILE_PROGRESS, decisions: {}, completedDecks: {} };
   }
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {
-      decisions: {},
-      assignments: [],
-      needsReview: [],
-      copies: [],
-      acquiredCards: [],
-      activeDeckId: null,
-      phase: 'input',
-      completedDecks: {},
-    };
-  }
+  return {
+    ...EMPTY_ORDER_RECONCILE_PROGRESS,
+    ...cached,
+    decisions: { ...((cached.decisions as Record<string, unknown>) || {}) },
+    completedDecks: { ...((cached.completedDecks as Record<string, unknown>) || {}) },
+  };
 }
 
 export function saveOrderReconcileProgress(sessionId: string | undefined, progress: Record<string, unknown>): void {
-  setItem(orderReconcileSessionKey(sessionId), JSON.stringify(progress || {}));
+  orderReconcileProgressMemory.set(orderReconcileSessionKey(sessionId), { ...(progress || {}) });
 }
 
 const DEFAULT_DECK_SUGGEST_SETTINGS = {
@@ -177,20 +179,17 @@ const DEFAULT_DECK_SUGGEST_SETTINGS = {
   rulesDebug: false,
 };
 
+let deckSuggestSettingsMemory: Record<string, unknown> | null = null;
+
 export function loadDeckSuggestSettings(): Record<string, unknown> {
-  const raw = getItem(DECK_SUGGEST_SETTINGS_KEY);
-  if (!raw) {
-    return { ...DEFAULT_DECK_SUGGEST_SETTINGS };
+  if (deckSuggestSettingsMemory) {
+    return { ...DEFAULT_DECK_SUGGEST_SETTINGS, ...deckSuggestSettingsMemory };
   }
-  try {
-    return { ...DEFAULT_DECK_SUGGEST_SETTINGS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_DECK_SUGGEST_SETTINGS };
-  }
+  return { ...DEFAULT_DECK_SUGGEST_SETTINGS };
 }
 
 export function saveDeckSuggestSettings(settings: Record<string, unknown>): void {
-  setItem(DECK_SUGGEST_SETTINGS_KEY, JSON.stringify(settings || {}));
+  deckSuggestSettingsMemory = { ...(settings || {}) };
   if (getHubApiConfig().enabled) {
     void pushSettingsDomain('deck-suggest', settings || {}).catch(() => {});
   }
@@ -201,20 +200,17 @@ const DEFAULT_DECK_BUILDER_SETTINGS = {
   enemyThreeColourNames: 'wedges',
 };
 
+let deckBuilderSettingsMemory: Record<string, unknown> | null = null;
+
 export function loadDeckBuilderSettings(): Record<string, unknown> {
-  const raw = getItem(DECK_BUILDER_SETTINGS_KEY);
-  if (!raw) {
-    return { ...DEFAULT_DECK_BUILDER_SETTINGS };
+  if (deckBuilderSettingsMemory) {
+    return { ...DEFAULT_DECK_BUILDER_SETTINGS, ...deckBuilderSettingsMemory };
   }
-  try {
-    return { ...DEFAULT_DECK_BUILDER_SETTINGS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_DECK_BUILDER_SETTINGS };
-  }
+  return { ...DEFAULT_DECK_BUILDER_SETTINGS };
 }
 
 export function saveDeckBuilderSettings(settings: Record<string, unknown>): void {
-  setItem(DECK_BUILDER_SETTINGS_KEY, JSON.stringify(settings || {}));
+  deckBuilderSettingsMemory = { ...(settings || {}) };
   if (getHubApiConfig().enabled) {
     void pushSettingsDomain('deck-builder', settings || {}).catch(() => {});
   }
@@ -228,10 +224,6 @@ export function normalizeSetCodesKey(codes: string[] | null | undefined): string
     .join(',');
 }
 
-function setPoolCacheKey(codesKey: string): string {
-  return SET_POOL_CACHE_PREFIX + codesKey;
-}
-
 export type SetPoolScope = {
   complete: boolean;
   codes?: string[];
@@ -243,42 +235,35 @@ export type SetPoolScope = {
   [key: string]: unknown;
 };
 
+const setPoolMemory = new Map<string, SetPoolScope>();
+
 export function saveSetPoolCache(codesKey: string, scope: SetPoolScope): boolean {
   if (!codesKey || !scope || scope.complete !== true) {
     return false;
   }
-  try {
-    setItem(setPoolCacheKey(codesKey), JSON.stringify(scope));
-    if (getHubApiConfig().enabled) {
-      void apiPushSetPool(codesKey, scope).catch(() => {});
-    }
-    return true;
-  } catch {
-    return false;
+  setPoolMemory.set(codesKey, scope);
+  if (getHubApiConfig().enabled) {
+    void apiPushSetPool(codesKey, scope).catch(() => {});
   }
+  return true;
 }
 
 export function loadSetPoolCache(codesKey: string): SetPoolScope | null {
   if (!codesKey) {
     return null;
   }
-  const raw = getItem(setPoolCacheKey(codesKey));
-  if (!raw) {
+  const scope = setPoolMemory.get(codesKey);
+  if (!scope || scope.complete !== true) {
     return null;
   }
-  try {
-    const scope = JSON.parse(raw) as SetPoolScope;
-    if (!scope || scope.complete !== true) {
-      return null;
-    }
-    return scope;
-  } catch {
-    return null;
-  }
+  return scope;
 }
 
 export function hydrateSetPoolFromApi(codesKey: string): Promise<SetPoolScope | null> {
-  if (!codesKey || !getHubApiConfig().enabled) {
+  if (!codesKey) {
+    return Promise.resolve(null);
+  }
+  if (!getHubApiConfig().enabled) {
     return Promise.resolve(loadSetPoolCache(codesKey));
   }
   return apiPullSetPool(codesKey)
@@ -286,12 +271,8 @@ export function hydrateSetPoolFromApi(codesKey: string): Promise<SetPoolScope | 
       if (!remote || remote.complete !== true) {
         return loadSetPoolCache(codesKey);
       }
-      try {
-        setItem(setPoolCacheKey(codesKey), JSON.stringify(remote));
-      } catch {
-        /* ignore quota */
-      }
-      return remote;
+      setPoolMemory.set(codesKey, remote as SetPoolScope);
+      return remote as SetPoolScope;
     })
     .catch(() => loadSetPoolCache(codesKey));
 }
@@ -300,11 +281,7 @@ export function clearSetPoolCache(codesKey: string): void {
   if (!codesKey) {
     return;
   }
-  try {
-    localStorage.removeItem(setPoolCacheKey(codesKey));
-  } catch {
-    /* ignore */
-  }
+  setPoolMemory.delete(codesKey);
 }
 
 function saveMemoryReviewHandoff(payload: unknown): boolean {
@@ -411,6 +388,16 @@ export function saveDailiesSettings(settings: Record<string, unknown>): void {
   if (getHubApiConfig().enabled) {
     void pushSettingsDomain('dailies', settings || {}).catch(() => {});
   }
+}
+
+/** Test helper — clears MTG in-memory caches (not dailies localStorage). */
+export function __resetHubStorageMemoryForTests(): void {
+  reviewProgressMemory.clear();
+  orderReconcileProgressMemory.clear();
+  setPoolMemory.clear();
+  orderReconcileSettingsMemory = null;
+  deckSuggestSettingsMemory = null;
+  deckBuilderSettingsMemory = null;
 }
 
 export const HubStorage = {

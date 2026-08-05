@@ -43,10 +43,14 @@ type SettingsDomainConfig<T> = {
   readLocal: () => T | null;
   writeLocal: (payload: T) => void;
   onPersist?: (payload: T) => void;
+  /** When true (dailies), keep localStorage-first dual-mode. When false (MTG), API-or-nothing. */
+  allowLocalFallback: boolean;
 };
 
 function createSettingsDomain<T>(config: SettingsDomainConfig<T>) {
-  const { domain, schema, readLocal, writeLocal, onPersist } = config;
+  const { domain, schema, readLocal, writeLocal, onPersist, allowLocalFallback } = config;
+  /** Same-session cache for API-or-nothing domains (never localStorage). */
+  let sessionCache: T | null = null;
 
   async function fetchRemote(): Promise<T | null> {
     const data = await apiFetch<unknown>(`/v1/settings/${domain}`);
@@ -68,6 +72,19 @@ function createSettingsDomain<T>(config: SettingsDomainConfig<T>) {
     settings: T | null;
     source: 'api' | 'local' | 'none';
   }> {
+    if (!allowLocalFallback) {
+      if (!getHubApiConfig().enabled) {
+        return { settings: sessionCache, source: 'none' };
+      }
+      const remote = await fetchRemote();
+      if (remote) {
+        sessionCache = remote;
+        writeLocal(remote);
+        return { settings: remote, source: 'api' };
+      }
+      return { settings: sessionCache, source: sessionCache ? 'api' : 'none' };
+    }
+
     if (getHubApiConfig().enabled) {
       try {
         const remote = await fetchRemote();
@@ -85,6 +102,16 @@ function createSettingsDomain<T>(config: SettingsDomainConfig<T>) {
 
   async function persist(payload: T): Promise<'api' | 'local'> {
     const body = schema.parse(payload);
+    if (!allowLocalFallback) {
+      if (!getHubApiConfig().enabled) {
+        throw new Error('Hub API not configured');
+      }
+      sessionCache = body;
+      writeLocal(body);
+      onPersist?.(body);
+      await pushSettingsDomain(domain, body);
+      return 'api';
+    }
     writeLocal(body);
     onPersist?.(body);
     if (getHubApiConfig().enabled) {
@@ -182,40 +209,16 @@ function writeLocalDailies(payload: DailiesSettingsPayload): void {
   }
 }
 
-function readStorageSettings<T>(
+function readMemorySettings<T>(
   schema: SafeParseSchema<T>,
   loadFromStorage: (() => unknown) | undefined,
-  lsKey: string,
 ): T | null {
   const raw = loadFromStorage?.();
-  if (raw) {
-    const parsed = schema.safeParse(raw);
-    return parsed.success ? parsed.data : null;
-  }
-  try {
-    const ls = localStorage.getItem(lsKey);
-    if (!ls) return null;
-    const parsed = schema.safeParse(JSON.parse(ls));
-    return parsed.success ? parsed.data : null;
-  } catch {
+  if (!raw) {
     return null;
   }
-}
-
-function writeStorageSettings(
-  payload: unknown,
-  saveToStorage: ((p: Record<string, unknown>) => void) | undefined,
-  lsKey: string,
-): void {
-  if (saveToStorage) {
-    saveToStorage(payload as Record<string, unknown>);
-  } else {
-    try {
-      localStorage.setItem(lsKey, JSON.stringify(payload));
-    } catch {
-      /* ignore */
-    }
-  }
+  const parsed = schema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 const dailiesDomain = createSettingsDomain({
@@ -223,63 +226,43 @@ const dailiesDomain = createSettingsDomain({
   schema: DailiesSettingsPayloadSchema,
   readLocal: readLocalDailies,
   writeLocal: writeLocalDailies,
+  allowLocalFallback: true,
 });
 
 const deckSuggestDomain = createSettingsDomain({
   domain: 'deck-suggest',
   schema: DeckSuggestSettingsPayloadSchema,
   readLocal: () =>
-    readStorageSettings(
-      DeckSuggestSettingsPayloadSchema,
-      () => getHubStorage()?.loadDeckSuggestSettings?.(),
-      'rayenz-deck-suggest-settings',
-    ),
+    readMemorySettings(DeckSuggestSettingsPayloadSchema, () => getHubStorage()?.loadDeckSuggestSettings?.()),
   writeLocal: (payload) => {
-    const storage = getHubStorage();
-    writeStorageSettings(
-      payload,
-      storage?.saveDeckSuggestSettings ? (p) => storage.saveDeckSuggestSettings!(p) : undefined,
-      'rayenz-deck-suggest-settings',
-    );
+    getHubStorage()?.saveDeckSuggestSettings?.(payload as Record<string, unknown>);
   },
+  allowLocalFallback: false,
 });
 
 const orderReconcileDomain = createSettingsDomain({
   domain: 'order-reconcile',
   schema: OrderReconcileSettingsPayloadSchema,
   readLocal: () =>
-    readStorageSettings(
+    readMemorySettings(
       OrderReconcileSettingsPayloadSchema,
       () => getHubStorage()?.loadOrderReconcileSettings?.(),
-      'rayenz-order-reconcile-settings',
     ),
   writeLocal: (payload) => {
-    const storage = getHubStorage();
-    writeStorageSettings(
-      payload,
-      storage?.saveOrderReconcileSettings ? (p) => storage.saveOrderReconcileSettings!(p) : undefined,
-      'rayenz-order-reconcile-settings',
-    );
+    getHubStorage()?.saveOrderReconcileSettings?.(payload as Record<string, unknown>);
   },
+  allowLocalFallback: false,
 });
 
 const deckBuilderDomain = createSettingsDomain({
   domain: 'deck-builder',
   schema: DeckBuilderSettingsPayloadSchema,
   readLocal: () =>
-    readStorageSettings(
-      DeckBuilderSettingsPayloadSchema,
-      () => getHubStorage()?.loadDeckBuilderSettings?.(),
-      'rayenz-deck-builder-settings',
-    ),
+    readMemorySettings(DeckBuilderSettingsPayloadSchema, () => getHubStorage()?.loadDeckBuilderSettings?.()),
   writeLocal: (payload) => {
-    const storage = getHubStorage();
-    writeStorageSettings(
-      payload,
-      storage?.saveDeckBuilderSettings ? (p) => storage.saveDeckBuilderSettings!(p) : undefined,
-      'rayenz-deck-builder-settings',
-    );
+    getHubStorage()?.saveDeckBuilderSettings?.(payload as Record<string, unknown>);
   },
+  allowLocalFallback: false,
   onPersist: (body) => {
     try {
       window.dispatchEvent(new CustomEvent(DECK_BUILDER_SETTINGS_EVENT, { detail: body }));

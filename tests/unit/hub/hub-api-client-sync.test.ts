@@ -16,6 +16,10 @@ import {
 import { HubStorage } from '../../../packages/web/src/lib/hub-storage.ts';
 import { ProfileSync } from '../../../packages/web/src/mtg/profile-sync.ts';
 import {
+  persistDeckBuilderSettings,
+  persistDailiesSettings,
+} from '../../../packages/web/src/api/hub-api.ts';
+import {
   enableHubApi,
   installHubApiGlobalsLifecycle,
   jsonResponse,
@@ -390,9 +394,10 @@ describe('HubStorage dual-mode sync', () => {
     expect(opts.method).toBe('PUT');
     expect(JSON.parse(opts.body).decisions).toEqual({ s1: 'skip' });
     expect(HubStorage.loadReviewProgress('MSH-2026').decisions).toEqual({ s1: 'skip' });
+    expect(localStorage.getItem('rayenz-deck-review-MSH-2026')).toBe(null);
   });
 
-  it('hydrateReviewProgressFromApi writes local cache', async () => {
+  it('hydrateReviewProgressFromApi writes memory cache', async () => {
     enableHubApi();
     vi.stubGlobal(
       'fetch',
@@ -408,6 +413,7 @@ describe('HubStorage dual-mode sync', () => {
     const progress = await HubStorage.hydrateReviewProgressFromApi('MSH-2026');
     expect(progress.decisions).toEqual({ s2: 'accept' });
     expect(HubStorage.loadReviewProgress('MSH-2026').currentDeckId).toBe('deck-x');
+    expect(localStorage.getItem('rayenz-deck-review-MSH-2026')).toBe(null);
   });
 
   it('saveSetPoolCache pushes complete scopes', async () => {
@@ -424,9 +430,10 @@ describe('HubStorage dual-mode sync', () => {
     expect(HubStorage.saveSetPoolCache('MSH', scope)).toBe(true);
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/set-pools/MSH');
+    expect(localStorage.getItem('rayenz-deck-suggest-set-pool-MSH')).toBe(null);
   });
 
-  it('hydrateSetPoolFromApi falls back to local on 404', async () => {
+  it('hydrateSetPoolFromApi falls back to memory on 404', async () => {
     const local = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [] };
     HubStorage.saveSetPoolCache('MSH', local);
     enableHubApi();
@@ -434,6 +441,23 @@ describe('HubStorage dual-mode sync', () => {
 
     const scope = await HubStorage.hydrateSetPoolFromApi('MSH');
     expect(scope!.codes).toEqual(['MSH']);
+  });
+});
+
+describe('MTG settings API-or-nothing', () => {
+  it('persistDeckBuilderSettings throws when API is off', async () => {
+    await expect(
+      persistDeckBuilderSettings({
+        allyThreeColourNames: 'shards',
+        enemyThreeColourNames: 'wedges',
+      }),
+    ).rejects.toThrow('Hub API not configured');
+    expect(localStorage.getItem('rayenz-deck-builder-settings')).toBe(null);
+  });
+
+  it('persistDailiesSettings still allows local when API is off', async () => {
+    await expect(persistDailiesSettings({ faerieQuest: 'jhudora' })).resolves.toBe('local');
+    expect(localStorage.getItem('rayenz-dailies-settings')).toContain('jhudora');
   });
 });
 

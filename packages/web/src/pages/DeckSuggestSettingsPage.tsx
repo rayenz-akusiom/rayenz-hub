@@ -27,9 +27,7 @@ export function DeckSuggestSettingsPage() {
           setStatus(
             source === 'api'
               ? 'Loaded from API.'
-              : source === 'local'
-                ? 'Loaded from localStorage.'
-                : 'Using empty defaults — set your Archidekt folder and set codes.',
+              : 'Using empty defaults — set your Archidekt folder and set codes.',
           );
         }
       } catch (err) {
@@ -52,8 +50,8 @@ export function DeckSuggestSettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const dest = await persistDeckSuggestSettings(settings);
-      setStatus(dest === 'api' ? 'Saved to API and localStorage.' : 'Saved to localStorage.');
+      await persistDeckSuggestSettings(settings);
+      setStatus('Saved to API.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -74,7 +72,7 @@ export function DeckSuggestSettingsPage() {
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Saves go to localStorage only until the Hub API is configured.{' '}
+          Hub API is required to load or save these settings.{' '}
           <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
         </div>
       )}
@@ -175,7 +173,7 @@ export function DeckSuggestSettingsPage() {
         </fieldset>
 
         <div className="hub-web-actions">
-          <button type="submit" className="hub-web-button" disabled={saving}>
+          <button type="submit" className="hub-web-button" disabled={saving || !apiConfig.enabled}>
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

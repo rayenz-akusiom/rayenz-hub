@@ -114,7 +114,7 @@ describe('tryRestoreSetPool and loadSetScopeFromUpload', () => {
     expect(scope.codes).toEqual(['MAR']);
   });
 
-  it('restores from localStorage when memory cache is cleared', () => {
+  it('restores from HubStorage memory when data module cache is cleared', () => {
     const payload = {
       primaryCode: 'MSH',
       codes: ['MSH'],

@@ -89,13 +89,13 @@ type ActionShellProps = {
   onCopy?: () => void;
   /** True when there is no PNG blob to download/copy. */
   downloadDisabled?: boolean;
-  /** Extra buttons between Close and Download (Generate, Continue, …). */
+  /** Extra buttons between Close and Download (rarely used; primary Generate lives in chrome). */
   children?: ReactNode;
   /** Inserted after Download (e.g. Download all). */
   afterDownload?: ReactNode;
 };
 
-/** Modal footer: Close + optional mid actions + Download/Copy. */
+/** Modal footer: Close + Download/Copy (primary Generate/Continue live in `.db-glance-chrome`). */
 export function GlanceModalActions({
   onClose,
   closeLabel = 'Close',

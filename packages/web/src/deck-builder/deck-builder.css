@@ -2131,24 +2131,62 @@ body,
 }
 
 .db-glance-overlay {
-  left: 200px;
+  /* Match .hub-nav width; leave nav visible on desktop. */
   inset: 0 0 0 200px;
+  /* Prefer dynamic/small viewport units so iPad Safari chrome does not clip the footer. */
+  max-height: 100vh;
+  max-height: 100dvh;
+  max-height: 100svh;
   place-items: stretch;
-  padding: 0.75rem;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px))
+    max(0.75rem, env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px))
+    max(0.75rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
 }
 
 .db-glance-modal {
-  width: min(100%, calc(100vw - 200px - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   max-width: none;
-  height: calc(100vh - 1.5rem);
-  max-height: calc(100vh - 1.5rem);
-  margin: auto;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
   overflow: hidden;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  box-sizing: border-box;
+}
+
+.db-glance-modal > h2 {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.db-glance-chrome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  flex-shrink: 0;
+}
+
+.db-glance-chrome .db-glance-mode,
+.db-glance-chrome .sq-glance-options {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+.db-glance-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
 }
 
 .db-glance-mode {
-  margin: 0 0 0.5rem;
+  margin: 0;
   padding: 0;
   border: none;
   display: flex;
@@ -2175,6 +2213,7 @@ body,
 
 .db-glance-statusline {
   min-height: 1.25rem;
+  flex-shrink: 0;
 }
 
 .db-glance-statusline p {
@@ -2182,6 +2221,7 @@ body,
 }
 
 .db-glance-slot {
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -2192,7 +2232,7 @@ body,
 .db-glance-skeleton {
   width: 100%;
   height: 100%;
-  min-height: 240px;
+  min-height: min(240px, 100%);
   border-radius: 12px;
   background: var(--db-panel-2, rgba(255, 255, 255, 0.04));
   border: 1px dashed var(--db-border, rgba(255, 255, 255, 0.12));
@@ -2281,20 +2321,20 @@ body,
   white-space: nowrap;
 }
 
+.db-glance-modal > .sq-glance-carousel,
+.db-glance-modal > .db-modal-actions {
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .db-glance-overlay {
-    left: 0;
     inset: 0;
-  }
-
-  .db-glance-modal {
-    width: min(100%, calc(100vw - 1.5rem));
-    height: calc(100vh - 1.5rem);
   }
 }
 
 .db-modal-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }

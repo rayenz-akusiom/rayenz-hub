@@ -117,6 +117,22 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 - Tests should cover API-off and API-on paths for persistence helpers.
 - After changing `hub-api-client.ts` response handling, update **all** fetch mocks (`.text()`).
 
+## Glance (deck + swaps) and dual-product refactors
+
+Packing algorithms: [`docs/glance-layout.md`](docs/glance-layout.md). Scoped Cursor rule: `.cursor/rules/glance.mdc`.
+
+**Share plumbing** across sibling products; **do not merge** intentional algorithm or dialog divergence.
+
+| Layer | Shared (prefer these) | Keep separate |
+|-------|----------------------|---------------|
+| Shared plate / cards | `glance/plate.ts`, `card-from-instance.ts`, `card-identity.ts` | Deck L-masonry (`glance/layout.ts`) vs swap densify/pack/masonry/planner |
+| API | `glance-pipeline.ts`, `glance-art.ts`, face compositing helpers | `glance-render-deck` vs `glance-render-swap`; handler parse/response shapes |
+| Web | `glance-http.ts`, `glance-png.ts`, `glance-ui.tsx` | Product dialogs / option UIs (lieutenants vs seeking/mode) |
+
+- Product packing gaps/margins stay local — do not equalize deck vs swap for “consistency.”
+- Bump `GLANCE_GENERATION_VERSION` / `SWAP_GLANCE_GENERATION_VERSION` when fingerprints, colours, art tier, render pixels, or delivery change. Do **not** bump for pure moves or identical-math extracts.
+- Tests: file-local builders; grow `tests/api/helpers/glance-render.ts`. Do not build a cross-layer glance test kit or merge deck/swap suites.
+
 ## TypeScript / React
 
 - New Hub UI lives under `packages/web/src/`; do not add new vanilla IIFEs under `rayenz-hub/apps/`.

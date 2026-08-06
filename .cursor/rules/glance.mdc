@@ -1,0 +1,34 @@
+---
+description: Deck + swaps glance — share plumbing, keep packers/dialogs separate
+globs: packages/shared/src/deck-builder/{glance,swap-glance}/**/*,packages/api/src/{handlers,services,repositories}/*glance*,packages/web/src/**/*glance*,tests/**/*glance*,docs/glance-layout.md
+alwaysApply: false
+---
+
+# Glance (deck + swaps)
+
+Algorithms and plate geometry: [`docs/glance-layout.md`](../../docs/glance-layout.md). Prefer existing shared helpers before adding a parallel constant, converter, or pipeline.
+
+## Share
+
+- Plate / peek: `packages/shared/src/deck-builder/glance/plate.ts`
+- Card conversion / fingerprint base: `card-from-instance.ts`, `card-identity.ts`
+- API: `glance-pipeline.ts` (cache + miss path), `glance-art.ts` (placements/cards — no fake plan adapters)
+- Render faces/badges via shared helpers; product chrome in `glance-render-deck` / `glance-render-swap`
+- Web: `glance-http.ts`, `glance-png.ts`, `glance-ui.tsx`
+
+## Keep separate
+
+- Deck L-masonry (`glance/layout.ts`) vs swap densify / pack / masonry / planner
+- Product packing gaps and margins (do not equalize for consistency)
+- Product dialogs and option UIs
+- Deck vs swap unit/API/web test suites (file-local builders OK; grow `tests/api/helpers/glance-render.ts`)
+
+## Generation versions
+
+Bump `GLANCE_GENERATION_VERSION` / `SWAP_GLANCE_GENERATION_VERSION` when fingerprints, colours, art tier, pixels, or delivery change. Do **not** bump for pure moves or identical-math extracts.
+
+## Avoid
+
+- Merging deck and swap planners, plan types, or whole dialogs
+- Casting one product’s plan into the other for art/prefetch
+- Cross-layer “glance test kit” or soft dual-outcome API cases that hide bugs

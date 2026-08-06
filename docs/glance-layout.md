@@ -177,13 +177,28 @@ Public wrappers:
 |---------|------|
 | Shared plate / peek | `packages/shared/src/deck-builder/glance/plate.ts` |
 | Card from instance | `packages/shared/src/deck-builder/glance/card-from-instance.ts` |
+| Fingerprint base identity | `packages/shared/src/deck-builder/glance/card-identity.ts` |
 | Deck layout | `packages/shared/src/deck-builder/glance/layout.ts` |
 | Deck types / version | `packages/shared/src/deck-builder/glance/types.ts` |
-| Swap layout | `packages/shared/src/deck-builder/swap-glance/layout.ts` |
+| Swap layout facade | `packages/shared/src/deck-builder/swap-glance/layout.ts` |
+| Swap layout shared | `packages/shared/src/deck-builder/swap-glance/layout-shared.ts` |
+| Swap densify ladder | `packages/shared/src/deck-builder/swap-glance/densify.ts` |
+| Swap pack | `packages/shared/src/deck-builder/swap-glance/pack.ts` |
+| Swap masonry | `packages/shared/src/deck-builder/swap-glance/masonry.ts` |
+| Swap planner | `packages/shared/src/deck-builder/swap-glance/planner.ts` |
 | Swap types / densify stages | `packages/shared/src/deck-builder/swap-glance/types.ts` |
 | Deck API | `packages/api/src/handlers/deck-glance.ts` |
 | Swaps API | `packages/api/src/handlers/swaps-glance.ts` |
+| Cache / miss pipeline | `packages/api/src/handlers/glance-pipeline.ts` |
 | Art enrichment | `packages/api/src/services/glance-art.ts` |
-| PNG compositing | `packages/api/src/services/glance-render.ts` |
+| PNG entry / re-exports | `packages/api/src/services/glance-render.ts` |
+| PNG assets / faces / watermark | `packages/api/src/services/glance-render-{assets,faces,watermark,labels}.ts` |
+| PNG deck / swap chrome | `packages/api/src/services/glance-render-{deck,swap}.ts` |
+| Web HTTP / PNG / UI chrome | `packages/web/src/lib/glance-{http,png}.ts`, `glance-ui.tsx` |
+| Deck glance client | `packages/web/src/deck-builder/store/deck-glance-api.ts` |
+| Swaps glance client | `packages/web/src/swap-queue/swaps-glance-api.ts` |
 | Deck layout tests | `tests/unit/hub/deck-builder-glance-layout.test.ts` |
 | Swap layout tests | `tests/unit/hub/swap-glance.test.ts` |
+| API glance render helpers | `tests/api/helpers/glance-render.ts` |
+| API deck / swaps suites | `tests/api/deck-glance.test.ts`, `tests/api/swaps-glance.test.ts` |
+| Web glance RTL | `tests/web/glance-generate.test.tsx`, `tests/web/swaps-glance-dialog.test.tsx` |

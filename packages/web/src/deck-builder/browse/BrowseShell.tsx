@@ -15,6 +15,7 @@ import {
   cardDisplayName,
   cardMatchesSetMembership,
   cardSupportsFoilToggle,
+  categoryIncluded,
   categoryTargetsMismatchCubeSize,
   changeCardPrinting,
   deckCategoryOptions,
@@ -26,6 +27,7 @@ import {
   incompleteEntryCount,
   isCategoryBrowseView,
   isSeekingCategory,
+  isSwapQueueCategoryName,
   markCardsSeekingSecondary,
   markMainDeckSeekingSecondary,
   moveCardsCategory,
@@ -82,6 +84,26 @@ import { ProxyIcon } from '../../cards/ProxyIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { useSetMembershipFilter } from '../ui/SetFilterControl';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
+import { useDeckEditHistory } from '../useDeckEditHistory';
+
+/** Main / Seeking / Queued — still confirm before Remove. */
+function removeNeedsConfirm(
+  deck: DeckDocument,
+  cards: { primaryCategory?: string | null }[],
+): boolean {
+  return cards.some((c) => {
+    const primary = c.primaryCategory || 'Other';
+    if (isSwapQueueCategoryName(primary) || isSeekingCategory(primary)) return true;
+    return categoryIncluded(deck.categories || [], primary);
+  });
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return target.isContentEditable;
+}
 
 function BookIcon() {
   return (
@@ -204,24 +226,35 @@ export function BrowseShell({
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const swapAutosaveTimer = useRef(0);
+  /** First draft autosave records history; later debounce ticks skip. */
+  const swapDraftHistoryRecorded = useRef(false);
+  const editHistory = useDeckEditHistory();
+
+  type CommitOpts = { recordHistory?: boolean };
 
   /** Apply a full document; keeps deckRef ahead of React props so rapid edits don't clobber each other. */
   const commit = useCallback(
-    (next: DeckDocument) => {
+    (next: DeckDocument, opts?: CommitOpts) => {
+      if (opts?.recordHistory !== false) {
+        editHistory.recordBefore(deckRef.current);
+      }
       deckRef.current = next;
       onChange(next);
     },
-    [onChange],
+    [onChange, editHistory],
   );
 
   /** Merge a patch onto the latest known deck (avoids stale prop spreads). */
   const commitPatch = useCallback(
-    (patch: Partial<DeckDocument>) => {
-      commit({
-        ...deckRef.current,
-        ...patch,
-        updatedAt: new Date().toISOString(),
-      });
+    (patch: Partial<DeckDocument>, opts?: CommitOpts) => {
+      commit(
+        {
+          ...deckRef.current,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+        opts,
+      );
     },
     [commit],
   );
@@ -231,6 +264,7 @@ export function BrowseShell({
     const local = deckRef.current;
     if (deck.deckId !== local.deckId) {
       deckRef.current = deck;
+      editHistory.clear();
       setView(deck.browseViewDefault || defaultBrowseView(deck.format));
       setLayout(deck.cardLayoutDefault || 'stacked');
       setCardSort(deck.cardSortDefault || 'name_asc');
@@ -241,16 +275,19 @@ export function BrowseShell({
     if (deck.updatedAt >= local.updatedAt) {
       deckRef.current = deck;
     }
-  }, [deck]);
+  }, [deck, editHistory]);
 
   // Ensure Seeking category def exists so aside flags / deck size stay correct.
   useEffect(() => {
     const cats = deck.categories || [];
     if (cats.some((c) => c.name === SEEKING)) return;
-    commit({
-      ...deckRef.current,
-      categories: ensureCategoryDef(cats, SEEKING),
-    });
+    commit(
+      {
+        ...deckRef.current,
+        categories: ensureCategoryDef(cats, SEEKING),
+      },
+      { recordHistory: false },
+    );
   }, [deck.deckId, deck.categories, commit]);
 
   const onEnrichPatch = useCallback(
@@ -268,12 +305,15 @@ export function BrowseShell({
       for (const [key, entry] of Object.entries(next.oracle || {})) {
         mergedOracle = upsertOracle(mergedOracle, key, entry);
       }
-      commit({
-        ...latest,
-        cards: mergedCards,
-        oracle: mergedOracle,
-        updatedAt: new Date().toISOString(),
-      });
+      commit(
+        {
+          ...latest,
+          cards: mergedCards,
+          oracle: mergedOracle,
+          updatedAt: new Date().toISOString(),
+        },
+        { recordHistory: false },
+      );
     },
     [commit],
   );
@@ -305,12 +345,40 @@ export function BrowseShell({
     setContextMenu(null);
   }, []);
 
+  const overlayBlocksShortcuts =
+    moveOpen ||
+    printingOpen ||
+    addOpen ||
+    categoriesOpen ||
+    basicsOpen ||
+    editingCategory ||
+    contextMenu;
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      if (moveOpen || printingOpen || addOpen || categoriesOpen || editingCategory || contextMenu) {
+      if (overlayBlocksShortcuts) return;
+      if (isEditableKeyboardTarget(e.target)) return;
+
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = editHistory.undo(deckRef.current);
+        if (!prev) return;
+        commit(prev, { recordHistory: false });
+        clearSelection();
         return;
       }
+      if (mod && ((key === 'z' && e.shiftKey) || key === 'y')) {
+        e.preventDefault();
+        const next = editHistory.redo(deckRef.current);
+        if (!next) return;
+        commit(next, { recordHistory: false });
+        clearSelection();
+        return;
+      }
+
+      if (e.key !== 'Escape') return;
       if (selectedIds.size) clearSelection();
     }
     document.addEventListener('keydown', onKey);
@@ -318,12 +386,9 @@ export function BrowseShell({
   }, [
     selectedIds.size,
     clearSelection,
-    moveOpen,
-    printingOpen,
-    addOpen,
-    categoriesOpen,
-    editingCategory,
-    contextMenu,
+    overlayBlocksShortcuts,
+    commit,
+    editHistory,
   ]);
 
   // Drop selection entries that no longer exist on the deck.
@@ -450,21 +515,21 @@ export function BrowseShell({
   function setViewAndPersist(next: BrowseView) {
     setView(next);
     if (deckRef.current.browseViewDefault !== next) {
-      commitPatch({ browseViewDefault: next });
+      commitPatch({ browseViewDefault: next }, { recordHistory: false });
     }
   }
 
   function setLayoutAndPersist(next: CardLayout) {
     setLayout(next);
     if (deckRef.current.cardLayoutDefault !== next) {
-      commitPatch({ cardLayoutDefault: next });
+      commitPatch({ cardLayoutDefault: next }, { recordHistory: false });
     }
   }
 
   function setCardSortAndPersist(next: CardSortMode) {
     setCardSort(next);
     if (deckRef.current.cardSortDefault !== next) {
-      commitPatch({ cardSortDefault: next });
+      commitPatch({ cardSortDefault: next }, { recordHistory: false });
     }
   }
 
@@ -497,6 +562,7 @@ export function BrowseShell({
 
   function clearSwapEdit() {
     window.clearTimeout(swapAutosaveTimer.current);
+    swapDraftHistoryRecorded.current = false;
     setDraft(null);
   }
 
@@ -516,7 +582,9 @@ export function BrowseShell({
             }
           : { ...e, sortIndex: i },
       );
-    commit(syncCardsWithFormalSwaps(current, entries));
+    const recordHistory = !swapDraftHistoryRecorded.current;
+    commit(syncCardsWithFormalSwaps(current, entries), { recordHistory });
+    swapDraftHistoryRecorded.current = true;
   }
 
   function patchSwapDraft(patch: Partial<SwapEditDraft>) {
@@ -669,7 +737,9 @@ export function BrowseShell({
       selectionCount === 1
         ? `Remove “${selectedCards[0]!.name}” from this deck?`
         : `Remove ${selectionCount} cards from this deck?`;
-    if (!window.confirm(label)) return;
+    if (removeNeedsConfirm(deckRef.current, selectedCards) && !window.confirm(label)) {
+      return;
+    }
     commit(removeCardsFromDeck(deckRef.current, selectionIdList));
     clearSelection();
     setMoveOpen(false);
@@ -890,6 +960,7 @@ export function BrowseShell({
               }}
               draft={draft}
               onStartEdit={(entry) => {
+                swapDraftHistoryRecorded.current = false;
                 setDraft(draftFromFormalEntry(entry));
               }}
               onDraftChange={patchSwapDraft}

@@ -214,7 +214,7 @@ describe('BrowseShell multiselect', () => {
     expect(screen.getByRole('menuitem', { name: 'Change printing…' })).toBeInTheDocument();
   });
 
-  it('Remove confirms once for multi-select', async () => {
+  it('Remove skips confirm for Maybeboard-only multi-select', async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const onChange = vi.fn();
@@ -226,11 +226,49 @@ describe('BrowseShell multiselect', () => {
     await user.keyboard('{/Control}');
 
     await user.click(screen.getByRole('button', { name: 'Remove' }));
-    expect(confirm).toHaveBeenCalledWith('Remove 2 cards from this deck?');
+    expect(confirm).not.toHaveBeenCalled();
     const next = onChange.mock.calls.at(-1)![0] as DeckDocument;
     expect(next.cards).toHaveLength(1);
     expect(next.cards[0]!.name).toBe('Counterspell');
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+  });
+
+  it('Remove confirms for main-deck selection', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onChange = vi.fn();
+    render(<BrowseShell deck={splitMainAsideDeck()} onChange={onChange} onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Counterspell' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(confirm).toHaveBeenCalledWith('Remove “Counterspell” from this deck?');
+    const next = onChange.mock.calls.at(-1)![0] as DeckDocument;
+    expect(next.cards.find((c) => c.name === 'Counterspell')).toBeUndefined();
+  });
+
+  it('Remove confirms for Seeking-only selection', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onChange = vi.fn();
+    const deck = baseDeck();
+    const seekingDeck: DeckDocument = {
+      ...deck,
+      cards: deck.cards.map((c) =>
+        c.name === 'Birds of Paradise'
+          ? { ...c, primaryCategory: 'Seeking', categories: ['Seeking'] }
+          : c,
+      ),
+      categories: [
+        ...deck.categories,
+        { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+    };
+    render(<BrowseShell deck={seekingDeck} onChange={onChange} onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Birds of Paradise' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(confirm).toHaveBeenCalledWith('Remove “Birds of Paradise” from this deck?');
+    expect(onChange).toHaveBeenCalled();
   });
 
   it('Clear empties the selection bar', async () => {

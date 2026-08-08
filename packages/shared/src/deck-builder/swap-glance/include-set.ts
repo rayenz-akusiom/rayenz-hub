@@ -1,6 +1,6 @@
 import type { CardInstance, DeckDocument } from '../../schemas/deck-builder.js';
 import { cardDisplayName, getOracle, resolveCardView } from '../card-oracle.js';
-import { collectCommanders, pickCommanderPair } from '../partner.js';
+import { pickCommanderLeaders } from '../partner.js';
 import { toGlanceCard } from '../glance/card-from-instance.js';
 import type {
   BuildSwapGlanceOptions,
@@ -24,29 +24,32 @@ function commanderDisplayName(deck: DeckDocument, card: CardInstance): string {
 /** Deck name — commander(s) as text; deck name only when no commanders. */
 export function swapGlanceHeaderText(deck: DeckDocument): string {
   const deckName = String(deck.name || '').trim() || 'Deck';
-  const pair = pickCommanderPair(deck.cards || []);
-  if (pair.status === 'single' && pair.a) {
-    const card = (deck.cards || []).find((c) => c.instanceId === pair.a!.instanceId) || null;
+  const leaders = pickCommanderLeaders(deck.cards || [], deck.coverInstanceId);
+  if (leaders.kind === 'single' || leaders.kind === 'gallery') {
+    const primary = leaders.primaries[0];
+    const card =
+      (deck.cards || []).find((c) => c.instanceId === primary.instanceId) || null;
     const cmd = card
       ? commanderDisplayName(deck, card)
-      : String(pair.a.name || '').trim();
+      : String(primary.name || '').trim();
     return cmd ? `${deckName} — ${cmd}` : deckName;
   }
-  if (
-    (pair.status === 'legal' || pair.status === 'illegal' || pair.status === 'unknown') &&
-    pair.a &&
-    pair.b
-  ) {
-    const cardA = (deck.cards || []).find((c) => c.instanceId === pair.a!.instanceId);
-    const cardB = (deck.cards || []).find((c) => c.instanceId === pair.b!.instanceId);
-    const a = cardA ? commanderDisplayName(deck, cardA) : String(pair.a.name || '').trim();
-    const b = cardB ? commanderDisplayName(deck, cardB) : String(pair.b.name || '').trim();
+  if (leaders.kind === 'partner') {
+    const [pa, pb] = leaders.primaries;
+    const cardA = (deck.cards || []).find((c) => c.instanceId === pa.instanceId);
+    const cardB = (deck.cards || []).find((c) => c.instanceId === pb.instanceId);
+    const a = cardA ? commanderDisplayName(deck, cardA) : String(pa.name || '').trim();
+    const b = cardB ? commanderDisplayName(deck, cardB) : String(pb.name || '').trim();
     if (a && b) return `${deckName} — ${a} / ${b}`;
   }
-  // Fallback: list Commander-category names when pickCommanderPair is "many"
-  const cmds = collectCommanders(deck.cards || []);
-  if (cmds.length > 0 && cmds.length <= 2) {
-    const names = cmds.map((c) => commanderDisplayName(deck, c)).filter(Boolean);
+  if (leaders.kind === 'many' && leaders.groups.length > 0 && leaders.groups.length <= 2) {
+    const names = leaders.groups
+      .map((g) => {
+        const card =
+          (deck.cards || []).find((c) => c.instanceId === g.primary.instanceId) || null;
+        return card ? commanderDisplayName(deck, card) : String(g.name || '').trim();
+      })
+      .filter(Boolean);
     if (names.length === 1) return `${deckName} — ${names[0]}`;
     if (names.length === 2) return `${deckName} — ${names[0]} / ${names[1]}`;
   }

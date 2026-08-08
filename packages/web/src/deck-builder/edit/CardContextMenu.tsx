@@ -12,6 +12,7 @@ export function CardContextMenu({
   state,
   selectionCount = 1,
   isCover,
+  coverActionLabel = 'cover',
   foil,
   foilEnabled,
   proxy,
@@ -35,6 +36,8 @@ export function CardContextMenu({
   /** Number of cards in the active selection (menu targets all when > 1). */
   selectionCount?: number;
   isCover: boolean;
+  /** Noun for cover/primary menu actions (`cover` | `primary`). */
+  coverActionLabel?: 'cover' | 'primary';
   foil: boolean;
   foilEnabled: boolean;
   proxy: boolean;
@@ -150,7 +153,7 @@ export function CardContextMenu({
               onClose();
             }}
           >
-            Clear cover
+            {coverActionLabel === 'primary' ? 'Clear primary' : 'Clear cover'}
           </button>
         ) : (
           <button
@@ -162,7 +165,7 @@ export function CardContextMenu({
               onClose();
             }}
           >
-            Set as cover
+            {coverActionLabel === 'primary' ? 'Set as primary' : 'Set as cover'}
           </button>
         )
       ) : null}

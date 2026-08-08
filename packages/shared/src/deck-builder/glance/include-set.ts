@@ -4,6 +4,7 @@ import { categoryIncluded, COMMANDER_DECK_TARGET, sortCategoryKeys } from '../br
 import { canonicalizeCategoryName } from '../category-names.js';
 import { normalizeCardQuantities } from '../quantities.js';
 import { formalSwapInIds, syncCardsWithFormalSwaps } from '../formal-swaps.js';
+import { pickCommanderLeaders, collectCommanderGalleryExtraIds } from '../partner.js';
 import { sortLands, sortNonLands } from './colour-sort.js';
 import { toGlanceCard } from './card-from-instance.js';
 import type {
@@ -28,7 +29,9 @@ function isExcludedFromInclude(
   deck: DeckDocument,
   outIds: Set<string>,
   inIds: Set<string>,
+  galleryExtras: Set<string>,
 ): boolean {
+  if (galleryExtras.has(card.instanceId)) return true;
   const primary = canonicalizeCategoryName(card.primaryCategory || 'Other');
   // Formal Ins win over Out when the same instance is both (pathological reprint bind).
   if (outIds.has(card.instanceId) && !inIds.has(card.instanceId)) return true;
@@ -64,6 +67,23 @@ function pickRoles(cards: GlanceCard[], role: 'commander' | 'lieutenant'): Glanc
   return roleCards(cards, role).slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
 }
 
+/**
+ * Commander role plate: one primary per distinct oracle name.
+ * Gallery extras are omitted from the include set (and deck size).
+ */
+function pickCommanderHighlights(
+  cards: GlanceCard[],
+  coverInstanceId?: string | null,
+): GlanceCard[] {
+  const commanders = roleCards(cards, 'commander');
+  const leaders = pickCommanderLeaders(commanders, coverInstanceId);
+  if (leaders.kind === 'none') return [];
+  if (leaders.kind === 'many') {
+    return leaders.groups.slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT).map((g) => g.primary);
+  }
+  return leaders.primaries;
+}
+
 /** Cards eligible for the glance include set, before role/land partitioning. */
 function eligibleGlanceCards(deck: DeckDocument): {
   cards: GlanceCard[];
@@ -75,16 +95,21 @@ function eligibleGlanceCards(deck: DeckDocument): {
     if (entry.outInstanceId) outIds.add(entry.outInstanceId);
   }
   const inIds = formalSwapInIds(synced.formalSwapEntries);
+  const galleryExtras = collectCommanderGalleryExtraIds(
+    synced.cards || [],
+    synced.coverInstanceId,
+  );
 
   const includedCards: CardInstance[] = [];
   for (const card of synced.cards || []) {
-    if (isExcludedFromInclude(card, synced, outIds, inIds)) continue;
+    if (isExcludedFromInclude(card, synced, outIds, inIds, galleryExtras)) continue;
     includedCards.push(card);
   }
 
   // Ensure formal swap Ins remain even if miscategorized (In wins over Out).
   for (const card of synced.cards || []) {
     if (!inIds.has(card.instanceId)) continue;
+    if (galleryExtras.has(card.instanceId)) continue;
     if (includedCards.some((c) => c.instanceId === card.instanceId)) continue;
     includedCards.push(card);
   }
@@ -199,7 +224,7 @@ export function buildGlanceIncludeSet(
     };
   }
 
-  const commanders = pickRoles(glanceCards, 'commander');
+  const commanders = pickCommanderHighlights(glanceCards, deck.coverInstanceId);
   const selection = options.lieutenantInstanceIds;
   let lieutenants: GlanceCard[];
   if (selection && selection.length) {

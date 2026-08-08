@@ -8,6 +8,7 @@ import type {
 import { SEEKING, isSeekingCategory, isSwapQueueCategoryName } from '../mtg/swap-queue.js';
 import { canonicalizeCategoryName } from './category-names.js';
 import { cubeCategorySectionsOrder } from './colour-identity.js';
+import { collectCommanderGalleryExtraIds } from './partner.js';
 
 export const HEADER_CATEGORIES = ['Commander', 'Lieutenants'] as const;
 
@@ -238,9 +239,20 @@ export function categoryIncluded(categories: CategoryDef[], name: string): boole
   return def.includedInDeck !== false;
 }
 
-/** Sum of quantities for cards whose primary category is included in the deck (Archidekt deck size). */
-export function deckSize(deck: Pick<DeckDocument, 'cards' | 'categories'>): number {
+/**
+ * Sum of quantities for cards whose primary category is included in the deck
+ * (Archidekt deck size). Same-name Commander gallery extras (non-primary
+ * printings) do not count.
+ */
+export function deckSize(
+  deck: Pick<DeckDocument, 'cards' | 'categories' | 'coverInstanceId'>,
+): number {
+  const galleryExtras = collectCommanderGalleryExtraIds(
+    deck.cards || [],
+    deck.coverInstanceId,
+  );
   return (deck.cards || []).reduce((sum, card) => {
+    if (galleryExtras.has(card.instanceId)) return sum;
     if (!categoryIncluded(deck.categories || [], card.primaryCategory || 'Other')) return sum;
     return sum + (Number(card.quantity) || 1);
   }, 0);
@@ -323,7 +335,7 @@ export function deckHeaderTarget(
 }
 
 export function deckSizeMismatch(
-  deck: Pick<DeckDocument, 'format' | 'cards' | 'categories' | 'cubeTargetSize'>,
+  deck: Pick<DeckDocument, 'format' | 'cards' | 'categories' | 'cubeTargetSize' | 'coverInstanceId'>,
 ): boolean {
   const size = deckSize(deck);
   if (deck.format === 'commander') return size !== COMMANDER_DECK_TARGET;

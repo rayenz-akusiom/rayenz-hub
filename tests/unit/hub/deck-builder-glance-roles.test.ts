@@ -101,4 +101,27 @@ describe('deck-builder glance roles and quantities', () => {
     expect(include.includeSet.cards.some((c) => c.instanceId === 'swap-in-1')).toBe(true);
     expect(include.includeSet.cards.some((c) => c.instanceId === 'spell-0')).toBe(false);
   });
+
+  it('highlights only the primary printing from a same-name commander gallery', () => {
+    const deck = buildEligibleCommanderDeck();
+    const second: (typeof deck.cards)[number] = {
+      ...deck.cards[0]!,
+      instanceId: 'cmd-2',
+      setCode: 'sld',
+      collectorNumber: '99',
+    };
+    // Gallery extras do not count toward the 100 — keep the full main deck.
+    const withGallery = {
+      ...deck,
+      cards: [deck.cards[0]!, second, ...deck.cards.slice(1)],
+      coverInstanceId: 'cmd-2',
+    };
+    const include = buildGlanceIncludeSet(withGallery);
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.quantitySum).toBe(100);
+    expect(include.includeSet.commanders.map((c) => c.instanceId)).toEqual(['cmd-2']);
+    expect(include.includeSet.cards.some((c) => c.instanceId === 'cmd-1')).toBe(false);
+    expect(include.includeSet.nonLands.some((c) => c.instanceId === 'cmd-1')).toBe(false);
+  });
 });

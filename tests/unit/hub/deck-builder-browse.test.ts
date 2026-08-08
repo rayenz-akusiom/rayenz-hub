@@ -76,6 +76,47 @@ describe('browse grouping', () => {
     expect(deckSize(withMaybe)).toBe(3);
   });
 
+  it('deckSize ignores non-primary same-name commander gallery copies', () => {
+    const withGallery = {
+      ...commander,
+      coverInstanceId: null as string | null,
+      cards: [
+        {
+          instanceId: 'cmd-1',
+          name: 'Kytheon, Hero of Akros',
+          quantity: 1,
+          primaryCategory: 'Commander',
+          categories: ['Commander'],
+          stack: null,
+          setCode: 'ori',
+          collectorNumber: '1',
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+        {
+          instanceId: 'cmd-2',
+          name: 'Kytheon, Hero of Akros',
+          quantity: 1,
+          primaryCategory: 'Commander',
+          categories: ['Commander'],
+          stack: null,
+          setCode: 'sld',
+          collectorNumber: '99',
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+        ...commander.cards,
+      ],
+    };
+    // Fixture has 3 included cards + 1 counting commander (second is gallery extra).
+    expect(deckSize(withGallery)).toBe(4);
+    expect(deckSize({ ...withGallery, coverInstanceId: 'cmd-2' })).toBe(4);
+  });
+
   it('defaults browse view by format', () => {
     expect(defaultBrowseView('commander')).toBe('category');
     expect(defaultBrowseView('cube')).toBe('colour_identity');

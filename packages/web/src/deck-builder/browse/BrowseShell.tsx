@@ -26,6 +26,7 @@ import {
   ensureCategoryDef,
   incompleteEntryCount,
   isCategoryBrowseView,
+  isCommanderCategory,
   isSeekingCategory,
   isSwapQueueCategoryName,
   markCardsSeekingSecondary,
@@ -550,6 +551,17 @@ export function BrowseShell({
       return;
     }
 
+    if (category === 'Commander' && opts?.commanderSlot == null && ids.length === 1) {
+      const instanceId = ids[0]!;
+      const card = current.cards.find((c) => c.instanceId === instanceId);
+      if (card && card.primaryCategory === 'Commander') {
+        if (current.coverInstanceId !== instanceId) {
+          commitPatch({ coverInstanceId: instanceId });
+        }
+        return;
+      }
+    }
+
     const toMove = ids.filter((id) => {
       const card = current.cards.find((c) => c.instanceId === id);
       return Boolean(card && card.primaryCategory !== category);
@@ -763,6 +775,10 @@ export function BrowseShell({
     !multi &&
     primarySelected != null &&
     deck.coverInstanceId === primarySelected.instanceId;
+  const coverActionLabel =
+    primarySelected && isCommanderCategory(primarySelected.primaryCategory)
+      ? 'primary'
+      : 'cover';
   const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(deck, c));
   const anyFoil = selectedCards.some((c) => c.foil);
   const anyProxy = selectedCards.some((c) => c.proxy);
@@ -851,9 +867,13 @@ export function BrowseShell({
                 <DbMenu label="Actions" align="end" ariaLabel="Selection actions">
                   {!multi ? (
                     isCover ? (
-                      <DbMenuItem onSelect={onClearCover}>Clear cover</DbMenuItem>
+                      <DbMenuItem onSelect={onClearCover}>
+                        {coverActionLabel === 'primary' ? 'Clear primary' : 'Clear cover'}
+                      </DbMenuItem>
                     ) : (
-                      <DbMenuItem onSelect={onSetCover}>Set as cover</DbMenuItem>
+                      <DbMenuItem onSelect={onSetCover}>
+                        {coverActionLabel === 'primary' ? 'Set as primary' : 'Set as cover'}
+                      </DbMenuItem>
                     )
                   ) : null}
                   <DbMenuItem onSelect={() => setMoveOpen(true)}>Move…</DbMenuItem>
@@ -1089,6 +1109,9 @@ export function BrowseShell({
           state={contextMenu}
           selectionCount={selectionCount}
           isCover={deck.coverInstanceId === contextCard.instanceId}
+          coverActionLabel={
+            isCommanderCategory(contextCard.primaryCategory) ? 'primary' : 'cover'
+          }
           foil={Boolean(contextCard.foil)}
           foilEnabled={
             multi

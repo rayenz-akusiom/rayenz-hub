@@ -50,7 +50,15 @@ export function ColourIdentityBrowse({
   deck:
     | Pick<
         DeckDocument,
-        'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'deckId' | 'ownership' | 'formalSwapEntries'
+        | 'cards'
+        | 'categories'
+        | 'format'
+        | 'oracle'
+        | 'name'
+        | 'deckId'
+        | 'ownership'
+        | 'formalSwapEntries'
+        | 'coverInstanceId'
       >
     | {
         cards: CardView[];
@@ -61,6 +69,7 @@ export function ColourIdentityBrowse({
         deckId?: string;
         ownership?: DeckOwnership;
         formalSwapEntries?: FormalSwapEntry[];
+        coverInstanceId?: string | null;
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -196,6 +205,9 @@ export function ColourIdentityBrowse({
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}
         swapInIds={swapInIds}
+        coverInstanceId={
+          'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
+        }
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

@@ -1,6 +1,6 @@
 import type { DeckDocument } from '../schemas/deck-builder.js';
 import { cardImageUrl } from './scryfall-images.js';
-import { pickCommanderPair } from './partner.js';
+import { isCommanderCategory, pickCommanderLeaders } from './partner.js';
 import { resolveDeckCards, type CardView } from './card-oracle.js';
 
 type CoverDoc = Pick<DeckDocument, 'format' | 'cards' | 'coverInstanceId' | 'oracle'>;
@@ -18,27 +18,31 @@ export function pickDeckCoverCard(doc: CoverDoc): CardView | null {
 }
 
 /**
- * Up to two cover faces when a commander deck has exactly two Commander cards.
- * Lieutenants never appear as cover partners. Cubes / other: single first card.
- * When `coverInstanceId` is set and the instance exists, returns that card only.
+ * Cover faces for library tiles.
+ * - Non-commander `coverInstanceId` → that face only.
+ * - Commander override soft-selects the primary within its name group (partner
+ *   secondary still shown when there are two distinct commander names).
+ * - Same-name commander gallery → single primary face.
+ * - Two distinct names → both primaries (+ partner status elsewhere).
  */
 export function pickDeckCoverCards(doc: CoverDoc): CardView[] {
-  const override = resolveCoverOverride(doc);
-  if (override) return [override];
-
   const cards = resolveDeckCards(doc);
+  const override = resolveCoverOverride(doc);
+  if (override && !isCommanderCategory(override.primaryCategory)) {
+    return [override];
+  }
+
   if (doc.format === 'commander') {
-    const pair = pickCommanderPair(cards);
-    if (
-      pair.status === 'legal' ||
-      pair.status === 'illegal' ||
-      pair.status === 'unknown'
-    ) {
-      return [pair.a as CardView, pair.b as CardView];
+    const leaders = pickCommanderLeaders(cards, doc.coverInstanceId);
+    if (leaders.kind === 'partner') {
+      return leaders.primaries as [CardView, CardView];
     }
-    if (pair.status === 'single') return [pair.a as CardView];
-    const commander = cards.find((c) => c.primaryCategory === 'Commander');
-    if (commander) return [commander];
+    if (leaders.kind === 'single' || leaders.kind === 'gallery') {
+      return [leaders.primaries[0] as CardView];
+    }
+    if (leaders.kind === 'many' && leaders.groups.length) {
+      return [leaders.groups[0]!.primary as CardView];
+    }
   }
   return cards[0] ? [cards[0]] : [];
 }
@@ -56,9 +60,14 @@ export function deckCoverImageUrlSecondary(doc: CoverDoc): string | null {
 }
 
 export function pickCoverPartnerStatus(doc: CoverDoc): 'legal' | 'illegal' | null {
-  if (resolveCoverOverride(doc)) return null;
+  const override = resolveCoverOverride(doc);
+  if (override && !isCommanderCategory(override.primaryCategory)) return null;
   if (doc.format !== 'commander') return null;
-  const pair = pickCommanderPair(resolveDeckCards(doc));
-  if (pair.status === 'legal' || pair.status === 'illegal') return pair.status;
+  const leaders = pickCommanderLeaders(resolveDeckCards(doc), doc.coverInstanceId);
+  if (leaders.kind === 'partner') {
+    if (leaders.partnerStatus === 'legal' || leaders.partnerStatus === 'illegal') {
+      return leaders.partnerStatus;
+    }
+  }
   return null;
 }

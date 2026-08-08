@@ -47,13 +47,61 @@ export function collectCommanders<T extends PartnerCard & { primaryCategory?: st
   return (cards || []).filter((c) => isCommanderCategory(c.primaryCategory));
 }
 
+/** Normalized key for grouping commander printings by oracle name. */
+export function commanderNameKey(name: string | null | undefined): string {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+export type CommanderNameGroup<T extends PartnerCard = PartnerCard> = {
+  nameKey: string;
+  /** Display name from the first instance in deck order. */
+  name: string;
+  cards: T[];
+  primary: T;
+};
+
+export type CommanderLeadersResult<T extends PartnerCard = PartnerCard> =
+  | {
+      kind: 'none';
+      primaries: [];
+      groups: [];
+      partnerStatus?: undefined;
+    }
+  | {
+      kind: 'single';
+      primaries: [T];
+      groups: [CommanderNameGroup<T>];
+      partnerStatus?: undefined;
+    }
+  | {
+      kind: 'gallery';
+      primaries: [T];
+      groups: [CommanderNameGroup<T>];
+      partnerStatus?: undefined;
+    }
+  | {
+      kind: 'partner';
+      primaries: [T, T];
+      groups: [CommanderNameGroup<T>, CommanderNameGroup<T>];
+      partnerStatus: 'legal' | 'illegal' | 'unknown';
+    }
+  | {
+      kind: 'many';
+      primaries: T[];
+      groups: CommanderNameGroup<T>[];
+      partnerStatus?: undefined;
+    };
+
 function hasKeyword(card: Pick<PartnerCard, 'keywords'>, keyword: string): boolean {
   const list = card.keywords || [];
   return list.some((k) => k.toLowerCase() === keyword.toLowerCase());
 }
 
 function namesMatch(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  return commanderNameKey(a) === commanderNameKey(b);
 }
 
 /** Classic Partner (not Partner with). */
@@ -94,27 +142,132 @@ export function canPartner(
   return false;
 }
 
+function pickGroupPrimary<T extends PartnerCard>(
+  cards: T[],
+  coverInstanceId?: string | null,
+): T {
+  if (coverInstanceId) {
+    const hit = cards.find((c) => c.instanceId === coverInstanceId);
+    if (hit) return hit;
+  }
+  return cards[0]!;
+}
+
+/**
+ * Group Commander-category cards by oracle name (deck order preserved).
+ * Primary within a group is `coverInstanceId` when it belongs to the group,
+ * otherwise the first instance in deck order.
+ */
+export function groupCommandersByName<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+  coverInstanceId?: string | null,
+): CommanderNameGroup<T>[] {
+  const commanders = collectCommanders(cards);
+  const order: string[] = [];
+  const byKey = new Map<string, T[]>();
+  for (const card of commanders) {
+    const key = commanderNameKey(card.name);
+    const list = byKey.get(key);
+    if (list) {
+      list.push(card);
+    } else {
+      byKey.set(key, [card]);
+      order.push(key);
+    }
+  }
+  return order.map((nameKey) => {
+    const groupCards = byKey.get(nameKey)!;
+    return {
+      nameKey,
+      name: groupCards[0]!.name,
+      cards: groupCards,
+      primary: pickGroupPrimary(groupCards, coverInstanceId),
+    };
+  });
+}
+
+function partnerStatusFor(
+  a: PartnerCard,
+  b: PartnerCard,
+): 'legal' | 'illegal' | 'unknown' {
+  if (a.keywords == null || b.keywords == null) return 'unknown';
+  return canPartner(a, b) ? 'legal' : 'illegal';
+}
+
+/**
+ * Resolve commander leaders for covers, glance, and browse UI.
+ * Same-name multiples form a gallery (one primary). Two distinct names form a
+ * partner pair among each name's primary. Three or more names → many.
+ */
+export function pickCommanderLeaders<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+  coverInstanceId?: string | null,
+): CommanderLeadersResult<T> {
+  const groups = groupCommandersByName(cards, coverInstanceId);
+  if (groups.length === 0) {
+    return { kind: 'none', primaries: [], groups: [] };
+  }
+  if (groups.length === 1) {
+    const group = groups[0]!;
+    if (group.cards.length === 1) {
+      return { kind: 'single', primaries: [group.primary], groups: [group] };
+    }
+    return { kind: 'gallery', primaries: [group.primary], groups: [group] };
+  }
+  if (groups.length === 2) {
+    const a = groups[0]!;
+    const b = groups[1]!;
+    return {
+      kind: 'partner',
+      primaries: [a.primary, b.primary],
+      groups: [a, b],
+      partnerStatus: partnerStatusFor(a.primary, b.primary),
+    };
+  }
+  return {
+    kind: 'many',
+    primaries: groups.map((g) => g.primary),
+    groups,
+  };
+}
+
+/**
+ * Instance ids of same-name Commander printings that are not the group's primary.
+ * These are display/gallery extras and do not count toward deck size.
+ */
+export function collectCommanderGalleryExtraIds(
+  cards: Array<PartnerCard & { primaryCategory?: string; instanceId?: string }>,
+  coverInstanceId?: string | null,
+): Set<string> {
+  const extras = new Set<string>();
+  for (const group of groupCommandersByName(cards, coverInstanceId)) {
+    const primaryId = group.primary.instanceId;
+    for (const card of group.cards) {
+      if (card.instanceId && card.instanceId !== primaryId) extras.add(card.instanceId);
+    }
+  }
+  return extras;
+}
+
 /**
  * Partner pairing among Commander-category cards only.
  * Lieutenants are never part of a commander pair.
+ * Same-oracle-name multiples count as one name (gallery → single).
  */
 export function pickCommanderPair<T extends PartnerCard & { primaryCategory?: string }>(
   cards: T[],
+  coverInstanceId?: string | null,
 ): CommanderPairResult {
-  const commanders = collectCommanders(cards);
-  if (commanders.length === 0) return { status: 'none' };
-  if (commanders.length === 1) return { status: 'single', a: commanders[0] };
-  if (commanders.length > 2) return { status: 'many' };
-
-  const [a, b] = commanders;
-  if (a.keywords == null || b.keywords == null) {
-    return { status: 'unknown', a, b };
+  const leaders = pickCommanderLeaders(cards, coverInstanceId);
+  if (leaders.kind === 'none') return { status: 'none' };
+  if (leaders.kind === 'single' || leaders.kind === 'gallery') {
+    return { status: 'single', a: leaders.primaries[0] };
   }
-  return {
-    status: canPartner(a, b) ? 'legal' : 'illegal',
-    a,
-    b,
-  };
+  if (leaders.kind === 'partner') {
+    const [a, b] = leaders.primaries;
+    return { status: leaders.partnerStatus, a, b };
+  }
+  return { status: 'many' };
 }
 
 /** @deprecated Use pickCommanderPair */

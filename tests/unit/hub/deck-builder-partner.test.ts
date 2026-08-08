@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   canPartner,
+  collectCommanderGalleryExtraIds,
   parsePartnerWithName,
+  pickCommanderLeaders,
   pickCommanderPair,
   type CardInstance,
 } from '@rayenz-hub/shared';
@@ -285,5 +287,105 @@ describe('pickCommanderPair', () => {
       }),
     ]);
     expect(unknown.status).toBe('unknown');
+  });
+
+  it('treats same-name commander printings as a single (gallery), not illegal', () => {
+    const pair = pickCommanderPair([
+      card({
+        instanceId: '1',
+        name: 'Kytheon, Hero of Akros',
+        primaryCategory: 'Commander',
+        keywords: [],
+      }),
+      card({
+        instanceId: '2',
+        name: 'Kytheon, Hero of Akros',
+        primaryCategory: 'Commander',
+        keywords: [],
+      }),
+      card({
+        instanceId: '3',
+        name: 'Kytheon, Hero of Akros',
+        primaryCategory: 'Commander',
+        keywords: [],
+      }),
+    ]);
+    expect(pair.status).toBe('single');
+    expect(pair.a?.instanceId).toBe('1');
+  });
+
+  it('partners across name groups even when one side has a printing gallery', () => {
+    const pair = pickCommanderPair([
+      card({
+        instanceId: '1',
+        name: 'Thrasios, Triton Hero',
+        primaryCategory: 'Commander',
+        keywords: ['Partner'],
+      }),
+      card({
+        instanceId: '2',
+        name: 'Thrasios, Triton Hero',
+        primaryCategory: 'Commander',
+        keywords: ['Partner'],
+      }),
+      card({
+        instanceId: '3',
+        name: 'Tymna the Weaver',
+        primaryCategory: 'Commander',
+        keywords: ['Partner'],
+      }),
+    ]);
+    expect(pair.status).toBe('legal');
+    expect(pair.a?.name).toBe('Thrasios, Triton Hero');
+    expect(pair.b?.name).toBe('Tymna the Weaver');
+  });
+});
+
+describe('pickCommanderLeaders', () => {
+  it('builds a gallery with coverInstanceId as primary', () => {
+    const leaders = pickCommanderLeaders(
+      [
+        card({
+          instanceId: '1',
+          name: 'Kytheon, Hero of Akros',
+          primaryCategory: 'Commander',
+        }),
+        card({
+          instanceId: '2',
+          name: 'Kytheon, Hero of Akros',
+          primaryCategory: 'Commander',
+        }),
+      ],
+      '2',
+    );
+    expect(leaders.kind).toBe('gallery');
+    expect(leaders.primaries[0]?.instanceId).toBe('2');
+    expect(leaders.groups[0]?.cards).toHaveLength(2);
+  });
+});
+
+describe('collectCommanderGalleryExtraIds', () => {
+  it('returns non-primary same-name commander instance ids', () => {
+    const extras = collectCommanderGalleryExtraIds(
+      [
+        card({
+          instanceId: '1',
+          name: 'Kytheon, Hero of Akros',
+          primaryCategory: 'Commander',
+        }),
+        card({
+          instanceId: '2',
+          name: 'Kytheon, Hero of Akros',
+          primaryCategory: 'Commander',
+        }),
+        card({
+          instanceId: '3',
+          name: 'Sol Ring',
+          primaryCategory: 'Ramp',
+        }),
+      ],
+      '2',
+    );
+    expect([...extras]).toEqual(['1']);
   });
 });

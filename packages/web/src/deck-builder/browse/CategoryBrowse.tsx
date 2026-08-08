@@ -8,7 +8,7 @@ import {
 } from 'react';
 import {
   deckOwnership,
-  pickCommanderPair,
+  pickCommanderLeaders,
   partitionCategories,
   resolveDeckCards,
   sortCardsInGroup,
@@ -317,6 +317,7 @@ function CommanderSlot({
   onDropCard,
   onCardContextMenu,
   draggable,
+  isPrimary = false,
 }: {
   slot: 0 | 1;
   card: CardView | null;
@@ -326,13 +327,14 @@ function CommanderSlot({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
+  isPrimary?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
 
   return (
     <div
-      className={`db-commander-slot${card ? '' : ' is-empty'}${dragOver ? ' is-drop-target' : ''}`}
+      className={`db-commander-slot${card ? '' : ' is-empty'}${dragOver ? ' is-drop-target' : ''}${isPrimary ? ' is-primary' : ''}`}
       onDragOver={(e) => {
         if (!canDrop) return;
         e.preventDefault();
@@ -351,14 +353,21 @@ function CommanderSlot({
       }}
     >
       {card ? (
-        <CardTile
-          card={card}
-          selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
-          selectedIds={selectedIds}
-          onSelect={onSelectCard}
-          draggable={draggable}
-          onContextMenu={onCardContextMenu}
-        />
+        <>
+          {isPrimary ? (
+            <span className="db-commander-primary-badge" title="Primary">
+              Primary
+            </span>
+          ) : null}
+          <CardTile
+            card={card}
+            selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+            selectedIds={selectedIds}
+            onSelect={onSelectCard}
+            draggable={draggable}
+            onContextMenu={onCardContextMenu}
+          />
+        </>
       ) : (
         <span className="db-commander-slot-placeholder">Drop commander</span>
       )}
@@ -366,8 +375,45 @@ function CommanderSlot({
   );
 }
 
+function CommanderGalleryFace({
+  card,
+  isPrimary,
+  selectedId,
+  selectedIds,
+  onSelectCard,
+  onCardContextMenu,
+  draggable,
+}: {
+  card: CardView;
+  isPrimary: boolean;
+  selectedId?: string | null;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
+  draggable?: boolean;
+}) {
+  return (
+    <div className={`db-commander-slot${isPrimary ? ' is-primary' : ''}`}>
+      {isPrimary ? (
+        <span className="db-commander-primary-badge" title="Primary">
+          Primary
+        </span>
+      ) : null}
+      <CardTile
+        card={card}
+        selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
+        selectedIds={selectedIds}
+        onSelect={onSelectCard}
+        draggable={draggable}
+        onContextMenu={onCardContextMenu}
+      />
+    </div>
+  );
+}
+
 function CommanderSlots({
   commanders,
+  coverInstanceId,
   selectedId,
   selectedIds,
   onSelectCard,
@@ -375,6 +421,7 @@ function CommanderSlots({
   onCardContextMenu,
 }: {
   commanders: CardView[];
+  coverInstanceId?: string | null;
   selectedId?: string | null;
   selectedIds?: ReadonlySet<string> | null;
   onSelectCard?: SelectCardHandler;
@@ -382,19 +429,23 @@ function CommanderSlots({
   onCardContextMenu?: CardContextMenuHandler;
 }) {
   const canDrop = Boolean(onDropCard);
-  const slot0 = commanders[0] ?? null;
-  const slot1 = commanders[1] ?? null;
+  const leaders = pickCommanderLeaders(commanders, coverInstanceId);
   /** Empty partner slot only while a deck-builder drag is over this row (not on global dragstart). */
   const [partnerDropArmed, setPartnerDropArmed] = useState(false);
-  const showSecond =
-    commanders.length >= 2 || (commanders.length === 1 && partnerDropArmed);
-  const pair = pickCommanderPair(commanders);
-  const bothFilled = Boolean(slot0 && slot1);
-  const illegal = bothFilled && pair.status === 'illegal';
+  const [galleryDragOver, setGalleryDragOver] = useState(false);
+
+  const canArmPartner =
+    leaders.kind === 'none' || leaders.kind === 'single' || leaders.kind === 'gallery';
+  const showPartnerSlot =
+    leaders.kind === 'partner' ||
+    (canArmPartner && partnerDropArmed && leaders.kind !== 'none');
+
+  const illegal = leaders.kind === 'partner' && leaders.partnerStatus === 'illegal';
 
   useEffect(() => {
     function clearArmed() {
       setPartnerDropArmed(false);
+      setGalleryDragOver(false);
     }
     document.addEventListener('dragend', clearArmed);
     document.addEventListener('drop', clearArmed);
@@ -405,23 +456,214 @@ function CommanderSlots({
   }, []);
 
   function armPartnerDrop(e: ReactDragEvent) {
-    if (!canDrop || commanders.length !== 1) return;
+    if (!canDrop || !canArmPartner) return;
+    if (leaders.kind === 'none') return;
     if (!isDeckBuilderDragTypes(e.dataTransfer.types)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setPartnerDropArmed(true);
   }
 
+  function onGalleryDragOver(e: ReactDragEvent) {
+    if (!canDrop) return;
+    if (!isDeckBuilderDragTypes(e.dataTransfer.types)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setGalleryDragOver(true);
+  }
+
+  function onGalleryDrop(e: ReactDragEvent) {
+    if (!onDropCard) return;
+    e.preventDefault();
+    setGalleryDragOver(false);
+    const ids = readDragInstanceIds(e.dataTransfer);
+    const id = ids[0];
+    if (id) onDropCard([id], 'Commander');
+  }
+
+  const titleCount = commanders.length;
+  const title =
+    leaders.kind === 'gallery'
+      ? 'Commander'
+      : `Commander${titleCount !== 1 ? 's' : ''}`;
+
+  if (leaders.kind === 'gallery') {
+    const group = leaders.groups[0]!;
+    const primaryId = group.primary.instanceId;
+    return (
+      <div
+        className={`db-partner-pair is-gallery${galleryDragOver ? ' is-drop-target' : ''}`}
+        aria-label="Commander printings"
+        onDragEnter={onGalleryDragOver}
+        onDragOver={(e) => {
+          onGalleryDragOver(e);
+          armPartnerDrop(e);
+        }}
+        onDragLeave={() => setGalleryDragOver(false)}
+        onDrop={onGalleryDrop}
+      >
+        <h3 className="db-partner-pair-title">
+          {title} <span className="db-count">({titleCount})</span>
+        </h3>
+        <div className="db-partner-pair-row db-commander-gallery">
+          {group.cards.map((card) => (
+            <CommanderGalleryFace
+              key={card.instanceId}
+              card={card}
+              isPrimary={card.instanceId === primaryId}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onCardContextMenu={onCardContextMenu}
+              draggable={canDrop}
+            />
+          ))}
+          {showPartnerSlot ? (
+            <>
+              <PartnerTie />
+              <CommanderSlot
+                slot={1}
+                card={null}
+                selectedId={selectedId}
+                selectedIds={selectedIds}
+                onSelectCard={onSelectCard}
+                onDropCard={onDropCard}
+                onCardContextMenu={onCardContextMenu}
+                draggable={canDrop}
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (leaders.kind === 'partner') {
+    const [groupA, groupB] = leaders.groups;
+    return (
+      <div
+        className={`db-partner-pair${illegal ? ' is-illegal' : ''}`}
+        aria-label={illegal ? 'Commanders (illegal partner pair)' : 'Commanders'}
+      >
+        <h3 className="db-partner-pair-title">
+          Commanders <span className="db-count">({titleCount})</span>
+        </h3>
+        <div className="db-partner-pair-row">
+          <div className="db-partner-pair-slot db-commander-side">
+            <CommanderSlot
+              slot={0}
+              card={groupA.primary}
+              isPrimary={groupA.cards.length > 1}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
+              draggable={canDrop}
+            />
+            {groupA.cards.length > 1 ? (
+              <div className="db-commander-side-gallery" aria-label={`${groupA.name} printings`}>
+                {groupA.cards
+                  .filter((c) => c.instanceId !== groupA.primary.instanceId)
+                  .map((card) => (
+                    <CommanderGalleryFace
+                      key={card.instanceId}
+                      card={card}
+                      isPrimary={false}
+                      selectedId={selectedId}
+                      selectedIds={selectedIds}
+                      onSelectCard={onSelectCard}
+                      onCardContextMenu={onCardContextMenu}
+                      draggable={canDrop}
+                    />
+                  ))}
+              </div>
+            ) : null}
+          </div>
+          <PartnerTie illegal={illegal} />
+          <div className="db-partner-pair-slot db-commander-side">
+            <CommanderSlot
+              slot={1}
+              card={groupB.primary}
+              isPrimary={groupB.cards.length > 1}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
+              draggable={canDrop}
+            />
+            {groupB.cards.length > 1 ? (
+              <div className="db-commander-side-gallery" aria-label={`${groupB.name} printings`}>
+                {groupB.cards
+                  .filter((c) => c.instanceId !== groupB.primary.instanceId)
+                  .map((card) => (
+                    <CommanderGalleryFace
+                      key={card.instanceId}
+                      card={card}
+                      isPrimary={false}
+                      selectedId={selectedId}
+                      selectedIds={selectedIds}
+                      onSelectCard={onSelectCard}
+                      onCardContextMenu={onCardContextMenu}
+                      draggable={canDrop}
+                    />
+                  ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {illegal ? (
+          <p className="db-partner-pair-warn" role="status">
+            These commanders can’t partner
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (leaders.kind === 'many') {
+    return (
+      <div
+        className={`db-partner-pair is-gallery${galleryDragOver ? ' is-drop-target' : ''}`}
+        aria-label="Commanders"
+        onDragEnter={onGalleryDragOver}
+        onDragOver={onGalleryDragOver}
+        onDragLeave={() => setGalleryDragOver(false)}
+        onDrop={onGalleryDrop}
+      >
+        <h3 className="db-partner-pair-title">
+          Commanders <span className="db-count">({titleCount})</span>
+        </h3>
+        <div className="db-partner-pair-row db-commander-gallery">
+          {leaders.groups.map((group) => (
+            <CommanderGalleryFace
+              key={group.nameKey}
+              card={group.primary}
+              isPrimary={false}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onCardContextMenu={onCardContextMenu}
+              draggable={canDrop}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // none / single — partner drop slot appears while dragging
+  const slot0 = leaders.kind === 'single' ? leaders.primaries[0] : null;
   return (
     <div
-      className={`db-partner-pair${illegal ? ' is-illegal' : ''}`}
-      aria-label={illegal ? 'Commanders (illegal partner pair)' : 'Commanders'}
+      className="db-partner-pair"
+      aria-label="Commanders"
       onDragEnter={armPartnerDrop}
       onDragOver={armPartnerDrop}
     >
       <h3 className="db-partner-pair-title">
-        Commander{commanders.length !== 1 ? 's' : ''}{' '}
-        <span className="db-count">({commanders.length})</span>
+        {title} <span className="db-count">({titleCount})</span>
       </h3>
       <div className="db-partner-pair-row">
         <CommanderSlot
@@ -434,12 +676,12 @@ function CommanderSlots({
           onCardContextMenu={onCardContextMenu}
           draggable={canDrop}
         />
-        {showSecond ? (
+        {showPartnerSlot ? (
           <>
-            {bothFilled ? <PartnerTie illegal={illegal} /> : null}
+            {slot0 ? <PartnerTie /> : null}
             <CommanderSlot
               slot={1}
-              card={slot1}
+              card={null}
               selectedId={selectedId}
               selectedIds={selectedIds}
               onSelectCard={onSelectCard}
@@ -450,11 +692,6 @@ function CommanderSlots({
           </>
         ) : null}
       </div>
-      {illegal ? (
-        <p className="db-partner-pair-warn" role="status">
-          These commanders can’t partner
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -478,6 +715,7 @@ export function DeckHeaderRow({
   deckMetaWarn,
   syncStatus,
   swapInIds,
+  coverInstanceId = null,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -497,6 +735,7 @@ export function DeckHeaderRow({
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
   swapInIds?: ReadonlySet<string> | null;
+  coverInstanceId?: string | null;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const commanders = header['Commander'] || [];
@@ -514,6 +753,7 @@ export function DeckHeaderRow({
         <div className="db-header-slot is-commander">
           <CommanderSlots
             commanders={commanders}
+            coverInstanceId={coverInstanceId}
             selectedId={selectedId}
             selectedIds={selectedIds}
             onSelectCard={onSelectCard}
@@ -644,7 +884,15 @@ export function CategoryBrowse({
   deck:
     | Pick<
         DeckDocument,
-        'cards' | 'categories' | 'format' | 'oracle' | 'name' | 'deckId' | 'ownership' | 'formalSwapEntries'
+        | 'cards'
+        | 'categories'
+        | 'format'
+        | 'oracle'
+        | 'name'
+        | 'deckId'
+        | 'ownership'
+        | 'formalSwapEntries'
+        | 'coverInstanceId'
       >
     | {
         cards: CardView[];
@@ -655,6 +903,7 @@ export function CategoryBrowse({
         deckId?: string;
         ownership?: DeckOwnership;
         formalSwapEntries?: FormalSwapEntry[];
+        coverInstanceId?: string | null;
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -846,6 +1095,7 @@ export function CategoryBrowse({
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}
         swapInIds={swapInIds}
+        coverInstanceId={'coverInstanceId' in deck ? deck.coverInstanceId : null}
       />
       {body}
     </div>

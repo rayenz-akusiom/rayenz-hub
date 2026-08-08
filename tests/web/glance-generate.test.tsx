@@ -19,7 +19,7 @@ const postGlance = vi.hoisted(() =>
     ) => ({
       blob: new Blob(['png'], { type: 'image/png' }),
       cache: 'MISS',
-      generation: 'glance-gen-17',
+      generation: GLANCE_GENERATION_VERSION,
       delivery: 'inline' as const,
     }),
   ),

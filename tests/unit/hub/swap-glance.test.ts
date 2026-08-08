@@ -155,6 +155,21 @@ describe('swap glance header text', () => {
     });
     expect(swapGlanceHeaderText(deck)).toBe('My Cube');
   });
+
+  it('lists a gallery commander once', () => {
+    const base = buildEligibleCommanderDeck({ name: 'Hero' });
+    const second = {
+      ...base.cards[0]!,
+      instanceId: 'cmd-2',
+      setCode: 'sld',
+      collectorNumber: '99',
+    };
+    const deck = {
+      ...base,
+      cards: [base.cards[0]!, second, ...base.cards.slice(1)],
+    };
+    expect(swapGlanceHeaderText(deck)).toBe('Hero — Atraxa, Praetors Voice');
+  });
 });
 
 describe('swap glance include-set + layout', () => {

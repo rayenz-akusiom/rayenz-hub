@@ -1077,11 +1077,57 @@ body,
 }
 
 .db-commander-slot {
+  position: relative;
   flex: 0 0 auto;
   box-sizing: border-box;
   width: var(--db-card-w);
   aspect-ratio: var(--db-card-aspect);
   border-radius: var(--db-card-radius);
+}
+
+.db-commander-slot.is-primary {
+  outline: 2px solid var(--db-leaders-accent, #3d6ea8);
+  outline-offset: 2px;
+}
+
+.db-commander-primary-badge {
+  position: absolute;
+  z-index: 2;
+  top: 0.25rem;
+  left: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: rgba(20, 30, 45, 0.82);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.db-commander-gallery {
+  align-items: flex-start;
+}
+
+.db-commander-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.db-commander-side-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.db-partner-pair.is-gallery.is-drop-target {
+  outline: 2px dashed var(--db-accent);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 .db-commander-slot.is-empty {

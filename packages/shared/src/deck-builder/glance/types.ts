@@ -1,5 +1,5 @@
 /** Bump when layout, art tier, render pipeline, or delivery changes — invalidates S3 cache. */
-export const GLANCE_GENERATION_VERSION = 'glance-gen-17';
+export const GLANCE_GENERATION_VERSION = 'glance-gen-18';
 
 /** Maximum commanders/lieutenants shown on their highlight plates. */
 export const GLANCE_ROLE_HIGHLIGHT_LIMIT = 2;

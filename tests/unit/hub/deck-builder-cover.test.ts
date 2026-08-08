@@ -186,6 +186,54 @@ describe('deck cover partners', () => {
     expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual(['A', 'B']);
     expect(pickCoverPartnerStatus(d)).toBe('legal');
   });
+
+  it('uses a single cover face for same-name commander galleries', () => {
+    const d = doc([
+      card({
+        instanceId: 'k1',
+        name: 'Kytheon, Hero of Akros',
+        primaryCategory: 'Commander',
+        keywords: [],
+      }),
+      card({
+        instanceId: 'k2',
+        name: 'Kytheon, Hero of Akros',
+        primaryCategory: 'Commander',
+        keywords: [],
+      }),
+    ]);
+    expect(pickDeckCoverCards(d).map((c) => c.instanceId)).toEqual(['k1']);
+    expect(deckCoverImageUrlSecondary(d)).toBeNull();
+    expect(pickCoverPartnerStatus(d)).toBeNull();
+  });
+
+  it('soft-selects a commander cover among partners without collapsing the pair', () => {
+    const d = DeckDocumentSchema.parse({
+      ...doc([
+        card({
+          instanceId: 'a1',
+          name: 'A',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+        card({
+          instanceId: 'a2',
+          name: 'A',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+        card({
+          instanceId: 'b',
+          name: 'B',
+          primaryCategory: 'Commander',
+          keywords: ['Partner'],
+        }),
+      ]),
+      coverInstanceId: 'a2',
+    });
+    expect(pickDeckCoverCards(d).map((c) => c.instanceId)).toEqual(['a2', 'b']);
+    expect(pickCoverPartnerStatus(d)).toBe('legal');
+  });
 });
 
 describe('toDeckSummary coverCardName', () => {

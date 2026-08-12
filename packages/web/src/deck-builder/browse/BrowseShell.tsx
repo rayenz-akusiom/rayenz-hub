@@ -78,6 +78,10 @@ import { GlanceGenerateButton } from '../commander/GlanceGenerateButton';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
+import {
+  cardImageCopyUrl,
+  copyCardImageToClipboard,
+} from '../../lib/copy-card-image';
 import { useCardSize } from '../card-size';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
@@ -1137,6 +1141,10 @@ export function BrowseShell({
           onAddToSwapQueue={queuesReadOnly ? undefined : onAddToSwapQueue}
           onMarkSeekingInDeck={queuesReadOnly ? undefined : onMarkSeekingInDeck}
           onChangePrinting={() => setPrintingOpen(true)}
+          onCopyImage={() => {
+            void copyCardImageToClipboard(contextCard);
+          }}
+          copyImageEnabled={Boolean(cardImageCopyUrl(contextCard))}
           onRemove={onRemoveSelected}
           onRemoveSecondary={(category) => {
             const current = deckRef.current;

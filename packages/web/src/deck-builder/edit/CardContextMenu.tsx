@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
+import { canCopyPng } from '../../lib/glance-png';
 
 export type CardContextMenuState = {
   x: number;
@@ -28,6 +29,8 @@ export function CardContextMenu({
   onAddToSwapQueue,
   onMarkSeekingInDeck,
   onChangePrinting,
+  onCopyImage,
+  copyImageEnabled = true,
   onRemove,
   onRemoveSecondary,
   onAddSecondary,
@@ -55,6 +58,10 @@ export function CardContextMenu({
   /** Mark selection Seeking as secondary (keep in deck). */
   onMarkSeekingInDeck?: () => void;
   onChangePrinting: () => void;
+  /** Copy front-face art to the clipboard (single selection). */
+  onCopyImage?: () => void;
+  /** False when the card has no resolvable image URL. */
+  copyImageEnabled?: boolean;
   onRemove: () => void;
   onRemoveSecondary?: (category: string) => void;
   onAddSecondary?: (category: string) => void;
@@ -300,6 +307,20 @@ export function CardContextMenu({
           }}
         >
           Change printing…
+        </button>
+      ) : null}
+      {!multi && onCopyImage && canCopyPng() ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          disabled={!copyImageEnabled}
+          onClick={() => {
+            onClose();
+            onCopyImage();
+          }}
+        >
+          Copy image
         </button>
       ) : null}
       <button

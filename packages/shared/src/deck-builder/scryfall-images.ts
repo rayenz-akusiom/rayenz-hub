@@ -48,15 +48,20 @@ export function scryfallCdnUrlWithSize(
   size: ScryfallImageSize,
 ): string | null {
   if (!url) return null;
-  return url.replace(
+  const rewritten = url.replace(
     /^(https:\/\/cards\.scryfall\.io\/)(small|normal|large|png|art_crop|border_crop)(\/)/i,
     `$1${size}$3`,
   );
+  if (size === 'png') {
+    return rewritten.replace(/\.(jpe?g|webp)(\?.*)?$/i, '.png$2');
+  }
+  return rewritten.replace(/\.png(\?.*)?$/i, '.jpg$1');
 }
 
 /**
  * Direct file CDN — not rate-limited (unlike api.scryfall.com image redirects).
- * Path: /{size}/{front|back}/{id[0]}/{id[1]}/{id}.jpg
+ * Path: /{size}/{front|back}/{id[0]}/{id[1]}/{id}.{jpg|png}
+ * Scryfall uses `.png` only for the `png` size; all other sizes are JPEG.
  */
 export function scryfallImageFromId(
   scryfallId: string | null | undefined,
@@ -66,7 +71,8 @@ export function scryfallImageFromId(
   const id = String(scryfallId || '').trim();
   if (!id || id.length < 2) return null;
   const side: CardImageFace = face === 'back' ? 'back' : 'front';
-  return `https://cards.scryfall.io/${size}/${side}/${id[0]}/${id[1]}/${id}.jpg`;
+  const ext = size === 'png' ? 'png' : 'jpg';
+  return `https://cards.scryfall.io/${size}/${side}/${id[0]}/${id[1]}/${id}.${ext}`;
 }
 
 export function scryfallImageFromPrinting(

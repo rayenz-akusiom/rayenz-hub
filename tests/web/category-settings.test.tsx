@@ -267,3 +267,99 @@ describe('CardContextMenu secondary categories', () => {
     expect(onRemoveSecondary).toHaveBeenCalledWith('Ramp');
   });
 });
+
+describe('CardContextMenu copy image', () => {
+  const baseProps = {
+    state: { x: 10, y: 10, instanceId: 'c1' },
+    isCover: false,
+    foil: false,
+    foilEnabled: true,
+    proxy: false,
+    onClose: vi.fn(),
+    onToggleFoil: vi.fn(),
+    onToggleProxy: vi.fn(),
+    onSetCover: vi.fn(),
+    onClearCover: vi.fn(),
+    onMove: vi.fn(),
+    onChangePrinting: vi.fn(),
+    onRemove: vi.fn(),
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows Copy image for single selection when clipboard is supported', async () => {
+    vi.stubGlobal('ClipboardItem', class ClipboardItem {});
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write: vi.fn() },
+    });
+    const onCopyImage = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <CardContextMenu
+        {...baseProps}
+        onClose={onClose}
+        onCopyImage={onCopyImage}
+        copyImageEnabled
+      />,
+    );
+
+    const item = screen.getByRole('menuitem', { name: /Copy image/i });
+    await user.click(item);
+    expect(onClose).toHaveBeenCalled();
+    expect(onCopyImage).toHaveBeenCalled();
+  });
+
+  it('hides Copy image for multi-selection', () => {
+    vi.stubGlobal('ClipboardItem', class ClipboardItem {});
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write: vi.fn() },
+    });
+
+    render(
+      <CardContextMenu
+        {...baseProps}
+        selectionCount={3}
+        onCopyImage={vi.fn()}
+        copyImageEnabled
+      />,
+    );
+
+    expect(screen.queryByRole('menuitem', { name: /Copy image/i })).toBeNull();
+  });
+
+  it('hides Copy image when onCopyImage is omitted', () => {
+    vi.stubGlobal('ClipboardItem', class ClipboardItem {});
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write: vi.fn() },
+    });
+
+    render(<CardContextMenu {...baseProps} />);
+
+    expect(screen.queryByRole('menuitem', { name: /Copy image/i })).toBeNull();
+  });
+
+  it('disables Copy image when copyImageEnabled is false', () => {
+    vi.stubGlobal('ClipboardItem', class ClipboardItem {});
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write: vi.fn() },
+    });
+
+    render(
+      <CardContextMenu
+        {...baseProps}
+        onCopyImage={vi.fn()}
+        copyImageEnabled={false}
+      />,
+    );
+
+    expect(screen.getByRole('menuitem', { name: /Copy image/i })).toBeDisabled();
+  });
+});

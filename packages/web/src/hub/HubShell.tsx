@@ -19,6 +19,7 @@ function settingsTabFromPath(path: string): SettingsTab {
   if (path.startsWith('/settings/deck-builder')) return 'deck-builder';
   if (path.startsWith('/settings/deck-suggest')) return 'deck-suggest';
   if (path.startsWith('/settings/order-reconcile')) return 'order-reconcile';
+  if (path.startsWith('/settings/swap-queue')) return 'swap-queue';
   return 'dailies';
 }
 

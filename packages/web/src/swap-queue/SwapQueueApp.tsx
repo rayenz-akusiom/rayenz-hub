@@ -47,7 +47,15 @@ import '../deck-builder/deck-builder.css';
 import { findDeck, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
 import { copyArchidektWants, copyNameQtyWants } from './export-ui';
+import { cadToUsd, fetchFxUsdCad, type FxUsdCad } from './fx-cad';
 import { LookingForEditChrome } from './LookingForEditChrome';
+import {
+  CAD_FX_DISCLAIMER,
+  formatPricePrimary,
+  priceBadgeTitle,
+  useSwapQueuePricePrefs,
+  type SwapQueueCurrency,
+} from './price-prefs';
 import { QueueTilesView } from './QueueTilesView';
 import { SourceInterstitial } from './SourceInterstitial';
 import { SwapsGlanceDialog } from './SwapsGlanceDialog';
@@ -125,34 +133,123 @@ function SwapAddFabIcon() {
   );
 }
 
-function MinUsdMenuControl({
-  value,
-  onChange,
+function parseOptionalAmount(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+function PriceMenuControl({
+  currency,
+  onCurrencyChange,
+  minInput,
+  maxInput,
+  onMinChange,
+  onMaxChange,
+  alwaysShowPrices,
+  onAlwaysShowChange,
+  fxDate,
+  fxUnavailable,
 }: {
-  value: string;
-  onChange: (next: string) => void;
+  currency: SwapQueueCurrency;
+  onCurrencyChange: (next: SwapQueueCurrency) => void;
+  minInput: string;
+  maxInput: string;
+  onMinChange: (next: string) => void;
+  onMaxChange: (next: string) => void;
+  alwaysShowPrices: boolean;
+  onAlwaysShowChange: (next: boolean) => void;
+  fxDate: string | null;
+  fxUnavailable: boolean;
 }) {
+  const unit = currency;
   return (
     <div
-      className="sq-menu-min-usd"
+      className="sq-menu-price"
       role="none"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <label className="sq-menu-min-usd-label">
-        Min USD
+      <fieldset className="sq-menu-price-currency">
+        <legend>Currency</legend>
+        <label>
+          <input
+            type="radio"
+            name="sq-currency"
+            checked={currency === 'CAD'}
+            onChange={() => onCurrencyChange('CAD')}
+          />
+          CAD
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="sq-currency"
+            checked={currency === 'USD'}
+            onChange={() => onCurrencyChange('USD')}
+          />
+          USD
+        </label>
+      </fieldset>
+      <p className="sq-menu-price-hint">
+        Switching currency keeps min/max numbers; they are reinterpreted in the new unit.
+      </p>
+      <label className="sq-menu-price-field">
+        Min {unit}
         <input
           type="number"
           min={0}
           step={0.01}
-          value={value}
+          value={minInput}
           placeholder="off"
-          aria-label="Min USD"
-          onChange={(e) => onChange(e.target.value)}
+          aria-label={`Min ${unit}`}
+          onChange={(e) => onMinChange(e.target.value)}
         />
       </label>
+      <label className="sq-menu-price-field">
+        Max {unit}
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          value={maxInput}
+          placeholder="off"
+          aria-label={`Max ${unit}`}
+          onChange={(e) => onMaxChange(e.target.value)}
+        />
+      </label>
+      <label className="sq-menu-price-check">
+        <input
+          type="checkbox"
+          checked={alwaysShowPrices}
+          onChange={(e) => onAlwaysShowChange(e.target.checked)}
+        />
+        Always show prices on tiles
+      </label>
+      {currency === 'CAD' ? (
+        <p className="sq-menu-price-hint" role="note">
+          {fxUnavailable
+            ? 'FX unavailable — showing and filtering in USD.'
+            : fxDate
+              ? `BoC FX ${fxDate}. ${CAD_FX_DISCLAIMER}`
+              : CAD_FX_DISCLAIMER}
+        </p>
+      ) : null}
     </div>
   );
+}
+
+function priceMenuLabel(
+  min: number | null,
+  max: number | null,
+  currency: SwapQueueCurrency,
+): string {
+  if (min == null && max == null) return 'Off';
+  const unit = currency;
+  if (min != null && max != null) return `${min}–${max} ${unit}`;
+  if (min != null) return `≥${min} ${unit}`;
+  return `≤${max} ${unit}`;
 }
 
 type DeckFilterOption = { deckId: string; deckName: string };
@@ -253,10 +350,20 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [layout, setLayout] = useState<SwapQueueLayoutMode>(() =>
     defaultLayoutForSwapQueuePath(pathKey),
   );
-  const [minUsd, setMinUsd] = useState<number | null>(null);
-  const [minUsdInput, setMinUsdInput] = useState('');
+  const [minAmount, setMinAmount] = useState<number | null>(null);
+  const [maxAmount, setMaxAmount] = useState<number | null>(null);
+  const [minInput, setMinInput] = useState('');
+  const [maxInput, setMaxInput] = useState('');
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>([]);
   const setFilter = useSetMembershipFilter();
+  const {
+    currency,
+    setCurrency,
+    alwaysShowPrices,
+    setAlwaysShowPrices,
+  } = useSwapQueuePricePrefs();
+  const [fx, setFx] = useState<FxUsdCad | null>(null);
+  const [fxUnavailable, setFxUnavailable] = useState(false);
   const [status, setStatus] = useState('');
   const [interstitial, setInterstitial] = useState<UnifiedWantRow | null>(null);
   const [editing, setEditing] = useState<WantSource | null>(null);
@@ -311,6 +418,45 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (currency !== 'CAD') {
+      setFx(null);
+      setFxUnavailable(false);
+      return;
+    }
+    void fetchFxUsdCad().then((next) => {
+      if (cancelled) return;
+      if (next) {
+        setFx(next);
+        setFxUnavailable(false);
+      } else {
+        setFx(null);
+        setFxUnavailable(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currency]);
+
+  const effectiveCurrency: SwapQueueCurrency =
+    currency === 'CAD' && fxUnavailable ? 'USD' : currency;
+  const fxRate = fx?.rate ?? null;
+
+  function toUsdThreshold(amount: number | null): number | null {
+    if (amount == null) return null;
+    if (effectiveCurrency === 'CAD' && fxRate != null && fxRate > 0) {
+      return cadToUsd(amount, fxRate);
+    }
+    return amount;
+  }
+
+  const minUsd = toUsdThreshold(minAmount);
+  const maxUsd = toUsdThreshold(maxAmount);
+  const priceFilterActive = minAmount != null || maxAmount != null;
+  const showPrices = alwaysShowPrices || priceFilterActive;
+
   const deckOptions = useMemo((): DeckFilterOption[] => {
     const byId = new Map<string, string>();
     for (const s of sources) {
@@ -339,10 +485,27 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     () =>
       filterWantSources(sources, {
         minUsd,
+        maxUsd,
         deckIds: selectedDeckIds.length ? selectedDeckIds : null,
-        setMembership: setFilter.active ? setFilter.membership : null,
+        setMembership:
+          setFilter.appliedCodes.length && setFilter.membership
+            ? setFilter.membership
+            : null,
+        setExcludeMembership:
+          setFilter.appliedExcludeCodes.length && setFilter.excludeMembership
+            ? setFilter.excludeMembership
+            : null,
       }),
-    [sources, minUsd, selectedDeckIds, setFilter.active, setFilter.membership],
+    [
+      sources,
+      minUsd,
+      maxUsd,
+      selectedDeckIds,
+      setFilter.appliedCodes.length,
+      setFilter.membership,
+      setFilter.appliedExcludeCodes.length,
+      setFilter.excludeMembership,
+    ],
   );
 
   const lanes = useMemo(() => partitionWantSourcesBySwimlane(visible), [visible]);
@@ -550,6 +713,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       mergeKey: draft.entryId,
       quantity: 1,
       usd: null,
+      setCode: null,
+      collectorNumber: null,
+      foil: false,
       outInstanceId: nextDraft.outInstanceId,
       inInstanceId: nextDraft.inInstanceId,
       pairIncomplete: !nextDraft.inInstanceId || !nextDraft.outInstanceId,
@@ -668,6 +834,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       mergeKey: entry.id,
       quantity: 1,
       usd: null,
+      setCode: null,
+      collectorNumber: null,
+      foil: false,
       outInstanceId: null,
       inInstanceId: null,
       pairIncomplete: true,
@@ -725,7 +894,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     lanes.seeking.length + lanes.queued_in.length + lanes.queued_out.length > 0;
   const hasUnfiltered = sources.length > 0;
   const filtersActive =
-    minUsd != null || selectedDeckIds.length > 0 || setFilter.active;
+    priceFilterActive || selectedDeckIds.length > 0 || setFilter.active;
 
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
@@ -774,7 +943,31 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               onChange={setSelectedDeckIds}
             />
           </DbMenu>
-          <SetFilterMenu filter={setFilter} />
+          <SetFilterMenu filter={setFilter} showExclude />
+          <DbMenu
+            label="Price"
+            value={priceMenuLabel(minAmount, maxAmount, effectiveCurrency)}
+            ariaLabel={`Price filter: ${priceMenuLabel(minAmount, maxAmount, effectiveCurrency)}`}
+          >
+            <PriceMenuControl
+              currency={currency}
+              onCurrencyChange={setCurrency}
+              minInput={minInput}
+              maxInput={maxInput}
+              onMinChange={(v) => {
+                setMinInput(v);
+                setMinAmount(parseOptionalAmount(v));
+              }}
+              onMaxChange={(v) => {
+                setMaxInput(v);
+                setMaxAmount(parseOptionalAmount(v));
+              }}
+              alwaysShowPrices={alwaysShowPrices}
+              onAlwaysShowChange={setAlwaysShowPrices}
+              fxDate={fx?.date ?? null}
+              fxUnavailable={fxUnavailable}
+            />
+          </DbMenu>
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
         </div>
         <DbMenu
@@ -787,19 +980,6 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
           <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
           <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
-          <MinUsdMenuControl
-            value={minUsdInput}
-            onChange={(v) => {
-              setMinUsdInput(v);
-              const raw = v.trim();
-              if (!raw) {
-                setMinUsd(null);
-                return;
-              }
-              const n = Number(raw);
-              setMinUsd(Number.isFinite(n) ? n : null);
-            }}
-          />
         </DbMenu>
       </header>
 
@@ -829,6 +1009,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           onSelect={openSource}
           onActivateUnified={activateUnified}
           onFinalizePair={(deckId, entryId) => void finalizePair(deckId, entryId)}
+          showPrices={showPrices}
+          formatPrice={(usd) => formatPricePrimary(usd, effectiveCurrency, fxRate)}
+          priceTitle={(usd) => priceBadgeTitle(usd, effectiveCurrency, fxRate)}
         />
       ) : null}
 

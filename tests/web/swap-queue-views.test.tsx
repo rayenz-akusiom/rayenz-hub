@@ -1,11 +1,22 @@
 import './helpers/swap-queue-vi-mocks';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { aggregateSwapWants, type DeckDocument } from '@rayenz-hub/shared';
 import { mockLoadSwapWantSources, pairDeck } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import {
+  CURRENCY_STORAGE_KEY,
+  SHOW_PRICES_STORAGE_KEY,
+} from '../../packages/web/src/swap-queue/price-prefs';
 
+const swapQueueCssPath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../packages/web/src/swap-queue/swap-queue.css',
+);
 /** Views suite: Ramp target + empty categories (vs harness default Other / null). */
 function viewsPairDeck(over: Partial<DeckDocument> = {}): DeckDocument {
   return pairDeck({
@@ -28,6 +39,8 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   localStorage.removeItem('rayenzHubPickerCardSize');
+  localStorage.removeItem(CURRENCY_STORAGE_KEY);
+  localStorage.removeItem(SHOW_PRICES_STORAGE_KEY);
 });
 
 describe('SwapQueueApp browse / layout', () => {
@@ -73,6 +86,32 @@ describe('SwapQueueApp browse / layout', () => {
     expect(catBar?.querySelector('.sq-tile-cat-deck')).toHaveTextContent('Commander Deck');
     expect(catBar?.querySelector('.sq-tile-cat-target')).toHaveTextContent('Ramp');
     expect(screen.queryByText('→ Ramp')).not.toBeInTheDocument();
+  });
+
+  it('keeps Out→In fan siblings when price badge is on the In face', async () => {
+    const css = readFileSync(swapQueueCssPath, 'utf8');
+    expect(css).not.toMatch(/\.db-swap-pair-in\s*\{[^}]*position\s*:\s*relative/);
+
+    const deck = viewsPairDeck();
+    const sources = aggregateSwapWants([deck]).map((s) =>
+      s.kind === 'queued_in' ? { ...s, usd: 2.5 } : s,
+    );
+    mockLoadSwapWantSources.mockResolvedValue({ decks: [deck], sources });
+    localStorage.setItem(CURRENCY_STORAGE_KEY, 'USD');
+    localStorage.setItem(SHOW_PRICES_STORAGE_KEY, '1');
+
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => expect(document.querySelector('.db-swap-pair')).toBeTruthy());
+
+    const stack = document.querySelector('.db-swap-pair-stack.is-preview');
+    expect(stack).toBeTruthy();
+    const out = stack!.querySelector(':scope > .db-swap-pair-out');
+    const arrow = stack!.querySelector(':scope > .db-swap-pair-arrow');
+    const inFace = stack!.querySelector(':scope > .db-swap-pair-in');
+    expect(out).toBeTruthy();
+    expect(arrow).toBeTruthy();
+    expect(inFace).toBeTruthy();
+    expect(inFace!.querySelector('.sq-price-badge')).toHaveTextContent('$2.50');
   });
 
   it('shows deck name in tile header when target category is empty', async () => {

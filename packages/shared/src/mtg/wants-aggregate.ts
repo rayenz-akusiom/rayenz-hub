@@ -16,11 +16,23 @@ export type WantSource = {
   mergeKey: string;
   quantity: number;
   usd: number | null;
+  /** Printing identity for Scryfall price enrich (null when unknown). */
+  setCode: string | null;
+  collectorNumber: string | null;
+  foil: boolean;
   /** Companion Out instance for queued_in; companion In for queued_out. */
   outInstanceId: string | null;
   inInstanceId: string | null;
   pairIncomplete: boolean;
 };
+
+function printingFields(card: CardInstance): Pick<WantSource, 'setCode' | 'collectorNumber' | 'foil'> {
+  return {
+    setCode: card.setCode?.trim() || null,
+    collectorNumber: card.collectorNumber?.trim() || null,
+    foil: Boolean(card.foil),
+  };
+}
 
 export type UnifiedWantRow = {
   key: string;
@@ -125,6 +137,7 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
             mergeKey: wantMergeKey(card, cardName),
             quantity: quantityOf(card),
             usd: null,
+            ...printingFields(card),
             outInstanceId: entry.outInstanceId ?? null,
             inInstanceId: entry.inInstanceId,
             pairIncomplete: incomplete,
@@ -147,6 +160,7 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
             mergeKey: wantMergeKey(card, cardName),
             quantity: quantityOf(card),
             usd: null,
+            ...printingFields(card),
             outInstanceId: entry.outInstanceId,
             inInstanceId: entry.inInstanceId ?? null,
             pairIncomplete: incomplete,
@@ -170,6 +184,7 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
         mergeKey: wantMergeKey(card, cardName),
         quantity: quantityOf(card),
         usd: null,
+        ...printingFields(card),
         outInstanceId: null,
         inInstanceId: null,
         pairIncomplete: false,

@@ -63,7 +63,7 @@ describe('SwapQueueApp set filter', () => {
     expect(screen.getByText(/Island/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Set/i }));
-    const codesInput = screen.getByLabelText('Set codes');
+    const codesInput = screen.getByLabelText('Include set codes');
     await user.clear(codesInput);
     await user.type(codesInput, 'cmm');
     await user.click(screen.getByRole('button', { name: 'Apply' }));

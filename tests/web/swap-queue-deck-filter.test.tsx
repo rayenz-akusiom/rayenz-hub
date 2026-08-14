@@ -4,10 +4,12 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { mockLoadSwapWantSources, wantSource } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import { CURRENCY_STORAGE_KEY } from '../../packages/web/src/swap-queue/price-prefs';
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  localStorage.removeItem(CURRENCY_STORAGE_KEY);
 });
 
 describe('SwapQueueApp by-deck filter', () => {
@@ -76,6 +78,7 @@ describe('SwapQueueApp by-deck filter', () => {
         }),
       ],
     });
+    localStorage.setItem(CURRENCY_STORAGE_KEY, 'USD');
     const user = userEvent.setup();
     render(<SwapQueueApp entryPath="wishlist" />);
 
@@ -85,7 +88,7 @@ describe('SwapQueueApp by-deck filter', () => {
     const filterGroup = screen.getByRole('group', { name: 'Filter by deck' });
     await user.click(within(filterGroup).getByLabelText('Alpha Deck'));
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
+    await user.click(screen.getByRole('button', { name: /Price filter/i }));
     const minInput = screen.getByLabelText('Min USD');
     await user.clear(minInput);
     await user.type(minInput, '5');

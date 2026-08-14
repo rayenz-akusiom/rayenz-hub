@@ -23,6 +23,10 @@ type Props = {
   onSelect?: (source: WantSource) => void;
   onActivateUnified?: (row: UnifiedWantRow) => void;
   onFinalizePair?: (deckId: string, entryId: string) => void;
+  /** When set, show price badges on acquire faces. */
+  showPrices?: boolean;
+  formatPrice?: (usd: number | null) => string;
+  priceTitle?: (usd: number | null) => string;
 };
 
 function deckMap(decks: DeckDocument[]) {
@@ -258,6 +262,9 @@ function TilesView({
   decks,
   onSelect,
   onFinalizePair,
+  showPrices,
+  formatPrice,
+  priceTitle,
 }: {
   seeking: WantSource[];
   queuedIn: WantSource[];
@@ -265,6 +272,9 @@ function TilesView({
   decks: DeckDocument[];
   onSelect?: (source: WantSource) => void;
   onFinalizePair?: (deckId: string, entryId: string) => void;
+  showPrices?: boolean;
+  formatPrice?: (usd: number | null) => string;
+  priceTitle?: (usd: number | null) => string;
 }) {
   const { widthPx } = useCardSize();
   const byDeck = deckMap(decks);
@@ -301,6 +311,7 @@ function TilesView({
                 ? byId.get(inSrc.outInstanceId) || null
                 : null;
             const openSrc = inSrc || outSrc!;
+            const acquireUsd = inSrc?.usd ?? null;
             return (
               <li key={unit.key}>
                 <SwapPairQueueTile
@@ -316,6 +327,12 @@ function TilesView({
                     onFinalizePair && !unit.incomplete
                       ? () => onFinalizePair(unit.deckId, unit.entryId)
                       : undefined
+                  }
+                  inPriceLabel={
+                    showPrices && formatPrice && inSrc ? formatPrice(acquireUsd) : null
+                  }
+                  inPriceTitle={
+                    showPrices && priceTitle && inSrc ? priceTitle(acquireUsd) : null
                   }
                 />
               </li>
@@ -341,6 +358,8 @@ function TilesView({
                   deckLabel={s.deckName}
                   actionLabel={`${s.cardName}, Seeking, ${s.deckName}`}
                   onClick={() => onSelect?.(s)}
+                  priceLabel={showPrices && formatPrice ? formatPrice(s.usd) : null}
+                  priceTitle={showPrices && priceTitle ? priceTitle(s.usd) : null}
                 />
               </li>
             );
@@ -362,6 +381,9 @@ export function QueueTilesView({
   onSelect,
   onActivateUnified,
   onFinalizePair,
+  showPrices,
+  formatPrice,
+  priceTitle,
 }: Props) {
   if (layout === 'tiles') {
     return (
@@ -372,6 +394,9 @@ export function QueueTilesView({
         decks={decks}
         onSelect={onSelect}
         onFinalizePair={onFinalizePair}
+        showPrices={showPrices}
+        formatPrice={formatPrice}
+        priceTitle={priceTitle}
       />
     );
   }

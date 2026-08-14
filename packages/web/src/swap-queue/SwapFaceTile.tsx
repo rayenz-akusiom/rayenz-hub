@@ -49,6 +49,8 @@ export function SwapFaceTile({
   categoryLabel,
   actionLabel,
   onClick,
+  priceLabel,
+  priceTitle,
 }: {
   card: CardView | null;
   incomplete?: boolean;
@@ -56,17 +58,26 @@ export function SwapFaceTile({
   categoryLabel?: string | null;
   actionLabel: string;
   onClick?: () => void;
+  priceLabel?: string | null;
+  priceTitle?: string | null;
 }) {
   return (
     <div className={`sq-face-tile${incomplete ? ' is-draft' : ''}`}>
       <TileCategoryBar deck={deckLabel} category={categoryLabel} />
-      {card ? (
-        <CardTile card={card} onSelect={onClick} actionLabel={actionLabel} />
-      ) : (
-        <button type="button" className="sq-queue-tile is-fallback" onClick={onClick}>
-          <span className="sq-tile-name">{actionLabel}</span>
-        </button>
-      )}
+      <div className="sq-face-tile-body">
+        {card ? (
+          <CardTile card={card} onSelect={onClick} actionLabel={actionLabel} />
+        ) : (
+          <button type="button" className="sq-queue-tile is-fallback" onClick={onClick}>
+            <span className="sq-tile-name">{actionLabel}</span>
+          </button>
+        )}
+        {priceLabel ? (
+          <span className="sq-price-badge" title={priceTitle || undefined}>
+            {priceLabel}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -82,6 +93,8 @@ export function SwapPairQueueTile({
   cardWidthPx,
   onClick,
   onFinalize,
+  inPriceLabel,
+  inPriceTitle,
 }: {
   outCard: CardView | null;
   inCard: CardView | null;
@@ -93,6 +106,8 @@ export function SwapPairQueueTile({
   onClick?: () => void;
   /** Commit complete pair without opening edit. */
   onFinalize?: () => void;
+  inPriceLabel?: string | null;
+  inPriceTitle?: string | null;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
@@ -151,7 +166,13 @@ export function SwapPairQueueTile({
         aria-label={actionLabel}
       >
         <TileCategoryBar deck={deckLabel} category={categoryLabel} />
-        <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
+        <SwapPairFaces
+          outCard={outCard}
+          inCard={inCard}
+          variant="preview"
+          inPriceLabel={inPriceLabel}
+          inPriceTitle={inPriceTitle}
+        />
       </button>
       {showFinalize ? (
         <button
@@ -187,7 +208,13 @@ export function SwapPairQueueTile({
               role="presentation"
               aria-hidden="true"
             >
-              <SwapPairFaces outCard={outCard} inCard={inCard} variant="popout" />
+              <SwapPairFaces
+                outCard={outCard}
+                inCard={inCard}
+                variant="popout"
+                inPriceLabel={inPriceLabel}
+                inPriceTitle={inPriceTitle}
+              />
               {categoryLabel ? <span className="db-swap-target">→ {categoryLabel}</span> : null}
             </div>,
             document.body,

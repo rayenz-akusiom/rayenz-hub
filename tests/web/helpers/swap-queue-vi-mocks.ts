@@ -31,3 +31,12 @@ vi.mock('../../../packages/web/src/deck-builder/store/library-sync', () => ({
 vi.mock('../../../packages/web/src/swap-queue/enrich-prices', () => ({
   enrichWantSourcesUsd: async (sources: unknown) => sources,
 }));
+
+vi.mock('../../../packages/web/src/swap-queue/fx-cad', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../packages/web/src/swap-queue/fx-cad')>();
+  return {
+    ...actual,
+    fetchFxUsdCad: async () => ({ rate: 1.35, date: '2026-08-14' }),
+  };
+});

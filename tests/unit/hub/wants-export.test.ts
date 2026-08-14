@@ -24,6 +24,9 @@ function src(over: Partial<WantSource> & Pick<WantSource, 'cardName' | 'mergeKey
     entryId: 'e',
     cardInstanceId: 'c',
     usd: null,
+    setCode: null,
+    collectorNumber: null,
+    foil: false,
     outInstanceId: null,
     inInstanceId: null,
     pairIncomplete: false,
@@ -45,6 +48,39 @@ describe('wants-export', () => {
     expect(passesPriceFilter(src({ cardName: 'D', mergeKey: 'd', quantity: 1, usd: 1 }), { minUsd: null })).toBe(
       true,
     );
+  });
+
+  it('applies maxUsd and keeps unpriced', () => {
+    expect(
+      passesPriceFilter(src({ cardName: 'A', mergeKey: 'a', quantity: 1, usd: null }), {
+        minUsd: null,
+        maxUsd: 5,
+      }),
+    ).toBe(true);
+    expect(
+      passesPriceFilter(src({ cardName: 'B', mergeKey: 'b', quantity: 1, usd: 10 }), {
+        minUsd: null,
+        maxUsd: 5,
+      }),
+    ).toBe(false);
+    expect(
+      passesPriceFilter(src({ cardName: 'C', mergeKey: 'c', quantity: 1, usd: 3 }), {
+        minUsd: null,
+        maxUsd: 5,
+      }),
+    ).toBe(true);
+    expect(
+      passesPriceFilter(src({ cardName: 'D', mergeKey: 'd', quantity: 1, usd: 3 }), {
+        minUsd: 2,
+        maxUsd: 5,
+      }),
+    ).toBe(true);
+    expect(
+      passesPriceFilter(src({ cardName: 'E', mergeKey: 'e', quantity: 1, usd: 1 }), {
+        minUsd: 2,
+        maxUsd: 5,
+      }),
+    ).toBe(false);
   });
 
   it('passes deck filter when deckIds null or empty', () => {
@@ -170,6 +206,119 @@ describe('wants-export', () => {
     expect(
       filterWantSources([a, b], { minUsd: null, setMembership: membership }).map((s) => s.cardName),
     ).toEqual(['Counterspell']);
+  });
+
+  it('excludes seeking that match exclude membership', () => {
+    const exclude = new Set(['ponder']);
+    const a = src({
+      kind: 'seeking',
+      cardName: 'Counterspell',
+      mergeKey: 'counterspell',
+      quantity: 1,
+      entryId: 's1',
+    });
+    const b = src({
+      kind: 'seeking',
+      cardName: 'Ponder',
+      mergeKey: 'ponder',
+      quantity: 1,
+      entryId: 's2',
+    });
+    expect(
+      filterWantSources([a, b], { minUsd: null, setExcludeMembership: exclude }).map(
+        (s) => s.cardName,
+      ),
+    ).toEqual(['Counterspell']);
+  });
+
+  it('drops a pair when acquire In matches exclude membership', () => {
+    const exclude = new Set(['sol ring']);
+    const queuedIn = src({
+      kind: 'queued_in',
+      entryId: 'pair-1',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const queuedOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-1',
+      cardName: 'Worn Powerstone',
+      mergeKey: 'worn powerstone',
+      quantity: 1,
+      cardInstanceId: 'out1',
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    expect(
+      filterWantSources([queuedIn, queuedOut], {
+        minUsd: null,
+        setExcludeMembership: exclude,
+      }),
+    ).toEqual([]);
+  });
+
+  it('keeps pair when only Out matches exclude and In does not', () => {
+    const exclude = new Set(['worn powerstone']);
+    const queuedIn = src({
+      kind: 'queued_in',
+      entryId: 'pair-1',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const queuedOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-1',
+      cardName: 'Worn Powerstone',
+      mergeKey: 'worn powerstone',
+      quantity: 1,
+      cardInstanceId: 'out1',
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const visible = filterWantSources([queuedIn, queuedOut], {
+      minUsd: null,
+      setExcludeMembership: exclude,
+    });
+    expect(visible.map((s) => s.kind).sort()).toEqual(['queued_in', 'queued_out']);
+  });
+
+  it('applies include AND NOT exclude together', () => {
+    const include = new Set(['sol ring', 'ponder']);
+    const exclude = new Set(['ponder']);
+    const a = src({
+      kind: 'seeking',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+      entryId: 's1',
+    });
+    const b = src({
+      kind: 'seeking',
+      cardName: 'Ponder',
+      mergeKey: 'ponder',
+      quantity: 1,
+      entryId: 's2',
+    });
+    const c = src({
+      kind: 'seeking',
+      cardName: 'Island',
+      mergeKey: 'island',
+      quantity: 1,
+      entryId: 's3',
+    });
+    expect(
+      filterWantSources([a, b, c], {
+        minUsd: null,
+        setMembership: include,
+        setExcludeMembership: exclude,
+      }).map((s) => s.cardName),
+    ).toEqual(['Sol Ring']);
   });
 
   it('matches formal swaps when either side is in membership', () => {

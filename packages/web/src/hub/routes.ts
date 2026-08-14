@@ -14,7 +14,8 @@ export type HubPath =
   | '/settings/dailies'
   | '/settings/deck-builder'
   | '/settings/deck-suggest'
-  | '/settings/order-reconcile';
+  | '/settings/order-reconcile'
+  | '/settings/swap-queue';
 
 export const DEFAULT_PATH: HubPath = '/dailies';
 
@@ -83,6 +84,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/settings/deck-builder',
   '/settings/deck-suggest',
   '/settings/order-reconcile',
+  '/settings/swap-queue',
 ]);
 
 /** All hub routes are React-owned. */

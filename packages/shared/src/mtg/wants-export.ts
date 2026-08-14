@@ -6,8 +6,10 @@ import { unifyWantSources, type WantSource } from './wants-aggregate.js';
 export { cardMatchesSetMembership } from '../deck-builder/scryfall-api.js';
 
 export type WantsPriceFilter = {
-  /** null = filter off */
+  /** null = filter off. Compared against WantSource.usd (Scryfall USD). */
   minUsd: number | null;
+  /** null = filter off. Compared against WantSource.usd (Scryfall USD). */
+  maxUsd?: number | null;
   /** null or empty = filter off (show all decks) */
   deckIds?: string[] | null;
   /**
@@ -15,15 +17,24 @@ export type WantsPriceFilter = {
    * Pair filtering uses {@link filterWantSources} either-side rule for queued faces.
    */
   setMembership?: ReadonlySet<string> | null;
+  /**
+   * Exclude set membership. null/empty = filter off.
+   * Pairs drop when the acquire face (Queued In) matches; Seeking drops individually.
+   * Incomplete Out-only pairs drop when Out matches.
+   */
+  setExcludeMembership?: ReadonlySet<string> | null;
 };
 
 /**
- * Price filter: missing USD always passes (proxy targets). When minUsd set, priced cards must be >= min.
+ * Price filter: missing USD always passes (proxy targets).
+ * When minUsd set, priced cards must be >= min.
+ * When maxUsd set, priced cards must be <= max.
  */
 export function passesPriceFilter(source: WantSource, filter: WantsPriceFilter): boolean {
-  if (filter.minUsd == null) return true;
   if (source.usd == null) return true;
-  return source.usd >= filter.minUsd;
+  if (filter.minUsd != null && source.usd < filter.minUsd) return false;
+  if (filter.maxUsd != null && source.usd > filter.maxUsd) return false;
+  return true;
 }
 
 /**
@@ -48,6 +59,16 @@ export function passesSetFilter(
   return cardMatchesSetMembership(source.cardName, membership);
 }
 
+/** True when the face name is in the exclude membership set. */
+export function matchesSetExclude(
+  source: WantSource,
+  exclude: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (exclude == null || exclude.size === 0) return false;
+  if (cardMatchesSetMembership(source.mergeKey, exclude)) return true;
+  return cardMatchesSetMembership(source.cardName, exclude);
+}
+
 function passesBaseFilters(source: WantSource, filter: WantsPriceFilter): boolean {
   return passesPriceFilter(source, filter) && passesDeckFilter(source, filter);
 }
@@ -57,9 +78,11 @@ function pairKey(source: WantSource): string {
 }
 
 /**
- * Filter wants by price/deck, then by Scryfall set membership (`in:` ∪ `set:`).
- * For queued_in/queued_out pairs, keep **both** sides when either face matches.
- * Seeking rows must match individually.
+ * Filter wants by price/deck, then by Scryfall set include and exclude.
+ * Include: for queued_in/queued_out pairs, keep **both** sides when either face matches.
+ * Seeking rows must match include individually.
+ * Exclude: drop pairs when the acquire face (queued_in) matches; if no In, apply to Out.
+ * Seeking drops when the face matches exclude.
  */
 export function filterWantSources(
   sources: WantSource[],
@@ -67,16 +90,48 @@ export function filterWantSources(
 ): WantSource[] {
   const base = (sources || []).filter((s) => passesBaseFilters(s, filter));
   const membership = filter.setMembership;
-  if (membership == null || membership.size === 0) return base;
+  const exclude = filter.setExcludeMembership;
+  const includeOn = membership != null && membership.size > 0;
+  const excludeOn = exclude != null && exclude.size > 0;
+  if (!includeOn && !excludeOn) return base;
 
   const keepKeys = new Set<string>();
+  const pairSides = new Map<string, { in?: WantSource; out?: WantSource }>();
+
   for (const s of base) {
     if (s.kind === 'seeking') {
-      if (passesSetFilter(s, membership)) keepKeys.add(`seeking:${pairKey(s)}`);
+      const seekingKey = `seeking:${pairKey(s)}`;
+      if (includeOn && !passesSetFilter(s, membership)) continue;
+      if (excludeOn && matchesSetExclude(s, exclude)) continue;
+      keepKeys.add(seekingKey);
       continue;
     }
     if (s.kind !== 'queued_in' && s.kind !== 'queued_out') continue;
-    if (passesSetFilter(s, membership)) keepKeys.add(`pair:${pairKey(s)}`);
+    const key = pairKey(s);
+    let sides = pairSides.get(key);
+    if (!sides) {
+      sides = {};
+      pairSides.set(key, sides);
+    }
+    if (s.kind === 'queued_in') sides.in = s;
+    else sides.out = s;
+  }
+
+  for (const [key, sides] of pairSides) {
+    const faces = [sides.in, sides.out].filter(Boolean) as WantSource[];
+    if (!faces.length) continue;
+
+    if (includeOn) {
+      const eitherMatches = faces.some((f) => passesSetFilter(f, membership));
+      if (!eitherMatches) continue;
+    }
+
+    if (excludeOn) {
+      const acquire = sides.in ?? sides.out;
+      if (acquire && matchesSetExclude(acquire, exclude)) continue;
+    }
+
+    keepKeys.add(`pair:${key}`);
   }
 
   return base.filter((s) => {

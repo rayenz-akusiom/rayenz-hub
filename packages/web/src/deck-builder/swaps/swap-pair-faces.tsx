@@ -61,10 +61,14 @@ export function SwapPairFaces({
   outCard,
   inCard,
   variant,
+  inPriceLabel,
+  inPriceTitle,
 }: {
   outCard: CardView | null;
   inCard: CardView | null;
   variant: 'preview' | 'popout';
+  inPriceLabel?: string | null;
+  inPriceTitle?: string | null;
 }) {
   return (
     <div className={`db-swap-pair-stack${variant === 'popout' ? ' is-full' : ' is-preview'}`}>
@@ -74,6 +78,11 @@ export function SwapPairFaces({
       <SwapArrow className="db-swap-pair-arrow" />
       <div className="db-swap-pair-in">
         <MiniCard card={inCard} />
+        {inPriceLabel ? (
+          <span className="sq-price-badge" title={inPriceTitle || undefined}>
+            {inPriceLabel}
+          </span>
+        ) : null}
       </div>
     </div>
   );

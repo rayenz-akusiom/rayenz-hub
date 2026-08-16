@@ -88,6 +88,10 @@ import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { useSetMembershipFilter } from '../ui/SetFilterControl';
+import {
+  cardMatchesFlagFilter,
+  type FlagFilterMode,
+} from '../ui/FlagFilterControl';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import { useDeckEditHistory } from '../useDeckEditHistory';
 
@@ -172,6 +176,8 @@ export function BrowseShell({
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const setFilter = useSetMembershipFilter();
+  const [proxyFilter, setProxyFilter] = useState<FlagFilterMode>('all');
+  const [foilFilter, setFoilFilter] = useState<FlagFilterMode>('all');
   useDragAutoScroll();
   const shellRef = useRef<HTMLDivElement>(null);
   const cardSizeReady = useRef(false);
@@ -213,15 +219,30 @@ export function BrowseShell({
   const multi = selectionCount > 1;
   const primarySelected = selectedCards[0] || null;
 
-  /** Browse-only view with set membership applied; mutations still use full `deck`. */
+  /** Browse-only view with set / proxy / foil filters; mutations still use full `deck`. */
   const browseDeck = useMemo((): DeckDocument => {
-    if (!setFilter.active || !setFilter.membership) return deck;
+    const setActive = setFilter.active && setFilter.membership;
     const membership = setFilter.membership;
+    const flagActive = proxyFilter !== 'all' || foilFilter !== 'all';
+    if (!setActive && !flagActive) return deck;
     return {
       ...deck,
-      cards: deck.cards.filter((c) => cardMatchesSetMembership(c.name, membership)),
+      cards: deck.cards.filter((c) => {
+        if (setActive && membership && !cardMatchesSetMembership(c.name, membership)) {
+          return false;
+        }
+        if (!cardMatchesFlagFilter(Boolean(c.proxy), proxyFilter)) return false;
+        if (!cardMatchesFlagFilter(Boolean(c.foil), foilFilter)) return false;
+        return true;
+      }),
     };
-  }, [deck, setFilter.active, setFilter.membership]);
+  }, [
+    deck,
+    setFilter.active,
+    setFilter.membership,
+    proxyFilter,
+    foilFilter,
+  ]);
 
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
@@ -813,6 +834,10 @@ export function BrowseShell({
           onOpenCategories={() => setCategoriesOpen(true)}
           onOpenBasics={() => setBasicsOpen(true)}
           setFilter={setFilter}
+          proxyFilter={proxyFilter}
+          onProxyFilterChange={setProxyFilter}
+          foilFilter={foilFilter}
+          onFoilFilterChange={setFoilFilter}
         />
         <DeckActionsMenu
           deck={deck}

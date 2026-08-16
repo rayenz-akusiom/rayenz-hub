@@ -11,6 +11,7 @@ import {
 import {
   composeScryfallQuery,
   deckCardNameCounts,
+  isSolePrintingPage,
   ScryfallSearchModal,
 } from '../../packages/web/src/deck-builder/scryfall/ScryfallSearchModal';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
@@ -100,6 +101,130 @@ describe('deckCardNameCounts', () => {
       ],
     });
     expect(counts.get('sol ring')).toBe(3);
+  });
+});
+
+describe('isSolePrintingPage', () => {
+  it('is true only for a complete single-printing page', () => {
+    expect(isSolePrintingPage({ data: [solRing], has_more: false })).toBe(true);
+    expect(isSolePrintingPage({ data: [solRing], has_more: true })).toBe(false);
+    expect(isSolePrintingPage({ data: [solRing, birds], has_more: false })).toBe(false);
+    expect(isSolePrintingPage({ data: [], has_more: false })).toBe(false);
+  });
+});
+
+describe('ScryfallSearchModal sole printing skip', () => {
+  async function searchSolRing(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+  }
+
+  it('adds immediately when Quick add is off and there is only one printing', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [solRing],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
+    );
+
+    await searchSolRing(user);
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    await waitFor(() => {
+      expect(onAdd).toHaveBeenCalledTimes(1);
+    });
+    const [printing, category, meta] = onAdd.mock.calls[0]!;
+    expect(printing.name).toBe('Sol Ring');
+    expect(printing.scryfallId).toBe('sf-sol');
+    expect(category).toBe('Artifact');
+    expect(meta).toEqual({ proxy: false });
+    expect(screen.queryByRole('heading', { name: /Add —/i })).not.toBeInTheDocument();
+    expect(fetchPrintingsPage).toHaveBeenCalledWith('Sol Ring', 1, {
+      defaultScryfallId: 'sf-sol',
+    });
+  });
+
+  it('opens the printing picker when multiple printings exist', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const solAlt: ScryfallCard = { ...solRing, id: 'sf-sol-alt', set: 'cmr', collector_number: '2' };
+    fetchPrintingsPage.mockResolvedValue({
+      data: [solRing, solAlt],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
+    );
+
+    await searchSolRing(user);
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+    });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('opens the printing picker when page 1 has more printings', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [solRing],
+      has_more: true,
+      next_page: 'https://api.scryfall.com/cards/search?page=2',
+    });
+
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} />);
+
+    await searchSolRing(user);
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+    });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('long-press still opens the picker when there is only one printing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onAdd = vi.fn();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [solRing],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={onAdd}
+        allowQuickAdd
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Quick add' }));
+    await searchSolRing(user);
+
+    const option = screen.getByRole('option', { name: /Sol Ring/i });
+    fireEvent.pointerDown(option, { button: 0, pointerType: 'touch', pointerId: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+    expect(onAdd).not.toHaveBeenCalled();
   });
 });
 

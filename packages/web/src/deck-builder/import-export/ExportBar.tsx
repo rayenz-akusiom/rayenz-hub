@@ -3,6 +3,10 @@ import { CARD_SORT_MODE_LABELS } from '@rayenz-hub/shared';
 import { CardSizePicker } from '../CardSizePicker';
 import type { CardSizeKey } from '../card-size';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
+import {
+  FlagFilterMenu,
+  type FlagFilterMode,
+} from '../ui/FlagFilterControl';
 import { SetFilterMenu, type SetMembershipFilterState } from '../ui/SetFilterControl';
 
 const VIEW_LABELS: Record<BrowseView, string> = {
@@ -39,6 +43,10 @@ export function ExportBar({
   onOpenCategories,
   onOpenBasics,
   setFilter,
+  proxyFilter,
+  onProxyFilterChange,
+  foilFilter,
+  onFoilFilterChange,
 }: {
   view: BrowseView;
   onViewChange: (next: BrowseView) => void;
@@ -51,6 +59,10 @@ export function ExportBar({
   onOpenCategories?: () => void;
   onOpenBasics?: () => void;
   setFilter?: SetMembershipFilterState;
+  proxyFilter?: FlagFilterMode;
+  onProxyFilterChange?: (next: FlagFilterMode) => void;
+  foilFilter?: FlagFilterMode;
+  onFoilFilterChange?: (next: FlagFilterMode) => void;
 }) {
   return (
     <div className="db-toolbar-controls">
@@ -106,6 +118,16 @@ export function ExportBar({
         ))}
       </DbMenu>
       {setFilter ? <SetFilterMenu filter={setFilter} /> : null}
+      {proxyFilter != null && onProxyFilterChange ? (
+        <FlagFilterMenu
+          label="Proxy"
+          mode={proxyFilter}
+          onModeChange={onProxyFilterChange}
+        />
+      ) : null}
+      {foilFilter != null && onFoilFilterChange ? (
+        <FlagFilterMenu label="Foil" mode={foilFilter} onModeChange={onFoilFilterChange} />
+      ) : null}
       <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
       {onOpenCategories ? (
         <button type="button" className="db-btn" onClick={onOpenCategories}>

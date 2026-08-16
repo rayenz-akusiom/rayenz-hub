@@ -13,6 +13,7 @@ import {
   defaultAddCategory,
   defaultCategoryForCard,
   deckCategoryOptions,
+  fetchPrintingsPage,
   isBasicLand,
   mapScryfallCardToPrinting,
   scryfallCardImageUrl,
@@ -22,6 +23,7 @@ import {
   type DeckDocument,
   type PrintingFields,
   type ScryfallCard,
+  type ScryfallSearchPage,
 } from '@rayenz-hub/shared';
 import { PrintingPickerModal } from './PrintingPickerModal';
 import { CardFace } from '../browse/CardFace';
@@ -88,6 +90,11 @@ function includeMenuValue(includeIdentity: boolean, includeFormatCommander: bool
   return labels.length ? labels.join(', ') : 'None';
 }
 
+/** True when page 1 is the complete set of printings and there is exactly one. */
+export function isSolePrintingPage(page: Pick<ScryfallSearchPage, 'data' | 'has_more'>): boolean {
+  return page.data.length === 1 && !page.has_more;
+}
+
 export function ScryfallSearchModal({
   deck,
   onClose,
@@ -136,12 +143,14 @@ export function ScryfallSearchModal({
   const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
   const [quickAdd, setQuickAdd] = useState(false);
   const [showBackToSearch, setShowBackToSearch] = useState(false);
+  const [resolvingPrinting, setResolvingPrinting] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const longPressPosRef = useRef<PickerMenuPosition>({ x: 0, y: 0 });
   const lastComposedQueryRef = useRef('');
   const nextPageRef = useRef<string | null>(null);
   const loadingMoreRef = useRef(false);
+  const resolvePrintingReqRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -187,6 +196,18 @@ export function ScryfallSearchModal({
 
   const deckEditPicker = Boolean(onRemoveInDeckCard || onInDeckContextMenu);
 
+  function categoryForPrinting(printing: PrintingFields): string {
+    if (defaultCategory) return defaultCategory;
+    return defaultCategoryForCard(deck, {
+      name: printing.name,
+      scryfallId: printing.scryfallId,
+      setCode: printing.setCode,
+      collectorNumber: printing.collectorNumber,
+      colourIdentity: printing.colourIdentity,
+      typeLine: printing.typeLine,
+    });
+  }
+
   function quickAddCard(cardResult: ScryfallCard) {
     if (
       deckEditPicker &&
@@ -195,15 +216,33 @@ export function ScryfallSearchModal({
       return;
     }
     const printing = mapScryfallCardToPrinting(cardResult);
-    const category = defaultCategoryForCard(deck, {
-      name: printing.name,
-      scryfallId: printing.scryfallId,
-      setCode: printing.setCode,
-      collectorNumber: printing.collectorNumber,
-      colourIdentity: printing.colourIdentity,
-      typeLine: printing.typeLine,
-    });
-    onAdd(printing, category, { proxy: false, keepOpen: true });
+    onAdd(printing, categoryForPrinting(printing), { proxy: false, keepOpen: true });
+  }
+
+  /** Prefetch printings; add immediately when there is only one, else open the picker. */
+  async function tryAddOrOpenPicker(cardResult: ScryfallCard) {
+    const reqId = ++resolvePrintingReqRef.current;
+    setResolvingPrinting(true);
+    setError(null);
+    try {
+      const page = await fetchPrintingsPage(cardResult.name, 1, {
+        defaultScryfallId: cardResult.id,
+      });
+      if (reqId !== resolvePrintingReqRef.current) return;
+      if (isSolePrintingPage(page)) {
+        const printing = mapScryfallCardToPrinting(page.data[0]!);
+        onAdd(printing, categoryForPrinting(printing), { proxy: false });
+        return;
+      }
+      openPrintingPicker(cardResult);
+    } catch {
+      if (reqId !== resolvePrintingReqRef.current) return;
+      openPrintingPicker(cardResult);
+    } finally {
+      if (reqId === resolvePrintingReqRef.current) {
+        setResolvingPrinting(false);
+      }
+    }
   }
 
   function onResultPointerDown(e: ReactPointerEvent, cardResult: ScryfallCard) {
@@ -250,7 +289,7 @@ export function ScryfallSearchModal({
       quickAddCard(cardResult);
       return;
     }
-    openPrintingPicker(cardResult);
+    void tryAddOrOpenPicker(cardResult);
   }
 
   function onResultContextMenu(e: ReactMouseEvent, cardResult: ScryfallCard) {
@@ -486,6 +525,7 @@ export function ScryfallSearchModal({
 
         {error ? <p className="db-error">{error}</p> : null}
         {loading && !results.length ? <p className="db-muted">Searching…</p> : null}
+        {resolvingPrinting ? <p className="db-muted">Loading printings…</p> : null}
 
         {results.length ? (
           <div className="db-picker-grid" role="listbox" aria-label="Search results">
@@ -506,7 +546,10 @@ export function ScryfallSearchModal({
                       ? `${cardResult.name} (in deck ×${inDeckCount})`
                       : cardResult.name
                   }
-                  onClick={() => onResultClick(cardResult)}
+                  onClick={() => {
+                    if (resolvingPrinting) return;
+                    onResultClick(cardResult);
+                  }}
                   onPointerDown={(e) => onResultPointerDown(e, cardResult)}
                   onPointerUp={onResultPointerEnd}
                   onPointerLeave={onResultPointerEnd}

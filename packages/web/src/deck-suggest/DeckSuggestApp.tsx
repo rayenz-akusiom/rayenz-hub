@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
+import { CardSizePicker } from '../cards/CardSizePicker';
+import { useCardSize } from '../cards/card-size';
 import { DeckSuggestResults } from './DeckSuggestResults';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
 import { loadHubLibraryDecks } from './data';
@@ -62,6 +64,7 @@ export function DeckSuggestApp() {
   const [acceptDeck, setAcceptDeck] = useState<DeckDocument | null>(null);
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
+  const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
 
   useEffect(() => {
     if (progressHostRef.current && !progressRef.current) {
@@ -274,8 +277,12 @@ export function DeckSuggestApp() {
     }
   }
 
+  const shellStyle = {
+    ['--db-card-w']: `${cardWidthPx}px`,
+  } as CSSProperties;
+
   return (
-    <div className="deck-suggest-app">
+    <div className="deck-suggest-app" style={shellStyle}>
       <div className="hub-sticky-chrome">
         <header className="ds-header">
           <div className="ds-header-top">
@@ -286,6 +293,7 @@ export function DeckSuggestApp() {
               </p>
             </div>
             <div className="ds-action-bar">
+              <CardSizePicker size={cardSize} onChange={setCardSize} />
               <button
                 type="button"
                 className="ds-btn ds-btn-primary"

@@ -1,5 +1,6 @@
 /* Deck Suggest — hub app layout */
 .deck-suggest-app {
+   --db-card-w: 213px;
    display: flex;
    flex-direction: column;
    height: 100vh;
@@ -125,7 +126,7 @@
 
 .ds-suggestion-grid {
    display: grid;
-   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+   grid-template-columns: repeat(auto-fill, minmax(var(--db-card-w), 1fr));
    gap: 12px;
    margin: 8px 0 16px;
 }

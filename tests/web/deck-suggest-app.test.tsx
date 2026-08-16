@@ -148,11 +148,12 @@ afterEach(() => {
 });
 
 describe('DeckSuggestApp chrome', () => {
-  it('renders header, generate, and results placeholder', async () => {
+  it('renders header, generate, card size picker, and results placeholder', async () => {
     mockLoadHubLibraryDecks.mockResolvedValueOnce([]);
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
     expect(screen.getByText('Press Generate to see suggestions.')).toBeInTheDocument();
     await waitFor(() => {
@@ -181,6 +182,19 @@ describe('DeckSuggestApp chrome', () => {
   it('mounts hub progress on load', () => {
     render(<DeckSuggestApp />);
     expect(document.getElementById('ds-progress-host')).toBeInTheDocument();
+  });
+
+  it('scales suggestion grid via shared card size preference', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<DeckSuggestApp />);
+    const app = container.querySelector('.deck-suggest-app') as HTMLElement;
+    expect(app.style.getPropertyValue('--db-card-w')).toBe('213px');
+
+    await user.click(screen.getByRole('button', { name: 'Large' }));
+    expect(app.style.getPropertyValue('--db-card-w')).toBe('310px');
+
+    await user.click(screen.getByRole('button', { name: 'Small' }));
+    expect(app.style.getPropertyValue('--db-card-w')).toBe('150px');
   });
 });
 

@@ -30,7 +30,16 @@ function sampleRun(): GenerationRun {
     taggerCoverage: { cardsResolved: 10, cardsWithTags: 4, percent: 40 },
     deckResults: [
       {
-        deck: { deck_id: 'd1', deck_name: 'Test Deck' },
+        deck: {
+          deck_id: 'd1',
+          deck_name: 'Test Deck',
+          deck_snapshot: {
+            cards: [
+              { name: 'Atraxa', primary_category: 'Commander' },
+              { name: 'Sol Ring', primary_category: 'Seeking' },
+            ],
+          },
+        },
         skipped: false,
         suggestions: [
           {
@@ -118,8 +127,10 @@ describe('DeckSuggestResults', () => {
     expect(screen.getByRole('heading', { name: 'Results' })).toBeInTheDocument();
     expect(document.querySelector('.ds-summary-total')?.textContent).toMatch(/2\s*suggestions/i);
     expect(document.querySelector('.ds-suggestion-grid')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Test Deck — Atraxa' })).toBeInTheDocument();
     expect(screen.getByText('Take Up the Shield')).toBeInTheDocument();
     expect(screen.getByText(/Cut Plains/i)).toBeInTheDocument();
+    expect(screen.getByText('Seeking')).toBeInTheDocument();
 
     await user.click(screen.getByText(/No suggestions \(3\)/i));
     expect(screen.getByText('Not a Commander deck')).toBeInTheDocument();

@@ -50,15 +50,15 @@ describe('deck-suggest rules (baird)', () => {
     expect(caretaker!.replaces[0].name).toBe('Plains');
   });
 
-  it('suggests a main-deck cut for unpaired Sunbillow Verge', () => {
+  it('emits unpaired Sunbillow Verge without inventing a cut', () => {
     const deck = loadFixture('baird-snapshot.json');
     const setScope = loadFixture('set-msh-slice.json');
     const { suggestions } = runRules(deck, setScope);
     const verge = suggestions.find((s) => s.fills_swap_slot === 'Sunbillow Verge');
     expect(verge).toBeTruthy();
     expect(verge!.card.set_code).toBe('DFT');
-    expect(verge!.replaces[0].name).toBeTruthy();
-    expect(verge!.replaces[0].name).not.toBe('Plains');
+    expect(verge!.action).toBe('consider');
+    expect(verge!.replaces).toEqual([]);
   });
 
   it('skips stale swap-queue In slots not in the selected set pool', () => {

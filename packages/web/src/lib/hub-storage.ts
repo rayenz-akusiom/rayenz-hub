@@ -2,6 +2,7 @@
  * Hub storage: dailies still use localStorage; MTG durable state is in-memory + Hub API/DDB.
  * UI prefs (route) and session handoff remain browser-local.
  */
+import { SET_POOL_FORMAT_VERSION } from '@rayenz-hub/shared';
 import {
   getHubApiConfig,
   pushReviewProgress as apiPushReviewProgress,
@@ -241,9 +242,15 @@ export function saveSetPoolCache(codesKey: string, scope: SetPoolScope): boolean
   if (!codesKey || !scope || scope.complete !== true) {
     return false;
   }
-  setPoolMemory.set(codesKey, scope);
+  const stamped = {
+    ...scope,
+    formatVersion: Number(scope.formatVersion) >= SET_POOL_FORMAT_VERSION
+      ? Number(scope.formatVersion)
+      : SET_POOL_FORMAT_VERSION,
+  };
+  setPoolMemory.set(codesKey, stamped);
   if (getHubApiConfig().enabled) {
-    void apiPushSetPool(codesKey, scope).catch(() => {});
+    void apiPushSetPool(codesKey, stamped).catch(() => {});
   }
   return true;
 }
@@ -254,6 +261,9 @@ export function loadSetPoolCache(codesKey: string): SetPoolScope | null {
   }
   const scope = setPoolMemory.get(codesKey);
   if (!scope || scope.complete !== true) {
+    return null;
+  }
+  if (Number(scope.formatVersion || 0) < SET_POOL_FORMAT_VERSION) {
     return null;
   }
   return scope;
@@ -271,8 +281,15 @@ export function hydrateSetPoolFromApi(codesKey: string): Promise<SetPoolScope | 
       if (!remote || remote.complete !== true) {
         return loadSetPoolCache(codesKey);
       }
-      setPoolMemory.set(codesKey, remote as SetPoolScope);
-      return remote as SetPoolScope;
+      if (Number(remote.formatVersion || 0) < SET_POOL_FORMAT_VERSION) {
+        return loadSetPoolCache(codesKey);
+      }
+      const stamped = {
+        ...(remote as SetPoolScope),
+        formatVersion: Number(remote.formatVersion) || SET_POOL_FORMAT_VERSION,
+      };
+      setPoolMemory.set(codesKey, stamped);
+      return stamped;
     })
     .catch(() => loadSetPoolCache(codesKey));
 }

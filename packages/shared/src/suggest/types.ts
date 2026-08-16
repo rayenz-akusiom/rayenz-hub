@@ -92,6 +92,7 @@ export type DeckRecord = {
     version: number;
     swapQueue: import('@rayenz-hub/shared').SwapQueueResult | null;
     deckNames: Record<string, boolean>;
+    ownedNames: Record<string, boolean>;
     cutCandidates: SnapshotCard[] | null;
   };
 };

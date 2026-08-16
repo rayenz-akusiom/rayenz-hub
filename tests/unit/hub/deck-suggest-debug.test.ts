@@ -127,7 +127,7 @@ describe('Debug', () => {
     const setScope = loadFixture('set-msh-slice.json');
     expect(Debug.explainCard(deck, setScope, '')).toEqual([]);
     const unpaired = Debug.explainCard(deck, setScope, 'Sunbillow Verge');
-    expect(unpaired.some((l) => l.reason === 'would_emit' && l.cardOut)).toBe(true);
+    expect(unpaired.some((l) => l.reason === 'would_emit')).toBe(true);
     const role = Debug.explainCard(deck, setScope, 'Take Up the Shield');
     expect(role.some((l) => l.ruleId === 'role_synergy')).toBe(true);
 

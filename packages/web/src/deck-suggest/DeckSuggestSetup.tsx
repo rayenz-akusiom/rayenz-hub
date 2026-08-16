@@ -1,5 +1,6 @@
 import { isLocalHub } from '../lib/hub-utils';
 import { applyDeckList, selectAllDecks, toggleDeckSelection } from './deck-load';
+import { deckSuggestHeaderText } from './display';
 import { findReleaseEntry, listReleaseOptions } from './releases';
 import { ReleaseSelectOptgroups } from './ReleaseSelectOptgroups';
 import type { DeckSelection, DeckSuggestSettings, SetInputMode } from './types';
@@ -157,7 +158,7 @@ export function DeckSuggestSetup({
                   })
                 }
               />{' '}
-              {deck.deck_name}
+              {deckSuggestHeaderText(deck)}
             </label>
           ))}
         </fieldset>

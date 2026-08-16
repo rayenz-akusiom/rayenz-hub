@@ -219,3 +219,57 @@ describe('RuleGuards.emitIfValid', () => {
     expect(RuleGuards.emitIfValid(suggestion, {}, [])).toEqual(suggestion);
   });
 });
+
+describe('RuleGuards owned / queue badges / header', () => {
+  it('ownedNamesInSnapshot omits Seeking and Queued In', () => {
+    const deck = {
+      deck_id: 'd1',
+      deck_name: 'Test',
+      deck_snapshot: {
+        cards: [
+          { name: 'Main Card', primary_category: 'Ramp' },
+          { name: 'Seek Me', primary_category: 'Seeking' },
+          { name: 'Queued Add', primary_category: 'Queued In' },
+          { name: 'Queued Cut', primary_category: 'Queued Out' },
+        ],
+      },
+    };
+    const owned = RuleGuards.ownedNamesInSnapshot(deck);
+    expect(owned['main card']).toBe(true);
+    expect(owned['queued cut']).toBe(true);
+    expect(owned['seek me']).toBeUndefined();
+    expect(owned['queued add']).toBeUndefined();
+  });
+
+  it('suggestQueueBadge prefers In swap over Seeking', () => {
+    const deck = {
+      deck_id: 'd1',
+      deck_name: 'Test',
+      deck_snapshot: {
+        cards: [
+          { name: 'Seek Me', primary_category: 'Seeking' },
+          { name: 'Swap Me', primary_category: 'Queued In' },
+        ],
+      },
+    };
+    expect(RuleGuards.suggestQueueBadge(deck, 'Seek Me')).toBe('seeking');
+    expect(RuleGuards.suggestQueueBadge(deck, 'Swap Me')).toBe('swap_in');
+    expect(RuleGuards.suggestQueueBadge(deck, 'Missing')).toBe(null);
+  });
+
+  it('deckSuggestHeaderText appends commanders', () => {
+    const deck = {
+      deck_id: 'd1',
+      deck_name: 'Elves',
+      deck_snapshot: {
+        cards: [
+          { name: 'Lathril', primary_category: 'Commander' },
+          { name: 'Partner', primary_category: 'Commander' },
+          { name: 'Other', primary_category: 'Creature' },
+        ],
+      },
+    };
+    expect(RuleGuards.deckSuggestHeaderText(deck)).toBe('Elves — Lathril / Partner');
+    expect(RuleGuards.deckSuggestHeaderText({ deck_id: 'x', deck_name: 'Solo' })).toBe('Solo');
+  });
+});

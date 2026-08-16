@@ -52,7 +52,8 @@ describe('typal/theme/keyword rules', () => {
     expect(names).not.toContain('Expensive Elf');
     expect(names).not.toContain('Mill Elf');
     expect(names).not.toContain('Blue Elf');
-    expect(suggestions.find((s) => s.card.name === 'New Elf')?.replaces[0]?.name).not.toBe('Kept Bear');
+    expect(suggestions.find((s) => s.card.name === 'New Elf')?.replaces).toEqual([]);
+    expect(suggestions.find((s) => s.card.name === 'New Elf')?.action).toBe('consider');
     expect(suggestions.find((s) => s.card.name === 'New Elf')?.confidence).toBeTruthy();
     const elf = suggestions.find((s) => s.card.name === 'New Elf');
     expect(elf?.rationale).toMatch(/Typal match/i);
@@ -70,5 +71,22 @@ describe('typal/theme/keyword rules', () => {
     const a = runRulesForDeck(elfDeck(), setScope()).suggestions.map((s) => s.suggestion_id);
     const b = runRulesForDeck(elfDeck(), setScope()).suggestions.map((s) => s.suggestion_id);
     expect(a).toEqual(b);
+  });
+
+  it('still suggests cards that are Seeking or Queued In', () => {
+    const deck = {
+      ...elfDeck(),
+      deck_snapshot: {
+        cards: [
+          ...elfDeck().deck_snapshot.cards,
+          { name: 'New Elf', primary_category: 'Seeking', type_line: 'Creature — Elf' },
+          { name: 'Token Maker', primary_category: 'Queued In', type_line: 'Enchantment' },
+        ],
+      },
+    };
+    const { suggestions } = runRulesForDeck(deck, setScope());
+    const names = suggestions.map((s) => s.card.name);
+    expect(names).toContain('New Elf');
+    expect(names).toContain('Token Maker');
   });
 });

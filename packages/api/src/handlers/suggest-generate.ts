@@ -1,4 +1,5 @@
 import {
+  SET_POOL_FORMAT_VERSION,
   SuggestGenerateRequestSchema,
   SuggestGenerateResponseSchema,
   normalizeSetCodes,
@@ -29,6 +30,13 @@ export type SuggestGenerateDeps = {
   fetchSetCards?: typeof fetchSetCards;
 };
 
+function isCurrentSetPool(pool: SetPoolRecord | null | undefined): pool is SetPoolRecord {
+  return !!(
+    pool?.cards?.length &&
+    Number(pool.formatVersion) >= SET_POOL_FORMAT_VERSION
+  );
+}
+
 async function ensureSetPoolFromCodes(
   services: AppServices,
   auth: Parameters<AppServices['setPoolRepository']['get']>[0],
@@ -38,7 +46,7 @@ async function ensureSetPoolFromCodes(
 ): Promise<SetPoolRecord> {
   const codesKey = normalizeSetCodesKey(codes);
   const existing = await services.setPoolRepository.get(auth, env, codesKey);
-  if (existing?.cards?.length) {
+  if (isCurrentSetPool(existing)) {
     return existing;
   }
 
@@ -50,7 +58,7 @@ async function ensureSetPoolFromCodes(
     primaryCode: opts?.primaryCode || fetched.primary_set_code,
     setName: opts?.setName || fetched.product_name,
     cards: fetched.cards as unknown as Record<string, unknown>[],
-    formatVersion: 1,
+    formatVersion: SET_POOL_FORMAT_VERSION,
   });
 }
 
@@ -69,7 +77,7 @@ async function ensureSetPoolFromRelease(
   const codes = fetched.set_codes.length ? fetched.set_codes : [code];
   const codesKey = normalizeSetCodesKey(codes);
   const existing = await services.setPoolRepository.get(auth, env, codesKey);
-  if (existing?.cards?.length) {
+  if (isCurrentSetPool(existing)) {
     return existing;
   }
   return services.setPoolRepository.put(auth, env, codesKey, {
@@ -78,7 +86,7 @@ async function ensureSetPoolFromRelease(
     primaryCode: fetched.primary_set_code,
     setName: fetched.product_name,
     cards: fetched.cards as unknown as Record<string, unknown>[],
-    formatVersion: 1,
+    formatVersion: SET_POOL_FORMAT_VERSION,
   });
 }
 

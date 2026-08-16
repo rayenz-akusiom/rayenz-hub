@@ -20,13 +20,16 @@ export const ReviewProgressUpsertSchema = z.object({
 
 export type ReviewProgressUpsert = z.infer<typeof ReviewProgressUpsertSchema>;
 
+/** Bump when Scryfall pool query / card shape changes so cached pools refetch. */
+export const SET_POOL_FORMAT_VERSION = 2;
+
 export const SetPoolUpsertSchema = z.object({
   codes: z.array(z.string()),
   complete: z.boolean(),
   primaryCode: z.string().optional(),
   setName: z.string().optional(),
   cards: z.array(z.record(z.unknown())).optional().default([]),
-  formatVersion: z.number().int().positive().optional().default(1),
+  formatVersion: z.number().int().positive().optional().default(SET_POOL_FORMAT_VERSION),
 });
 
 export type SetPoolUpsert = z.infer<typeof SetPoolUpsertSchema>;

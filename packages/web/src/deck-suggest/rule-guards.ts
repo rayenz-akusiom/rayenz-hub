@@ -1,5 +1,5 @@
 import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion, TaggerContext } from './types';
-import { isSwapQueueCategoryName } from '@rayenz-hub/shared';
+import { isSeekingCategory, isSwapInCategory, isSwapQueueCategoryName } from '@rayenz-hub/shared';
 
 function countTagOverlap(
   card: SnapshotCard | SetPoolCard,
@@ -79,6 +79,20 @@ export function deckNamesInSnapshot(deck: DeckRecord): Record<string, boolean> {
     if (c.name) {
       names[c.name.toLowerCase()] = true;
     }
+  });
+  return names;
+}
+
+export function ownedNamesInSnapshot(deck: DeckRecord): Record<string, boolean> {
+  if (deck.ruleContext && deck.ruleContext.ownedNames) {
+    return deck.ruleContext.ownedNames;
+  }
+  const names: Record<string, boolean> = {};
+  ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
+    if (!card.name) return;
+    const primary = card.primary_category || (card.categories && card.categories[0]);
+    if (isSeekingCategory(primary) || isSwapInCategory(primary)) return;
+    names[card.name.toLowerCase()] = true;
   });
   return names;
 }
@@ -313,6 +327,7 @@ export const RuleGuards = {
   isProtectedCut,
   passesBlocklist,
   deckNamesInSnapshot,
+  ownedNamesInSnapshot,
   cutCandidates,
   rankCutCandidates,
   pickBestCut,

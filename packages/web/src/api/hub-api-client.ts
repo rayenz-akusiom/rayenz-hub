@@ -3,6 +3,8 @@
  * Higher-level typed settings helpers live in hub-api.ts.
  */
 
+import { SET_POOL_FORMAT_VERSION } from '@rayenz-hub/shared';
+
 const API_URL_KEY = 'rayenz-hub-api-url';
 const API_KEY_KEY = 'rayenz-hub-api-key';
 
@@ -216,7 +218,7 @@ export function pushSetPool(codesKey: string, scope: Partial<SetPoolRemote>): Pr
       primaryCode: s.primaryCode,
       setName: s.setName,
       cards: s.cards || [],
-      formatVersion: s.formatVersion || 1,
+      formatVersion: s.formatVersion || SET_POOL_FORMAT_VERSION,
     },
   });
 }

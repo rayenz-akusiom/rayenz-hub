@@ -165,6 +165,43 @@ describe('POST /v1/suggest/generate', () => {
     expect(body.setCodesKey).toBe('MSH');
   });
 
+  it('refetches set pool when cached formatVersion is stale', async () => {
+    const { services } = createMemoryStores();
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+    const { auth, env } = services.authService.authenticate(TEST_AUTH_HEADERS);
+    await services.setPoolRepository.put(auth, env, 'MSH', {
+      codes: ['MSH'],
+      complete: true,
+      cards: [{ name: 'Stale Token', set_code: 'MSH' }],
+      formatVersion: 1,
+    });
+    let fetchCalls = 0;
+    const res = await handleSuggestGenerate(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ setCodes: ['MSH'], deckIds: ['cmd-fixture'] }),
+      services,
+      {
+        fetchSetCards: async () => {
+          fetchCalls += 1;
+          return {
+            product_name: 'Marvel Super Heroes',
+            primary_set_code: 'MSH',
+            set_codes: ['MSH'],
+            sets: [],
+            expected_card_count: 1,
+            fetched_card_count: 1,
+            cards: [sampleCard],
+          };
+        },
+      },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(fetchCalls).toBe(1);
+    const pool = await services.setPoolRepository.get(auth, env, 'MSH');
+    expect(pool?.formatVersion).toBe(2);
+    expect(pool?.cards?.[0]?.name).toBe('Take Up the Shield');
+  });
+
   it('resolves Scryfall group release then generates', async () => {
     const { services } = createMemoryStores();
     await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);

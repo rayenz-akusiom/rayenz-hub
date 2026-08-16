@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { explainCard, formatReason } from './debug';
+import { deckSuggestHeaderText, suggestQueueBadge } from './display';
 import { collectDebugEntries } from './export';
-import type { DeckResult, GenerationRun, SetScope, Suggestion } from './types';
+import type { DeckRecord, DeckResult, GenerationRun, SetScope, Suggestion } from './types';
 
 function deckResultHasSuggestions(result: DeckResult): boolean {
   return !result.error && !result.skipped && (result.suggestions || []).length > 0;
@@ -13,17 +14,24 @@ function scryfallImageUrl(card: Suggestion['card']): string | null {
   return `https://cards.scryfall.io/normal/front/${id[0]}/${id[1]}/${id}.jpg`;
 }
 
+function queueBadgeLabel(badge: 'seeking' | 'swap_in'): string {
+  return badge === 'seeking' ? 'Seeking' : 'In swap';
+}
+
 function SuggestionCard({
   s,
+  deck,
   onAccept,
   onDismiss,
 }: {
   s: Suggestion;
+  deck: DeckRecord;
   onAccept?: (s: Suggestion) => void;
   onDismiss?: (id: string) => void;
 }) {
   const rep = s.replaces && s.replaces[0];
   const img = scryfallImageUrl(s.card);
+  const queueBadge = suggestQueueBadge(deck, s.card.name);
   return (
     <article className="ds-suggestion-card">
       {img ? (
@@ -36,6 +44,11 @@ function SuggestionCard({
           <span className={'ds-tier ds-tier-' + (s.priority_tier || 'normal')}>
             {s.priority_tier || 'normal'}
           </span>
+          {queueBadge ? (
+            <span className={'ds-queue-badge ds-queue-badge-' + queueBadge}>
+              {queueBadgeLabel(queueBadge)}
+            </span>
+          ) : null}
           {s.confidence ? <span className="ds-confidence">{s.confidence}</span> : null}
         </div>
         <h5 className="ds-suggestion-name">{s.card.name}</h5>
@@ -73,7 +86,7 @@ function DeckResultBlock({
 }) {
   return (
     <div className={'ds-deck-result' + (compact ? ' ds-deck-result-compact' : '')}>
-      <h4>{result.deck.deck_name}</h4>
+      <h4>{deckSuggestHeaderText(result.deck)}</h4>
       {result.error ? (
         <p className="ds-error-inline">{result.error}</p>
       ) : result.skipped ? (
@@ -87,6 +100,7 @@ function DeckResultBlock({
               <SuggestionCard
                 key={s.suggestion_id}
                 s={s}
+                deck={result.deck}
                 onAccept={onAccept ? (sug) => onAccept(result.deck.deck_id, sug) : undefined}
                 onDismiss={onDismiss}
               />

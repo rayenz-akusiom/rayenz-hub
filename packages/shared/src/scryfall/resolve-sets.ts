@@ -379,9 +379,14 @@ function normalizeCard(card: Record<string, unknown>): NormalizedSetCard {
   };
 }
 
+/** Paper + Commander-legal only (excludes tokens, banned, and non-legal). */
+export const SCRYFALL_SUGGEST_POOL_FILTERS = 'game:paper format:commander';
+
 async function fetchAllCardsForSet(setCode: string): Promise<Record<string, unknown>[]> {
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
-  const query = encodeURIComponent(`set:${setCode.toLowerCase()} unique:cards`);
+  const query = encodeURIComponent(
+    `set:${setCode.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+  );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
   const cards: Record<string, unknown>[] = [];
   while (url) {
@@ -486,7 +491,9 @@ export async function fetchReleaseCards(
   if (!seed) throw new Error('Release code is required.');
   const prefix = kind === 'block' ? 'b' : 'g';
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
-  const query = encodeURIComponent(`${prefix}:${seed} unique:cards`);
+  const query = encodeURIComponent(
+    `${prefix}:${seed} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+  );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
   const raw: Record<string, unknown>[] = [];
   while (url) {

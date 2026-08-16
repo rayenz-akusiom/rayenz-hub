@@ -26,7 +26,13 @@ describe('HubStorage API hydration', () => {
   });
 
   it('hydrateSetPoolFromApi stores complete remote pool', async () => {
-    const remote = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [{ name: 'Remote Card' }] };
+    const remote = {
+      complete: true,
+      codes: ['MSH'],
+      codesKey: 'MSH',
+      cards: [{ name: 'Remote Card' }],
+      formatVersion: 2,
+    };
     enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(remote)));
     const hydrated = await HubStorage.hydrateSetPoolFromApi('MSH');
@@ -120,7 +126,7 @@ describe('HubStorage set pool cache', () => {
       cards: [{ name: 'Card A' }],
     };
     expect(HubStorage.saveSetPoolCache('MAR,MSH', scope)).toBe(true);
-    expect(HubStorage.loadSetPoolCache('MAR,MSH')).toEqual(scope);
+    expect(HubStorage.loadSetPoolCache('MAR,MSH')).toEqual({ ...scope, formatVersion: 2 });
   });
 
   it('does not save incomplete scopes', () => {
@@ -329,14 +335,15 @@ describe('HubStorage hydrateSetPoolFromApi edge cases', () => {
   it('returns memory cache when API disabled or remote incomplete', async () => {
     const scope = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [{ name: 'A' }] };
     HubStorage.saveSetPoolCache('MSH', scope);
-    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
+    const stamped = { ...scope, formatVersion: 2 };
+    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(stamped);
 
     enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ complete: false, cards: [] })));
-    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
+    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(stamped);
 
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
-    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
+    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(stamped);
   });
 });
 

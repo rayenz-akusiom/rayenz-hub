@@ -24,6 +24,38 @@ export const Tagger = {
 };
 
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
+
+function normalizeSuggestionCi(colours: string[] | undefined): string[] {
+  const set = new Set<string>();
+  for (const c of colours || []) {
+    const u = String(c || '').trim().toUpperCase();
+    if ((WUBRG as readonly string[]).includes(u)) set.add(u);
+  }
+  return WUBRG.filter((c) => set.has(c));
+}
+
+function colourIdentityBucket(colours: string[]): number {
+  const norm = normalizeSuggestionCi(colours);
+  if (norm.length === 1) return WUBRG.indexOf(norm[0] as (typeof WUBRG)[number]);
+  if (norm.length >= 2) return 5;
+  return 6;
+}
+
+function compareColourIdentity(a: string[] | undefined, b: string[] | undefined): number {
+  const ciA = normalizeSuggestionCi(a);
+  const ciB = normalizeSuggestionCi(b);
+  const bucketA = colourIdentityBucket(ciA);
+  const bucketB = colourIdentityBucket(ciB);
+  if (bucketA !== bucketB) return bucketA - bucketB;
+  if (bucketA === 5) {
+    const keyA = ciA.join('');
+    const keyB = ciB.join('');
+    if (keyA.length !== keyB.length) return keyA.length - keyB.length;
+    if (keyA !== keyB) return keyA.localeCompare(keyB);
+  }
+  return 0;
+}
 
 export function sortSuggestions(suggestions: Suggestion[]): Suggestion[] {
   return suggestions.slice().sort((a, b) => {
@@ -31,6 +63,13 @@ export function sortSuggestions(suggestions: Suggestion[]): Suggestion[] {
     const tierB = b.priority_tier === 'swap' ? 0 : 1;
     if (tierA !== tierB) {
       return tierA - tierB;
+    }
+    const ciCmp = compareColourIdentity(
+      a.card?.color_identity || a.card?.colorIdentity,
+      b.card?.color_identity || b.card?.colorIdentity,
+    );
+    if (ciCmp !== 0) {
+      return ciCmp;
     }
     const confA = CONFIDENCE_ORDER[a.confidence] != null ? CONFIDENCE_ORDER[a.confidence] : 9;
     const confB = CONFIDENCE_ORDER[b.confidence] != null ? CONFIDENCE_ORDER[b.confidence] : 9;
@@ -86,7 +125,7 @@ export function buildSwapQueueAnalysis(deck: DeckRecord) {
     out_count: outLen,
     unpaired_in: unpairedIn.length ? unpairedIn : null,
     unpaired_out: unpairedOut.length ? unpairedOut : null,
-    reconciliation_notes: unpairedIn.map((name) => name + ': no Out paired — cut suggested from main deck'),
+    reconciliation_notes: unpairedIn.map((name) => name + ': no Out paired — pick a cut when accepting'),
   };
 }
 

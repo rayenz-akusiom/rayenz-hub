@@ -53,7 +53,7 @@ describe('Data.buildDeckRuleContext', () => {
   it('precomputes swap queue and deck name set', () => {
     const deck = sampleDeck();
     const ctx = Data.buildDeckRuleContext(deck);
-    expect(ctx.version).toBe(1);
+    expect(ctx.version).toBe(2);
     expect(ctx.swapQueue!.new_set_in).toHaveLength(1);
     expect(ctx.swapQueue!.new_set_in[0].name).toBe('New Card');
     expect(ctx.deckNames['sol ring']).toBe(true);

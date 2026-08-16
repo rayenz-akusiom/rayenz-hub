@@ -311,6 +311,21 @@
    background: #e2e8f0;
 }
 
+.ds-queue-badge {
+   display: inline-block;
+   font-size: 0.75rem;
+   text-transform: uppercase;
+   padding: 2px 6px;
+   border-radius: 4px;
+   background: #fef3c7;
+   color: #92400e;
+}
+
+.ds-queue-badge-swap_in {
+   background: #dbeafe;
+   color: #1e40af;
+}
+
 /* .ds-tier-swap — see hub-mtg-ui.css */
 
 .ds-deck-result h4 {

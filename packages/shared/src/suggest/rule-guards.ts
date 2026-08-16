@@ -1,4 +1,4 @@
-import { isSeekingCategory, isSwapQueueCategoryName } from '@rayenz-hub/shared';
+import { isSeekingCategory, isSwapInCategory, isSwapQueueCategoryName } from '@rayenz-hub/shared';
 import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion, TaggerContext } from './types';
 import { countTagOverlap } from './signals';
 
@@ -7,6 +7,43 @@ const PROTECTED_CATEGORIES: Record<string, boolean> = {
   Lieutenant: true,
   Lieutenants: true,
 };
+
+function cardPrimaryCategory(card: SnapshotCard | null | undefined): string | undefined {
+  if (!card) return undefined;
+  return card.primary_category || (card.categories && card.categories[0]) || undefined;
+}
+
+/** Seeking or Queued In — allow re-suggesting these names with a UI badge. */
+export function isSeekingOrQueuedInName(deck: DeckRecord, name: string): boolean {
+  const needle = String(name || '').toLowerCase();
+  return ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).some((card) => {
+    if (String(card.name || '').toLowerCase() !== needle) return false;
+    const primary = cardPrimaryCategory(card);
+    if (isSeekingCategory(primary) || isSwapInCategory(primary)) return true;
+    return (card.categories || []).some((c) => isSeekingCategory(c) || isSwapInCategory(c));
+  });
+}
+
+export function suggestQueueBadge(
+  deck: DeckRecord,
+  name: string,
+): 'seeking' | 'swap_in' | null {
+  const needle = String(name || '').toLowerCase();
+  let seeking = false;
+  let swapIn = false;
+  ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
+    if (String(card.name || '').toLowerCase() !== needle) return;
+    const primary = cardPrimaryCategory(card);
+    const cats = [primary, ...(card.categories || [])];
+    cats.forEach((c) => {
+      if (isSeekingCategory(c)) seeking = true;
+      if (isSwapInCategory(c)) swapIn = true;
+    });
+  });
+  if (swapIn) return 'swap_in';
+  if (seeking) return 'seeking';
+  return null;
+}
 
 export function listHasName(list: string[] | undefined, name: string): boolean {
   return (list || []).some((n) => String(n).toLowerCase() === String(name).toLowerCase());
@@ -115,6 +152,46 @@ export function deckNamesInSnapshot(deck: DeckRecord): Record<string, boolean> {
     }
   });
   return names;
+}
+
+/**
+ * Names that block new add suggestions: main deck + Queued Out.
+ * Seeking and Queued In are omitted so set hits can still surface with badges.
+ */
+export function ownedNamesInSnapshot(deck: DeckRecord): Record<string, boolean> {
+  if (deck.ruleContext && deck.ruleContext.ownedNames) {
+    return deck.ruleContext.ownedNames;
+  }
+  const names: Record<string, boolean> = {};
+  ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
+    if (!card.name) return;
+    const primary = cardPrimaryCategory(card);
+    if (isSeekingCategory(primary) || isSwapInCategory(primary)) return;
+    names[card.name.toLowerCase()] = true;
+  });
+  return names;
+}
+
+/** Commander category names for deck headers (not Lieutenants). */
+export function commanderNamesFromDeck(deck: DeckRecord): string[] {
+  const names: string[] = [];
+  const seen: Record<string, boolean> = {};
+  ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
+    const primary = cardPrimaryCategory(card);
+    if (primary !== 'Commander' || !card.name) return;
+    const key = card.name.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = true;
+    names.push(card.name);
+  });
+  return names;
+}
+
+export function deckSuggestHeaderText(deck: DeckRecord): string {
+  const deckName = String(deck.deck_name || deck.deck_id || 'Deck').trim() || 'Deck';
+  const commanders = commanderNamesFromDeck(deck);
+  if (!commanders.length) return deckName;
+  return `${deckName} — ${commanders.join(' / ')}`;
 }
 
 export function cutCandidates(deck: DeckRecord): SnapshotCard[] {
@@ -357,6 +434,7 @@ export const RuleGuards = {
   isProtectedCut,
   passesBlocklist,
   deckNamesInSnapshot,
+  ownedNamesInSnapshot,
   cutCandidates,
   rankCutCandidates,
   pickBestCut,
@@ -373,4 +451,8 @@ export const RuleGuards = {
   isColorIdentityLegal,
   violatesConstraints,
   isQueuedOrSeekingName,
+  isSeekingOrQueuedInName,
+  suggestQueueBadge,
+  commanderNamesFromDeck,
+  deckSuggestHeaderText,
 };

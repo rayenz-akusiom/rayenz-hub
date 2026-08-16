@@ -3,6 +3,8 @@ import {
   applyLookingForToCards,
   deriveSwapQueue,
   getOracle,
+  isSeekingCategory,
+  isSwapInCategory,
   type DeckDocument,
   type DeckWithSnapshot,
 } from '@rayenz-hub/shared';
@@ -39,19 +41,26 @@ export function ensureSetPoolIndexed(scope: SetScope | null): SetScope | null {
 }
 
 export function buildDeckRuleContext(deck: DeckRecord) {
-  if (deck.ruleContext && deck.ruleContext.version === 1) {
+  if (deck.ruleContext && deck.ruleContext.version === 2) {
     return deck.ruleContext;
   }
   const deckNames: Record<string, boolean> = {};
+  const ownedNames: Record<string, boolean> = {};
   ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
-    if (card.name) {
-      deckNames[card.name.toLowerCase()] = true;
+    if (!card.name) return;
+    const key = card.name.toLowerCase();
+    deckNames[key] = true;
+    const primary = card.primary_category || (card.categories && card.categories[0]);
+    if (isSeekingCategory(primary) || isSwapInCategory(primary)) {
+      return;
     }
+    ownedNames[key] = true;
   });
   deck.ruleContext = {
-    version: 1,
+    version: 2,
     swapQueue: deriveSwapQueue(deck as DeckWithSnapshot),
     deckNames,
+    ownedNames,
     cutCandidates: null,
   };
   return deck.ruleContext;

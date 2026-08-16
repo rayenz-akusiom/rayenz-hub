@@ -50,7 +50,7 @@ export function runRoleSynergy(
   debug?: { ruleId?: string; collector?: { push: (e: Record<string, unknown>) => void } },
 ): Suggestion[] {
   const added: Suggestion[] = [];
-  const deckNames = G.deckNamesInSnapshot(deck);
+  const ownedNames = G.ownedNamesInSnapshot(deck);
   const codes: Record<string, boolean> = {};
   (setScope.codes || []).forEach((c) => {
     codes[String(c).toUpperCase()] = true;
@@ -61,7 +61,7 @@ export function runRoleSynergy(
     if (!codes[code]) {
       return;
     }
-    if (deckNames[setCard.name.toLowerCase()]) {
+    if (ownedNames[setCard.name.toLowerCase()]) {
       return;
     }
     if (!G.isColorIdentityLegal(setCard, deck)) {
@@ -69,10 +69,6 @@ export function runRoleSynergy(
     }
     const match = matchSetCardToRoles(setCard, profile);
     if (!match) {
-      return;
-    }
-    const cut = G.pickBestCut(deck, profile, taggerCtx);
-    if (!cut) {
       return;
     }
     const confidence = match.score >= 13 ? 'medium' : 'low';
@@ -85,7 +81,7 @@ export function runRoleSynergy(
       confidence,
       rationale: 'Role match (' + match.roleId + ') — ' + (match.hint || 'profile tags') + '.',
       tags: ['rule:role_synergy', match.roleId],
-      replaces: [{ name: cut.name || '', quantity: 1 }],
+      replaces: [],
       priority_tier: 'normal',
       swap_source: 'analysis',
       signals: { tags: match.hint ? match.hint.split(', ') : [] },

@@ -9,6 +9,8 @@ export type SetPoolCard = {
   type_line?: string;
   oracle_text?: string;
   keywords?: string[];
+  color_identity?: string[];
+  colorIdentity?: string[];
 };
 
 export type SetScope = {
@@ -71,6 +73,7 @@ export type DeckRecord = {
     version: number;
     swapQueue: import('@rayenz-hub/shared').SwapQueueResult | null;
     deckNames: Record<string, boolean>;
+    ownedNames: Record<string, boolean>;
     cutCandidates: SnapshotCard[] | null;
   };
 };

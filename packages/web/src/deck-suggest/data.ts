@@ -4,6 +4,10 @@ import {
   deriveSwapQueue,
   getOracle,
   hasMaybeboardOnlySwapQueue,
+  isSeekingCategory,
+  isSwapInCategory,
+  SET_POOL_FORMAT_VERSION,
+  SCRYFALL_SUGGEST_POOL_FILTERS,
   type DeckDocument,
   type DeckWithSnapshot,
 } from '@rayenz-hub/shared';
@@ -158,19 +162,26 @@ export function ensureSetPoolIndexed(scope: SetScope | null): SetScope | null {
 }
 
 export function buildDeckRuleContext(deck: DeckRecord) {
-  if (deck.ruleContext && deck.ruleContext.version === 1) {
+  if (deck.ruleContext && deck.ruleContext.version === 2) {
     return deck.ruleContext;
   }
   const deckNames: Record<string, boolean> = {};
+  const ownedNames: Record<string, boolean> = {};
   ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
-    if (card.name) {
-      deckNames[card.name.toLowerCase()] = true;
+    if (!card.name) return;
+    const key = card.name.toLowerCase();
+    deckNames[key] = true;
+    const primary = card.primary_category || (card.categories && card.categories[0]);
+    if (isSeekingCategory(primary) || isSwapInCategory(primary)) {
+      return;
     }
+    ownedNames[key] = true;
   });
   deck.ruleContext = {
-    version: 1,
+    version: 2,
     swapQueue: deriveSwapQueue(deck as DeckWithSnapshot),
     deckNames,
+    ownedNames,
     cutCandidates: null,
   };
   return deck.ruleContext;
@@ -185,7 +196,12 @@ export function tryRestoreSetPool(codesKey: string): SetScope | null {
     return null;
   }
   if (setPoolCache[codesKey]) {
-    return ensureSetPoolIndexed(setPoolCache[codesKey])!;
+    const cached = setPoolCache[codesKey] as SetScope & { formatVersion?: number };
+    if (Number(cached.formatVersion || 0) < SET_POOL_FORMAT_VERSION) {
+      delete setPoolCache[codesKey];
+    } else {
+      return ensureSetPoolIndexed(cached)!;
+    }
   }
   const stored = loadSetPoolCache(codesKey);
   if (stored) {
@@ -229,9 +245,11 @@ export async function fetchSetPool(
     let hasMore = true;
     while (hasMore) {
       const url =
-        'https://api.scryfall.com/cards/search?q=set:' +
-        encodeURIComponent(code.toLowerCase()) +
-        '&unique=prints&order=name&page=' +
+        'https://api.scryfall.com/cards/search?q=' +
+        encodeURIComponent(
+          `set:${code.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+        ) +
+        '&order=name&page=' +
         page;
       const resp = await fetch(url);
       if (!resp.ok) {
@@ -270,7 +288,11 @@ export async function fetchSetPool(
 
   const scope = buildScopeFromCodes(normalized, cards, 'scryfall');
   setPoolCache[codesKey] = scope;
-  saveSetPoolCache(codesKey, { ...scope, complete: scope.complete ?? true });
+  saveSetPoolCache(codesKey, {
+    ...scope,
+    complete: scope.complete ?? true,
+    formatVersion: SET_POOL_FORMAT_VERSION,
+  });
   return scope;
 }
 
@@ -291,7 +313,11 @@ export function loadSetScopeFromUpload(json: Record<string, unknown>): SetScope 
   })!;
   if (scope.codesKey) {
     setPoolCache[scope.codesKey] = scope;
-    saveSetPoolCache(scope.codesKey, { ...scope, complete: scope.complete ?? true });
+    saveSetPoolCache(scope.codesKey, {
+      ...scope,
+      complete: scope.complete ?? true,
+      formatVersion: SET_POOL_FORMAT_VERSION,
+    });
   }
   return scope;
 }

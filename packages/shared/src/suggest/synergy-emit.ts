@@ -19,11 +19,10 @@ function inScope(setCard: SetPoolCard, setScope: SetScope): boolean {
 }
 
 export function eligibleSetCards(deck: DeckRecord, setScope: SetScope, profile?: DeckProfile): SetPoolCard[] {
-  const deckNames = G.deckNamesInSnapshot(deck);
+  const ownedNames = G.ownedNamesInSnapshot(deck);
   return (setScope.cards || []).filter((setCard) => {
     if (!inScope(setCard, setScope)) return false;
-    if (deckNames[setCard.name.toLowerCase()]) return false;
-    if (G.isQueuedOrSeekingName(deck, setCard.name)) return false;
+    if (ownedNames[setCard.name.toLowerCase()]) return false;
     if (!G.isColorIdentityLegal(setCard, deck)) return false;
     if (G.isBlockedAdd(setCard.name, profile)) return false;
     if (G.violatesConstraints(setCard, profile)) return false;
@@ -37,22 +36,21 @@ export function emitSynergyHits(
   deck: DeckRecord,
   profile: DeckProfile | undefined,
   existing: Suggestion[],
-  taggerCtx: TaggerContext,
+  _taggerCtx: TaggerContext,
   debug?: { ruleId?: string; collector?: { push: (e: Record<string, unknown>) => void } },
 ): Suggestion[] {
   const added: Suggestion[] = [];
   hits.forEach((hit) => {
-    const cut = G.pickBestCut(deck, profile, taggerCtx);
     const suggestion: Suggestion = {
       suggestion_id: G.nextSuggestionId(deck.deck_id, existing.concat(added)),
-      action: cut ? 'replace' : 'consider',
+      action: 'consider',
       card: G.setCardToSuggestionCard(hit.card),
       quantity: 1,
       roles_matched: hit.rolesMatched,
       confidence: hit.confidence,
       rationale: hit.rationale,
       tags: ['rule:' + ruleId, ...hit.rolesMatched],
-      replaces: cut ? [{ name: cut.name || '', quantity: 1 }] : [],
+      replaces: [],
       priority_tier: 'normal',
       signals: hit.signals,
     };

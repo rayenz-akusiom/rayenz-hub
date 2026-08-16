@@ -30,34 +30,6 @@ function isProxyCard(card: SnapshotCard): boolean {
   return cats.indexOf('Proxies') >= 0 || card.primary_category === 'Proxies';
 }
 
-function inCardIsLand(inCard: { name?: string; type_line?: string }): boolean {
-  return (
-    /land/i.test(inCard.type_line || '') ||
-    /\b(Plains|Island|Swamp|Mountain|Forest|Verge|Foundry|Tower|Steppe)\b/i.test(inCard.name || '')
-  );
-}
-
-function pickCutForUnpairedIn(
-  deck: DeckRecord,
-  profile: DeckProfile | undefined,
-  inCard: { name?: string; type_line?: string },
-): SnapshotCard | null {
-  let candidates = G.cutCandidates(deck);
-  if (inCardIsLand(inCard)) {
-    const lands = candidates.filter(
-      (c) =>
-        c.primary_category === 'Land' ||
-        /land/i.test(c.type_line || '') ||
-        /\b(Plains|Island|Swamp|Mountain|Forest|Verge|Foundry|Tower|Steppe)\b/i.test(c.name || ''),
-    );
-    if (lands.length) {
-      candidates = lands;
-    }
-  }
-  const ranked = G.rankCutCandidates(candidates, profile, null);
-  return ranked[0] || null;
-}
-
 function matchSetCardToRoles(
   setCard: SetPoolCard,
   profile?: DeckProfile | null,
@@ -200,26 +172,21 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
       } else if (outIdx >= 0 && inIdx === outIdx) {
         push('queue_in_pair', 'would_emit', 'Paired with Out slot ' + queue.new_set_out[outIdx].name);
       } else if (inIdx >= (queue.new_set_out || []).length) {
-        const cut = pickCutForUnpairedIn(deck, profile, inCard);
-        if (!cut) {
-          push('queue_in_pair', 'no_cut_candidate', 'Unpaired In — no cut candidate');
-        } else {
-          push('queue_in_pair', 'would_emit', 'Unpaired In — cut ' + cut.name, { cardOut: cut.name });
-        }
+        push('queue_in_pair', 'would_emit', 'Unpaired In — pick a cut when accepting');
       }
     }
     if (outIdx >= 0 && inIdx < 0) {
       if (outIdx < (queue.new_set_in || []).length) {
         push('queue_out_fill', 'would_emit', 'Paired Out — handled by queue_in_pair');
       } else {
-        const deckNames = G.deckNamesInSnapshot(deck);
+        const ownedNames = G.ownedNamesInSnapshot(deck);
         type QueueReplacement = {
           setCard: SetScope['cards'][number];
           match: { roleId: string; score: number; hint: string };
         };
         let best: QueueReplacement | null = null;
         for (const setCard of setScope.cards || []) {
-          if (deckNames[setCard.name.toLowerCase()]) {
+          if (ownedNames[setCard.name.toLowerCase()]) {
             continue;
           }
           const match = matchSetCardToRoles(setCard, profile);
@@ -259,7 +226,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
   }
 
   const poolCard = G.findInSetPool(name, setScope);
-  const deckNames = G.deckNamesInSnapshot(deck);
+  const ownedNames = G.ownedNamesInSnapshot(deck);
   if (poolCard) {
     const codes: Record<string, boolean> = {};
     (setScope.codes || []).forEach((c) => {
@@ -268,21 +235,14 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
     const code = String(poolCard.set_code || '').toUpperCase();
     if (!codes[code]) {
       push('role_synergy', 'role_wrong_set', 'Printing set ' + code + ' not in scope');
-    } else if (deckNames[nameLower]) {
+    } else if (ownedNames[nameLower]) {
       push('role_synergy', 'role_already_in_deck', 'Already in deck snapshot');
     } else {
       const match = matchSetCardToRoles(poolCard, profile);
       if (!match) {
         push('role_synergy', 'role_no_match', 'No profile role/tag overlap');
       } else {
-        const cut = G.pickBestCut(deck, profile, null);
-        if (!cut) {
-          push('role_synergy', 'role_no_cut', 'Role match but no cut candidate');
-        } else {
-          push('role_synergy', 'would_emit', 'Role ' + match.roleId + ' — cut ' + cut.name, {
-            cardOut: cut.name,
-          });
-        }
+        push('role_synergy', 'would_emit', 'Role ' + match.roleId);
       }
     }
   }

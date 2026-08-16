@@ -102,29 +102,17 @@ export function runQueueInPair(
       skipped.push({ name: unpairedIn.name, reason: 'not_in_set_scope' });
       continue;
     }
-    const cut = pickCutForUnpairedIn(deck, profile, taggerCtx, unpairedIn);
-    if (!cut) {
-      if (debug && debug.collector) {
-        debug.collector.push({
-          ruleId: debug.ruleId || 'queue_in_pair',
-          outcome: 'skipped',
-          subject: unpairedIn.name,
-          reason: 'no_cut_candidate',
-        });
-      }
-      continue;
-    }
     const unpairedSuggestion: Suggestion = {
       suggestion_id: G.nextSuggestionId(deck.deck_id, existing.concat(added)),
-      action: 'replace',
+      action: 'consider',
       card: resolvedUnpaired,
       quantity: 1,
       roles_matched: ['swap'],
       confidence: 'high',
       rationale:
-        'Queued add — no Out paired; cut suggested from main deck (' + setCode + ' printing).',
+        'Queued add — no Out paired; pick a cut when accepting (' + setCode + ' printing).',
       tags: ['swap', 'rule:queue_in_pair'],
-      replaces: [{ name: cut.name || '', quantity: 1 }],
+      replaces: [],
       fills_swap_slot: unpairedIn.name,
       priority_tier: 'swap',
       swap_source: 'queue_in',
@@ -145,11 +133,11 @@ export function findSetReplacement(
   profile: DeckProfile | undefined,
   _taggerCtx: TaggerContext,
 ): { setCard: SetScope['cards'][number]; match: { roleId: string; score: number; hint: string } } | null {
-  const deckNames = G.deckNamesInSnapshot(deck);
+  const ownedNames = G.ownedNamesInSnapshot(deck);
   let best: { setCard: SetScope['cards'][number]; match: { roleId: string; score: number; hint: string } } | null =
     null;
   (setScope.cards || []).forEach((setCard) => {
-    if (deckNames[setCard.name.toLowerCase()]) {
+    if (ownedNames[setCard.name.toLowerCase()]) {
       return;
     }
     const match = matchSetCardToRoles(setCard, profile);

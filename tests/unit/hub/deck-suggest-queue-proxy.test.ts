@@ -36,12 +36,34 @@ describe('rules queue analysis', () => {
     expect(buildSwapQueueAnalysis({ deck_id: 'empty' })).toBe(null);
   });
 
-  it('sortSuggestions orders swap tier and confidence', () => {
+  it('sortSuggestions orders swap tier, then colour identity, then confidence', () => {
     const sorted = sortSuggestions([
-      { suggestion_id: 'b', priority_tier: 'normal', confidence: 'low' },
-      { suggestion_id: 'a', priority_tier: 'swap', confidence: 'high' },
+      {
+        suggestion_id: 'b',
+        priority_tier: 'normal',
+        confidence: 'high',
+        card: { name: 'Blue', color_identity: ['U'] },
+      },
+      {
+        suggestion_id: 'a',
+        priority_tier: 'swap',
+        confidence: 'low',
+        card: { name: 'Swap', color_identity: ['G'] },
+      },
+      {
+        suggestion_id: 'c',
+        priority_tier: 'normal',
+        confidence: 'medium',
+        card: { name: 'White', color_identity: ['W'] },
+      },
+      {
+        suggestion_id: 'd',
+        priority_tier: 'normal',
+        confidence: 'low',
+        card: { name: 'Colourless', color_identity: [] },
+      },
     ] as never);
-    expect(sorted[0].priority_tier).toBe('swap');
+    expect(sorted.map((s) => s.suggestion_id)).toEqual(['a', 'c', 'b', 'd']);
   });
 });
 

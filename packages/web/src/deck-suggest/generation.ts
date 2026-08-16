@@ -48,7 +48,8 @@ export async function generateSuggestions(
   state: DeckSuggestState,
   onProgress?: (update: { current?: number; total?: number; label?: string }) => void,
 ): Promise<GenerationRun> {
-  const readiness = getGenerateReadiness(state);
+  // Setup gate ignores in-flight `generating` (UI disables the button separately).
+  const readiness = getGenerateReadiness({ ...state, generating: false });
   if (!readiness.ok) {
     throw new Error('Complete setup requirements before generating.');
   }

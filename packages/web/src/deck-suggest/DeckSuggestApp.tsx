@@ -117,8 +117,9 @@ export function DeckSuggestApp() {
     setState((prev) => ({ ...prev, generating: true }));
     progressRef.current?.start({ label: 'Generating suggestions…' });
     try {
+      // Pass pre-flight state: generating is UI-only and must not fail the setup gate.
       const run = await generateSuggestions(
-        { ...state, generating: true },
+        state,
         (update) => progressRef.current?.update(update),
       );
       setState((prev) => ({ ...prev, generationRun: run, generating: false }));

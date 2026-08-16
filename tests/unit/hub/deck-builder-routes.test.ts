@@ -5,8 +5,6 @@ import {
   parseBuilderRoute,
   resolveLegacyDeckBuilderHash,
   pathFromHash,
-  deckBuilderHash,
-  parseDeckBuilderRoute,
   HUB_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
 
@@ -75,23 +73,5 @@ describe('builder routes', () => {
     expect(pathFromHash('#/commander-builder/default/foo')).toBe('/commander-builder');
     expect(pathFromHash('#/cube-builder/default/foo')).toBe('/cube-builder');
     expect(pathFromHash('#/deck-builder/default/foo')).toBe('/deck-builder');
-  });
-
-  it('deprecated deckBuilderHash maps to commander builder', () => {
-    expect(deckBuilderHash()).toBe('#/commander-builder');
-    expect(deckBuilderHash(HUB_USER_SLUG, 'fixture-commander')).toBe(
-      '#/commander-builder/default/fixture-commander',
-    );
-  });
-
-  it('deprecated parseDeckBuilderRoute parses all builder prefixes', () => {
-    expect(parseDeckBuilderRoute('#/deck-builder/default/fixture-commander')).toEqual({
-      userSlug: 'default',
-      deckSlug: 'fixture-commander',
-    });
-    expect(parseDeckBuilderRoute('#/commander-builder/default/fixture-commander')).toEqual({
-      userSlug: 'default',
-      deckSlug: 'fixture-commander',
-    });
   });
 });

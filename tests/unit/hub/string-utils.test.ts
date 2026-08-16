@@ -30,7 +30,9 @@ describe('StringUtils.toUriEncodedKebabCase', () => {
 
 describe('StringUtils.escapeHtml', () => {
   it('escapes HTML-significant characters', () => {
-    expect(StringUtils.escapeHtml('<b>&</b>')).toBe('&lt;b&gt;&amp;&lt;/b&gt;');
+    expect(StringUtils.escapeHtml('<a href="x">Tom & Jerry</a>')).toBe(
+      '&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;',
+    );
     expect(StringUtils.escapeHtml(null)).toBe('');
   });
 });

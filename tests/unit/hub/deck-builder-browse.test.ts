@@ -23,6 +23,8 @@ import {
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 import cube from '../../fixtures/deck-builder/cube-slice.json';
 import { colourIdentitySection } from '../../../packages/shared/src/deck-builder/colour-identity.ts';
+import { cardMatchesFlagFilter } from '../../../packages/web/src/deck-builder/ui/FlagFilterControl';
+import { setFilterLabel } from '../../../packages/web/src/deck-builder/ui/SetFilterControl';
 
 describe('browse grouping', () => {
   it('groups by primary category', () => {
@@ -483,5 +485,33 @@ describe('category targets', () => {
     ]);
     expect(groups[0]!.keys).toEqual(['White', 'Colourless']);
     expect(groups[1]!.keys).toEqual(['Azorius', 'Simic']);
+  });
+});
+
+describe('cardMatchesFlagFilter', () => {
+  it.each([
+    { flag: true, mode: 'all' as const, expected: true },
+    { flag: false, mode: 'all' as const, expected: true },
+    { flag: true, mode: 'hide' as const, expected: false },
+    { flag: false, mode: 'hide' as const, expected: true },
+    { flag: true, mode: 'only' as const, expected: true },
+    { flag: false, mode: 'only' as const, expected: false },
+  ])('$mode + flag=$flag → $expected', ({ flag, mode, expected }) => {
+    expect(cardMatchesFlagFilter(flag, mode)).toBe(expected);
+  });
+});
+
+describe('setFilterLabel', () => {
+  it.each([
+    { include: [] as string[], exclude: [] as string[], label: 'All' },
+    { include: ['MH2'], exclude: [], label: 'MH2' },
+    { include: ['MH2', 'CMM', 'LTR'], exclude: [], label: 'MH2,CMM,LTR' },
+    { include: ['A', 'B', 'C', 'D'], exclude: [], label: '4 sets' },
+    { include: [], exclude: ['LEA'], label: '−LEA' },
+    { include: [], exclude: ['LEA', 'LEB'], label: '−LEA,LEB' },
+    { include: [], exclude: ['A', 'B', 'C'], label: '−3' },
+    { include: ['MH2'], exclude: ['LEA'], label: 'MH2 −LEA' },
+  ])('$include / $exclude → $label', ({ include, exclude, label }) => {
+    expect(setFilterLabel(include, exclude)).toBe(label);
   });
 });

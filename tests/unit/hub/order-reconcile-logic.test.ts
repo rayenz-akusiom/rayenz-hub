@@ -21,11 +21,12 @@ import {
   loadDeckRegistry,
   parseFolderId,
   printOptionLines,
+  printingValueFromParts,
   readPrintingValue,
   resolveCubeDestinationForCard,
   validateScryfallName,
 } from '../../../packages/web/src/order-reconcile/data.ts';
-import { getDeckById, itemsForDeck } from '../../../packages/web/src/order-reconcile/helpers.ts';
+import { getDeckById, itemsForDeck, sortDecksByName } from '../../../packages/web/src/order-reconcile/helpers.ts';
 import { parseInputToAcquired, updateAcquiredField } from '../../../packages/web/src/order-reconcile/input.ts';
 import {
   createInitialState,
@@ -53,8 +54,11 @@ import {
 } from '../../../packages/web/src/order-reconcile/reconcile.ts';
 import {
   candidateOptionGroups,
+  candidateOptionsHtml,
   deckOptionGroups,
+  deckOptionsHtml,
   deckOptionTags,
+  maybeboardDeckOptionsHtml,
   maybeboardOptionGroups,
 } from '../../../packages/web/src/order-reconcile/select-options.ts';
 import {
@@ -333,6 +337,13 @@ describe('data.ts', () => {
     expect(printOptionLines({ name: 'Sol Ring' })).toEqual(['Sol Ring']);
     expect(readPrintingValue('{bad')).toBe(null);
     expect(readPrintingValue(null)).toBe(null);
+    const value = printingValueFromParts({ name: 'Sol Ring', set_code: 'cmm', collector_number: '1' });
+    expect(readPrintingValue(value)).toEqual({
+      name: 'Sol Ring',
+      set_code: 'cmm',
+      collector_number: '1',
+      finish: 'nonfoil',
+    });
   });
 });
 
@@ -353,6 +364,11 @@ describe('helpers.ts', () => {
     ] as ReconcileItem[];
     expect(itemsForDeck('d1', items)).toHaveLength(2);
     expect(itemsForDeck('d3', items)).toHaveLength(0);
+  });
+
+  it('sortDecksByName orders cube decks before commander decks, then alphabetically', () => {
+    const decks = [commanderDeck('d1', 'Zedruu'), commanderDeck('d2', 'Atraxa'), commanderDeck('c1', 'Powered Cube')];
+    expect(sortDecksByName(decks).map((d) => d.deck_name)).toEqual(['Powered Cube', 'Atraxa', 'Zedruu']);
   });
 });
 
@@ -441,7 +457,52 @@ describe('assign.ts copy and index helpers', () => {
     expect(findCandidatesForName(state, 'Cube Pick').length).toBeGreaterThan(0);
     expect(findMaybeboardCandidatesForName(state, 'Stash Me').length).toBeGreaterThan(0);
     expect(findCandidatesForName(state, 'Missing')).toEqual([]);
-    expect(buildAssignmentIndex(decks).swapByName).toBeDefined();
+    const index = buildAssignmentIndex(decks);
+    expect(index.swapByName['new card'][0].deck_id).toBe('d1');
+    expect(index.maybeboardByName['stash me'][0].is_maybeboard).toBe(true);
+  });
+
+  it('indexes double-faced card names by each face', () => {
+    const deck: OrderReconcileDeck = {
+      deck_id: 'd1',
+      deck_name: 'DFC Deck',
+      deck_snapshot: {
+        cards: [
+          {
+            name: 'Delver of Secrets // Insectile Aberration',
+            primary_category: 'Queued In',
+            set_code: 'isd',
+            collector_number: '51',
+          },
+          { name: 'Cut Card', primary_category: 'Queued Out', set_code: 'x', collector_number: '1' },
+        ],
+      },
+    };
+    const state = baseState({
+      decks: [deck],
+      assignmentIndex: buildAssignmentIndex([deck]),
+    });
+    expect(findCandidatesForName(state, 'Delver of Secrets')).toHaveLength(1);
+    expect(findCandidatesForName(state, 'Insectile Aberration')).toHaveLength(1);
+  });
+
+  it('findMaybeboardCandidatesForName ignores cube decks', () => {
+    const cube = commanderDeck('c1', 'Vintage Cube');
+    const state = baseState({ decks: [cube] });
+    expect(findMaybeboardCandidatesForName(state, 'Stash Me')).toHaveLength(0);
+  });
+
+  it('findCandidatesForName uses a precomputed index and paired outs', () => {
+    const decks = [commanderDeck('d1', 'Test Deck')];
+    const state = baseState({
+      decks,
+      assignmentIndex: buildAssignmentIndex(decks),
+    });
+    const candidates = findCandidatesForName(state, 'New Card');
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].deck_id).toBe('d1');
+    expect(candidates[0].paired_out?.name).toBe('Cut Card');
+    expect(findCandidatesForName(state, 'Unrelated')).toHaveLength(0);
   });
 });
 
@@ -467,13 +528,23 @@ describe('reconcile.ts formatting helpers', () => {
 
   it('deckCutOptions and cut/read helpers format values', () => {
     const deck = commanderDeck('d1', 'Test');
-    const options = deckCutOptions(deck, null, true);
-    expect(options.length).toBeGreaterThan(0);
+    const options = deckCutOptions(deck, null, false);
+    const names = options.map((o) => o.name);
+    expect(names).toContain('Sol Ring');
+    expect(names).not.toContain('New Card');
+    expect(names).not.toContain('Cut Card');
+    expect(names).not.toContain('Stash Me');
     const opt = options[0];
     expect(cutValueFromOpt(opt)).toContain(opt.name);
     expect(readCutValue(cutValueFromOpt(opt))?.name).toBe(opt.name);
+    expect(readCutValue('not json')).toBe(null);
     expect(formatCardLabel(opt)).toContain(opt.name);
     expect(formatCardLabel({ name: 'No Set' })).toBe('No Set');
+    expect(formatCardLabel({ name: 'Sol Ring', set_code: 'cmm', collector_number: '1' })).toBe('Sol Ring (CMM #1)');
+    expect(formatCardLabel({ name: 'Sol Ring', set_code: 'cmm', collector_number: '1', finish: 'foil' })).toBe(
+      'Sol Ring (CMM #1) · Foil',
+    );
+    expect(formatCardLabel(null)).toBe('—');
   });
 });
 
@@ -678,6 +749,29 @@ describe('summary.ts', () => {
 });
 
 describe('buildAssignmentPlan edge cases', () => {
+  it('routes a maybeboard-only card to needs-review with reason maybeboard', async () => {
+    const state = baseState({
+      decks: [commanderDeck('d1', 'Test Deck')],
+      acquiredCards: [{ id: 'acq-0', name: 'Stash Me', quantity: 1 }],
+    });
+    const plan = await buildAssignmentPlan(state);
+    expect(plan.assignments).toHaveLength(0);
+    expect(plan.needsReview).toHaveLength(1);
+    expect(plan.needsReview![0].reason).toBe('maybeboard');
+    expect(plan.needsReview![0].candidates[0].deck_id).toBe('d1');
+  });
+
+  it('auto-assigns a swap-queue match', async () => {
+    const state = baseState({
+      decks: [commanderDeck('d1', 'Test Deck')],
+      acquiredCards: [{ id: 'acq-0', name: 'New Card', quantity: 1 }],
+    });
+    const plan = await buildAssignmentPlan(state);
+    expect(plan.assignments).toHaveLength(1);
+    expect(plan.assignments![0].deck_id).toBe('d1');
+    expect(plan.needsReview).toHaveLength(0);
+  });
+
   it('routes unmatched cards to needs-review', async () => {
     const state = baseState({
       decks: [commanderDeck('d1', 'Test')],
@@ -881,5 +975,39 @@ describe('select-options.ts groups', () => {
     expect(groups.some((g) => g.label === 'Found in maybeboard')).toBe(true);
     const suggested = groups.find((g) => g.label === 'Found in maybeboard');
     expect(suggested?.options).toHaveLength(1);
+  });
+
+  it('deckOptionsHtml groups cube and commander decks', () => {
+    const html = deckOptionsHtml(
+      [commanderDeck('d1', 'Atraxa'), commanderDeck('c1', 'Legacy Cube')],
+      '',
+      true,
+      {},
+    );
+    expect(html).toContain('— leave out (buy/trade only) —');
+    expect(html).toContain('<optgroup label="Cube">');
+    expect(html).toContain('<optgroup label="Commander">');
+    expect(html).toContain('Legacy Cube');
+  });
+
+  it('maybeboardDeckOptionsHtml elevates suggested decks under a maybeboard group', () => {
+    const nr = { assigned_deck_id: '', candidates: [{ deck_id: 'd1', deck_name: 'Atraxa' }] };
+    const html = maybeboardDeckOptionsHtml([commanderDeck('d1', 'Atraxa')], nr as never, {});
+    expect(html).toContain('<optgroup label="Found in maybeboard">');
+    expect(html).toContain('Atraxa');
+  });
+
+  it('candidateOptionsHtml splits cube and commander candidates', () => {
+    const html = candidateOptionsHtml(
+      [
+        { deck_id: 'd1', deck_name: 'Atraxa', is_cube: false } as never,
+        { deck_id: 'c1', deck_name: 'Cube One', is_cube: true } as never,
+      ],
+      'd1',
+      {},
+    );
+    expect(html).toContain('<optgroup label="Cube">');
+    expect(html).toContain('<optgroup label="Commander">');
+    expect(html).toContain('selected');
   });
 });

@@ -47,55 +47,80 @@ describe('ArchidektExport.parseImportLine', () => {
 });
 
 describe('ArchidektExport.formatImportLine', () => {
-  it('formats quantity, name, set, and collector number', () => {
-    expect(ArchidektExport.formatImportLine(1, 'Sol Ring', 'cmm', '1', 'Ramp', null, null)).toBe(
-      '1x Sol Ring (cmm) 1 [Ramp]',
-    );
-  });
-
-  it('appends the foil token before the category bracket', () => {
-    expect(ArchidektExport.formatImportLine(1, 'Sol Ring', 'cmm', '1', 'Ramp', null, 'foil')).toBe(
-      '1x Sol Ring (cmm) 1 *F* [Ramp]',
-    );
-  });
-
-  it('appends the etched token before the category bracket', () => {
-    expect(ArchidektExport.formatImportLine(2, 'Sol Ring', 'cmm', '1', 'Ramp', null, 'etched')).toBe(
-      '2x Sol Ring (cmm) 1 *E* [Ramp]',
-    );
-  });
-
-  it('omits the printing when there is no set code', () => {
-    expect(ArchidektExport.formatImportLine(1, 'Sol Ring', null, null, 'Ramp', null, null)).toBe('1x Sol Ring [Ramp]');
-  });
-
-  it('emits set only when collector number is missing', () => {
-    expect(ArchidektExport.formatImportLine(1, 'Sol Ring', 'cmm', null, 'Ramp', null, null)).toBe(
-      '1x Sol Ring (cmm) [Ramp]',
-    );
-  });
-
-  it('emits the full category list for basic lands', () => {
-    expect(
-      ArchidektExport.formatImportLine(
-        1,
-        'Forest',
-        'xyz',
-        '1',
-        ['Land', 'Proxies'],
-        { Proxies: { includedInPrice: false } },
-        null,
-      ),
-    ).toBe('1x Forest (xyz) 1 [Land,Proxies{noPrice}]');
+  it.each([
+    {
+      qty: 1,
+      name: 'Sol Ring',
+      set: 'cmm',
+      cn: '1',
+      cats: 'Ramp' as const,
+      settings: null,
+      finish: null,
+      expected: '1x Sol Ring (cmm) 1 [Ramp]',
+    },
+    {
+      qty: 1,
+      name: 'Sol Ring',
+      set: 'cmm',
+      cn: '1',
+      cats: 'Ramp' as const,
+      settings: null,
+      finish: 'foil',
+      expected: '1x Sol Ring (cmm) 1 *F* [Ramp]',
+    },
+    {
+      qty: 2,
+      name: 'Sol Ring',
+      set: 'cmm',
+      cn: '1',
+      cats: 'Ramp' as const,
+      settings: null,
+      finish: 'etched',
+      expected: '2x Sol Ring (cmm) 1 *E* [Ramp]',
+    },
+    {
+      qty: 1,
+      name: 'Sol Ring',
+      set: null,
+      cn: null,
+      cats: 'Ramp' as const,
+      settings: null,
+      finish: null,
+      expected: '1x Sol Ring [Ramp]',
+    },
+    {
+      qty: 1,
+      name: 'Sol Ring',
+      set: 'cmm',
+      cn: null,
+      cats: 'Ramp' as const,
+      settings: null,
+      finish: null,
+      expected: '1x Sol Ring (cmm) [Ramp]',
+    },
+    {
+      qty: 1,
+      name: 'Forest',
+      set: 'xyz',
+      cn: '1',
+      cats: ['Land', 'Proxies'] as string[],
+      settings: { Proxies: { includedInPrice: false } },
+      finish: null,
+      expected: '1x Forest (xyz) 1 [Land,Proxies{noPrice}]',
+    },
+  ])('$expected', ({ qty, name, set, cn, cats, settings, finish, expected }) => {
+    expect(ArchidektExport.formatImportLine(qty, name, set, cn, cats, settings, finish)).toBe(expected);
   });
 });
 
 describe('ArchidektExport.formatFinishToken', () => {
-  it('maps finishes to Archidekt tokens', () => {
-    expect(ArchidektExport.formatFinishToken('foil')).toBe(' *F*');
-    expect(ArchidektExport.formatFinishToken('etched')).toBe(' *E*');
-    expect(ArchidektExport.formatFinishToken('nonfoil')).toBe('');
-    expect(ArchidektExport.formatFinishToken(null)).toBe('');
+  it.each([
+    ['foil', ' *F*'],
+    ['etched', ' *E*'],
+    ['nonfoil', ''],
+    [null, ''],
+  ] as const)('maps %s to %j', (finish, token) => {
+    expect(ArchidektExport.formatFinishToken(finish)).toBe(token);
   });
 });
 

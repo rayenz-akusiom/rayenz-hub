@@ -210,6 +210,15 @@ describe('HubStorage settings loaders', () => {
     expect(dailies.wishlists).toEqual([{ id: 'custom' }]);
     localStorage.setItem('rayenz-dailies-settings', '[]');
     expect(HubStorage.loadDailiesSettings().faerieQuest).toBe('illusen');
+    localStorage.setItem(
+      'rayenz-dailies-settings',
+      JSON.stringify({ trackingLists: 'nope', schools: null, wishlists: 'legacy' }),
+    );
+    const fallback = HubStorage.loadDailiesSettings();
+    expect(fallback.trackingLists).toEqual({});
+    expect(fallback.wishlists).toBeUndefined();
+    localStorage.setItem('rayenz-dailies-settings', '{not-json');
+    expect(HubStorage.loadDailiesSettings()).toMatchObject({ faerieQuest: 'illusen', trackingLists: {} });
   });
 
   it('loadOrderReconcileProgress defaults and parses session data from memory', () => {
@@ -270,6 +279,14 @@ describe('HubStorage MTG settings API push', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/dailies');
     expect(localStorage.getItem('rayenz-dailies-settings')).toContain('jhudora');
   });
+
+  it('saveDailiesSettings ignores API push failures', () => {
+    enableHubApi();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('offline');
+    }));
+    expect(() => HubStorage.saveDailiesSettings(null as never)).not.toThrow();
+  });
 });
 
 describe('HubStorage hydrateReviewProgressFromApi edge cases', () => {
@@ -316,6 +333,9 @@ describe('HubStorage hydrateSetPoolFromApi edge cases', () => {
 
     enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ complete: false, cards: [] })));
+    await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
+
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
     await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(scope);
   });
 });

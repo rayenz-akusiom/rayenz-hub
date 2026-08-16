@@ -38,6 +38,10 @@ describe('hub routes', () => {
       deckSlug: 'fixture-commander',
     });
     expect(parseDeckBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
+    expect(parseDeckBuilderRoute('#/commander-builder/default/fixture-commander')).toEqual({
+      userSlug: 'default',
+      deckSlug: 'fixture-commander',
+    });
   });
 
   it('builds deprecated deck-builder hashes via commander builder', () => {

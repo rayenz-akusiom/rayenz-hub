@@ -9,6 +9,20 @@ import {
   normalizeArchidektCategoryName,
 } from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
 
+import { applyForcedFormat } from '../../../packages/shared/src/deck-builder/force-format.ts';
+import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
+import { deckSize, totalCardQuantity } from '../../../packages/shared/src/deck-builder/browse.ts';
+import { oracleKey } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
+
+import {
+  documentFromImportText,
+  documentFromArchidektSnapshot,
+  deckNameFromArchidektUrl,
+  parseImportText,
+  typeLineFromArchidektCard,
+  normalizeArchidektCategoryName,
+} from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
+
 import { deckSize, totalCardQuantity } from '../../../packages/shared/src/deck-builder/browse.ts';
 import { oracleKey } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
 
@@ -522,6 +536,91 @@ describe('import', () => {
 
   });
 
+  it.each([
+    { name: 'Vintage Cube', forcedFormat: 'commander' as const },
+    { name: 'Atraxa Superfriends', forcedFormat: 'cube' as const },
+  ])('documentFromImportText forces $forcedFormat format', ({ name, forcedFormat }) => {
+    const doc = documentFromImportText('[Creature]\n1 Sol Ring', { name, forcedFormat });
+    expect(doc.format).toBe(forcedFormat);
+  });
+
+  it('documentFromArchidektSnapshot forces cube format', () => {
+    const doc = documentFromArchidektSnapshot(
+      {
+        deck_id: 1,
+        deck_name: 'Commander Deck',
+        cards: [{ id: 1, name: 'Sol Ring', quantity: 1, primary_category: 'Artifact' }],
+      },
+      null,
+      { forcedFormat: 'cube' },
+    );
+    expect(doc.format).toBe('cube');
+  });
+
 });
+
+describe('applyForcedFormat', () => {
+  function baseDoc(overrides: Partial<DeckDocument> = {}): DeckDocument {
+    const now = new Date().toISOString();
+    return {
+      schemaVersion: 1,
+      deckId: 'deck-1',
+      name: 'Test Deck',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: null,
+      categories: [],
+      cards: [],
+      oracle: {},
+      formalSwapEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      cardLayoutDefault: 'stacked',
+      cardSortDefault: 'name_asc',
+      createdAt: now,
+      updatedAt: now,
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+      cubeTargetSize: null,
+      ...overrides,
+    };
+  }
+
+  it.each([
+    {
+      name: 'My Commander',
+      format: 'commander' as const,
+      forced: 'commander' as const,
+      warning: null,
+    },
+    {
+      name: 'Atraxa Superfriends',
+      format: 'commander' as const,
+      forced: 'cube' as const,
+      warning: /commander.*cube/i,
+    },
+    {
+      name: 'Vintage Cube',
+      format: 'cube' as const,
+      forced: 'commander' as const,
+      warning: /cube.*commander/i,
+    },
+    {
+      name: 'Neutral Deck',
+      format: 'other' as const,
+      forced: 'cube' as const,
+      warning: /other.*cube/i,
+    },
+  ])('$forced from $format ($name)', ({ name, format, forced, warning }) => {
+    const { document, formatMismatchWarning } = applyForcedFormat(baseDoc({ name, format }), forced);
+    expect(document.format).toBe(forced);
+    if (warning) {
+      expect(formatMismatchWarning).toMatch(warning);
+    } else {
+      expect(formatMismatchWarning).toBeNull();
+    }
+  });
+});
+
 
 

@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { saveReviewHandoff } from '../../packages/web/src/lib/hub-storage';
 import { DeckReviewApp } from '../../packages/web/src/deck-review/DeckReviewApp';
+import { DeckReviewStatusCard } from '../../packages/web/src/deck-review/DeckReviewStatusCard';
+import { ArchidektExport } from '../../packages/web/src/mtg/archidekt-export';
+import * as archidektBridge from '../../packages/web/src/deck-review/archidekt-bridge';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
@@ -367,3 +370,367 @@ describe('DeckReviewApp suggestion panel', () => {
     });
   });
 });
+
+describe('DeckReviewStatusCard panes', () => {
+  const emptyProgress = { decisions: {}, currentDeckId: null, currentSuggestionIndex: {} };
+  const suggestion = {
+    suggestion_id: 's1',
+    card: { name: 'New Card', set_code: 'MSH', collector_number: '1' },
+    replaces: [{ name: 'Old Card', set_code: 'CMM', collector_number: '2' }],
+    action: 'replace',
+  };
+
+  function deck(overrides: Record<string, unknown> = {}) {
+    return {
+      deck_id: 'd1',
+      deck_name: 'Test Deck',
+      archidekt_url: 'https://archidekt.com/decks/1',
+      suggestions: [suggestion],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    sessionStorage.setItem('dr-status-expanded', '0');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('shows skipped counts and empty-suggestion decisions', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    render(
+      <DeckReviewStatusCard
+        deck={deck({ suggestions: [] })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="decisions"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/No suggestions for this deck/i)).toBeInTheDocument();
+    expect(screen.getByText(/0 pending/i)).toBeInTheDocument();
+  });
+
+  it('renders decision recap thumbs and skipped status', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    const accepted = {
+      ...suggestion,
+      suggestion_id: 's-acc',
+      card: { name: 'In Card', scryfall_id: 'abc-123' },
+      replaces: [{ name: 'Out Card', scryfall_id: 'def-456' }],
+    };
+    const skipped = { ...suggestion, suggestion_id: 's-skip', card: { name: 'Skip Me' }, replaces: [] };
+    const rejected = { ...suggestion, suggestion_id: 's-rej', card: { name: 'Reject Me' }, replaces: [{ name: 'Cut' }] };
+    const named = {
+      ...suggestion,
+      suggestion_id: 's-name',
+      card: { name: 'Named Only' },
+      replaces: [{ name: 'Cut Me' }],
+    };
+    render(
+      <DeckReviewStatusCard
+        deck={deck({ suggestions: [accepted, skipped, named, rejected] })}
+        progress={{
+          decisions: {
+            's-acc': {
+              status: 'accepted',
+              accepted: {
+                card_in: { name: 'In Card', scryfall_id: 'abc-123' },
+                card_out: { name: 'Out Card', set_code: 'CMM', collector_number: '1' },
+              },
+            },
+            's-skip': { status: 'skipped' },
+            's-rej': { status: 'rejected' },
+          },
+          currentDeckId: null,
+          currentSuggestionIndex: {},
+        }}
+        deckPrefs={{}}
+        statusCardTab="decisions"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/1 skipped/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 rejected/i)).toBeInTheDocument();
+    expect(screen.getByText('In Card')).toBeInTheDocument();
+    expect(screen.getByText(/pick cut/i)).toBeInTheDocument();
+  });
+
+  it('queue pane explains missing snapshots for suggest vs upload', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    const { rerender } = render(
+      <DeckReviewStatusCard
+        deck={deck({ deck_snapshot: undefined, archidekt_url: '' })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="deck-suggest"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Snapshot missing from Deck Suggest handoff/i)).toBeInTheDocument();
+
+    rerender(
+      <DeckReviewStatusCard
+        deck={deck({ deck_snapshot: undefined })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/No Archidekt snapshot/i)).toBeInTheDocument();
+  });
+
+  it('queue pane shows uncovered names, flags, and refresh when bridged', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    vi.mocked(archidektBridge.bridgeAvailable).mockReturnValue(true);
+    const onRefreshDeck = vi.fn();
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: {
+            fetched_at: '2026-06-22',
+            cards: [
+              { name: 'Queued In', primary_category: 'Queued In', categories: ['Queued In'] },
+              { name: 'Solo Out', primary_category: 'Queued Out', categories: ['Queued Out'] },
+              { name: 'Flag Card', primary_category: 'Ramp', categories: ['Ramp', 'Queued In'] },
+            ],
+          },
+        })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="deck-suggest"
+        onTabChange={vi.fn()}
+        onRefreshDeck={onRefreshDeck}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/From Deck Suggest/i)).toBeInTheDocument();
+    expect(screen.getByText(/No suggestion yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/Flag Card \(primary: Ramp\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(onRefreshDeck).toHaveBeenCalled();
+  });
+
+  it('queue pane reports no swap queue when snapshot cards are missing', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: { fetched_at: '2026-06-22' },
+        })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/No swap queue on this deck/i)).toBeInTheDocument();
+  });
+
+  it('queue pane shows the bridge install hint when a queue exists without the userscript', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    vi.mocked(archidektBridge.bridgeAvailable).mockReturnValue(false);
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: {
+            fetched_at: '2026-06-22',
+            cards: [
+              { name: 'Queued In', primary_category: 'Queued In', categories: ['Queued In'] },
+            ],
+          },
+        })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/From Archidekt/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Archidekt Deck Review Bridge/i })).toBeInTheDocument();
+  });
+
+  it('queue pane shows empty in/out placeholders', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: { fetched_at: '2026-06-22', cards: [] },
+        })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="queue"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText('empty').length).toBeGreaterThan(0);
+  });
+
+  it('update pane copies import text and reports bridge apply errors', async () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
+      complete: true,
+      reviewed: 1,
+      total: 1,
+    } as never);
+    vi.spyOn(ArchidektExport, 'buildFullDeckImport').mockReturnValue('1 Sol Ring');
+    vi.spyOn(ArchidektExport, 'copyText').mockResolvedValue(undefined as never);
+    vi.mocked(archidektBridge.bridgeApplyAvailable).mockReturnValue(true);
+    vi.spyOn(archidektBridge, 'stageDeckApply').mockReturnValue({ error: 'staged fail' });
+    const onApplyStaged = vi.fn();
+    const onError = vi.fn();
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
+        })}
+        progress={{
+          decisions: { s1: { status: 'accepted' } },
+          currentDeckId: null,
+          currentSuggestionIndex: {},
+        }}
+        deckPrefs={{}}
+        statusCardTab="update"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={onApplyStaged}
+        onError={onError}
+      />,
+    );
+    expect(screen.getByText(/Ready to update Archidekt/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Copy full deck import/i }));
+    await waitFor(() => expect(onApplyStaged).toHaveBeenCalledWith('Copied to clipboard.'));
+    fireEvent.click(screen.getByRole('button', { name: /Apply via bridge/i }));
+    expect(onError).toHaveBeenCalledWith('staged fail');
+
+    vi.spyOn(archidektBridge, 'stageDeckApply').mockReturnValue({ deckId: 1, url: 'https://archidekt.com' });
+    const openSpy = vi.fn();
+    vi.stubGlobal('open', openSpy);
+    fireEvent.click(screen.getByRole('button', { name: /Apply via bridge/i }));
+    expect(openSpy).toHaveBeenCalled();
+    expect(onApplyStaged).toHaveBeenCalledWith(expect.stringMatching(/Staged/));
+    vi.unstubAllGlobals();
+  });
+
+  it('update pane gates on missing snapshot and incomplete review', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    const { rerender } = render(
+      <DeckReviewStatusCard
+        deck={deck({ deck_snapshot: undefined })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="update"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Refresh or enrich deck snapshot/i)).toBeInTheDocument();
+
+    rerender(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
+        })}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="update"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Review all suggestions first/i)).toBeInTheDocument();
+  });
+
+  it('collapses from the summary and opens the queue from the collapsed bar', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    const onTabChange = vi.fn();
+    render(
+      <DeckReviewStatusCard
+        deck={deck()}
+        progress={emptyProgress}
+        deckPrefs={{}}
+        statusCardTab="decisions"
+        transferSource="upload"
+        onTabChange={onTabChange}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Collapse/i }));
+    expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Open queue/i }));
+    expect(onTabChange).toHaveBeenCalledWith('queue');
+  });
+
+  it('update pane reports nothing to export when import text is blank', () => {
+    sessionStorage.setItem('dr-status-expanded', '1');
+    vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
+      complete: true,
+      reviewed: 1,
+      total: 1,
+    } as never);
+    vi.spyOn(ArchidektExport, 'buildFullDeckImport').mockReturnValue('   ');
+    render(
+      <DeckReviewStatusCard
+        deck={deck({
+          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
+        })}
+        progress={{
+          decisions: { s1: { status: 'accepted' } },
+          currentDeckId: null,
+          currentSuggestionIndex: {},
+        }}
+        deckPrefs={{}}
+        statusCardTab="update"
+        transferSource="upload"
+        onTabChange={vi.fn()}
+        onRefreshDeck={vi.fn()}
+        onApplyStaged={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Nothing to export for this deck/i)).toBeInTheDocument();
+  });
+});
+

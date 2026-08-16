@@ -41,11 +41,16 @@ import {
 } from '../../../packages/web/src/deck-review/pickers.ts';
 import {
   addRuntimePreference as addPref,
+  canConnectProfilesFolder,
+  canWriteProfiles,
+  checkProfilesConnected,
   getDeckPreferences,
   isSuggestionFiltered,
+  neverSuggestAgain,
   prefCountsLabel,
   selectedInCardName,
 } from '../../../packages/web/src/deck-review/profiles.ts';
+import { ProfileSync } from '../../../packages/web/src/mtg/profile-sync.ts';
 import {
   allVisibleSuggestions,
   applyLoadedSuggestions,
@@ -76,6 +81,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   resetHubModules();
 });
 
@@ -199,6 +205,8 @@ describe('deck-review data helpers', () => {
     expect(hasSuggestedCut({ replaces: [{ name: 'Bolt' }] })).toBe(true);
     expect(needsSuggestedCut({ action: 'sideboard', replaces: [] })).toBe(false);
     expect(isMissingSuggestedCut({ action: 'replace', replaces: [] })).toBe(true);
+    expect(isMissingSuggestedCut({ action: 'replace', replaces: [{ name: 'X' }] })).toBe(false);
+    expect(isMissingSuggestedCut({ action: 'sideboard', replaces: [] })).toBe(false);
     expect(optionLabel({ name: 'Bolt' })).toBe('Bolt');
     expect(printingLabel({ name: 'Bolt', set: 'MH2', collector_number: '1' })).toContain('MH2 #1');
     expect(printOptionLines({ name: 'Bolt' })).toEqual([' #']);
@@ -253,13 +261,21 @@ describe('deck-review data helpers', () => {
 });
 
 describe('deck-review decisions', () => {
-  it('decisionStatusClass and decisionStatusText cover all statuses', () => {
+  it('decisionStatusClass, decisionStatusText, and decisionStatusLabel cover all statuses', () => {
     expect(decisionStatusClass('accepted')).toContain('accepted');
     expect(decisionStatusClass('rejected')).toContain('rejected');
     expect(decisionStatusClass('skipped')).toContain('skipped');
     expect(decisionStatusClass('pending')).toBe('');
+    expect(decisionStatusText('accepted')).toBe('Accepted');
     expect(decisionStatusText('rejected')).toBe('Rejected');
+    expect(decisionStatusText('skipped')).toBe('Skipped');
+    expect(decisionStatusText('pending')).toBe('Pending');
     expect(decisionStatusText('unknown')).toBe('');
+    expect(decisionStatusLabel('accepted')).toContain('Accepted');
+    expect(decisionStatusLabel('rejected')).toContain('Rejected');
+    expect(decisionStatusLabel('skipped')).toContain('Skipped');
+    expect(decisionStatusLabel('pending')).toContain('Pending');
+    expect(decisionStatusLabel('')).toBe('');
   });
 
   it('decisionStatusLabel and decisionRecapInOut cover accepted and pending paths', () => {
@@ -463,6 +479,32 @@ describe('deck-review profiles', () => {
     const again = addPref(next, 'd1', 'blocked_cards', 'Sol Ring');
     expect(again.d1.blocked_cards).toEqual(['Sol Ring']);
     expect(addPref({}, 'd1', 'blocked_cards', '')).toEqual({});
+    expect(
+      addPref({ d1: { blocked_cards: null as never, protected_cards: [] } }, 'd1', 'blocked_cards', 'Bolt').d1
+        .blocked_cards,
+    ).toEqual(['Bolt']);
+  });
+
+  it('getDeckPreferences merges profile and runtime lists', () => {
+    const prefs = getDeckPreferences(
+      {
+        deck_id: 'd1',
+        profile_preferences: { blocked_cards: ['Blocked Card'], protected_cards: ['Sol Ring'] },
+      },
+      {},
+    );
+    expect(prefs.blocked_cards).toContain('Blocked Card');
+    expect(prefs.protected_cards).toContain('Sol Ring');
+    expect(getDeckPreferences({ deck_id: 'd2' }, {}).blocked_cards).toEqual([]);
+    expect(
+      getDeckPreferences(
+        {
+          deck_id: 'd3',
+          profile_preferences: { blocked_cards: ['', 'A', 'A'], protected_cards: undefined },
+        },
+        { d3: { blocked_cards: ['A', 'B'], protected_cards: [] } },
+      ).blocked_cards,
+    ).toEqual(['A', 'B']);
   });
 
   it('isSuggestionFiltered blocks protected cuts', () => {
@@ -472,12 +514,79 @@ describe('deck-review profiles', () => {
         protected_cards: ['Sacred Foundry'],
       }),
     ).toBe(true);
+    expect(isSuggestionFiltered(null as never, { blocked_cards: [], protected_cards: [] })).toBe(false);
+    expect(isSuggestionFiltered({ card: { name: 'X' }, replaces: [] }, null as never)).toBe(false);
+    expect(
+      isSuggestionFiltered({ card: { name: 'X' }, replaces: [] }, {
+        blocked_cards: null as never,
+        protected_cards: null as never,
+      }),
+    ).toBe(false);
+    expect(
+      isSuggestionFiltered({ card: {}, replaces: [{ name: '' }] } as never, {
+        blocked_cards: ['X'],
+        protected_cards: ['Y'],
+      }),
+    ).toBe(false);
   });
 
   it('selectedInCardName prefers print name', () => {
     expect(selectedInCardName({ card: { name: 'Bolt' } } as never, 'p1', [{ id: 'p1', name: 'Lightning Bolt' }])).toBe(
       'Lightning Bolt',
     );
+    expect(selectedInCardName({ card: { name: 'Bolt' } } as never, 'missing', [{ id: 'p1' }])).toBe('Bolt');
+  });
+
+  it('neverSuggestAgain writes blocked/protected lists and reports errors', async () => {
+    const deck = { deck_id: 'd1' };
+    const suggestion = { card: { name: 'New' }, replaces: [{ name: 'Old' }] };
+    vi.spyOn(ProfileSync, 'canWriteProfiles').mockReturnValue(false);
+    await expect(neverSuggestAgain(deck, suggestion as never, 'in', 'New', 'Old')).resolves.toMatchObject({
+      ok: false,
+    });
+
+    vi.spyOn(ProfileSync, 'canWriteProfiles').mockReturnValue(true);
+    await expect(neverSuggestAgain(deck, suggestion as never, 'in', '', 'Old')).resolves.toMatchObject({
+      ok: false,
+      error: 'Select a card first.',
+    });
+    await expect(neverSuggestAgain(deck, suggestion as never, 'out', 'New', '')).resolves.toMatchObject({
+      ok: false,
+    });
+
+    vi.spyOn(ProfileSync, 'appendToProfileList').mockResolvedValue({ changed: true } as never);
+    await expect(neverSuggestAgain(deck, suggestion as never, 'in', 'New', 'Old')).resolves.toEqual({
+      ok: true,
+      cardName: 'New',
+      field: 'blocked_cards',
+      changed: true,
+    });
+    await expect(neverSuggestAgain(deck, suggestion as never, 'out', 'New', 'Old')).resolves.toMatchObject({
+      field: 'protected_cards',
+      cardName: 'Old',
+    });
+
+    vi.spyOn(ProfileSync, 'appendToProfileList').mockRejectedValue(new Error('nope'));
+    await expect(neverSuggestAgain(deck, suggestion as never, 'in', 'New', 'Old')).resolves.toEqual({
+      ok: false,
+      error: 'nope',
+    });
+    vi.spyOn(ProfileSync, 'appendToProfileList').mockRejectedValue('boom');
+    await expect(neverSuggestAgain(deck, suggestion as never, 'in', 'New', 'Old')).resolves.toEqual({
+      ok: false,
+      error: 'boom',
+    });
+  });
+
+  it('checkProfilesConnected and write guards delegate to ProfileSync', async () => {
+    expect(typeof canWriteProfiles()).toBe('boolean');
+    expect(typeof canConnectProfilesFolder()).toBe('boolean');
+    vi.stubGlobal('indexedDB', {});
+    vi.spyOn(ProfileSync, 'isConnected').mockResolvedValue(true);
+    await expect(checkProfilesConnected()).resolves.toBe(true);
+    vi.stubGlobal('indexedDB', undefined);
+    await expect(checkProfilesConnected()).resolves.toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('prefCountsLabel summarizes merged preferences', () => {

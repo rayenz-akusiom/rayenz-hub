@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DeckDocumentSchema,
   deckOwnership,
+  filterLibraryByFormat,
   isTheoryDeck,
   partitionLibraryByOwnership,
   toDeckSummary,
@@ -56,5 +57,45 @@ describe('deck ownership', () => {
     const { owned, theory } = partitionLibraryByOwnership(summaries);
     expect(owned.map((d) => d.deckId)).toEqual(['o1', 'o2']);
     expect(theory.map((d) => d.deckId)).toEqual(['t1']);
+  });
+
+  it('filterLibraryByFormat keeps only the requested format', () => {
+    const summaries: DeckSummary[] = [
+      {
+        deckId: 'c1',
+        name: 'Commander A',
+        format: 'commander',
+        ownership: 'owned',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
+      {
+        deckId: 'u1',
+        name: 'Cube A',
+        format: 'cube',
+        ownership: 'owned',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
+      {
+        deckId: 'o1',
+        name: 'Other',
+        format: 'other',
+        ownership: 'owned',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
+      {
+        deckId: 'c2',
+        name: 'Commander B',
+        format: 'commander',
+        ownership: 'owned',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
+    ];
+    expect(filterLibraryByFormat(summaries, 'commander').map((d) => d.deckId)).toEqual(['c1', 'c2']);
+    expect(filterLibraryByFormat(summaries, 'cube').map((d) => d.name)).toEqual(['Cube A']);
+    expect(filterLibraryByFormat([summaries[2]!], 'commander')).toEqual([]);
   });
 });

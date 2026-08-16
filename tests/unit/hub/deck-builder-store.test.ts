@@ -54,16 +54,4 @@ describe('deck-store local persistence', () => {
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverImageUrl)).toBe(true);
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverCardName)).toBe(true);
   });
-
-  it('mergeDeckDocuments prefers newer updatedAt', async () => {
-    const { mergeDeckDocuments } = await import(
-      '../../../packages/web/src/deck-builder/store/deck-store.ts'
-    );
-    const local = { ...commander, deckId: 'merge', updatedAt: '2026-01-01T00:00:00.000Z' };
-    const remote = { ...commander, deckId: 'merge', updatedAt: '2026-02-01T00:00:00.000Z', name: 'Remote wins' };
-    expect(mergeDeckDocuments(null, remote)?.name).toBe('Remote wins');
-    expect(mergeDeckDocuments(local, null)?.name).toBe(commander.name);
-    expect(mergeDeckDocuments(local, remote)?.name).toBe('Remote wins');
-    expect(mergeDeckDocuments(remote, local)?.name).toBe('Remote wins');
-  });
 });

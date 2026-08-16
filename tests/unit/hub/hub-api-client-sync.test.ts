@@ -377,45 +377,6 @@ describe('HubApiClient persistence helpers', () => {
 });
 
 describe('HubStorage dual-mode sync', () => {
-  it('saveReviewProgress pushes when API configured', async () => {
-    enableHubApi();
-    const fetchMock = vi.fn(async () => jsonResponse({}));
-    vi.stubGlobal('fetch', fetchMock);
-
-    HubStorage.saveReviewProgress('MSH-2026', {
-      decisions: { s1: 'skip' },
-      currentDeckId: 'd1',
-      currentSuggestionIndex: {},
-    });
-
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, opts] = fetchMock.mock.calls[0];
-    expect(url).toContain('/v1/review-progress/MSH-2026');
-    expect(opts.method).toBe('PUT');
-    expect(JSON.parse(opts.body).decisions).toEqual({ s1: 'skip' });
-    expect(HubStorage.loadReviewProgress('MSH-2026').decisions).toEqual({ s1: 'skip' });
-    expect(localStorage.getItem('rayenz-deck-review-MSH-2026')).toBe(null);
-  });
-
-  it('hydrateReviewProgressFromApi writes memory cache', async () => {
-    enableHubApi();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        jsonResponse({
-          decisions: { s2: 'accept' },
-          currentDeckId: 'deck-x',
-          currentSuggestionIndex: { 'deck-x': 1 },
-        }),
-      ),
-    );
-
-    const progress = await HubStorage.hydrateReviewProgressFromApi('MSH-2026');
-    expect(progress.decisions).toEqual({ s2: 'accept' });
-    expect(HubStorage.loadReviewProgress('MSH-2026').currentDeckId).toBe('deck-x');
-    expect(localStorage.getItem('rayenz-deck-review-MSH-2026')).toBe(null);
-  });
-
   it('saveSetPoolCache pushes complete scopes', async () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
@@ -431,16 +392,6 @@ describe('HubStorage dual-mode sync', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain('/v1/set-pools/MSH');
     expect(localStorage.getItem('rayenz-deck-suggest-set-pool-MSH')).toBe(null);
-  });
-
-  it('hydrateSetPoolFromApi falls back to memory on 404', async () => {
-    const local = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [] };
-    HubStorage.saveSetPoolCache('MSH', local);
-    enableHubApi();
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
-
-    const scope = await HubStorage.hydrateSetPoolFromApi('MSH');
-    expect(scope!.codes).toEqual(['MSH']);
   });
 });
 

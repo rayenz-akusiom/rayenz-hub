@@ -1,8 +1,6 @@
-import { readFileSync } from 'fs';
-import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HubUtils } from '../../../packages/web/src/lib/hub-utils.ts';
-import { REPO_ROOT, resetHubModules } from '../helpers/hubHarness.ts';
+import { resetHubModules } from '../helpers/hubHarness.ts';
 
 beforeEach(() => {
   document.head.innerHTML = '';
@@ -13,25 +11,13 @@ afterEach(() => {
   resetHubModules();
 });
 
-describe('HubUtils.escapeHtml', () => {
-  it('escapes HTML-significant characters', () => {
-    expect(HubUtils.escapeHtml('<a href="x">Tom & Jerry</a>')).toBe(
-      '&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;',
-    );
-  });
-
-  it('coerces nullish input to an empty string', () => {
-    expect(HubUtils.escapeHtml(null)).toBe('');
-    expect(HubUtils.escapeHtml(undefined)).toBe('');
-  });
-});
-
 describe('HubUtils scryfall image builders', () => {
   it('builds a CDN image url from a scryfall id', () => {
     expect(HubUtils.scryfallImageFromId('abc-123')).toBe(
       'https://cards.scryfall.io/normal/front/a/b/abc-123.jpg',
     );
     expect(HubUtils.scryfallImageFromId('')).toBe('');
+    expect(HubUtils.scryfallImageFromId('a')).toBe('');
   });
 
   it('builds an image url from a set + collector number', () => {
@@ -99,6 +85,27 @@ describe('HubUtils.ensureCss', () => {
   });
 });
 
+describe('HubUtils.isLocalHub', () => {
+  it('returns false when location access throws', () => {
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      get() {
+        throw new Error('no location');
+      },
+    });
+    expect(HubUtils.isLocalHub()).toBe(false);
+    Object.defineProperty(window, 'location', { configurable: true, value: original });
+  });
+
+  it('returns true for 127.0.0.1', () => {
+    const original = window.location.hostname;
+    Object.defineProperty(window.location, 'hostname', { value: '127.0.0.1', configurable: true });
+    expect(HubUtils.isLocalHub()).toBe(true);
+    Object.defineProperty(window.location, 'hostname', { value: original, configurable: true });
+  });
+});
+
 describe('HubUtils.mountAppProgress', () => {
   it('returns null when host is missing', () => {
     expect(HubUtils.mountAppProgress(null)).toBeNull();
@@ -115,6 +122,10 @@ describe('HubUtils.mountAppProgress', () => {
 describe('HubUtils.resolveHubUrl', () => {
   it('resolves paths against hub document root', () => {
     expect(HubUtils.resolveHubUrl('apps/foo/foo.css')).toMatch(/apps\/foo\/foo\.css$/);
+  });
+
+  it('returns the input path when URL construction fails', () => {
+    expect(HubUtils.resolveHubUrl('http://[')).toBe('http://[');
   });
 });
 
@@ -175,24 +186,5 @@ describe('HubUtils.handoffSnapshotSummary', () => {
       missingSnapshots: 0,
       allReady: false,
     });
-  });
-});
-
-describe('hub apps no longer redefine shared helpers', () => {
-  it('OrderReconcileApp delegates to shared lib helpers', () => {
-    const src = readFileSync(
-      path.join(REPO_ROOT, 'packages/web/src/order-reconcile/OrderReconcileApp.tsx'),
-      'utf8',
-    );
-    expect(src).not.toMatch(/function escapeHtml\b/);
-    expect(src).not.toMatch(/function scryfallImageFromId\b/);
-    expect(src).toMatch(/from '\.\.\/lib\/hub-progress'/);
-  });
-
-  it('DeckReviewApp delegates to shared lib helpers', () => {
-    const src = readFileSync(path.join(REPO_ROOT, 'packages/web/src/deck-review/DeckReviewApp.tsx'), 'utf8');
-    expect(src).not.toMatch(/function escapeHtml\b/);
-    expect(src).not.toMatch(/function scryfallImageFromId\b/);
-    expect(src).toMatch(/from '\.\.\/lib\/hub-progress'/);
   });
 });

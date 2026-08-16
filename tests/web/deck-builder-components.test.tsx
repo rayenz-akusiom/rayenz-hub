@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { moveCardCategory, syncCardsWithFormalSwaps } from '@rayenz-hub/shared';
@@ -7,11 +7,26 @@ import { LibraryView } from '../../packages/web/src/deck-builder/library/Library
 import { FormatBadge } from '../../packages/web/src/deck-builder/ui/FormatBadge';
 import { DbMenu, DbMenuItem } from '../../packages/web/src/deck-builder/ui/DbMenu';
 import { ExportBar } from '../../packages/web/src/deck-builder/import-export/ExportBar';
+import {
+  SetFilterMenu,
+  SetFilterMenuControl,
+  useSetMembershipFilter,
+} from '../../packages/web/src/deck-builder/ui/SetFilterControl';
 import { MoveSheet } from '../../packages/web/src/deck-builder/edit/MoveSheet';
 import { SwapQueuePanel } from '../../packages/web/src/deck-builder/swaps/SwapQueuePanel';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
 import { CategoryBrowse } from '../../packages/web/src/deck-builder/browse/CategoryBrowse';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
+
+const mockFetchInSetMembership = vi.hoisted(() => vi.fn());
+
+vi.mock('@rayenz-hub/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@rayenz-hub/shared')>();
+  return {
+    ...actual,
+    fetchInSetMembership: (...args: unknown[]) => mockFetchInSetMembership(...args),
+  };
+});
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
   useScryfallEnrich: () => ({ enriching: false }),
@@ -36,6 +51,7 @@ const noop = () => {};
 afterEach(() => {
   cleanup();
   localStorage.removeItem('rayenzHubPickerCardSize');
+  mockFetchInSetMembership.mockReset();
 });
 
 describe('FormatBadge', () => {
@@ -258,6 +274,212 @@ describe('ExportBar', () => {
   });
 });
 
+describe('SetFilterMenuControl', () => {
+  it('applies on Enter, shows exclude/error/loading, and clears', async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    const onClear = vi.fn();
+    const onChange = vi.fn();
+    const onExcludeChange = vi.fn();
+    const { rerender } = render(
+      <SetFilterMenuControl
+        value="mh3"
+        onChange={onChange}
+        onApply={onApply}
+        onClear={onClear}
+        loading
+        error="nope"
+        showExclude
+        excludeValue="lea"
+        onExcludeChange={onExcludeChange}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Loading…' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('nope');
+
+    rerender(
+      <SetFilterMenuControl
+        value="mh3"
+        onChange={onChange}
+        onApply={onApply}
+        onClear={onClear}
+        showExclude
+        excludeValue="lea"
+        onExcludeChange={onExcludeChange}
+      />,
+    );
+    await user.type(screen.getByLabelText('Include set codes'), 'x{Enter}');
+    expect(onChange).toHaveBeenCalled();
+    expect(onApply).toHaveBeenCalled();
+    await user.type(screen.getByLabelText('Exclude set codes'), '{Enter}');
+    expect(onApply).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(onClear).toHaveBeenCalled();
+  });
+
+  it('uses set-code labels when exclude is hidden', async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    render(
+      <SetFilterMenuControl
+        value=""
+        onChange={vi.fn()}
+        onApply={onApply}
+        onClear={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText('Set codes')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Set codes'), '{Enter}');
+    expect(onApply).toHaveBeenCalled();
+  });
+
+  it('wires SetFilterMenu aria from applied include/exclude codes', async () => {
+    const user = userEvent.setup();
+    render(
+      <SetFilterMenu
+        showExclude
+        filter={{
+          setCodesInput: 'mh3',
+          setSetCodesInput: vi.fn(),
+          appliedCodes: ['MH3'],
+          membership: new Set(['ponder']),
+          excludeCodesInput: 'lea',
+          setExcludeCodesInput: vi.fn(),
+          appliedExcludeCodes: ['LEA'],
+          excludeMembership: new Set(['black lotus']),
+          loading: false,
+          error: '',
+          apply: vi.fn(),
+          clear: vi.fn(),
+          label: 'MH3 −LEA',
+          active: true,
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Set filter: MH3; exclude LEA/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Set filter/i }));
+    expect(screen.getByLabelText('Include set codes')).toBeInTheDocument();
+  });
+
+  it('shows loading value and a bare Set filter aria label', () => {
+    render(
+      <SetFilterMenu
+        filter={{
+          setCodesInput: '',
+          setSetCodesInput: vi.fn(),
+          appliedCodes: [],
+          membership: null,
+          excludeCodesInput: '',
+          setExcludeCodesInput: vi.fn(),
+          appliedExcludeCodes: [],
+          excludeMembership: null,
+          loading: true,
+          error: '',
+          apply: vi.fn(),
+          clear: vi.fn(),
+          label: 'All',
+          active: false,
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Set filter' })).toHaveTextContent('…');
+  });
+});
+
+function SetFilterProbe() {
+  const filter = useSetMembershipFilter();
+  return (
+    <div>
+      <button type="button" onClick={() => void filter.apply('')}>
+        empty-apply
+      </button>
+      <button type="button" onClick={() => void filter.apply('mh3')}>
+        include-apply
+      </button>
+      <button type="button" onClick={() => void filter.apply(undefined, 'lea')}>
+        exclude-apply
+      </button>
+      <button type="button" onClick={() => void filter.apply('mh3', 'lea')}>
+        both-apply
+      </button>
+      <button type="button" onClick={filter.clear}>
+        clear-filter
+      </button>
+      <span data-testid="set-label">{filter.label}</span>
+      <span data-testid="set-error">{filter.error}</span>
+      <span data-testid="set-active">{String(filter.active)}</span>
+    </div>
+  );
+}
+
+describe('useSetMembershipFilter', () => {
+  it('clears on empty apply, loads include sets, and reports fetch errors', async () => {
+    const user = userEvent.setup();
+    mockFetchInSetMembership.mockResolvedValueOnce(new Set(['ponder']));
+    render(<SetFilterProbe />);
+    await user.click(screen.getByRole('button', { name: 'empty-apply' }));
+    expect(screen.getByTestId('set-label')).toHaveTextContent('All');
+
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-label')).toHaveTextContent('MH3'));
+    expect(screen.getByTestId('set-active')).toHaveTextContent('true');
+
+    mockFetchInSetMembership.mockRejectedValueOnce(new Error('scryfall down'));
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-error')).toHaveTextContent('scryfall down'));
+
+    mockFetchInSetMembership.mockRejectedValueOnce('nope');
+    await user.click(screen.getByRole('button', { name: 'exclude-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-error')).toHaveTextContent('nope'));
+
+    await user.click(screen.getByRole('button', { name: 'clear-filter' }));
+    expect(screen.getByTestId('set-label')).toHaveTextContent('All');
+    expect(screen.getByTestId('set-active')).toHaveTextContent('false');
+
+    mockFetchInSetMembership.mockResolvedValueOnce(new Set(['black lotus']));
+    await user.click(screen.getByRole('button', { name: 'exclude-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-label')).toHaveTextContent('−LEA'));
+
+    mockFetchInSetMembership.mockResolvedValue(new Set(['ponder']));
+    await user.click(screen.getByRole('button', { name: 'both-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-label')).toHaveTextContent('MH3 −LEA'));
+  });
+
+  it('ignores stale membership responses', async () => {
+    const user = userEvent.setup();
+    let resolveFirst: ((value: Set<string>) => void) | undefined;
+    mockFetchInSetMembership
+      .mockImplementationOnce(() => new Promise<Set<string>>((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValueOnce(new Set(['second']));
+    render(<SetFilterProbe />);
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-label')).toHaveTextContent('MH3'));
+    resolveFirst?.(new Set(['first']));
+    await Promise.resolve();
+    expect(screen.getByTestId('set-label')).toHaveTextContent('MH3');
+  });
+
+  it('ignores stale membership errors', async () => {
+    const user = userEvent.setup();
+    let rejectFirst: ((reason: Error) => void) | undefined;
+    mockFetchInSetMembership
+      .mockImplementationOnce(() => new Promise<Set<string>>((_, reject) => {
+        rejectFirst = reject;
+      }))
+      .mockRejectedValueOnce(new Error('second'));
+    render(<SetFilterProbe />);
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await user.click(screen.getByRole('button', { name: 'include-apply' }));
+    await waitFor(() => expect(screen.getByTestId('set-error')).toHaveTextContent('second'));
+    rejectFirst?.(new Error('first'));
+    await Promise.resolve();
+    expect(screen.getByTestId('set-error')).toHaveTextContent('second');
+  });
+});
+
 describe('BrowseShell selection and context menu', () => {
   function foilDeck(): DeckDocument {
     const card = {
@@ -314,7 +536,7 @@ describe('BrowseShell selection and context menu', () => {
     await user.click(tile);
 
     expect(screen.queryByText(card.name, { selector: '.db-selection-bar span' })).not.toBeInTheDocument();
-    const foilBtn = screen.getByRole('button', { name: /Not foil|Foil/i });
+    const foilBtn = screen.getByRole('button', { name: /^(Not foil|Foil)$/i });
     expect(foilBtn).toBeEnabled();
     await user.click(foilBtn);
     expect(onChange).toHaveBeenCalledWith(
@@ -343,7 +565,7 @@ describe('BrowseShell selection and context menu', () => {
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
 
     await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
-    await user.click(screen.getByRole('button', { name: /Not proxy|Proxy/i }));
+    await user.click(screen.getByRole('button', { name: /^(Not proxy|Proxy)$/i }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         cards: expect.arrayContaining([
@@ -351,6 +573,73 @@ describe('BrowseShell selection and context menu', () => {
         ]),
       }),
     );
+  });
+
+  it('hides proxied cards when the Proxy filter is Hide', async () => {
+    const user = userEvent.setup();
+    const deck = foilDeck();
+    const proxied = {
+      ...deck.cards[0]!,
+      instanceId: 'proxy-card',
+      name: 'Proxy Bird',
+      proxy: true,
+      foil: false,
+    };
+    const normal = { ...deck.cards[1]!, proxy: false, foil: false };
+    render(
+      <BrowseShell
+        deck={{ ...deck, cards: [proxied, normal] }}
+        onChange={noop}
+        onBack={noop}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Proxy Bird/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Proxy filter' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    expect(screen.queryByRole('button', { name: /Proxy Bird/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Proxy filter' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Only' }));
+    expect(screen.getByRole('button', { name: /Proxy Bird/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${normal.name}$`, 'i') })).not.toBeInTheDocument();
+  });
+
+  it('hides foiled cards when the Foil filter is Hide', async () => {
+    const user = userEvent.setup();
+    const deck = foilDeck();
+    const foiled = {
+      ...deck.cards[0]!,
+      instanceId: 'foil-card',
+      name: 'Foil Bird',
+      proxy: false,
+      foil: true,
+    };
+    const normal = { ...deck.cards[1]!, proxy: false, foil: false };
+    render(
+      <BrowseShell
+        deck={{ ...deck, cards: [foiled, normal] }}
+        onChange={noop}
+        onBack={noop}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    expect(screen.queryByRole('button', { name: /Foil Bird/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Only' }));
+    expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${normal.name}$`, 'i') })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
+    await user.click(screen.getByRole('menuitem', { name: 'All' }));
+    expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
   });
 
   it('adds the selected card to the swap queue from the context menu', async () => {

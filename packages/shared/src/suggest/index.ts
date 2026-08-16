@@ -70,6 +70,24 @@ function compareColourIdentity(a: string[] | undefined, b: string[] | undefined)
   return 0;
 }
 
+/** Soft-cap ranking: tier → confidence → id (no colour — CI must not bias who survives). */
+export function rankSuggestionsForCap(suggestions: Suggestion[]): Suggestion[] {
+  return suggestions.slice().sort((a, b) => {
+    const tierA = a.priority_tier === 'swap' ? 0 : 1;
+    const tierB = b.priority_tier === 'swap' ? 0 : 1;
+    if (tierA !== tierB) {
+      return tierA - tierB;
+    }
+    const confA = CONFIDENCE_ORDER[a.confidence] != null ? CONFIDENCE_ORDER[a.confidence] : 9;
+    const confB = CONFIDENCE_ORDER[b.confidence] != null ? CONFIDENCE_ORDER[b.confidence] : 9;
+    if (confA !== confB) {
+      return confA - confB;
+    }
+    return String(a.suggestion_id).localeCompare(String(b.suggestion_id));
+  });
+}
+
+/** Display order: tier → colour identity (WUBRG) → confidence → id. */
 export function sortSuggestions(suggestions: Suggestion[]): Suggestion[] {
   return suggestions.slice().sort((a, b) => {
     const tierA = a.priority_tier === 'swap' ? 0 : 1;
@@ -207,7 +225,7 @@ export function runRulesForDeck(
     const raw = rule.fn(deck, setScope, profile, suggestions, taggerCtx, ruleDebug) || [];
     const added = (raw as { added?: Suggestion[] }).added != null ? (raw as { added: Suggestion[] }).added : (raw as Suggestion[]);
     const skipped = (raw as { skipped?: Array<{ name: string; reason: string }> }).skipped || [];
-    const capped = applySoftCap(added, SUGGEST_PER_RULE_SOFT_CAP, sortSuggestions);
+    const capped = applySoftCap(added, SUGGEST_PER_RULE_SOFT_CAP, rankSuggestionsForCap);
     suggestions = suggestions.concat(capped);
     audit.push({
       ruleId: rule.id,
@@ -232,7 +250,9 @@ export function runRulesForDeck(
     });
   });
 
-  suggestions = applySoftCap(suggestions, SUGGEST_PER_DECK_SOFT_CAP, sortSuggestions);
+  suggestions = sortSuggestions(
+    applySoftCap(suggestions, SUGGEST_PER_DECK_SOFT_CAP, rankSuggestionsForCap),
+  );
 
   return {
     suggestions,

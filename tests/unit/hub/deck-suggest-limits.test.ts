@@ -4,6 +4,7 @@ import {
   SUGGEST_PER_RULE_SOFT_CAP,
   applySoftCap,
   dropLowConfidence,
+  rankSuggestionsForCap,
   runRulesForDeck,
   sortSuggestions,
 } from '../../../packages/shared/src/suggest/index.ts';
@@ -41,18 +42,80 @@ describe('suggest soft caps', () => {
 
   it('applySoftCap keeps all high even above cap, then fills with medium', () => {
     const sixHigh = Array.from({ length: 6 }, (_, i) => stubSuggestion('h' + i, 'high'));
-    expect(applySoftCap(sixHigh, 5, sortSuggestions)).toHaveLength(6);
+    expect(applySoftCap(sixHigh, 5, rankSuggestionsForCap)).toHaveLength(6);
 
     const mixed = [
       ...Array.from({ length: 3 }, (_, i) => stubSuggestion('h' + i, 'high')),
       ...Array.from({ length: 8 }, (_, i) => stubSuggestion('m' + i, 'medium')),
       stubSuggestion('l0', 'low'),
     ];
-    const capped = applySoftCap(mixed, 5, sortSuggestions);
+    const capped = applySoftCap(mixed, 5, rankSuggestionsForCap);
     expect(capped.filter((s) => s.confidence === 'high')).toHaveLength(3);
     expect(capped.filter((s) => s.confidence === 'medium')).toHaveLength(2);
     expect(capped.every((s) => s.confidence !== 'low')).toBe(true);
     expect(capped).toHaveLength(5);
+  });
+
+  it('soft cap does not prefer early WUBRG over equal-confidence greens', () => {
+    const list = [
+      ...Array.from({ length: 8 }, (_, i) =>
+        stubSuggestion('g' + i, 'medium', {
+          card: { name: 'g' + i, color_identity: ['G'] },
+        }),
+      ),
+      ...Array.from({ length: 2 }, (_, i) =>
+        stubSuggestion('w' + i, 'medium', {
+          card: { name: 'w' + i, color_identity: ['W'] },
+        }),
+      ),
+    ];
+    const capped = applySoftCap(list, 5, rankSuggestionsForCap);
+    expect(capped).toHaveLength(5);
+    expect(capped.every((s) => s.card.color_identity?.[0] === 'G')).toBe(true);
+    // Display sort still puts White first when both colours survive.
+    const displayBiased = applySoftCap(list, 5, sortSuggestions);
+    expect(displayBiased.some((s) => s.card.color_identity?.[0] === 'W')).toBe(true);
+  });
+
+  it('colour-sorts after soft-cap merge for display', () => {
+    const mixed = [
+      stubSuggestion('g1', 'medium', { card: { name: 'Green', color_identity: ['G'] } }),
+      stubSuggestion('w1', 'medium', { card: { name: 'White', color_identity: ['W'] } }),
+      stubSuggestion('u1', 'medium', { card: { name: 'Blue', color_identity: ['U'] } }),
+    ];
+    const capped = applySoftCap(mixed, 10, rankSuggestionsForCap);
+    expect(capped.map((s) => s.suggestion_id)).toEqual(['g1', 'u1', 'w1']);
+    expect(sortSuggestions(capped).map((s) => s.suggestion_id)).toEqual(['w1', 'u1', 'g1']);
+  });
+
+  it('runRulesForDeck returns colour-sorted suggestions after merge', () => {
+    const deck = {
+      deck_id: 'rainbow',
+      deck_name: 'Rainbow',
+      format: 'commander',
+      profile: { format: 'commander', typal_types: ['Elf'] },
+      deck_snapshot: {
+        cards: [
+          {
+            name: 'Elf Commander',
+            primary_category: 'Commander',
+            type_line: 'Legendary Creature — Elf',
+            color_identity: ['W', 'U', 'B', 'R', 'G'],
+          },
+        ],
+      },
+    };
+    const colours = ['G', 'W', 'U', 'B', 'R'] as const;
+    const cards = colours.map((ci, i) => ({
+      name: 'Elf ' + ci,
+      set_code: 'MSH',
+      collector_number: String(i + 1),
+      type_line: 'Creature — Elf',
+      cmc: 2,
+      color_identity: [ci] as string[],
+    }));
+    const { suggestions } = runRulesForDeck(deck, { primaryCode: 'MSH', codes: ['MSH'], cards });
+    expect(suggestions.map((s) => s.card.color_identity?.[0])).toEqual(['W', 'U', 'B', 'R', 'G']);
   });
 
   it('per-rule soft cap keeps at most 5 medium typal hits', () => {

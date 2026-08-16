@@ -9,6 +9,7 @@ export default defineConfig({
    plugins: [react()],
    resolve: {
       alias: {
+         '@rayenz-hub/shared/suggest': path.resolve(rootDir, 'packages/shared/src/suggest/index.ts'),
          '@rayenz-hub/shared': path.resolve(rootDir, 'packages/shared/src/index.ts'),
       },
    },

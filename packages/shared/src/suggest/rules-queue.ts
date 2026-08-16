@@ -1,7 +1,7 @@
 import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
-import { getDeckSwapQueue } from './data';
+import { getDeckSwapQueue } from './deck-context';
 import * as G from './rule-guards';
-import { matchSetCardToRoles } from './tagger';
+import { matchSetCardToRoles } from './rules-role';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard, Suggestion, TaggerContext } from './types';
 
 function getSwapQueue(deck: DeckRecord) {

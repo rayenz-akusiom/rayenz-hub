@@ -54,6 +54,16 @@ export async function route(
     return handleSwapsGlance(headers, event.body);
   }
 
+  if (method === 'GET' && path === '/v1/suggest/releases') {
+    const { handleSuggestReleases } = await import('./handlers/suggest-releases.js');
+    return handleSuggestReleases(headers);
+  }
+
+  if (method === 'POST' && path === '/v1/suggest/generate') {
+    const { handleSuggestGenerate } = await import('./handlers/suggest-generate.js');
+    return handleSuggestGenerate(headers, event.body);
+  }
+
   const reviewMatch = /^\/v1\/review-progress\/([^/]+)$/.exec(path);
   if (reviewMatch) {
     return handleReviewProgress(method, decodeURIComponent(reviewMatch[1]), headers, event.body);

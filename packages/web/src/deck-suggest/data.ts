@@ -24,6 +24,7 @@ import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
 import { getDeck, listDecks } from '../deck-builder/store/deck-store';
+import { readLibrarySort, sortLibraryDecks } from '../deck-builder/library/library-sort';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
 const setPoolCache: Record<string, SetScope> = {};
@@ -452,7 +453,7 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
 
 /** Load commander decks from the Hub library for Deck Suggest. */
 export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
-  const summaries = await listDecks();
+  const summaries = sortLibraryDecks(await listDecks(), readLibrarySort());
   const decks: DeckRecord[] = [];
   for (const s of summaries) {
     if (s.format !== 'commander') continue;

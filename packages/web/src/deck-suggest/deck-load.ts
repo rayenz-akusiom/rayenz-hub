@@ -1,39 +1,4 @@
-import { bridgeAvailable } from '../lib/hub-utils';
-import type { DeckLoadTab, DeckRecord, DeckSelection, DeckSuggestSettings } from './types';
-export type { DeckLoadTab } from './types';
-export function normalizeDeckLoadTab(tab: string | undefined | null): DeckLoadTab {
-  if (tab === 'paste') {
-    return 'paste-urls';
-  }
-  if (
-    tab === 'hub' ||
-    tab === 'folder' ||
-    tab === 'paste-import' ||
-    tab === 'paste-urls' ||
-    tab === 'upload'
-  ) {
-    return tab;
-  }
-  return 'hub';
-}
-
-export function resolveDeckLoadTab(
-  ui: { deckLoadTab?: string | null },
-  settings: DeckSuggestSettings,
-): DeckLoadTab {
-  let tab: DeckLoadTab | null = null;
-  if (ui && ui.deckLoadTab) {
-    tab = normalizeDeckLoadTab(ui.deckLoadTab);
-  } else if (settings.deckLoadTab) {
-    tab = normalizeDeckLoadTab(settings.deckLoadTab);
-  } else {
-    tab = 'hub';
-  }
-  if (tab === 'folder' && !bridgeAvailable()) {
-    return 'hub';
-  }
-  return tab;
-}
+import type { DeckRecord, DeckSelection } from './types';
 
 export function applyDeckList(
   decks: DeckRecord[],

@@ -8,6 +8,8 @@ export * from './schemas/order-reconcile';
 export * from './schemas/entities';
 export * from './schemas/deck-builder';
 export * from './schemas/deck-patch';
+export * from './schemas/suggest-generate';
+export * from './scryfall/index';
 export * from './deck-builder/colour-identity';
 export * from './deck-builder/formal-swaps';
 export * from './deck-builder/looking-for';

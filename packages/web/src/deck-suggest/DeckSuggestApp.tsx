@@ -1,28 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
-import {
-  loadDeckSuggestSettings,
-  normalizeSetCodesKey,
-  saveDeckSuggestSettings,
-} from '../lib/hub-storage';
-import { ProfileSync } from '../mtg/profile-sync';
+import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
 import { DeckSuggestResults } from './DeckSuggestResults';
-import { DeckSuggestSetup, resolveDeckLoadTab } from './DeckSuggestSetup';
-import { tryRestoreSetPool } from './data';
+import { DeckSuggestSetup } from './DeckSuggestSetup';
+import { loadHubLibraryDecks } from './data';
+import { applyDeckList } from './deck-load';
 import { buildSummary, downloadJson, hasReviewableSuggestions } from './export';
-import { generateSuggestions, restoreSetPoolFromSettings, transferToDeckReview } from './generation';
-import { getGenerateReadiness, normalizeCodesInput, rulesDebugEnabled } from './readiness';
-import type { DeckLoadTab, DeckSelection, DeckSuggestSettings, DeckSuggestState, SetScope } from './types';
+import { generateSuggestions, transferToDeckReview } from './generation';
+import { getGenerateReadiness, rulesDebugEnabled } from './readiness';
+import { AcceptDialogue } from './AcceptDialogue';
+import {
+  buildSeekingAcceptPatch,
+  buildSwapAcceptPatch,
+  persistSuggestPatch,
+  type SessionAccept,
+} from './accept';
+import { buildSessionWishlistText } from './wishlist-export';
+import { proposePageIds, remainingIds } from './paging';
+import { getDeck } from '../deck-builder/store/deck-store';
+import { apiGetDeck } from '../deck-builder/store/deck-api';
+import { isApiConfigured } from '../api/hub-api';
+import type { DeckDocument } from '@rayenz-hub/shared';
+import type {
+  DeckSelection,
+  DeckSuggestSettings,
+  DeckSuggestState,
+  SetInputMode,
+  Suggestion,
+} from './types';
 import './deck-suggest.css';
 
 function createInitialState(): DeckSuggestState {
   const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
+  const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
   return {
     setScope: null,
     deckSelection: { folderUrl: '', decks: [], selectedIds: [] },
     profilesConnected: false,
     generationRun: null,
-    ui: { setCodesInput: settings.setCodes || '', deckLoadTab: null },
+    ui: {
+      setCodesInput: settings.setCodes || '',
+      releaseId: settings.releaseId || '',
+      setInputMode: mode,
+    },
     settings,
     statusMessage: '',
     generating: false,
@@ -32,10 +52,14 @@ function createInitialState(): DeckSuggestState {
 export function DeckSuggestApp() {
   const [state, setState] = useState<DeckSuggestState>(createInitialState);
   const [error, setError] = useState('');
-  const [deckLoadTab, setDeckLoadTab] = useState<DeckLoadTab>(() =>
-    resolveDeckLoadTab({ deckLoadTab: null }, loadDeckSuggestSettings() as DeckSuggestSettings),
+  const [decksLoading, setDecksLoading] = useState(true);
+  const [sessionAccepts, setSessionAccepts] = useState<SessionAccept[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [processedIds, setProcessedIds] = useState<string[]>([]);
+  const [accepting, setAccepting] = useState<{ deckId: string; suggestion: Suggestion } | null>(
+    null,
   );
-  const [requirementsOpen, setRequirementsOpen] = useState(true);
+  const [acceptDeck, setAcceptDeck] = useState<DeckDocument | null>(null);
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
 
@@ -47,83 +71,183 @@ export function DeckSuggestApp() {
 
   useEffect(() => {
     const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
-    const setCodesInput = settings.setCodes || '';
-    const scope = restoreSetPoolFromSettings(
-      setCodesInput,
-      tryRestoreSetPool,
-      normalizeSetCodesKey,
-      normalizeCodesInput,
-    );
+    const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
     setState((prev) => ({
       ...prev,
       settings,
-      ui: { ...prev.ui, setCodesInput },
-      setScope: scope,
+      ui: {
+        setCodesInput: settings.setCodes || '',
+        releaseId: settings.releaseId || '',
+        setInputMode: mode,
+      },
     }));
-    setDeckLoadTab(resolveDeckLoadTab({ deckLoadTab: null }, settings));
   }, []);
 
   useEffect(() => {
-    void ProfileSync.getProfilesDir().then((handle) => {
-      setState((prev) => ({ ...prev, profilesConnected: !!handle }));
-    });
+    let cancelled = false;
+    (async () => {
+      setDecksLoading(true);
+      try {
+        const loaded = await loadHubLibraryDecks();
+        if (cancelled) return;
+        setState((prev) => ({
+          ...prev,
+          deckSelection: applyDeckList(loaded, prev.deckSelection),
+        }));
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      } finally {
+        if (!cancelled) setDecksLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const readiness = useMemo(
-    () =>
-      getGenerateReadiness({
-        ...state,
-        ui: { ...state.ui, setCodesInput: state.ui.setCodesInput },
-      }),
-    [state],
-  );
-
-  const readyCount = readiness.items.filter((item) => item.ok).length;
-  const readyTotal = readiness.items.length;
+  const readiness = useMemo(() => getGenerateReadiness(state), [state]);
+  const blockedReason = readiness.ok
+    ? ''
+    : readiness.items.find((item) => !item.ok)?.label || 'Complete setup first';
   const showPostGenerate = !!state.generationRun;
 
-  useEffect(() => {
-    if (!readiness.ok) {
-      setRequirementsOpen(true);
-    }
-  }, [readiness.ok]);
+  const visibleRun = useMemo(() => {
+    if (!state.generationRun) return null;
+    const dismissed = new Set(dismissedIds);
+    return {
+      ...state.generationRun,
+      deckResults: state.generationRun.deckResults.map((r) => ({
+        ...r,
+        suggestions: (r.suggestions || []).filter((s) => !dismissed.has(s.suggestion_id)),
+      })),
+    };
+  }, [state.generationRun, dismissedIds]);
 
-  const canReview = !!state.generationRun && hasReviewableSuggestions(state);
-  const summary = state.generationRun ? buildSummary(state) : null;
+  const canReview = !!visibleRun && hasReviewableSuggestions({ ...state, generationRun: visibleRun });
+  const summary = visibleRun ? buildSummary({ ...state, generationRun: visibleRun }) : null;
   const debugEnabled = rulesDebugEnabled(state.settings);
+  const resolvedSetCodes = visibleRun?.setCodes || [];
 
   const persistSettings = useCallback((settings: DeckSuggestSettings) => {
     saveDeckSuggestSettings(settings);
     setState((prev) => ({ ...prev, settings }));
   }, []);
 
-  const onProgressStart = useCallback((opts: { label: string; indeterminate?: boolean }) => {
-    progressRef.current?.start(opts);
-  }, []);
+  const remaining = remainingIds(
+    state.deckSelection.decks.map((d) => d.deck_id),
+    processedIds,
+  );
+  const wishlistText = buildSessionWishlistText(sessionAccepts);
 
-  const onProgressUpdate = useCallback((opts: { label: string }) => {
-    progressRef.current?.update(opts);
-  }, []);
+  async function openAccept(deckId: string, suggestion: Suggestion) {
+    const doc = (await getDeck(deckId)) || (await apiGetDeck(deckId));
+    setAcceptDeck(doc);
+    setAccepting({ deckId, suggestion });
+  }
 
-  const onProgressFinish = useCallback((opts: { label: string; variant?: 'error' }) => {
-    progressRef.current?.finish(opts);
-  }, []);
+  async function saveSwap(outInstanceId: string) {
+    if (!accepting || !acceptDeck) return;
+    try {
+      const patch = buildSwapAcceptPatch(acceptDeck, accepting.suggestion, outInstanceId);
+      await persistSuggestPatch(accepting.deckId, patch);
+      setSessionAccepts((prev) => [
+        ...prev,
+        {
+          deckId: accepting.deckId,
+          cardName: accepting.suggestion.card.name,
+          quantity: 1,
+          printing: {
+            set_code: accepting.suggestion.card.set_code,
+            collector_number: accepting.suggestion.card.collector_number,
+          },
+          kind: 'queued_in',
+        },
+      ]);
+      setDismissedIds((prev) => [...prev, accepting.suggestion.suggestion_id]);
+      setAccepting(null);
+      setAcceptDeck(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function saveSeeking() {
+    if (!accepting || !acceptDeck) return;
+    try {
+      const patch = buildSeekingAcceptPatch(acceptDeck, accepting.suggestion);
+      await persistSuggestPatch(accepting.deckId, patch);
+      setSessionAccepts((prev) => [
+        ...prev,
+        {
+          deckId: accepting.deckId,
+          cardName: accepting.suggestion.card.name,
+          quantity: 1,
+          printing: {
+            set_code: accepting.suggestion.card.set_code,
+            collector_number: accepting.suggestion.card.collector_number,
+          },
+          kind: 'seeking',
+        },
+      ]);
+      setDismissedIds((prev) => [...prev, accepting.suggestion.suggestion_id]);
+      setAccepting(null);
+      setAcceptDeck(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleNextPage() {
+    const cap = state.generationRun?.cap || 20;
+    const nextIds = proposePageIds(
+      state.deckSelection.decks.map((d) => d.deck_id),
+      processedIds,
+      cap,
+    );
+    setState((prev) => ({
+      ...prev,
+      generationRun: null,
+      deckSelection: { ...prev.deckSelection, selectedIds: nextIds },
+    }));
+  }
 
   async function handleGenerate() {
-    if (!readiness.ok) {
-      return;
-    }
+    if (!readiness.ok) return;
     setError('');
     setState((prev) => ({ ...prev, generating: true }));
-    progressRef.current?.start({ label: 'Generating suggestions…' });
+    progressRef.current?.start({ label: 'Generating…' });
     try {
-      // Pass pre-flight state: generating is UI-only and must not fail the setup gate.
+      const nextSettings = {
+        ...state.settings,
+        setCodes: state.ui.setCodesInput,
+        releaseId: state.ui.releaseId,
+        setInputMode: state.ui.setInputMode,
+      };
+      persistSettings(nextSettings);
       const run = await generateSuggestions(
-        state,
+        { ...state, settings: nextSettings },
         (update) => progressRef.current?.update(update),
+        state.generationRun?.cap || 20,
       );
-      setState((prev) => ({ ...prev, generationRun: run, generating: false }));
-      progressRef.current?.finish({ label: 'Generated suggestions for ' + run.deckResults.length + ' deck(s).' });
+      setProcessedIds((prev) => [...new Set([...prev, ...state.deckSelection.selectedIds])]);
+      setState((prev) => ({
+        ...prev,
+        generationRun: run,
+        generating: false,
+        setScope: run.setCodes?.length
+          ? {
+              codes: run.setCodes,
+              codesKey: run.setCodesKey,
+              cards: [],
+              complete: true,
+            }
+          : prev.setScope,
+      }));
+      progressRef.current?.finish({
+        label: 'Generated suggestions for ' + run.deckResults.length + ' deck(s).',
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -133,9 +257,7 @@ export function DeckSuggestApp() {
   }
 
   async function handleReviewHandoff() {
-    if (!canReview) {
-      return;
-    }
+    if (!canReview) return;
     try {
       await transferToDeckReview(state);
     } catch (err) {
@@ -144,20 +266,12 @@ export function DeckSuggestApp() {
   }
 
   function handleDownload() {
-    if (!state.generationRun) {
-      return;
-    }
+    if (!state.generationRun) return;
     try {
       downloadJson(state);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }
-
-  function handleDeckLoadTab(tab: DeckLoadTab) {
-    setDeckLoadTab(tab);
-    const nextSettings = { ...state.settings, deckLoadTab: tab };
-    persistSettings(nextSettings);
   }
 
   return (
@@ -168,7 +282,7 @@ export function DeckSuggestApp() {
             <div className="ds-header-copy">
               <h2>Deck Suggest</h2>
               <p className="ds-meta">
-                Profile-based replacement suggestions for Commander decks (no LLM).
+                Suggest upgrades for your Commander decks from a set release.
               </p>
             </div>
             <div className="ds-action-bar">
@@ -176,10 +290,11 @@ export function DeckSuggestApp() {
                 type="button"
                 className="ds-btn ds-btn-primary"
                 id="ds-generate"
-                disabled={!readiness.ok}
+                disabled={!readiness.ok || state.generating}
+                title={!readiness.ok ? blockedReason : ''}
                 onClick={() => void handleGenerate()}
               >
-                Generate suggestions
+                Generate
               </button>
               {showPostGenerate ? (
                 <>
@@ -207,34 +322,11 @@ export function DeckSuggestApp() {
               ) : null}
             </div>
           </div>
-          <div className="ds-readiness">
-            <button
-              type="button"
-              className="ds-readiness-toggle"
-              id="ds-requirements-toggle"
-              aria-expanded={requirementsOpen}
-              aria-controls="ds-requirements"
-              onClick={() => setRequirementsOpen((open) => !open)}
-            >
-              <span className={readiness.ok ? 'ds-req-ok' : 'ds-req-missing'}>
-                {readiness.ok
-                  ? 'Ready to generate'
-                  : `Setup ${readyCount}/${readyTotal}`}
-              </span>
-              <span className="ds-readiness-caret" aria-hidden="true">
-                {requirementsOpen ? '▴' : '▾'}
-              </span>
-            </button>
-            {requirementsOpen ? (
-              <ul className="ds-requirements" id="ds-requirements">
-                {readiness.items.map((item) => (
-                  <li key={item.id} className={item.ok ? 'ds-req-ok' : 'ds-req-missing'}>
-                    {item.label}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          {!readiness.ok ? (
+            <p className="ds-meta ds-blocked-reason" id="ds-blocked-reason">
+              {blockedReason}
+            </p>
+          ) : null}
         </header>
         <div className="hub-progress-host" id="ds-progress-host" ref={progressHostRef} />
       </div>
@@ -247,18 +339,48 @@ export function DeckSuggestApp() {
 
       <div className="ds-body">
         <section className="ds-panel" id="ds-results">
-          {!state.generationRun ? (
+          {!visibleRun ? (
             <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
-              Run Generate to see suggestions.
+              {isApiConfigured()
+                ? 'Press Generate to see suggestions.'
+                : 'Configure API URL and key in Settings to generate suggestions.'}
             </p>
           ) : (
             <div id="ds-results-content">
               <DeckSuggestResults
-                generationRun={state.generationRun}
+                generationRun={visibleRun}
                 setScope={state.setScope}
                 summary={summary}
                 rulesDebug={debugEnabled}
+                onAccept={(deckId, s) => void openAccept(deckId, s)}
+                onDismiss={(id) => setDismissedIds((prev) => [...prev, id])}
+                onNextPage={remaining.length ? handleNextPage : undefined}
+                remainingCount={remaining.length}
+                wishlistText={wishlistText}
+                wishlistEmpty={!sessionAccepts.length}
               />
+              {accepting ? (
+                <AcceptDialogue
+                  suggestion={accepting.suggestion}
+                  deck={acceptDeck}
+                  theory={
+                    state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)
+                      ?.ownership === 'theory'
+                  }
+                  protectedCards={[
+                    ...(state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)?.profile
+                      ?.protected_cards || []),
+                    ...(state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)
+                      ?.profile_preferences?.protected_cards || []),
+                  ]}
+                  onCancel={() => {
+                    setAccepting(null);
+                    setAcceptDeck(null);
+                  }}
+                  onSwap={(outId) => void saveSwap(outId)}
+                  onSeeking={() => void saveSeeking()}
+                />
+              ) : null}
             </div>
           )}
         </section>
@@ -267,24 +389,28 @@ export function DeckSuggestApp() {
           <DeckSuggestSetup
             settings={state.settings}
             setSettings={persistSettings}
+            setInputMode={state.ui.setInputMode}
+            onSetInputMode={(mode) => {
+              setState((prev) => ({
+                ...prev,
+                ui: { ...prev.ui, setInputMode: mode },
+              }));
+              persistSettings({ ...state.settings, setInputMode: mode });
+            }}
+            releaseId={state.ui.releaseId}
+            onReleaseId={(value) =>
+              setState((prev) => ({ ...prev, ui: { ...prev.ui, releaseId: value } }))
+            }
             setCodesInput={state.ui.setCodesInput}
             onSetCodesInput={(value) =>
               setState((prev) => ({ ...prev, ui: { ...prev.ui, setCodesInput: value } }))
             }
-            setScope={state.setScope}
-            onSetScope={(scope: SetScope | null) => setState((prev) => ({ ...prev, setScope: scope }))}
+            resolvedSetCodes={resolvedSetCodes}
             deckSelection={state.deckSelection}
             onDeckSelectionChange={(next: DeckSelection) =>
               setState((prev) => ({ ...prev, deckSelection: next }))
             }
-            deckLoadTab={deckLoadTab}
-            onDeckLoadTab={handleDeckLoadTab}
-            profilesConnected={state.profilesConnected}
-            onError={setError}
-            onClearError={() => setError('')}
-            onProgressStart={onProgressStart}
-            onProgressUpdate={onProgressUpdate}
-            onProgressFinish={onProgressFinish}
+            decksLoading={decksLoading}
           />
         </section>
       </div>

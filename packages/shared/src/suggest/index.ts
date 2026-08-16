@@ -1,11 +1,27 @@
 import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
-import { buildDeckRuleContext, ensureSetPoolIndexed, getDeckSwapQueue } from './data';
+import { buildDeckRuleContext, ensureSetPoolIndexed, getDeckSwapQueue } from './deck-context';
 import { createCollector } from './debug';
+import { resolveDeckEligibility } from './eligibility';
 import * as G from './rule-guards';
 import { QueueRules } from './rules-queue';
 import { ProxyRules } from './rules-proxy';
-import { createContext, RoleRules } from './tagger';
-import type { DeckRecord, SetScope, Suggestion } from './types';
+import { RoleRules, matchSetCardToRoles } from './rules-role';
+import { runTypalSynergy } from './rules-typal';
+import { runThemeSynergy } from './rules-theme';
+import { runKeywordSynergy } from './rules-keyword';
+import { createContext, countTagOverlap, resolveCardTags, cardTextBlob, cardStoredTags } from './signals';
+import type { Coverage, DeckRecord, PageDeckResult, RuleAudit, SetScope, Suggestion } from './types';
+
+import './debug';
+
+export const Tagger = {
+  countTagOverlap,
+  resolveCardTags,
+  createContext,
+  cardTextBlob,
+  cardStoredTags,
+  matchSetCardToRoles,
+};
 
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -74,6 +90,15 @@ export function buildSwapQueueAnalysis(deck: DeckRecord) {
   };
 }
 
+type RuleFn = (
+  deck: DeckRecord,
+  setScope: SetScope,
+  profile: DeckRecord['profile'],
+  existing: Suggestion[],
+  taggerCtx: ReturnType<typeof createContext>,
+  debug?: { ruleId?: string; collector?: { push: (e: Record<string, unknown>) => void } },
+) => Suggestion[] | { added: Suggestion[]; skipped?: Array<{ name: string; reason: string }> };
+
 export function runRulesForDeck(
   deck: DeckRecord,
   setScope: SetScope,
@@ -88,19 +113,22 @@ export function runRulesForDeck(
   const profile = deck.profile || {};
   const existing = (options.existingSuggestions || []).slice();
   let suggestions = existing.slice();
-  const audit: Array<Record<string, unknown>> = [];
+  const audit: RuleAudit[] = [];
   let collector: ReturnType<typeof createCollector> | null = null;
   if (options.debug) {
     collector = createCollector(deck.deck_id);
   }
   const taggerCtx = createContext(deck, setScope);
 
-  const rules = [
+  const rules: Array<{ id: string; fn: RuleFn }> = [
     { id: 'queue_in_pair', fn: QueueRules.runQueueInPair },
     { id: 'queue_out_fill', fn: QueueRules.runQueueOutFill },
     { id: 'proxy_upgrade', fn: ProxyRules.runProxyUpgrade },
+    { id: 'typal_synergy', fn: runTypalSynergy },
+    { id: 'theme_synergy', fn: runThemeSynergy },
+    { id: 'keyword_synergy', fn: runKeywordSynergy },
     { id: 'role_synergy', fn: RoleRules.runRoleSynergy },
-  ] as const;
+  ];
 
   const skipQueueRules = deck.ownership === 'theory';
 
@@ -163,3 +191,60 @@ export function runRulesForDeck(
     },
   };
 }
+
+export function runRulesForPage(
+  decks: Array<{ deck: DeckRecord; profile?: DeckRecord['profile'] }>,
+  setScope: SetScope,
+  options: { debug?: boolean } = {},
+): { deckResults: PageDeckResult[]; taggerCoverage: Coverage } {
+  ensureSetPoolIndexed(setScope);
+  const deckResults: PageDeckResult[] = [];
+  let coverage: Coverage = { cardsResolved: 0, cardsWithTags: 0, percent: 0 };
+
+  decks.forEach(({ deck, profile }) => {
+    if (profile) deck.profile = { ...(deck.profile || {}), ...profile };
+    const eligibility = resolveDeckEligibility(deck);
+    if (!eligibility.eligible) {
+      deckResults.push({
+        deckId: deck.deck_id,
+        deckName: deck.deck_name,
+        skipped: true,
+        skipReason: eligibility.reason,
+        message: eligibility.message,
+        suggestions: [],
+        audit: [],
+      });
+      return;
+    }
+    const output = runRulesForDeck(deck, setScope, { debug: options.debug });
+    coverage = output.taggerCoverage;
+    deckResults.push({
+      deckId: deck.deck_id,
+      deckName: deck.deck_name,
+      skipped: false,
+      suggestions: output.suggestions,
+      audit: output.audit,
+    });
+  });
+
+  return { deckResults, taggerCoverage: coverage };
+}
+
+export * from './types';
+export * from './profile-parse';
+export * from './eligibility';
+export * from './deck-context';
+export * from './rule-guards';
+export { RuleGuards } from './rule-guards';
+export * from './signals';
+export * from './rules-queue';
+export { QueueRules } from './rules-queue';
+export * from './rules-proxy';
+export { ProxyRules } from './rules-proxy';
+export * from './rules-role';
+export { RoleRules } from './rules-role';
+export * from './rules-typal';
+export * from './rules-theme';
+export * from './rules-keyword';
+export * from './debug';
+export { Debug } from './debug';

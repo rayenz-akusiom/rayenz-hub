@@ -81,6 +81,7 @@ Resources:
             - !Sub '{{resolve:ssm-secure:${HubApiKeySsmPath}}}'
             - !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
+          HUB_SUGGEST_DECK_CAP: '20'
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
           # Empty string (not NoValue) so `sam local --env-vars` can override for MinIO
           S3_ENDPOINT: !If [UseLocalS3, !Ref S3Endpoint, '']
@@ -192,6 +193,18 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/set-pools/{codesKey}
             Method: PUT
+        SuggestGenerate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/suggest/generate
+            Method: POST
+        SuggestReleases:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/suggest/releases
+            Method: GET
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

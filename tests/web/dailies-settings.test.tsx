@@ -315,8 +315,8 @@ describe('DeckSuggestSettingsPage', () => {
     loadDeckSuggestSettings.mockResolvedValue({
       settings: {
         setCodes: 'MSH,MSC',
-        folderUrl: 'https://archidekt.com/folders/123',
-        deckLoadTab: 'folder',
+        releaseId: 'group:msh',
+        setInputMode: 'codes',
         rulesDebug: false,
       },
       source: 'api',
@@ -324,22 +324,21 @@ describe('DeckSuggestSettingsPage', () => {
     persistDeckSuggestSettings.mockResolvedValue('api');
   });
 
-  it('loads set pool fields and persists edits', async () => {
+  it('loads release defaults and persists edits', async () => {
     const user = userEvent.setup();
     render(<DeckSuggestSettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('MSH,MSC')).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue('https://archidekt.com/folders/123')).toBeInTheDocument();
 
-    const setCodes = screen.getByLabelText('Set codes (comma-separated)');
+    const setCodes = screen.getByLabelText(/Default set codes/i);
     await user.clear(setCodes);
     await user.type(setCodes, 'MAR');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Saved to API/)).toBeInTheDocument();
+      expect(screen.getByText(/^Saved\.?$/)).toBeInTheDocument();
     });
 
     expect(persistDeckSuggestSettings).toHaveBeenCalledWith(

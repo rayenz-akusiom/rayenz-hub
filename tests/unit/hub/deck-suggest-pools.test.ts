@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Data, RuleGuards, runRulesForDeck } from '../../../packages/web/src/deck-suggest/index.ts';
+import { Data, RuleGuards, runRulesForDeck } from '../../../packages/shared/src/suggest/index.ts';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
 function sampleDeck() {

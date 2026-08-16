@@ -99,6 +99,93 @@
    padding: 8px 0;
 }
 
+.ds-blocked-reason {
+   margin: 8px 0 0;
+   color: #c05621;
+   font-weight: 600;
+}
+
+.ds-set-mode-tabs {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+   margin: 0 0 12px;
+}
+
+.ds-set-chip {
+   display: inline-block;
+   margin: 0 6px 4px 0;
+   padding: 2px 8px;
+   border-radius: 4px;
+   background: #edf2f7;
+   font-size: 0.8rem;
+   font-weight: 600;
+   letter-spacing: 0.02em;
+}
+
+.ds-suggestion-grid {
+   display: grid;
+   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+   gap: 12px;
+   margin: 8px 0 16px;
+}
+
+.ds-suggestion-card {
+   display: flex;
+   flex-direction: column;
+   border: 1px solid #e2e8f0;
+   border-radius: 8px;
+   overflow: hidden;
+   background: #fff;
+   min-width: 0;
+}
+
+.ds-suggestion-art {
+   width: 100%;
+   aspect-ratio: 5 / 7;
+   object-fit: cover;
+   background: #edf2f7;
+   display: block;
+}
+
+.ds-suggestion-art-fallback {
+   min-height: 0;
+}
+
+.ds-suggestion-body {
+   padding: 10px;
+   display: flex;
+   flex-direction: column;
+   gap: 6px;
+   flex: 1;
+}
+
+.ds-suggestion-topline {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+   align-items: center;
+}
+
+.ds-suggestion-name {
+   margin: 0;
+   font-size: 0.95rem;
+   line-height: 1.25;
+}
+
+.ds-suggestion-rationale {
+   margin: 0;
+   font-size: 0.8rem;
+   color: #4a5568;
+   line-height: 1.35;
+}
+
+.ds-suggestion-card .ds-actions {
+   margin-top: auto;
+   padding-top: 4px;
+}
+
+
 .ds-summary {
    background: #f7fafc;
    border: 1px solid #e2e8f0;
@@ -140,7 +227,7 @@
    flex: 1;
    min-height: 0;
    overflow-y: auto;
-   max-width: 960px;
+   max-width: 1100px;
    width: 100%;
    margin: 0 auto;
    padding: 24px 28px 48px;
@@ -173,7 +260,7 @@
    font-weight: 600;
 }
 
-.ds-field input[type="text"] {
+.ds-field select {
    display: block;
    width: 100%;
    margin-top: 4px;
@@ -182,7 +269,9 @@
    border-radius: 6px;
    box-sizing: border-box;
    font: inherit;
+   background: #fff;
 }
+
 
 .ds-actions {
    display: flex;

@@ -1,6 +1,31 @@
 import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion, TaggerContext } from './types';
-import { countTagOverlap } from './tagger';
 import { isSwapQueueCategoryName } from '@rayenz-hub/shared';
+
+function countTagOverlap(
+  card: SnapshotCard | SetPoolCard,
+  tags: string[] | undefined,
+  taggerCtx: TaggerContext | null | undefined,
+): number {
+  if (!tags || !tags.length) {
+    return 0;
+  }
+  const resolved = taggerCtx && taggerCtx.resolve ? taggerCtx.resolve(card.name || '', card) : null;
+  const blob = String([card.type_line, card.oracle_text, ((card as SetPoolCard).keywords || []).join(' ')].join(' ')).toLowerCase();
+  const taggerTags = (resolved && resolved.taggerTags) || [];
+  let count = 0;
+  tags.forEach((tag) => {
+    const t = String(tag || '').toLowerCase();
+    if (!t) return;
+    if (taggerTags.some((tt) => String(tt).toLowerCase() === t || String(tt).toLowerCase().indexOf(t) >= 0)) {
+      count += 1;
+      return;
+    }
+    if (blob.indexOf(t) >= 0) {
+      count += 1;
+    }
+  });
+  return count;
+}
 
 const PROTECTED_CATEGORIES: Record<string, boolean> = {
   Commander: true,

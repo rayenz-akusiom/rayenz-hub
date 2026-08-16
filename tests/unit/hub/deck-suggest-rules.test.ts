@@ -1,13 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  Data,
-  RuleGuards,
-  buildSwapQueueAnalysis,
-  runRulesForDeck,
-  Tagger,
-} from '../../../packages/web/src/deck-suggest/index.ts';
+import { Data, RuleGuards, buildSwapQueueAnalysis, runRulesForDeck, Tagger } from '../../../packages/shared/src/suggest/index.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tests/fixtures/deck-suggest');

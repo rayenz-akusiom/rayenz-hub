@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import setMshSlice from '../fixtures/deck-suggest/set-msh-slice.json';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
+import { getGenerateReadiness } from '../../packages/web/src/deck-suggest/readiness';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 import { progressController } from './helpers/hub-progress-mock';
 
@@ -16,35 +16,36 @@ vi.mock('../../packages/web/src/lib/hub-storage', async (importOriginal) => {
   return {
     ...actual,
     loadDeckSuggestSettings: vi.fn(() => ({
-      setCodes: 'MSH,MSC,MAR',
-      folderUrl: '',
-      deckLoadTab: 'paste-import',
+      setCodes: 'MSH',
+      releaseId: 'group:ltr',
+      setInputMode: 'release',
     })),
     saveDeckSuggestSettings: vi.fn(),
   };
 });
 
-vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
-  ProfileSync: { getProfilesDir: vi.fn(() => Promise.resolve(null)) },
-}));
+vi.mock('../../packages/web/src/api/hub-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/api/hub-api')>();
+  return {
+    ...actual,
+    isApiConfigured: () => true,
+  };
+});
 
 const mockGenerateSuggestions = vi.fn();
 const mockTransferToDeckReview = vi.fn();
-const mockRestoreSetPool = vi.fn(() => null);
+const mockLoadHubLibraryDecks = vi.fn();
 
 vi.mock('../../packages/web/src/deck-suggest/generation', () => ({
-  restoreSetPoolFromSettings: (...args: unknown[]) => mockRestoreSetPool(...args),
   generateSuggestions: (...args: unknown[]) => mockGenerateSuggestions(...args),
   transferToDeckReview: (...args: unknown[]) => mockTransferToDeckReview(...args),
 }));
-
-const mockFetchSetPool = vi.fn();
 
 vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
   return {
     ...actual,
-    fetchSetPool: (...args: unknown[]) => mockFetchSetPool(...args),
+    loadHubLibraryDecks: (...args: unknown[]) => mockLoadHubLibraryDecks(...args),
   };
 });
 
@@ -54,14 +55,25 @@ vi.mock('../../packages/web/src/deck-suggest/readiness', async (importOriginal) 
     ...actual,
     getGenerateReadiness: vi.fn((state: Parameters<typeof actual.getGenerateReadiness>[0]) => {
       const selected = (state?.deckSelection?.selectedIds || []).length;
-      if (selected > 0 && state?.setScope) {
+      if (selected > 20) {
+        return actual.getGenerateReadiness(state);
+      }
+      const mode = state?.ui?.setInputMode || 'release';
+      const hasRelease = mode === 'release' && String(state?.ui?.releaseId || '').includes(':');
+      const hasCodes =
+        mode === 'codes' &&
+        String(state?.ui?.setCodesInput || '')
+          .split(/[,\s]+/)
+          .filter(Boolean).length > 0;
+      if (selected > 0 && (hasRelease || hasCodes)) {
         return {
           ok: true,
           missing: [],
           items: [
-            { id: 'set', ok: true, label: 'Set pool loaded — 4 cards' },
+            { id: 'set', ok: true, label: 'Release selected' },
             { id: 'decks', ok: true, label: `${state!.deckSelection!.decks.length} deck(s) available` },
             { id: 'selection', ok: true, label: `${selected} deck(s) selected` },
+            { id: 'api', ok: true, label: 'API configured' },
           ],
           generating: !!state?.generating,
         };
@@ -71,23 +83,12 @@ vi.mock('../../packages/web/src/deck-suggest/readiness', async (importOriginal) 
   };
 });
 
-function readySetScope() {
-  return {
-    complete: true,
-    codes: ['MSH', 'MSC', 'MAR'],
-    codesKey: 'MAR,MSH,MSC',
-    cards: setMshSlice.cards,
-    source: 'scryfall' as const,
-    primaryCode: 'MSH',
-    setName: 'Marvel Super Heroes',
-    fetchedAt: '2026-06-30',
-  };
-}
-
 function sampleGenerationRun() {
   return {
     runId: 'run-test',
     rulesExecuted: [],
+    setCodes: ['LTR', 'LTC'],
+    setCodesKey: 'LTC,LTR',
     deckResults: [
       {
         deck: { deck_id: 'd1', deck_name: 'Test Deck' },
@@ -96,7 +97,14 @@ function sampleGenerationRun() {
           {
             suggestion_id: 's1',
             priority_tier: 'swap',
-            card: { name: 'Take Up the Shield', set_code: 'MSH', collector_number: '39' },
+            confidence: 'high',
+            tags: ['rule:queue_in_pair'],
+            card: {
+              name: 'Take Up the Shield',
+              set_code: 'LTR',
+              collector_number: '39',
+              scryfall_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+            },
             replaces: [{ name: 'Plains' }],
             rationale: 'Better protection',
           },
@@ -121,16 +129,16 @@ beforeEach(() => {
   resetHubModules();
   mockGenerateSuggestions.mockReset();
   mockTransferToDeckReview.mockReset();
-  mockRestoreSetPool.mockReset();
-  mockFetchSetPool.mockReset();
+  mockLoadHubLibraryDecks.mockReset();
   progressController.start.mockClear();
   progressController.update.mockClear();
   progressController.finish.mockClear();
-  mockRestoreSetPool.mockReturnValue({ ...readySetScope(), fromCache: true });
-  mockFetchSetPool.mockResolvedValue(readySetScope());
+  mockLoadHubLibraryDecks.mockResolvedValue([
+    { deck_id: 'd1', deck_name: 'Test Deck' },
+    { deck_id: 'd2', deck_name: 'Empty Deck' },
+  ]);
   mockGenerateSuggestions.mockResolvedValue(sampleGenerationRun());
   mockTransferToDeckReview.mockResolvedValue(undefined);
-  delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
 });
 
 afterEach(() => {
@@ -140,16 +148,34 @@ afterEach(() => {
 });
 
 describe('DeckSuggestApp chrome', () => {
-  it('renders header, disabled generate, and results placeholder', () => {
-    mockRestoreSetPool.mockReturnValue(null);
+  it('renders header, generate, and results placeholder', async () => {
+    mockLoadHubLibraryDecks.mockResolvedValueOnce([]);
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Generate suggestions' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Review in Deck Review' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
-    expect(screen.getByText('Run Generate to see suggestions.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Setup \d+\/\d+/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
+    expect(screen.getByText('Press Generate to see suggestions.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/No commander decks found/i)).toBeInTheDocument();
+    });
+  });
+
+  it('blocks generate when the selected page is over cap', () => {
+    const mocked = vi.mocked(getGenerateReadiness);
+    const previous = mocked.getMockImplementation();
+    mocked.mockImplementation(() => ({
+      ok: false,
+      missing: ['cap'],
+      items: [{ id: 'cap', ok: false, label: 'Select at most 20 decks' }],
+      generating: false,
+    }));
+    try {
+      render(<DeckSuggestApp />);
+      expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
+      expect(screen.getByText(/Select at most 20/i)).toBeInTheDocument();
+    } finally {
+      if (previous) mocked.mockImplementation(previous);
+    }
   });
 
   it('mounts hub progress on load', () => {
@@ -159,112 +185,65 @@ describe('DeckSuggestApp chrome', () => {
 });
 
 describe('DeckSuggestSetup', () => {
-  it('shows setup fields and deck load tabs', async () => {
+  it('shows release dropdown by default and set-codes mode', async () => {
     const user = userEvent.setup();
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Set release$/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Lord of the Rings/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load set pool' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Set codes' }));
     expect(screen.getByLabelText(/Set codes/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open Deck Suggest settings/i })).toHaveAttribute(
-      'href',
-      '#/settings/deck-suggest',
-    );
-
-    expect(screen.getByRole('button', { name: 'Hub library' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Hub library' }));
-    expect(document.getElementById('ds-deck-pane-hub')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Paste URLs' }));
-    expect(document.getElementById('ds-deck-pane-paste-urls')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Upload JSON' }));
-    expect(document.getElementById('ds-deck-pane-upload')).toBeInTheDocument();
   });
 
-  it('disables folder tab when Archidekt bridge is unavailable', () => {
-    render(<DeckSuggestApp />);
-    expect(screen.getByRole('button', { name: 'Folder' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Hub library' })).not.toBeDisabled();
-  });
-
-  it('restores cached set pool on load', async () => {
+  it('auto-loads hub decks into the checklist', async () => {
     render(<DeckSuggestApp />);
     await waitFor(() => {
-      expect(screen.getByText(/Set pool: MSH, MSC, MAR/i)).toBeInTheDocument();
-    });
-  });
-
-  it('shows fetch error when set pool load fails', async () => {
-    mockRestoreSetPool.mockReturnValue(null);
-    mockFetchSetPool.mockRejectedValueOnce(new Error('Scryfall unavailable'));
-    const user = userEvent.setup();
-    render(<DeckSuggestApp />);
-
-    fireEvent.change(screen.getByLabelText(/Set codes/i), { target: { value: 'MSH' } });
-    await user.click(screen.getByRole('button', { name: 'Load set pool' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Scryfall unavailable')).toBeInTheDocument();
-    });
-  });
-
-  it('loads a pasted deck import and lists selectable decks', async () => {
-    const user = userEvent.setup();
-    render(<DeckSuggestApp />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Set pool: MSH, MSC, MAR/i)).toBeInTheDocument();
-    });
-
-    await user.type(screen.getByLabelText(/Deck name \(optional\)/i), 'My Commander');
-    fireEvent.change(screen.getByLabelText(/Archidekt import text/i), {
-      target: { value: '1 Sol Ring (cmm) 1 [Ramp]\n1 Lightning Bolt (mh2) 123 [Removal]' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Load deck' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Decks (1)')).toBeInTheDocument();
-      expect(screen.getByLabelText('My Commander')).toBeInTheDocument();
+      expect(screen.getByLabelText('Test Deck')).toBeInTheDocument();
+      expect(screen.getByLabelText('Empty Deck')).toBeInTheDocument();
     });
   });
 });
 
 describe('DeckSuggestResults via generate', () => {
-  async function prepareReadyState(user: ReturnType<typeof userEvent.setup>) {
+  async function prepareReadyState() {
     render(<DeckSuggestApp />);
-    await waitFor(() => expect(screen.getByText(/Set pool:/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText(/Archidekt import text/i), {
-      target: { value: '1 Sol Ring (cmm) 1 [Ramp]' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Load deck' }));
-    await waitFor(() => expect(screen.getByText(/Decks \(1\)/i)).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate suggestions' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByLabelText('Test Deck')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled());
   }
 
-  it('runs generate and renders results summary and suggestions', async () => {
+  it('runs generate and renders results grid and summary', async () => {
     const user = userEvent.setup();
-    await prepareReadyState(user);
+    await prepareReadyState();
 
-    await user.click(screen.getByRole('button', { name: 'Generate suggestions' }));
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Results' })).toBeInTheDocument();
     });
     expect(document.querySelector('.ds-summary-total')?.textContent).toMatch(/1 suggestions/);
-    expect(screen.getByText('Test Deck')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Test Deck' })).toBeInTheDocument();
     expect(screen.getByText('Take Up the Shield')).toBeInTheDocument();
-    expect(screen.getByText(/No suggestions \(1\)/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Review in Deck Review' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeEnabled();
+    expect(document.querySelector('.ds-suggestion-grid')).toBeInTheDocument();
+  });
+
+  it('dismisses a card from the session without a Hub write', async () => {
+    const user = userEvent.setup();
+    await prepareReadyState();
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(screen.getByText('Take Up the Shield')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Take Up the Shield')).not.toBeInTheDocument();
   });
 
   it('shows generation error in the error banner', async () => {
     mockGenerateSuggestions.mockRejectedValueOnce(new Error('Generation failed'));
     const user = userEvent.setup();
-    await prepareReadyState(user);
+    await prepareReadyState();
 
-    await user.click(screen.getByRole('button', { name: 'Generate suggestions' }));
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
 
     await waitFor(() => {
       expect(screen.getByText('Generation failed')).toBeInTheDocument();

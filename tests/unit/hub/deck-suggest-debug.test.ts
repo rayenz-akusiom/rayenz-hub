@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Debug, runRulesForDeck, rulesDebugEnabled } from '../../../packages/web/src/deck-suggest/index.ts';
+import { Debug } from '../../../packages/web/src/deck-suggest/index.ts';
+import { runRulesForDeck } from '../../../packages/shared/src/suggest/index.ts';
+import { rulesDebugEnabled } from '../../../packages/web/src/deck-suggest/readiness.ts';
 import { isLocalHub } from '../../../packages/web/src/lib/hub-utils.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 

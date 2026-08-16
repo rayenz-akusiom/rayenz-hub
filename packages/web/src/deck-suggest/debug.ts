@@ -1,9 +1,6 @@
 import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
 import * as G from './rule-guards';
-import { pickCutForUnpairedIn } from './rules-queue';
-import { createContext, matchSetCardToRoles } from './tagger';
-import { isProxyCard } from './rules-proxy';
-import type { DebugEntry, DeckProfile, DeckRecord, SetScope, Suggestion } from './types';
+import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion } from './types';
 
 export const REASON_LABELS: Record<string, string> = {
   not_in_set_scope: 'Card not in selected set pool',
@@ -26,6 +23,62 @@ export const REASON_LABELS: Record<string, string> = {
 
 function normalizeName(name: string): string {
   return String(name || '').trim().toLowerCase();
+}
+
+function isProxyCard(card: SnapshotCard): boolean {
+  const cats = card.categories || [];
+  return cats.indexOf('Proxies') >= 0 || card.primary_category === 'Proxies';
+}
+
+function inCardIsLand(inCard: { name?: string; type_line?: string }): boolean {
+  return (
+    /land/i.test(inCard.type_line || '') ||
+    /\b(Plains|Island|Swamp|Mountain|Forest|Verge|Foundry|Tower|Steppe)\b/i.test(inCard.name || '')
+  );
+}
+
+function pickCutForUnpairedIn(
+  deck: DeckRecord,
+  profile: DeckProfile | undefined,
+  inCard: { name?: string; type_line?: string },
+): SnapshotCard | null {
+  let candidates = G.cutCandidates(deck);
+  if (inCardIsLand(inCard)) {
+    const lands = candidates.filter(
+      (c) =>
+        c.primary_category === 'Land' ||
+        /land/i.test(c.type_line || '') ||
+        /\b(Plains|Island|Swamp|Mountain|Forest|Verge|Foundry|Tower|Steppe)\b/i.test(c.name || ''),
+    );
+    if (lands.length) {
+      candidates = lands;
+    }
+  }
+  const ranked = G.rankCutCandidates(candidates, profile, null);
+  return ranked[0] || null;
+}
+
+function matchSetCardToRoles(
+  setCard: SetPoolCard,
+  profile?: DeckProfile | null,
+): { roleId: string; score: number; hint: string } | null {
+  const roles = G.normalizeProfile(profile).roles;
+  let best: { roleId: string; score: number; hint: string } | null = null;
+  const blob = String([setCard.type_line, setCard.oracle_text, (setCard.keywords || []).join(' ')].join(' ')).toLowerCase();
+  roles.forEach((role) => {
+    const tags = role.tags || [];
+    let overlap = tags.filter((t) => blob.indexOf(String(t).toLowerCase()) >= 0).length;
+    if (!overlap) {
+      const roleId = String(role.id || '').toLowerCase();
+      if (roleId && blob.indexOf(roleId) >= 0) overlap = 1;
+    }
+    if (!overlap) return;
+    const score = overlap * 10 + (role.priority === 'high' ? 3 : role.priority === 'medium' ? 2 : 1);
+    if (!best || score > best.score) {
+      best = { roleId: role.id, score, hint: tags.slice(0, 2).join(', ') };
+    }
+  });
+  return best;
 }
 
 export function createCollector(deckId: string) {
@@ -147,8 +200,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
       } else if (outIdx >= 0 && inIdx === outIdx) {
         push('queue_in_pair', 'would_emit', 'Paired with Out slot ' + queue.new_set_out[outIdx].name);
       } else if (inIdx >= (queue.new_set_out || []).length) {
-        const taggerCtx = createContext(deck, setScope);
-        const cut = pickCutForUnpairedIn(deck, profile, taggerCtx, inCard);
+        const cut = pickCutForUnpairedIn(deck, profile, inCard);
         if (!cut) {
           push('queue_in_pair', 'no_cut_candidate', 'Unpaired In — no cut candidate');
         } else {
@@ -223,8 +275,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
       if (!match) {
         push('role_synergy', 'role_no_match', 'No profile role/tag overlap');
       } else {
-        const taggerCtx = createContext(deck, setScope);
-        const cut = G.pickBestCut(deck, profile, taggerCtx);
+        const cut = G.pickBestCut(deck, profile, null);
         if (!cut) {
           push('role_synergy', 'role_no_cut', 'Role match but no cut candidate');
         } else {

@@ -1,23 +1,25 @@
-import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isApiConfigured } from '../../../packages/web/src/api/hub-api';
 import { getGenerateReadiness, rulesDebugEnabled } from '../../../packages/web/src/deck-suggest/readiness.ts';
-import { DeckSuggestSetup } from '../../../packages/web/src/deck-suggest/DeckSuggestSetup.tsx';
 import { resetHubModules } from '../helpers/hubHarness.ts';
+
+vi.mock('../../../packages/web/src/api/hub-api', () => ({
+  isApiConfigured: vi.fn(() => true),
+}));
 
 function readyState(overrides: Record<string, unknown> = {}) {
   const base = {
-    setScope: {
-      complete: true,
-      codes: ['MSH'],
-      codesKey: 'MSH',
-      cards: [{ name: 'Test Card' }],
-      source: 'scryfall',
-    },
+    setScope: null,
     deckSelection: {
       decks: [{ deck_id: 'd1', deck_name: 'Deck One' }],
       selectedIds: ['d1'],
     },
-    ui: { setCodesInput: 'MSH' },
+    ui: {
+      setCodesInput: 'MSH',
+      releaseId: 'group:ltr',
+      setInputMode: 'release' as const,
+    },
+    settings: { setInputMode: 'release' as const },
     generating: false,
   };
   return Object.assign(base, overrides);
@@ -25,40 +27,56 @@ function readyState(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   resetHubModules();
+  vi.mocked(isApiConfigured).mockReturnValue(true);
 });
 
 afterEach(() => {
   resetHubModules();
-  delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
   document.body.innerHTML = '';
 });
 
 describe('getGenerateReadiness', () => {
-  it('returns ok when set pool, decks, and selection are ready', () => {
+  it('returns ok when release, decks, and selection are ready', () => {
     const result = getGenerateReadiness(readyState());
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);
     expect(result.items.every((i) => i.ok)).toBe(true);
   });
 
-  it('fails when set pool is missing', () => {
-    const result = getGenerateReadiness(readyState({ setScope: null }));
+  it('fails when release is missing', () => {
+    const result = getGenerateReadiness(
+      readyState({ ui: { setCodesInput: '', releaseId: '', setInputMode: 'release' } }),
+    );
     expect(result.ok).toBe(false);
     expect(result.missing).toContain('set');
   });
 
-  it('fails when set pool is incomplete', () => {
-    const scope = readyState().setScope as { complete: boolean };
-    scope.complete = false;
-    const result = getGenerateReadiness(readyState({ setScope: scope }));
+  it('fails when too many manual set codes', () => {
+    const result = getGenerateReadiness(
+      readyState({
+        ui: {
+          setCodesInput: 'A,B,C,D,E,F',
+          releaseId: '',
+          setInputMode: 'codes',
+        },
+      }),
+    );
     expect(result.ok).toBe(false);
     expect(result.missing).toContain('set');
+    expect(result.items.find((i) => i.id === 'set')?.label).toMatch(/at most 5/i);
   });
 
-  it('fails when set codes input does not match loaded scope', () => {
-    const result = getGenerateReadiness(readyState({ ui: { setCodesInput: 'MH2' } }));
-    expect(result.ok).toBe(false);
-    expect(result.missing).toContain('set');
+  it('accepts 1–5 manual set codes', () => {
+    const result = getGenerateReadiness(
+      readyState({
+        ui: {
+          setCodesInput: 'LTR, LTC',
+          releaseId: '',
+          setInputMode: 'codes',
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
   });
 
   it('fails when no decks are loaded', () => {
@@ -92,28 +110,36 @@ describe('getGenerateReadiness', () => {
     expect(result.generating).toBe(true);
   });
 
-  it('allows generate readiness to fail without set while decks can still load', () => {
-    const result = getGenerateReadiness(readyState({ setScope: null }));
-    expect(result.ok).toBe(false);
-    expect(result.missing).toContain('set');
-    expect(result.missing).not.toContain('decks');
-  });
-
-  it('shows cached label when set pool came from cache', () => {
-    const scope = readyState().setScope as Record<string, unknown>;
-    scope.fromCache = true;
-    const result = getGenerateReadiness(readyState({ setScope: scope }));
-    expect(result.items.find((i) => i.id === 'set')!.label).toContain('cached');
-  });
-
-  it('reads set codes from settings when ui input is absent', () => {
+  it('reads release id from settings when ui input is absent', () => {
     const result = getGenerateReadiness(
       readyState({
-        ui: {},
-        settings: { setCodes: 'MSH' },
+        ui: { setCodesInput: '', releaseId: '', setInputMode: 'release' },
+        settings: { releaseId: 'group:hob', setInputMode: 'release' },
       }),
     );
     expect(result.ok).toBe(true);
+  });
+
+  it('fails when API is not configured', () => {
+    vi.mocked(isApiConfigured).mockReturnValue(false);
+    const result = getGenerateReadiness(readyState());
+    expect(result.ok).toBe(false);
+    expect(result.missing).toContain('api');
+  });
+
+  it('fails when selection exceeds the page cap', () => {
+    const ids = Array.from({ length: 21 }, (_, i) => `d${i}`);
+    const result = getGenerateReadiness(
+      readyState({
+        deckSelection: {
+          decks: ids.map((id) => ({ deck_id: id, deck_name: id })),
+          selectedIds: ids,
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.missing).toContain('cap');
+    expect(result.items.find((i) => i.id === 'cap')?.label).toMatch(/at most 20/i);
   });
 });
 
@@ -127,40 +153,5 @@ describe('rulesDebugEnabled', () => {
 
   it('returns false when rulesDebug setting is off', () => {
     expect(rulesDebugEnabled({ rulesDebug: false }, () => true)).toBe(false);
-  });
-});
-
-describe('DeckSuggest setup controls without set pool', () => {
-  it('enables folder controls when bridge is available and set pool is missing', () => {
-    (window as Window & { RayenzArchidektBridge?: { isAvailable: boolean } }).RayenzArchidektBridge = {
-      isAvailable: true,
-    };
-    const noop = () => {};
-    render(
-      <DeckSuggestSetup
-        settings={{}}
-        setSettings={noop}
-        setCodesInput="MSH"
-        onSetCodesInput={noop}
-        setScope={null}
-        onSetScope={noop}
-        deckSelection={{ folderUrl: '', decks: [], selectedIds: [] }}
-        onDeckSelectionChange={noop}
-        deckLoadTab="folder"
-        onDeckLoadTab={noop}
-        profilesConnected={false}
-        onError={noop}
-        onClearError={noop}
-        onProgressStart={noop}
-        onProgressUpdate={noop}
-        onProgressFinish={noop}
-      />,
-    );
-
-    const folderTab = screen.getByRole('button', { name: 'Folder' });
-    const loadFolderBtn = screen.getByRole('button', { name: 'Load decks' });
-    expect((folderTab as HTMLButtonElement).disabled).toBe(false);
-    expect((loadFolderBtn as HTMLButtonElement).disabled).toBe(false);
-    expect(getGenerateReadiness({ setScope: null, ui: { setCodesInput: 'MSH' } }).ok).toBe(false);
   });
 });

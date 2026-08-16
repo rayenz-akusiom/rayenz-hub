@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Data, ProxyRules, QueueRules, Tagger } from '../../../packages/web/src/deck-suggest/index.ts';
-import { buildSwapQueueAnalysis, sortSuggestions } from '../../../packages/web/src/deck-suggest/rules.ts';
+import { Data, ProxyRules, QueueRules, Tagger, buildSwapQueueAnalysis, sortSuggestions } from '../../../packages/shared/src/suggest/index.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tests/fixtures/deck-suggest');

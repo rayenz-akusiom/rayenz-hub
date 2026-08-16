@@ -6,10 +6,9 @@ import {
   clearDataSetPoolCache,
   Data,
   loadSetScopeFromUpload,
-  parseYamlProfile,
-  resolveDeckEligibility,
   tryRestoreSetPool,
 } from '../../../packages/web/src/deck-suggest/index.ts';
+import { parseYamlProfile, resolveDeckEligibility } from '../../../packages/shared/src/suggest/index.ts';
 import { saveSetPoolCache } from '../../../packages/web/src/lib/hub-storage.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 

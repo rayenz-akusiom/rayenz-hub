@@ -1,28 +1,76 @@
 import { useMemo, useState } from 'react';
 import { explainCard, formatReason } from './debug';
 import { collectDebugEntries } from './export';
-import type { DeckResult, GenerationRun, SetScope } from './types';
+import type { DeckResult, GenerationRun, SetScope, Suggestion } from './types';
 
 function deckResultHasSuggestions(result: DeckResult): boolean {
   return !result.error && !result.skipped && (result.suggestions || []).length > 0;
 }
 
-function SuggestionLine({ s }: { s: NonNullable<DeckResult['suggestions']>[0] }) {
+function scryfallImageUrl(card: Suggestion['card']): string | null {
+  const id = card.scryfall_id;
+  if (!id || id.length < 3) return null;
+  return `https://cards.scryfall.io/normal/front/${id[0]}/${id[1]}/${id}.jpg`;
+}
+
+function SuggestionCard({
+  s,
+  onAccept,
+  onDismiss,
+}: {
+  s: Suggestion;
+  onAccept?: (s: Suggestion) => void;
+  onDismiss?: (id: string) => void;
+}) {
   const rep = s.replaces && s.replaces[0];
+  const img = scryfallImageUrl(s.card);
   return (
-    <div className="ds-suggestion">
-      <span className={'ds-tier ds-tier-' + (s.priority_tier || 'normal')}>
-        {s.priority_tier || 'normal'}
-      </span>{' '}
-      <strong>{s.card.name}</strong>
-      {rep && rep.name ? <> → cut {rep.name}</> : null}
-      <br />
-      <span className="ds-meta">{s.rationale || ''}</span>
-    </div>
+    <article className="ds-suggestion-card">
+      {img ? (
+        <img className="ds-suggestion-art" src={img} alt="" loading="lazy" />
+      ) : (
+        <div className="ds-suggestion-art ds-suggestion-art-fallback" aria-hidden="true" />
+      )}
+      <div className="ds-suggestion-body">
+        <div className="ds-suggestion-topline">
+          <span className={'ds-tier ds-tier-' + (s.priority_tier || 'normal')}>
+            {s.priority_tier || 'normal'}
+          </span>
+          {s.confidence ? <span className="ds-confidence">{s.confidence}</span> : null}
+        </div>
+        <h5 className="ds-suggestion-name">{s.card.name}</h5>
+        {rep && rep.name ? <p className="ds-meta">Cut {rep.name}</p> : null}
+        {s.rationale ? <p className="ds-suggestion-rationale">{s.rationale}</p> : null}
+        {onAccept || onDismiss ? (
+          <div className="ds-actions">
+            {onAccept ? (
+              <button type="button" className="ds-btn ds-btn-primary" onClick={() => onAccept(s)}>
+                Accept
+              </button>
+            ) : null}
+            {onDismiss ? (
+              <button type="button" className="ds-btn" onClick={() => onDismiss(s.suggestion_id)}>
+                Dismiss
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
-function DeckResultBlock({ result, compact }: { result: DeckResult; compact?: boolean }) {
+function DeckResultBlock({
+  result,
+  compact,
+  onAccept,
+  onDismiss,
+}: {
+  result: DeckResult;
+  compact?: boolean;
+  onAccept?: (deckId: string, s: Suggestion) => void;
+  onDismiss?: (id: string) => void;
+}) {
   return (
     <div className={'ds-deck-result' + (compact ? ' ds-deck-result-compact' : '')}>
       <h4>{result.deck.deck_name}</h4>
@@ -31,10 +79,20 @@ function DeckResultBlock({ result, compact }: { result: DeckResult; compact?: bo
       ) : result.skipped ? (
         <p className="ds-meta">{result.message || result.skip_reason}</p>
       ) : !(result.suggestions || []).length ? (
-        <p className="ds-meta">No suggestions matched deck profile.</p>
+        <p className="ds-meta">No suggestions for this deck.</p>
       ) : (
-        !compact &&
-        (result.suggestions || []).map((s) => <SuggestionLine key={s.suggestion_id} s={s} />)
+        !compact && (
+          <div className="ds-suggestion-grid">
+            {(result.suggestions || []).map((s) => (
+              <SuggestionCard
+                key={s.suggestion_id}
+                s={s}
+                onAccept={onAccept ? (sug) => onAccept(result.deck.deck_id, sug) : undefined}
+                onDismiss={onDismiss}
+              />
+            ))}
+          </div>
+        )
       )}
     </div>
   );
@@ -48,8 +106,6 @@ function SummaryCard({
     totalSwap: number;
     totalNormal: number;
     setCodes: string[];
-    poolSize: number;
-    skippedQueueSlots: number;
   };
 }) {
   return (
@@ -59,12 +115,14 @@ function SummaryCard({
         <strong>{summary.totalSuggestions}</strong> suggestions ({summary.totalSwap} swap ·{' '}
         {summary.totalNormal} normal)
       </p>
-      <p className="ds-meta">
-        Set {summary.setCodes.join(', ')} · {summary.poolSize} cards in pool
-      </p>
-      {summary.skippedQueueSlots > 0 ? (
+      {summary.setCodes.length ? (
         <p className="ds-meta">
-          Queue slots skipped (not in set scope): {summary.skippedQueueSlots}
+          Sets:{' '}
+          {summary.setCodes.map((code) => (
+            <span key={code} className="ds-set-chip">
+              {code}
+            </span>
+          ))}
         </p>
       ) : null}
     </div>
@@ -188,11 +246,23 @@ export function DeckSuggestResults({
   setScope,
   summary,
   rulesDebug,
+  onAccept,
+  onDismiss,
+  onNextPage,
+  remainingCount,
+  wishlistText,
+  wishlistEmpty,
 }: {
   generationRun: GenerationRun;
   setScope: SetScope | null;
   summary: ReturnType<typeof import('./export').buildSummary>;
   rulesDebug: boolean;
+  onAccept?: (deckId: string, s: Suggestion) => void;
+  onDismiss?: (id: string) => void;
+  onNextPage?: () => void;
+  remainingCount?: number;
+  wishlistText?: string;
+  wishlistEmpty?: boolean;
 }) {
   const withSuggestions: DeckResult[] = [];
   const withoutSuggestions: DeckResult[] = [];
@@ -209,7 +279,12 @@ export function DeckSuggestResults({
       <h3>Results</h3>
       {summary ? <SummaryCard summary={summary} /> : null}
       {withSuggestions.map((result) => (
-        <DeckResultBlock key={result.deck.deck_id} result={result} />
+        <DeckResultBlock
+          key={result.deck.deck_id}
+          result={result}
+          onAccept={onAccept}
+          onDismiss={onDismiss}
+        />
       ))}
       {withoutSuggestions.length ? (
         <details className="ds-no-suggestions">
@@ -220,6 +295,21 @@ export function DeckSuggestResults({
         </details>
       ) : null}
       <RulesDebugPanel run={generationRun} setScope={setScope} rulesDebug={rulesDebug} />
+      <div className="ds-end-page">
+        {wishlistEmpty ? (
+          <p className="ds-meta">Wishlist export is empty — accept cards first.</p>
+        ) : wishlistText ? (
+          <label className="ds-field">
+            Wishlist export (session accepts)
+            <textarea readOnly rows={6} value={wishlistText} aria-label="Wishlist export" />
+          </label>
+        ) : null}
+        {onNextPage && remainingCount ? (
+          <button type="button" className="ds-btn ds-btn-primary" onClick={onNextPage}>
+            Next page ({remainingCount} remaining)
+          </button>
+        ) : null}
+      </div>
     </>
   );
 }

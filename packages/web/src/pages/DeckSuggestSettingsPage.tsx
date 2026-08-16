@@ -4,6 +4,8 @@ import {
   type DeckSuggestSettingsPayload,
 } from '@rayenz-hub/shared';
 import { getHubApiConfig, loadDeckSuggestSettings, persistDeckSuggestSettings } from '../api/hub-api';
+import { listReleaseOptions } from '../deck-suggest/releases';
+import { ReleaseSelectOptgroups } from '../deck-suggest/ReleaseSelectOptgroups';
 
 function merge(remote: DeckSuggestSettingsPayload | null): DeckSuggestSettingsPayload {
   return { ...DEFAULT_DECK_SUGGEST_SETTINGS, ...(remote || {}) };
@@ -16,6 +18,7 @@ export function DeckSuggestSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const releases = listReleaseOptions();
 
   useEffect(() => {
     let cancelled = false;
@@ -24,11 +27,7 @@ export function DeckSuggestSettingsPage() {
         const { settings: remote, source } = await loadDeckSuggestSettings();
         if (!cancelled) {
           setSettings(merge(remote));
-          setStatus(
-            source === 'api'
-              ? 'Loaded from API.'
-              : 'Using empty defaults — set your Archidekt folder and set codes.',
-          );
+          setStatus(source === 'api' ? 'Loaded from API.' : 'Using defaults.');
         }
       } catch (err) {
         if (!cancelled) {
@@ -51,7 +50,7 @@ export function DeckSuggestSettingsPage() {
     setError(null);
     try {
       await persistDeckSuggestSettings(settings);
-      setStatus('Saved to API.');
+      setStatus('Saved.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -67,13 +66,13 @@ export function DeckSuggestSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Deck Suggest</h2>
       <p className="hub-web-hint">
-        Preference fields used by Deck Suggest. Load / generate actions stay on the Deck Suggest page.
+        Defaults for the Suggest page. Generate still runs from Deck Suggest.
       </p>
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Hub API is required to load or save these settings.{' '}
-          <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
+          Configure API URL and key in Settings to load or save these preferences.{' '}
+          <a href="#/settings/hub-api">Open API settings</a>.
         </div>
       )}
       {error && (
@@ -89,23 +88,39 @@ export function DeckSuggestSettingsPage() {
 
       <form className="hub-web-form" onSubmit={handleSubmit}>
         <fieldset>
-          <legend>Set pool &amp; folder</legend>
+          <legend>Release defaults</legend>
           <label className="hub-web-field">
-            Set codes (comma-separated)
+            Default input mode
+            <select
+              value={settings.setInputMode || 'release'}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  setInputMode: e.target.value as 'release' | 'codes',
+                }))
+              }
+            >
+              <option value="release">Set release</option>
+              <option value="codes">Set codes</option>
+            </select>
+          </label>
+          <label className="hub-web-field">
+            Default set release
+            <select
+              value={settings.releaseId || ''}
+              onChange={(e) => setSettings((prev) => ({ ...prev, releaseId: e.target.value }))}
+            >
+              <option value="">(none)</option>
+              <ReleaseSelectOptgroups releases={releases} />
+            </select>
+          </label>
+          <label className="hub-web-field">
+            Default set codes (up to 5)
             <input
               type="text"
               value={settings.setCodes || ''}
-              placeholder="MSH,MSC,MAR"
+              placeholder="LTR, LTC"
               onChange={(e) => setSettings((prev) => ({ ...prev, setCodes: e.target.value }))}
-            />
-          </label>
-          <label className="hub-web-field">
-            Archidekt folder URL
-            <input
-              type="url"
-              value={settings.folderUrl || ''}
-              placeholder="https://archidekt.com/folders/…"
-              onChange={(e) => setSettings((prev) => ({ ...prev, folderUrl: e.target.value }))}
             />
           </label>
           <label className="hub-web-check">
@@ -115,60 +130,6 @@ export function DeckSuggestSettingsPage() {
               onChange={(e) => setSettings((prev) => ({ ...prev, rulesDebug: e.target.checked }))}
             />
             Debug trace (local)
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Deck load preferences</legend>
-          <label className="hub-web-field">
-            Default decks tab
-            <select
-              value={settings.deckLoadTab || ''}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  deckLoadTab: (e.target.value || null) as DeckSuggestSettingsPayload['deckLoadTab'],
-                }))
-              }
-            >
-              <option value="">(none)</option>
-              <option value="folder">Folder</option>
-              <option value="paste-import">Paste deck</option>
-              <option value="paste-urls">Paste URLs</option>
-              <option value="upload">Upload JSON</option>
-            </select>
-          </label>
-          <label className="hub-web-field">
-            Paste deck name
-            <input
-              type="text"
-              value={settings.pasteDeckName || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, pasteDeckName: e.target.value }))}
-            />
-          </label>
-          <label className="hub-web-field">
-            Paste deck URL
-            <input
-              type="url"
-              value={settings.pasteDeckUrl || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, pasteDeckUrl: e.target.value }))}
-            />
-          </label>
-          <label className="hub-web-field">
-            Archidekt import text
-            <textarea
-              rows={4}
-              value={settings.pasteDeckImport || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, pasteDeckImport: e.target.value }))}
-            />
-          </label>
-          <label className="hub-web-field">
-            Custom deck URLs (one per line)
-            <textarea
-              rows={4}
-              value={settings.customDeckUrls || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, customDeckUrls: e.target.value }))}
-            />
           </label>
         </fieldset>
 

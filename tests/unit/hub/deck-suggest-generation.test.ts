@@ -29,12 +29,9 @@ describe('runGenerationForDeck', () => {
     expect(result.suggestions).toEqual([]);
   });
 
-  it('generates suggestions for eligible fixture deck', async () => {
+  it('does not run matching locally for eligible decks', async () => {
     const deck = loadFixture('baird-snapshot.json');
     const setScope = loadFixture('set-msh-slice.json');
-    const result = await runGenerationForDeck(deck, setScope, false);
-    expect(result.skipped).toBe(false);
-    expect(result.suggestions!.length).toBeGreaterThan(0);
-    expect(result.analysis).toBeTruthy();
+    await expect(runGenerationForDeck(deck, setScope, false)).rejects.toThrow(/Use Generate/);
   });
 });

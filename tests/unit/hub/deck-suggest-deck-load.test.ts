@@ -4,7 +4,6 @@ import {
   buildDeckFromImportText,
   hubDeckToRecord,
   parseDeckListFromText,
-  resolveDeckLoadTab,
 } from '../../../packages/web/src/deck-suggest/index.ts';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
 import type { DeckDocument } from '@rayenz-hub/shared';
@@ -140,24 +139,6 @@ describe('applyDeckList', () => {
     );
     expect(result.decks.map((d) => d.deck_name)).toEqual(['Alpha', 'Zebra']);
     expect(result.selectedIds).toEqual(['d1', 'd2']);
-  });
-});
-
-describe('resolveDeckLoadTab', () => {
-  it('defaults to hub when no saved tab', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, {})).toBe('hub');
-  });
-
-  it('falls back to hub when folder saved but bridge unavailable', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'folder' })).toBe('hub');
-  });
-
-  it('maps legacy paste tab to paste-urls', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'paste' })).toBe('paste-urls');
-  });
-
-  it('keeps hub when explicitly saved', () => {
-    expect(resolveDeckLoadTab({ deckLoadTab: null }, { deckLoadTab: 'hub' })).toBe('hub');
   });
 });
 

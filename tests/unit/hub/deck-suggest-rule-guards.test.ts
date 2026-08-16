@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { RuleGuards } from '../../../packages/web/src/deck-suggest/index.ts';
+import { RuleGuards } from '../../../packages/shared/src/suggest/index.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tests/fixtures/deck-suggest');
@@ -46,6 +46,10 @@ describe('RuleGuards helpers', () => {
       tags: [],
       protected_cards: [],
       blocked_cards: [],
+      typal_types: [],
+      themes: [],
+      keyword_interests: [],
+      constraints: {},
     });
   });
 

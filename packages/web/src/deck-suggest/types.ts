@@ -75,6 +75,13 @@ export type DeckRecord = {
   };
 };
 
+export type SuggestionSignals = {
+  keywords?: string[];
+  types?: string[];
+  tags?: string[];
+  textHints?: string[];
+};
+
 export type Suggestion = {
   suggestion_id: string;
   action: string;
@@ -88,6 +95,7 @@ export type Suggestion = {
   fills_swap_slot?: string;
   priority_tier: string;
   swap_source?: string;
+  signals?: SuggestionSignals;
 };
 
 export type DeckResult = {
@@ -108,17 +116,26 @@ export type GenerationRun = {
   rulesExecuted: Array<Record<string, unknown>>;
   taggerCoverage?: { cardsResolved: number; cardsWithTags: number; percent: number };
   deckResults: DeckResult[];
+  cap?: number;
+  setCodes?: string[];
+  setCodesKey?: string;
 };
+
+export type SetInputMode = 'release' | 'codes';
 
 export type DeckSuggestSettings = {
   setCodes?: string;
+  releaseId?: string;
+  setInputMode?: SetInputMode;
+  rulesDebug?: boolean;
+  /** @deprecated legacy */
+  productName?: string;
   folderUrl?: string;
   deckLoadTab?: string;
   customDeckUrls?: string;
   pasteDeckName?: string;
   pasteDeckUrl?: string;
   pasteDeckImport?: string;
-  rulesDebug?: boolean;
 };
 
 export type DeckSelection = {
@@ -132,7 +149,11 @@ export type DeckSuggestState = {
   deckSelection: DeckSelection;
   profilesConnected: boolean;
   generationRun: GenerationRun | null;
-  ui: { setCodesInput: string; deckLoadTab?: string | null };
+  ui: {
+    setCodesInput: string;
+    releaseId: string;
+    setInputMode: SetInputMode;
+  };
   settings: DeckSuggestSettings;
   statusMessage: string;
   generating: boolean;
@@ -167,5 +188,3 @@ export type TaggerContext = {
   cache: Record<string, { cardName: string; taggerTags: string[]; source: string }>;
   coverage: { cardsResolved: number; cardsWithTags: number; percent: number };
 };
-
-export type DeckLoadTab = 'hub' | 'folder' | 'paste-import' | 'paste-urls' | 'upload';

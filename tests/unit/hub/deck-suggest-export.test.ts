@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { validatePayload } from '@rayenz-hub/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { collectDebugEntries, Export, runRulesForDeck } from '../../../packages/web/src/deck-suggest/index.ts';
+import { collectDebugEntries, Export } from '../../../packages/web/src/deck-suggest/index.ts';
+import { runRulesForDeck } from '../../../packages/shared/src/suggest/index.ts';
 import { resetHubModules, REPO_ROOT } from '../helpers/hubHarness.ts';
 
 const FIXTURE_DIR = path.join(REPO_ROOT, 'tests/fixtures/deck-suggest');
@@ -58,7 +59,7 @@ describe('deck-suggest export', () => {
     expect(summary).not.toBe(null);
     expect(summary!.totalSuggestions).toBeGreaterThan(0);
     expect(summary!.deckRows).toHaveLength(1);
-    expect(summary!.poolSize).toBe(setScope.cards.length);
+    expect(summary!.setCodes).toEqual(setScope.codes);
   });
 
   it('hasReviewableSuggestions is true when export has suggestions', () => {

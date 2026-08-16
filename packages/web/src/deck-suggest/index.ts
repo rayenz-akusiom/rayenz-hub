@@ -1,6 +1,5 @@
 import {
   attachProfileLists,
-  buildDeckFromImportText,
   buildDeckRuleContext,
   clearDataSetPoolCache,
   enrichDeckWithProfile,
@@ -10,10 +9,10 @@ import {
   getDeckSwapQueue,
   hubDeckToRecord,
   indexSetPool,
-  loadDeckRegistry,
   loadHubLibraryDecks,
   loadSetScopeFromUpload,
   parseDeckListFromText,
+  buildDeckFromImportText,
   parseYamlProfile,
   readProfileForDeck,
   resolveDeckEligibility,
@@ -25,13 +24,6 @@ export * from './readiness';
 export * from './data';
 export * from './rule-guards';
 export { RuleGuards } from './rule-guards';
-export * from './tagger';
-export { Tagger, RoleRules } from './tagger';
-export * from './rules-queue';
-export { QueueRules } from './rules-queue';
-export * from './rules-proxy';
-export { ProxyRules } from './rules-proxy';
-export * from './rules';
 export * from './debug';
 export { Debug } from './debug';
 export * from './export';
@@ -49,9 +41,6 @@ export const Data = {
   fetchSetPool,
   tryRestoreSetPool,
   loadSetScopeFromUpload,
-  loadDeckRegistry,
-  parseDeckListFromText,
-  buildDeckFromImportText,
   fetchDeckSnapshot,
   readProfileForDeck,
   enrichDeckWithProfile,
@@ -59,4 +48,6 @@ export const Data = {
   hubDeckToRecord,
   loadHubLibraryDecks,
   clearSetPoolCache: clearDataSetPoolCache,
+  parseDeckListFromText,
+  buildDeckFromImportText,
 };

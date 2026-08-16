@@ -31,8 +31,9 @@ function setScope() {
     codes: ['MSH'],
     cards: [
       { name: 'New Elf', set_code: 'MSH', collector_number: '1', type_line: 'Creature — Elf Warrior', cmc: 2, color_identity: ['G'] },
-      { name: 'Token Maker', set_code: 'MSH', collector_number: '2', type_line: 'Enchantment', oracle_text: 'Create two tokens.', cmc: 3, color_identity: ['G'] },
+      { name: 'Token Maker', set_code: 'MSH', collector_number: '2', type_line: 'Enchantment', oracle_text: 'Create two tokens.', oracle_tags: ['tokens'], cmc: 3, color_identity: ['G'] },
       { name: 'Landfall Scout', set_code: 'MSH', collector_number: '3', type_line: 'Creature — Scout', keywords: ['Landfall'], oracle_text: 'Landfall — draw a card.', cmc: 2, color_identity: ['G'] },
+      { name: 'Text Only Tokens', set_code: 'MSH', collector_number: '8', type_line: 'Sorcery', oracle_text: 'Create tokens.', cmc: 2, color_identity: ['G'] },
       { name: 'Bad Elf', set_code: 'MSH', collector_number: '4', type_line: 'Creature — Elf', cmc: 2, color_identity: ['G'] },
       { name: 'Expensive Elf', set_code: 'MSH', collector_number: '5', type_line: 'Creature — Elf', cmc: 8, color_identity: ['G'] },
       { name: 'Mill Elf', set_code: 'MSH', collector_number: '6', type_line: 'Creature — Elf', oracle_text: 'mill three cards', cmc: 2, color_identity: ['G'] },
@@ -48,6 +49,7 @@ describe('typal/theme/keyword rules', () => {
     expect(names).toContain('New Elf');
     expect(names).toContain('Token Maker');
     expect(names).toContain('Landfall Scout');
+    expect(names).not.toContain('Text Only Tokens');
     expect(names).not.toContain('Bad Elf');
     expect(names).not.toContain('Expensive Elf');
     expect(names).not.toContain('Mill Elf');
@@ -61,7 +63,8 @@ describe('typal/theme/keyword rules', () => {
     expect(elf?.tags.some((t) => t === 'rule:typal_synergy')).toBe(true);
     const theme = suggestions.find((s) => s.card.name === 'Token Maker');
     expect(theme?.rationale).toMatch(/Theme match/i);
-    expect(theme?.signals?.textHints).toContain('tokens');
+    expect(theme?.signals?.tags).toContain('tokens');
+    expect(theme?.confidence).toBe('medium');
     const keyword = suggestions.find((s) => s.card.name === 'Landfall Scout');
     expect(keyword?.rationale).toMatch(/Keyword/i);
     expect(keyword?.confidence).toBe('medium');

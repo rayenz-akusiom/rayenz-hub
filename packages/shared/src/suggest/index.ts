@@ -10,9 +10,22 @@ import { runTypalSynergy } from './rules-typal';
 import { runThemeSynergy } from './rules-theme';
 import { runKeywordSynergy } from './rules-keyword';
 import { createContext, countTagOverlap, resolveCardTags, cardTextBlob, cardStoredTags } from './signals';
+import {
+  SUGGEST_PER_DECK_SOFT_CAP,
+  SUGGEST_PER_RULE_SOFT_CAP,
+  applySoftCap,
+  dropLowConfidence,
+} from './suggest-limits';
 import type { Coverage, DeckRecord, PageDeckResult, RuleAudit, SetScope, Suggestion } from './types';
 
 import './debug';
+
+export {
+  SUGGEST_PER_DECK_SOFT_CAP,
+  SUGGEST_PER_RULE_SOFT_CAP,
+  applySoftCap,
+  dropLowConfidence,
+} from './suggest-limits';
 
 export const Tagger = {
   countTagOverlap,
@@ -194,7 +207,8 @@ export function runRulesForDeck(
     const raw = rule.fn(deck, setScope, profile, suggestions, taggerCtx, ruleDebug) || [];
     const added = (raw as { added?: Suggestion[] }).added != null ? (raw as { added: Suggestion[] }).added : (raw as Suggestion[]);
     const skipped = (raw as { skipped?: Array<{ name: string; reason: string }> }).skipped || [];
-    suggestions = suggestions.concat(added);
+    const capped = applySoftCap(added, SUGGEST_PER_RULE_SOFT_CAP, sortSuggestions);
+    suggestions = suggestions.concat(capped);
     audit.push({
       ruleId: rule.id,
       deckId: deck.deck_id,
@@ -218,7 +232,7 @@ export function runRulesForDeck(
     });
   });
 
-  suggestions = sortSuggestions(suggestions);
+  suggestions = applySoftCap(suggestions, SUGGEST_PER_DECK_SOFT_CAP, sortSuggestions);
 
   return {
     suggestions,

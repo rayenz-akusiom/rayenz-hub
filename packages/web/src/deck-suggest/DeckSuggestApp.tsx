@@ -15,6 +15,7 @@ import {
   buildSeekingAcceptPatch,
   buildSwapAcceptPatch,
   persistSuggestPatch,
+  type AcceptPrintingChoice,
   type SessionAccept,
 } from './accept';
 import { buildSessionWishlistText } from './wishlist-export';
@@ -145,15 +146,20 @@ export function DeckSuggestApp() {
   const wishlistText = buildSessionWishlistText(sessionAccepts);
 
   async function openAccept(deckId: string, suggestion: Suggestion) {
+    setError('');
     const doc = (await getDeck(deckId)) || (await apiGetDeck(deckId));
+    if (!doc) {
+      setError('Save this deck to Hub before accepting suggestions.');
+      return;
+    }
     setAcceptDeck(doc);
     setAccepting({ deckId, suggestion });
   }
 
-  async function saveSwap(outInstanceId: string) {
+  async function saveSwap(outInstanceId: string, choice: AcceptPrintingChoice) {
     if (!accepting || !acceptDeck) return;
     try {
-      const patch = buildSwapAcceptPatch(acceptDeck, accepting.suggestion, outInstanceId);
+      const patch = buildSwapAcceptPatch(acceptDeck, accepting.suggestion, outInstanceId, choice);
       await persistSuggestPatch(accepting.deckId, patch);
       setSessionAccepts((prev) => [
         ...prev,
@@ -162,8 +168,8 @@ export function DeckSuggestApp() {
           cardName: accepting.suggestion.card.name,
           quantity: 1,
           printing: {
-            set_code: accepting.suggestion.card.set_code,
-            collector_number: accepting.suggestion.card.collector_number,
+            set_code: choice.printing.setCode,
+            collector_number: choice.printing.collectorNumber,
           },
           kind: 'queued_in',
         },
@@ -176,10 +182,10 @@ export function DeckSuggestApp() {
     }
   }
 
-  async function saveSeeking() {
+  async function saveSeeking(choice: AcceptPrintingChoice) {
     if (!accepting || !acceptDeck) return;
     try {
-      const patch = buildSeekingAcceptPatch(acceptDeck, accepting.suggestion);
+      const patch = buildSeekingAcceptPatch(acceptDeck, accepting.suggestion, choice);
       await persistSuggestPatch(accepting.deckId, patch);
       setSessionAccepts((prev) => [
         ...prev,
@@ -188,8 +194,8 @@ export function DeckSuggestApp() {
           cardName: accepting.suggestion.card.name,
           quantity: 1,
           printing: {
-            set_code: accepting.suggestion.card.set_code,
-            collector_number: accepting.suggestion.card.collector_number,
+            set_code: choice.printing.setCode,
+            collector_number: choice.printing.collectorNumber,
           },
           kind: 'seeking',
         },
@@ -385,8 +391,8 @@ export function DeckSuggestApp() {
                     setAccepting(null);
                     setAcceptDeck(null);
                   }}
-                  onSwap={(outId) => void saveSwap(outId)}
-                  onSeeking={() => void saveSeeking()}
+                  onSwap={(outId, choice) => void saveSwap(outId, choice)}
+                  onSeeking={(choice) => void saveSeeking(choice)}
                 />
               ) : null}
             </div>

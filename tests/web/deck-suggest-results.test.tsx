@@ -48,7 +48,12 @@ function sampleRun(): GenerationRun {
             confidence: 'high',
             tags: ['rule:queue_in_pair'],
             signals: { types: ['Human'] },
-            card: { name: 'Take Up the Shield', set_code: 'MSH', collector_number: '39' },
+            card: {
+              name: 'Take Up the Shield',
+              set_code: 'MSH',
+              collector_number: '39',
+              scryfall_id: 'abcdef12-3456-7890-abcd-ef1234567890',
+            },
             replaces: [{ name: 'Plains' }],
             rationale: 'Better protection',
           },
@@ -58,7 +63,12 @@ function sampleRun(): GenerationRun {
             confidence: 'medium',
             tags: ['rule:typal_synergy'],
             signals: { types: ['Elf'] },
-            card: { name: 'Sol Ring', set_code: 'CMM', collector_number: '1' },
+            card: {
+              name: 'Sol Ring',
+              set_code: 'CMM',
+              collector_number: '1',
+              scryfall_id: 'fedcba98-7654-3210-fedc-ba9876543210',
+            },
             replaces: [],
             rationale: 'Ramp',
           },
@@ -128,7 +138,7 @@ describe('DeckSuggestResults', () => {
     expect(document.querySelector('.ds-summary-total')?.textContent).toMatch(/2\s*suggestions/i);
     expect(document.querySelector('.ds-suggestion-grid')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Test Deck — Atraxa' })).toBeInTheDocument();
-    expect(screen.getByText('Take Up the Shield')).toBeInTheDocument();
+    expect(screen.getByAltText('Take Up the Shield')).toBeInTheDocument();
     expect(screen.getByText(/Cut Plains/i)).toBeInTheDocument();
     expect(screen.getByText('Seeking')).toBeInTheDocument();
 
@@ -159,7 +169,7 @@ describe('DeckSuggestResults', () => {
     expect(screen.getByText(/Matched profile tag/i)).toBeInTheDocument();
   });
 
-  it('shows confidence and rationale on suggestion cards', () => {
+  it('shows swap tier, confidence and rule lozenges, and name as alt text', () => {
     render(
       <DeckSuggestResults
         generationRun={sampleRun()}
@@ -168,11 +178,17 @@ describe('DeckSuggestResults', () => {
         rulesDebug={false}
       />,
     );
-    expect(screen.getByText('high')).toBeInTheDocument();
-    expect(screen.getByText('medium')).toBeInTheDocument();
+    expect(screen.getByText('swap')).toBeInTheDocument();
+    expect(screen.queryByText('normal')).not.toBeInTheDocument();
+    expect(document.querySelector('.ds-lozenge-high')?.textContent).toBe('high');
+    expect(document.querySelector('.ds-lozenge-medium')?.textContent).toBe('medium');
+    expect(screen.getByText('queue_in_pair')).toBeInTheDocument();
+    expect(screen.getByText('typal_synergy')).toBeInTheDocument();
+    expect(screen.getByAltText('Take Up the Shield')).toBeInTheDocument();
+    expect(screen.getByAltText('Sol Ring')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Take Up the Shield' })).not.toBeInTheDocument();
     expect(screen.getByText(/Better protection/i)).toBeInTheDocument();
     expect(screen.queryByText(/Tag coverage/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/rule:queue_in_pair/i)).not.toBeInTheDocument();
   });
 
   it('offers wishlist export or empty state and next page', async () => {

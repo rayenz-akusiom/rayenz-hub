@@ -18,6 +18,19 @@ function queueBadgeLabel(badge: 'seeking' | 'swap_in'): string {
   return badge === 'seeking' ? 'Seeking' : 'In swap';
 }
 
+function ruleLozengeLabels(tags: string[] | undefined): string[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const tag of tags || []) {
+    if (!tag.startsWith('rule:')) continue;
+    const label = tag.slice(5).trim();
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    labels.push(label);
+  }
+  return labels;
+}
+
 function SuggestionCard({
   s,
   deck,
@@ -32,26 +45,33 @@ function SuggestionCard({
   const rep = s.replaces && s.replaces[0];
   const img = scryfallImageUrl(s.card);
   const queueBadge = suggestQueueBadge(deck, s.card.name);
+  const isSwap = s.priority_tier === 'swap';
+  const confidence = s.confidence ? String(s.confidence) : '';
+  const rules = ruleLozengeLabels(s.tags);
   return (
-    <article className="ds-suggestion-card">
+    <article className="ds-suggestion-card" aria-label={s.card.name}>
       {img ? (
-        <img className="ds-suggestion-art" src={img} alt="" loading="lazy" />
+        <img className="ds-suggestion-art" src={img} alt={s.card.name} loading="lazy" />
       ) : (
         <div className="ds-suggestion-art ds-suggestion-art-fallback" aria-hidden="true" />
       )}
       <div className="ds-suggestion-body">
         <div className="ds-suggestion-topline">
-          <span className={'ds-tier ds-tier-' + (s.priority_tier || 'normal')}>
-            {s.priority_tier || 'normal'}
-          </span>
+          {isSwap ? <span className="ds-tier ds-tier-swap">swap</span> : null}
           {queueBadge ? (
             <span className={'ds-queue-badge ds-queue-badge-' + queueBadge}>
               {queueBadgeLabel(queueBadge)}
             </span>
           ) : null}
-          {s.confidence ? <span className="ds-confidence">{s.confidence}</span> : null}
+          {confidence ? (
+            <span className={'ds-lozenge ds-lozenge-' + confidence}>{confidence}</span>
+          ) : null}
+          {rules.map((rule) => (
+            <span key={rule} className="ds-lozenge ds-lozenge-rule">
+              {rule}
+            </span>
+          ))}
         </div>
-        <h5 className="ds-suggestion-name">{s.card.name}</h5>
         {rep && rep.name ? <p className="ds-meta">Cut {rep.name}</p> : null}
         {s.rationale ? <p className="ds-suggestion-rationale">{s.rationale}</p> : null}
         {onAccept || onDismiss ? (

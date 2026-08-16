@@ -168,10 +168,37 @@
    align-items: center;
 }
 
-.ds-suggestion-name {
-   margin: 0;
-   font-size: 0.95rem;
-   line-height: 1.25;
+.ds-lozenge {
+   display: inline-block;
+   font-size: 0.7rem;
+   font-weight: 700;
+   text-transform: uppercase;
+   letter-spacing: 0.04em;
+   padding: 3px 8px;
+   border-radius: 4px;
+}
+
+.ds-lozenge-high {
+   background: #c6f6d5;
+   color: #22543d;
+}
+
+.ds-lozenge-medium {
+   background: #bee3f8;
+   color: #2a4365;
+}
+
+.ds-lozenge-low {
+   background: #e2e8f0;
+   color: #4a5568;
+}
+
+.ds-lozenge-rule {
+   background: #edf2f7;
+   color: #4a5568;
+   font-weight: 600;
+   text-transform: none;
+   letter-spacing: 0;
 }
 
 .ds-suggestion-rationale {
@@ -228,9 +255,7 @@
    flex: 1;
    min-height: 0;
    overflow-y: auto;
-   max-width: 1100px;
    width: 100%;
-   margin: 0 auto;
    padding: 24px 28px 48px;
    box-sizing: border-box;
 }
@@ -328,6 +353,10 @@
 }
 
 /* .ds-tier-swap — see hub-mtg-ui.css */
+
+.ds-accept-card h3 {
+   margin: 0 0 12px;
+}
 
 .ds-deck-result h4 {
    margin: 16px 0 8px;

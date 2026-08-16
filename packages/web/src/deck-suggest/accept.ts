@@ -4,6 +4,7 @@ import {
   SWAP_IN,
   type DeckDocument,
   type DeckPatch,
+  type PrintingFields,
 } from '@rayenz-hub/shared';
 import { getDeck } from '../deck-builder/store/deck-store';
 import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
@@ -11,8 +12,24 @@ import { apiGetDeck } from '../deck-builder/store/deck-api';
 import { apiFetch } from '../api/hub-api';
 import type { Suggestion } from './types';
 
+export type AcceptPrintingChoice = {
+  printing: PrintingFields;
+  proxy?: boolean;
+};
+
 function mintId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function cardFieldsFromChoice(choice: AcceptPrintingChoice) {
+  const { printing, proxy } = choice;
+  return {
+    setCode: printing.setCode || null,
+    collectorNumber: printing.collectorNumber || null,
+    scryfallId: printing.scryfallId || null,
+    foil: Boolean(printing.foil),
+    proxy: Boolean(proxy),
+  };
 }
 
 export function legalOutCards(
@@ -32,6 +49,7 @@ export function buildSwapAcceptPatch(
   deck: DeckDocument,
   suggestion: Suggestion,
   outInstanceId: string,
+  choice?: AcceptPrintingChoice,
 ): DeckPatch {
   const out = deck.cards.find((c) => c.instanceId === outInstanceId);
   if (!out) {
@@ -42,6 +60,15 @@ export function buildSwapAcceptPatch(
     const card = deck.cards.find((c) => c.instanceId === e.instanceId);
     return card && card.name.toLowerCase() === suggestion.card.name.toLowerCase();
   });
+  const fields = choice
+    ? cardFieldsFromChoice(choice)
+    : {
+        setCode: suggestion.card.set_code || null,
+        collectorNumber: suggestion.card.collector_number || null,
+        scryfallId: suggestion.card.scryfall_id || null,
+        foil: false,
+        proxy: false,
+      };
   return {
     expectedUpdatedAt: deck.updatedAt,
     cardOps: [
@@ -52,9 +79,7 @@ export function buildSwapAcceptPatch(
           name: suggestion.card.name,
           primaryCategory: SWAP_IN,
           categories: [SWAP_IN],
-          setCode: suggestion.card.set_code || null,
-          collectorNumber: suggestion.card.collector_number || null,
-          scryfallId: suggestion.card.scryfall_id || null,
+          ...fields,
           quantity: 1,
         },
       },
@@ -77,11 +102,24 @@ export function buildSwapAcceptPatch(
   };
 }
 
-export function buildSeekingAcceptPatch(deck: DeckDocument, suggestion: Suggestion): DeckPatch {
+export function buildSeekingAcceptPatch(
+  deck: DeckDocument,
+  suggestion: Suggestion,
+  choice?: AcceptPrintingChoice,
+): DeckPatch {
   const existing = deck.cards.find(
     (c) => c.name.toLowerCase() === suggestion.card.name.toLowerCase(),
   );
   const inId = existing?.instanceId || mintId('c');
+  const fields = choice
+    ? cardFieldsFromChoice(choice)
+    : {
+        setCode: suggestion.card.set_code || null,
+        collectorNumber: suggestion.card.collector_number || null,
+        scryfallId: suggestion.card.scryfall_id || null,
+        foil: false,
+        proxy: false,
+      };
   const ops: DeckPatch = {
     expectedUpdatedAt: deck.updatedAt,
     lookingForOps: [
@@ -103,11 +141,17 @@ export function buildSeekingAcceptPatch(deck: DeckDocument, suggestion: Suggesti
           name: suggestion.card.name,
           primaryCategory: SEEKING,
           categories: [SEEKING],
-          setCode: suggestion.card.set_code || null,
-          collectorNumber: suggestion.card.collector_number || null,
-          scryfallId: suggestion.card.scryfall_id || null,
+          ...fields,
           quantity: 1,
         },
+      },
+    ];
+  } else if (choice) {
+    ops.cardOps = [
+      {
+        op: 'update',
+        instanceId: inId,
+        patch: fields,
       },
     ];
   }

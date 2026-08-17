@@ -88,6 +88,40 @@ describe('outPickerCards', () => {
     expect(ids).not.toContain('in-card');
     expect(ids).not.toContain('seek-card');
   });
+
+  it('applies excludeNames and excludePrimaryCategories filters', () => {
+    const withCmd: DeckDocument = {
+      ...deck,
+      cards: [
+        {
+          ...deck.cards[0]!,
+          instanceId: 'cmd',
+          name: 'Commander',
+          primaryCategory: 'Commander',
+          categories: ['Commander'],
+        },
+        {
+          ...deck.cards[0]!,
+          instanceId: 'prot',
+          name: 'Protected',
+          primaryCategory: 'Other',
+          categories: ['Other'],
+        },
+        {
+          ...deck.cards[0]!,
+          instanceId: 'ok',
+          name: 'Ok Card',
+          primaryCategory: 'Other',
+          categories: ['Other'],
+        },
+      ],
+    };
+    const ids = outPickerCards(withCmd, {
+      excludeNames: ['Protected'],
+      excludePrimaryCategories: ['Commander'],
+    }).map((c) => c.instanceId);
+    expect(ids).toEqual(['ok']);
+  });
 });
 
 describe('findMatchingPrintingInstance', () => {

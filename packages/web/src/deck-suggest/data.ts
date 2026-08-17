@@ -6,6 +6,7 @@ import {
   hasMaybeboardOnlySwapQueue,
   isSeekingCategory,
   isSwapInCategory,
+  isTheoryDeck,
   SET_POOL_FORMAT_VERSION,
   SCRYFALL_SUGGEST_POOL_FILTERS,
   type DeckDocument,
@@ -92,6 +93,13 @@ export function parseYamlProfile(text: string): DeckProfile {
 export function resolveDeckEligibility(deck: DeckRecord) {
   const profile = deck.profile || {};
   const format = profile.format;
+  if (deck.ownership === 'theory') {
+    return {
+      eligible: false,
+      reason: 'theory_deck',
+      message: deck.deck_name + ': skipped (theory deck).',
+    };
+  }
   if (format && format !== 'commander') {
     return {
       eligible: false,
@@ -483,8 +491,10 @@ export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
   const decks: DeckRecord[] = [];
   for (const s of summaries) {
     if (s.format !== 'commander') continue;
+    if (isTheoryDeck(s)) continue;
     const doc = await getDeck(s.deckId);
-    if (doc) decks.push(hubDeckToRecord(doc));
+    if (!doc || isTheoryDeck(doc)) continue;
+    decks.push(hubDeckToRecord(doc));
   }
   return decks;
 }

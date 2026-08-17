@@ -156,10 +156,20 @@ export function DeckSuggestApp() {
     setAccepting({ deckId, suggestion });
   }
 
-  async function saveSwap(outInstanceId: string, choice: AcceptPrintingChoice) {
+  async function saveSwap(
+    outInstanceId: string,
+    choice: AcceptPrintingChoice,
+    meta?: { inTargetCategory: string | null; notes: string },
+  ) {
     if (!accepting || !acceptDeck) return;
     try {
-      const patch = buildSwapAcceptPatch(acceptDeck, accepting.suggestion, outInstanceId, choice);
+      const patch = buildSwapAcceptPatch(
+        acceptDeck,
+        accepting.suggestion,
+        outInstanceId,
+        choice,
+        meta,
+      );
       await persistSuggestPatch(accepting.deckId, patch);
       setSessionAccepts((prev) => [
         ...prev,
@@ -373,14 +383,10 @@ export function DeckSuggestApp() {
                 wishlistText={wishlistText}
                 wishlistEmpty={!sessionAccepts.length}
               />
-              {accepting ? (
+              {accepting && acceptDeck ? (
                 <AcceptDialogue
                   suggestion={accepting.suggestion}
                   deck={acceptDeck}
-                  theory={
-                    state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)
-                      ?.ownership === 'theory'
-                  }
                   protectedCards={[
                     ...(state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)?.profile
                       ?.protected_cards || []),
@@ -391,7 +397,7 @@ export function DeckSuggestApp() {
                     setAccepting(null);
                     setAcceptDeck(null);
                   }}
-                  onSwap={(outId, choice) => void saveSwap(outId, choice)}
+                  onSwap={(outId, choice, meta) => void saveSwap(outId, choice, meta)}
                   onSeeking={(choice) => void saveSeeking(choice)}
                 />
               ) : null}

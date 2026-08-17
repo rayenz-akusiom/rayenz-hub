@@ -8,9 +8,9 @@ import commander from '../fixtures/deck-builder/commander-slice.json';
 
 const samplePrinting: PrintingFields = {
   name: 'Sol Ring',
-  scryfallId: 'sr-id',
-  setCode: 'CMM',
-  collectorNumber: '1',
+  scryfallId: 'picked-print-id',
+  setCode: 'C21',
+  collectorNumber: '42',
   typeLine: 'Artifact',
   colourIdentity: [],
   layout: 'normal',
@@ -94,7 +94,7 @@ function deckWithProtected(): DeckDocument {
 }
 
 describe('AcceptDialogue', () => {
-  it('offers Swap Queue and Seeking in a modal, requires Out for swap, and cancels', async () => {
+  it('hosts SwapEditChrome with Seeking tab, real In CardTile, and cancels', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
     const onSwap = vi.fn();
@@ -103,7 +103,6 @@ describe('AcceptDialogue', () => {
       <AcceptDialogue
         suggestion={suggestion}
         deck={deckWithProtected()}
-        theory={false}
         protectedCards={['Kept Bear']}
         onCancel={onCancel}
         onSwap={onSwap}
@@ -112,11 +111,12 @@ describe('AcceptDialogue', () => {
     );
 
     expect(screen.getByRole('dialog', { name: /Accept suggestion/i })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Add to Swap Queue/i })).toBeEnabled();
-    expect(screen.getByRole('radio', { name: /Mark as Seeking/i })).toBeEnabled();
-    expect(screen.queryByRole('option', { name: 'Elf Commander' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Kept Bear' })).not.toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Forest' })).toBeInTheDocument();
+    expect(screen.getByTestId('swap-queue-edit')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Swap' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Add to Seeking' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change In' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /In: Sol Ring/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add to Swap Queue' })).toBeEnabled();
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -124,69 +124,107 @@ describe('AcceptDialogue', () => {
     expect(onSeeking).not.toHaveBeenCalled();
   });
 
-  it('continues to printing picker then saves Seeking', async () => {
+  it('requires Out before accepting a swap', async () => {
+    const user = userEvent.setup();
+    const onSwap = vi.fn();
+    const deck = deckWithProtected();
+    const noPrefill: Suggestion = { ...suggestion, replaces: [] };
+    render(
+      <AcceptDialogue
+        suggestion={noPrefill}
+        deck={deck}
+        onCancel={() => {}}
+        onSwap={onSwap}
+        onSeeking={() => {}}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Add to Swap Queue' })).toBeDisabled();
+    await user.click(screen.getByRole('tab', { name: 'Add to Seeking' }));
+    expect(screen.getByRole('button', { name: 'Add to Seeking' })).toBeEnabled();
+  });
+
+  it('accepts Seeking from CTA using suggestion printing without opening picker', async () => {
     const user = userEvent.setup();
     const onSeeking = vi.fn();
     render(
       <AcceptDialogue
         suggestion={suggestion}
         deck={deckWithProtected()}
-        theory={false}
         onCancel={() => {}}
         onSwap={() => {}}
         onSeeking={onSeeking}
       />,
     );
-    await user.click(screen.getByRole('radio', { name: /Mark as Seeking/i }));
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByRole('dialog', { name: /Choose printing/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Mark as Seeking/i }));
+    await user.click(screen.getByRole('tab', { name: 'Add to Seeking' }));
+    await user.click(screen.getByRole('button', { name: 'Add to Seeking' }));
+    expect(screen.queryByRole('dialog', { name: 'Choose printing' })).not.toBeInTheDocument();
     expect(onSeeking).toHaveBeenCalledTimes(1);
     expect(onSeeking.mock.calls[0][0]).toMatchObject({
-      printing: samplePrinting,
-      proxy: true,
+      printing: {
+        name: 'Sol Ring',
+        scryfallId: 'sr-id',
+        setCode: 'CMM',
+        collectorNumber: '1',
+      },
+      proxy: false,
     });
   });
 
-  it('continues to printing picker then saves Swap with Out', async () => {
+  it('accepts Swap from CTA using suggestion printing when Out is prefilled', async () => {
     const user = userEvent.setup();
     const onSwap = vi.fn();
+    const deck = deckWithProtected();
+    const forest = deck.cards.find((c) => c.name === 'Forest');
+    expect(forest).toBeTruthy();
     render(
       <AcceptDialogue
         suggestion={suggestion}
-        deck={deckWithProtected()}
-        theory={false}
+        deck={deck}
         onCancel={() => {}}
         onSwap={onSwap}
         onSeeking={() => {}}
       />,
     );
-    const forest = screen.getByRole('option', { name: 'Forest' }) as HTMLOptionElement;
-    await user.selectOptions(screen.getByLabelText('Out card'), forest.value);
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await user.click(screen.getByRole('button', { name: /Add to Swap Queue/i }));
+    expect(screen.getByRole('button', { name: 'Add to Swap Queue' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Add to Swap Queue' }));
+    expect(screen.queryByRole('dialog', { name: 'Choose printing' })).not.toBeInTheDocument();
     expect(onSwap).toHaveBeenCalledTimes(1);
-    expect(onSwap.mock.calls[0][0]).toBe(forest.value);
+    expect(onSwap.mock.calls[0][0]).toBe(forest!.instanceId);
+    expect(onSwap.mock.calls[0][1]).toMatchObject({
+      printing: {
+        name: 'Sol Ring',
+        scryfallId: 'sr-id',
+        setCode: 'CMM',
+        collectorNumber: '1',
+      },
+      proxy: false,
+    });
+  });
+
+  it('lets Change In update printing, then CTA accepts with that printing', async () => {
+    const user = userEvent.setup();
+    const onSwap = vi.fn();
+    const deck = deckWithProtected();
+    const forest = deck.cards.find((c) => c.name === 'Forest');
+    render(
+      <AcceptDialogue
+        suggestion={suggestion}
+        deck={deck}
+        onCancel={() => {}}
+        onSwap={onSwap}
+        onSeeking={() => {}}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Change In' }));
+    expect(screen.getByRole('dialog', { name: 'Choose printing' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Use printing' }));
+    expect(screen.getByTestId('swap-queue-edit')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add to Swap Queue' }));
+    expect(onSwap).toHaveBeenCalledTimes(1);
+    expect(onSwap.mock.calls[0][0]).toBe(forest!.instanceId);
     expect(onSwap.mock.calls[0][1]).toMatchObject({
       printing: samplePrinting,
       proxy: true,
     });
-  });
-
-  it('disables Swap Queue and Seeking for Theory decks', () => {
-    render(
-      <AcceptDialogue
-        suggestion={suggestion}
-        deck={deckWithProtected()}
-        theory
-        onCancel={() => {}}
-        onSwap={() => {}}
-        onSeeking={() => {}}
-      />,
-    );
-    expect(screen.getByRole('radio', { name: /Add to Swap Queue/i })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: /Mark as Seeking/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
-    expect(screen.getByText(/Theory decks have read-only queues/i)).toBeInTheDocument();
   });
 });

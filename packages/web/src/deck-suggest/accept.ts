@@ -50,6 +50,7 @@ export function buildSwapAcceptPatch(
   suggestion: Suggestion,
   outInstanceId: string,
   choice?: AcceptPrintingChoice,
+  meta?: { inTargetCategory?: string | null; notes?: string },
 ): DeckPatch {
   const out = deck.cards.find((c) => c.instanceId === outInstanceId);
   if (!out) {
@@ -90,7 +91,8 @@ export function buildSwapAcceptPatch(
         entry: {
           inInstanceId: inId,
           outInstanceId,
-          inTargetCategory: null,
+          inTargetCategory: meta?.inTargetCategory ?? null,
+          notes: meta?.notes?.trim() ? meta.notes.trim() : null,
           sortIndex: (deck.formalSwapEntries || []).length,
         },
       },

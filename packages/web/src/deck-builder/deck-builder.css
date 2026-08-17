@@ -2895,6 +2895,17 @@ body,
   flex-shrink: 0;
 }
 
+.db-swap-edit-tabs {
+  max-width: none;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.db-swap-edit-slots-single {
+  grid-template-columns: minmax(0, 12rem);
+  justify-content: center;
+}
+
 .db-swap-edit-slots {
   display: flex;
   flex-direction: row;

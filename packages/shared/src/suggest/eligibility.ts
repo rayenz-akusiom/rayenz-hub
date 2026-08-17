@@ -4,6 +4,13 @@ import type { DeckRecord } from './types';
 export function resolveDeckEligibility(deck: DeckRecord) {
   const profile = deck.profile || {};
   const format = profile.format || deck.format;
+  if (deck.ownership === 'theory') {
+    return {
+      eligible: false,
+      reason: 'theory_deck',
+      message: deck.deck_name + ': skipped (theory deck).',
+    };
+  }
   if (format && format !== 'commander') {
     return {
       eligible: false,

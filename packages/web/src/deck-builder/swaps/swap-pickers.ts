@@ -36,17 +36,30 @@ function printingLine(card: CardView): string {
   return '';
 }
 
+export type OutPickerFilter = {
+  /** Case-insensitive card names to omit (e.g. profile protected_cards). */
+  excludeNames?: string[];
+  /** Primary categories to omit (e.g. Commander / Lieutenant). */
+  excludePrimaryCategories?: string[];
+};
+
 /** Cards eligible as Out: deck cards including Queued Out; exclude formal Ins and Seeking. */
-export function outPickerCards(deck: DeckDocument): CardView[] {
+export function outPickerCards(deck: DeckDocument, filter?: OutPickerFilter): CardView[] {
   const inIds = new Set(
     (deck.formalSwapEntries || [])
       .map((e) => e.inInstanceId)
       .filter((id): id is string => Boolean(id)),
   );
+  const blockedNames = new Set(
+    (filter?.excludeNames || []).map((n) => n.toLowerCase()),
+  );
+  const blockedCats = new Set(filter?.excludePrimaryCategories || []);
   return resolveDeckCards(deck).filter((card) => {
     if (inIds.has(card.instanceId)) return false;
     if (isSeekingCategory(card.primaryCategory)) return false;
     if ((card.categories || []).some((c) => isSeekingCategory(c))) return false;
+    if (blockedCats.has(card.primaryCategory)) return false;
+    if (blockedNames.has(card.name.toLowerCase())) return false;
     return true;
   });
 }
@@ -74,13 +87,14 @@ export function openOutCardPicker(
   deck: DeckDocument,
   selectedInstanceId: string | null,
   onPick: (instanceId: string) => void,
+  filter?: OutPickerFilter,
 ): boolean {
   const picker = hubCardPicker();
   if (!picker) return false;
   picker.open({
     title: 'Select Out card',
     groupByCategory: true,
-    items: buildOutPickerItems(outPickerCards(deck)),
+    items: buildOutPickerItems(outPickerCards(deck, filter)),
     selectedValue: selectedInstanceId,
     onPick: (value) => {
       const id = String(value || '');

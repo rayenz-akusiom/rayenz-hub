@@ -72,6 +72,16 @@ describe('resolveDeckEligibility', () => {
     expect(result.eligible).toBe(true);
     expect(result.inferred).toBe(true);
   });
+
+  it('skips theory decks', () => {
+    const result = resolveDeckEligibility({
+      deck_name: 'Theory Brew',
+      ownership: 'theory',
+      profile: { format: 'commander' },
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toBe('theory_deck');
+  });
 });
 
 describe('indexSetPool edge cases', () => {

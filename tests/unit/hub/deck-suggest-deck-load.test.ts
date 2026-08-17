@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applyDeckList,
   buildDeckFromImportText,
@@ -125,6 +125,68 @@ describe('hubDeckToRecord', () => {
     );
     expect(byName['Sol Ring']).toBe('Queued In');
     expect(byName['Arcane Signet']).toBe('Queued Out');
+  });
+});
+
+describe('loadHubLibraryDecks', () => {
+  it('skips theory commander decks', async () => {
+    const { loadHubLibraryDecks } = await import('../../../packages/web/src/deck-suggest/data.ts');
+    const store = await import('../../../packages/web/src/deck-builder/store/deck-store.ts');
+    const owned = {
+      schemaVersion: 1,
+      deckId: 'owned-1',
+      name: 'Owned',
+      format: 'commander',
+      ownership: 'owned',
+      archidektId: null,
+      archidektUrl: '',
+      categories: [],
+      cards: [],
+      oracle: {},
+      formalSwapEntries: [],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      cardLayoutDefault: 'stacked',
+      cardSortDefault: 'name_asc',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+      cubeTargetSize: null,
+    } as DeckDocument;
+    const theory = { ...owned, deckId: 'theory-1', name: 'Theory', ownership: 'theory' as const };
+    const listSpy = vi.spyOn(store, 'listDecks').mockResolvedValue([
+      {
+        deckId: 'owned-1',
+        name: 'Owned',
+        format: 'commander',
+        ownership: 'owned',
+        updatedAt: owned.updatedAt,
+        archidektId: null,
+      },
+      {
+        deckId: 'theory-1',
+        name: 'Theory',
+        format: 'commander',
+        ownership: 'theory',
+        updatedAt: theory.updatedAt,
+        archidektId: null,
+      },
+    ] as never);
+    const getSpy = vi.spyOn(store, 'getDeck').mockImplementation(async (id: string) => {
+      if (id === 'owned-1') return owned;
+      if (id === 'theory-1') return theory;
+      return null;
+    });
+    try {
+      const decks = await loadHubLibraryDecks();
+      expect(decks.map((d) => d.deck_id)).toEqual(['owned-1']);
+      expect(getSpy).not.toHaveBeenCalledWith('theory-1');
+    } finally {
+      listSpy.mockRestore();
+      getSpy.mockRestore();
+    }
   });
 });
 

@@ -138,4 +138,12 @@ describe('deck-suggest commander eligibility', () => {
     expect(result.eligible).toBe(false);
     expect(result.reason).toBe('cube_or_non_commander');
   });
+
+  it('skips theory decks', () => {
+    const deck = loadFixture('baird-snapshot.json');
+    deck.ownership = 'theory';
+    const result = Data.resolveDeckEligibility(deck);
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toBe('theory_deck');
+  });
 });

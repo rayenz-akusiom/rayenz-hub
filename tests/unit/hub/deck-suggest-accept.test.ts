@@ -78,4 +78,17 @@ describe('suggest accept patches', () => {
       proxy: true,
     });
   });
+
+  it('stores inTargetCategory and notes on the formal swap entry', () => {
+    const patch = buildSwapAcceptPatch(commander as never, suggestion, 'c2', undefined, {
+      inTargetCategory: 'Ramp',
+      notes: 'from suggest',
+    });
+    const next = applyDeckPatch(commander as never, patch);
+    const entry = next.formalSwapEntries.find((e) => e.outInstanceId === 'c2');
+    expect(entry).toMatchObject({
+      inTargetCategory: 'Ramp',
+      notes: 'from suggest',
+    });
+  });
 });

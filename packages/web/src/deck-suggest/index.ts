@@ -13,8 +13,6 @@ import {
   buildDeckFromImportText,
   parseYamlProfile,
   readProfileForDeck,
-  refreshDeckFromHub,
-  applyHubRecordToEntry,
   resolveDeckEligibility,
   tryRestoreSetPool,
 } from './data';
@@ -46,8 +44,6 @@ export const Data = {
   attachProfileLists,
   hubDeckToRecord,
   loadHubLibraryDecks,
-  refreshDeckFromHub,
-  applyHubRecordToEntry,
   clearSetPoolCache: clearDataSetPoolCache,
   buildDeckFromImportText,
 };

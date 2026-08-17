@@ -66,8 +66,6 @@ import {
   navigatePendingSuggestion,
   jumpToPendingSuggestion,
   recordDecision,
-  refreshAllDecksLabel,
-  refreshAllDecksTitle,
   selectDeck,
   showDownloadJson,
   sortDecksByName,
@@ -646,13 +644,11 @@ describe('deck-review review helpers', () => {
     expect(next.suggestionIndex).toBe(2);
   });
 
-  it('showDownloadJson and refreshAllDecksLabel vary by transfer source', () => {
+  it('showDownloadJson varies by transfer source', () => {
     expect(showDownloadJson('deck-suggest')).toBe(true);
     expect(showDownloadJson('generate')).toBe(true);
     expect(showDownloadJson('upload')).toBe(true);
     expect(showDownloadJson(null)).toBe(false);
-    expect(refreshAllDecksLabel('deck-suggest')).toContain('optional');
-    expect(refreshAllDecksLabel('upload')).toBe('Refresh all decks from Hub');
   });
 
   it('recordDecision without advance leaves suggestion index unchanged', () => {
@@ -799,11 +795,6 @@ describe('deck-review review helpers', () => {
     expect(unchanged.fileId).toBe(null);
     expect(unchanged.suggestionIndex).toBe(0);
   });
-
-  it('refreshAllDecksTitle varies by transfer source', () => {
-    expect(refreshAllDecksTitle(true, 'deck-suggest')).toContain('generation');
-    expect(refreshAllDecksTitle(false, 'upload')).toContain('Hub library');
-  });
 });
 
 describe('printingToCardIn', () => {
@@ -826,3 +817,4 @@ describe('deckCutOptions deduplication', () => {
     expect(names).toContain('Conduit of Worlds');
   });
 });
+

@@ -165,7 +165,7 @@ export function handoffStatusMessage(data: SuggestionsPayload, transferSource: T
   }
   const summary = handoffSnapshotSummary(data);
   if (summary.missingSnapshots > 0) {
-    return summary.missingSnapshots + ' deck(s) missing snapshots — refresh from Hub or start a new generation.';
+    return summary.missingSnapshots + ' deck(s) missing snapshots — regenerate or start a new source.';
   }
   if (summary.allReady) {
     return 'Ready to review — deck snapshots included from generation.';
@@ -256,17 +256,4 @@ export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewSt
 
 export function showDownloadJson(transferSource: TransferSource): boolean {
   return transferSource != null;
-}
-
-export function refreshAllDecksLabel(transferSource: TransferSource): string {
-  return transferSource === 'deck-suggest' || transferSource === 'generate'
-    ? 'Refresh from Hub (optional)'
-    : 'Refresh all decks from Hub';
-}
-
-export function refreshAllDecksTitle(_bridgeOk: boolean, transferSource: TransferSource): string {
-  if (transferSource === 'deck-suggest' || transferSource === 'generate') {
-    return 'Snapshots loaded from generation; refresh if Hub decks changed since.';
-  }
-  return 'Reload deck lists from the Hub library';
 }

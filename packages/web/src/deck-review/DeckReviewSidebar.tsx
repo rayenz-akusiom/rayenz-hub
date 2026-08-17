@@ -16,9 +16,7 @@ type DeckReviewSidebarProps = {
   onFileChange: (file: File) => void;
   onDownloadJson: () => void;
   onConnectProfiles: () => void;
-  onRefreshAllDecks: () => void;
   onSelectDeck: (deckId: string) => void;
-  onBackToSetup?: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 };
 
@@ -56,12 +54,10 @@ export function DeckReviewSidebar({
   onFileChange,
   onDownloadJson,
   onConnectProfiles,
-  onRefreshAllDecks,
   onSelectDeck,
-  onBackToSetup,
   fileInputRef,
 }: DeckReviewSidebarProps) {
-  const { data, activeDeckId, progress, transferSource, profilesConnected } = state;
+  const { data, activeDeckId, progress, profilesConnected } = state;
   const decks = data?.decks || [];
   const withSuggestions: DeckEntry[] = [];
   const withoutSuggestions: DeckEntry[] = [];
@@ -76,21 +72,11 @@ export function DeckReviewSidebar({
   const activeDeck = decks.find((d) => d.deck_id === activeDeckId) || null;
   const canConnect = canConnectProfilesFolder();
   const canWrite = canWriteProfiles();
-  const fromRules = transferSource === 'deck-suggest' || transferSource === 'generate';
-  const refreshLabel = fromRules ? 'Refresh from Hub (optional)' : 'Refresh all decks from Hub';
-  const refreshTitle = fromRules
-    ? 'Snapshots loaded from generation; refresh if Hub decks changed since.'
-    : 'Reload deck lists from the Hub library';
 
   return (
     <aside id="dr-right-nav" className={'dr-right-nav' + (navOpen ? ' open' : '')} aria-label="Deck navigation">
       <div className="dr-nav-actions">
         <h3>Data</h3>
-        {onBackToSetup ? (
-          <button type="button" className="dr-btn dr-btn-ghost" id="dr-back-setup" onClick={onBackToSetup}>
-            New source
-          </button>
-        ) : null}
         <button type="button" className="dr-btn dr-btn-primary" id="dr-upload-btn" onClick={onUploadClick}>
           Upload JSON
         </button>
@@ -141,21 +127,6 @@ export function DeckReviewSidebar({
           <div id="dr-pref-counts" className="dr-pref-counts">
             {prefCountsLabel(activeDeck, state.deckPrefs)}
           </div>
-        </div>
-      ) : null}
-
-      {data ? (
-        <div className="dr-nav-actions">
-          <h3>Hub library</h3>
-          <button
-            type="button"
-            className="dr-btn dr-btn-ghost"
-            id="dr-refresh-all-decks"
-            title={refreshTitle}
-            onClick={onRefreshAllDecks}
-          >
-            {refreshLabel}
-          </button>
         </div>
       ) : null}
 

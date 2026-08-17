@@ -26,7 +26,7 @@ import type {
 } from '../deck-review/types';
 import '../deck-review/deck-review.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
-import { applyHubRecordToEntry, loadHubLibraryDecks, refreshDeckFromHub } from './data';
+import { loadHubLibraryDecks } from './data';
 import { applyDeckList } from './deck-load';
 import { buildExport } from './export';
 import { generateSuggestions } from './generation';
@@ -252,79 +252,6 @@ export function DeckSuggestApp() {
     }
   }
 
-  async function handleRefreshAllDecks() {
-    if (!review.data) {
-      return;
-    }
-    const decks = review.data.decks;
-    progressRef.current?.start({ label: 'Refreshing decks from Hub…' });
-    try {
-      const updated = [];
-      for (let i = 0; i < decks.length; i++) {
-        const deck = decks[i];
-        progressRef.current?.update({
-          label:
-            'Refreshing Hub (' + (i + 1) + '/' + decks.length + '): ' + (deck.deck_name || deck.deck_id) + '…',
-        });
-        if (!deck.deck_id) {
-          updated.push(deck);
-          continue;
-        }
-        try {
-          const record = await refreshDeckFromHub(deck.deck_id);
-          updated.push(applyHubRecordToEntry(deck, record));
-        } catch {
-          updated.push(deck);
-        }
-      }
-      setReview((prev) =>
-        prev.data
-          ? {
-              ...prev,
-              data: { ...prev.data, decks: updated },
-              profileStatus: 'Refreshed ' + updated.length + ' decks from Hub.',
-            }
-          : prev,
-      );
-      progressRef.current?.finish({ label: 'Refreshed ' + updated.length + ' decks from Hub.' });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      progressRef.current?.finish({ label: msg, variant: 'error' });
-    }
-  }
-
-  async function handleRefreshDeck() {
-    const deck = getDeckById(review.data, review.activeDeckId);
-    if (!deck?.deck_id) {
-      return;
-    }
-    progressRef.current?.start({ label: 'Refreshing ' + deck.deck_name + ' from Hub…' });
-    try {
-      const record = await refreshDeckFromHub(deck.deck_id);
-      setReview((prev) => {
-        if (!prev.data) {
-          return prev;
-        }
-        return {
-          ...prev,
-          data: {
-            ...prev.data,
-            decks: prev.data.decks.map((d) =>
-              d.deck_id === deck.deck_id ? applyHubRecordToEntry(d, record) : d,
-            ),
-          },
-          profileStatus: 'Refreshed ' + deck.deck_name + ' from Hub.',
-        };
-      });
-      progressRef.current?.finish({ label: 'Refreshed ' + deck.deck_name + ' from Hub.' });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      progressRef.current?.finish({ label: msg, variant: 'error' });
-    }
-  }
-
   function handleNextPage() {
     const cap = suggest.generationRun?.cap || 20;
     const nextIds = proposePageIds(
@@ -410,6 +337,18 @@ export function DeckSuggestApp() {
           <div className="hub-sticky-chrome">
             <header className="dr-chrome">
               <div className="dr-chrome-primary">
+                {loaded ? (
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost dr-chrome-back"
+                    id="dr-back-setup"
+                    aria-label="New source"
+                    title="Back to setup"
+                    onClick={handleBackToSetup}
+                  >
+                    ‹
+                  </button>
+                ) : null}
                 <h2>Deck Suggest</h2>
                 <div className="dr-meta" id="ds-meta" dangerouslySetInnerHTML={{ __html: buildMetaHtml(review) }} />
               </div>
@@ -509,7 +448,6 @@ export function DeckSuggestApp() {
                     onTabChange={(tab: StatusCardTab) =>
                       setReview((prev) => ({ ...prev, statusCardTab: tab }))
                     }
-                    onRefreshDeck={() => void handleRefreshDeck()}
                     onApplyStaged={(message) =>
                       setReview((prev) => ({ ...prev, profileStatus: message }))
                     }
@@ -535,9 +473,7 @@ export function DeckSuggestApp() {
             }
           }}
           onConnectProfiles={() => void handleConnectProfiles()}
-          onRefreshAllDecks={() => void handleRefreshAllDecks()}
           onSelectDeck={handleSelectDeck}
-          onBackToSetup={loaded ? handleBackToSetup : undefined}
           fileInputRef={fileInputRef}
         />
       </div>

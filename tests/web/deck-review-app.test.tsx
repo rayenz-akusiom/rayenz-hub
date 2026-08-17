@@ -55,11 +55,6 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   return {
     ...actual,
     loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
-    refreshDeckFromHub: vi.fn(async (deckId: string) => ({
-      deck_id: deckId,
-      deck_name: 'Refreshed',
-      deck_snapshot: { fetched_at: '2026-08-16', source: 'hub-library', cards: [] },
-    })),
   };
 });
 
@@ -167,11 +162,13 @@ describe('DeckSuggestApp upload and sidebar', () => {
     expect(screen.getByText(/Marvel Super Heroes/i)).toBeInTheDocument();
   });
 
-  it('shows upload-source controls in the sidebar', async () => {
+  it('shows chrome back control and sidebar deck list after upload', async () => {
     await loadSuggestionsViaUpload(handoffPayload());
+    expect(screen.getByRole('button', { name: 'New source' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New source' })).toHaveClass('dr-chrome-back');
     expect(screen.getByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Refresh all decks from Hub/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
+    expect(screen.queryByText('Hub library')).not.toBeInTheDocument();
   });
 
   it('opens and closes the deck navigation drawer', async () => {
@@ -356,7 +353,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="decisions"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -403,7 +399,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="decisions"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -424,7 +419,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="deck-suggest"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -439,7 +433,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -447,9 +440,8 @@ describe('DeckReviewStatusCard panes', () => {
     expect(screen.getByText(/No Hub deck snapshot/i)).toBeInTheDocument();
   });
 
-  it('queue pane shows uncovered names, flags, and Hub refresh', () => {
+  it('queue pane shows uncovered names and flags', () => {
     sessionStorage.setItem('dr-status-expanded', '1');
-    const onRefreshDeck = vi.fn();
     render(
       <DeckReviewStatusCard
         deck={deck({
@@ -467,7 +459,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="deck-suggest"
         onTabChange={vi.fn()}
-        onRefreshDeck={onRefreshDeck}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -475,8 +466,6 @@ describe('DeckReviewStatusCard panes', () => {
     expect(screen.getByText(/From generation/i)).toBeInTheDocument();
     expect(screen.getByText(/No suggestion yet/i)).toBeInTheDocument();
     expect(screen.getByText(/Flag Card \(primary: Ramp\)/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Refresh from Hub/i }));
-    expect(onRefreshDeck).toHaveBeenCalled();
   });
 
   it('queue pane reports no swap queue when snapshot cards are missing', () => {
@@ -491,7 +480,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -516,7 +504,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -536,7 +523,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="queue"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -568,7 +554,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={onApplyStaged}
         onError={vi.fn()}
       />,
@@ -590,12 +575,11 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Refresh from Hub before exporting/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deck snapshot required before exporting/i)).toBeInTheDocument();
 
     rerender(
       <DeckReviewStatusCard
@@ -607,7 +591,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -626,7 +609,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="decisions"
         transferSource="upload"
         onTabChange={onTabChange}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,
@@ -659,7 +641,6 @@ describe('DeckReviewStatusCard panes', () => {
         statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
-        onRefreshDeck={vi.fn()}
         onApplyStaged={vi.fn()}
         onError={vi.fn()}
       />,

@@ -26,7 +26,6 @@ import {
   createInitialReviewState,
   loadSuggestionsData,
   showDownloadJson,
-  refreshAllDecksLabel,
 } from './review';
 
 /** Test-friendly namespace mirroring legacy window.DeckReview exports. */
@@ -48,7 +47,6 @@ export const DeckReview = {
   applyLoadedSuggestions,
   createInitialReviewState,
   showDownloadJson,
-  refreshAllDecksLabel,
 };
 
 export { getSwapQueue as deriveSwapQueueFn };

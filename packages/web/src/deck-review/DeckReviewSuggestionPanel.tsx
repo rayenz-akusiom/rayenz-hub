@@ -12,7 +12,6 @@ type DeckReviewSuggestionPanelProps = {
   onDecision: (suggestionId: string, decision: ReviewDecision, advance: boolean) => void;
   onProfileUpdate: (patch: Partial<Pick<DeckReviewState, 'deckPrefs' | 'profilesConnected' | 'profileStatus'>>) => void;
   onTabChange: (tab: StatusCardTab) => void;
-  onRefreshDeck: () => void;
   onApplyStaged: (message: string) => void;
   onError: (message: string) => void;
   onNavigateSuggestion: (delta: number) => void;
@@ -131,7 +130,6 @@ export function DeckReviewSuggestionPanel({
   onDecision,
   onProfileUpdate,
   onTabChange,
-  onRefreshDeck,
   onApplyStaged,
   onError,
   onNavigateSuggestion,
@@ -184,7 +182,6 @@ export function DeckReviewSuggestionPanel({
       statusCardTab={statusCardTab}
       transferSource={transferSource}
       onTabChange={onTabChange}
-      onRefreshDeck={onRefreshDeck}
       onApplyStaged={onApplyStaged}
       onError={onError}
     />

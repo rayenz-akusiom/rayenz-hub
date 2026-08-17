@@ -12,6 +12,25 @@
    line-height: 1.45;
 }
 
+/* Review phase: scroll body under sticky chrome inside the clipped viewport */
+.deck-suggest-app.deck-suggest-reviewing > .dr-layout {
+   flex: 1;
+   min-height: 0;
+   height: auto;
+   width: 100%;
+}
+
+.deck-suggest-app.deck-suggest-reviewing .dr-main-area {
+   min-height: 0;
+   overflow: hidden;
+}
+
+.deck-suggest-app.deck-suggest-reviewing .dr-body {
+   flex: 1;
+   min-height: 0;
+   overflow-y: auto;
+}
+
 .ds-header {
    flex-shrink: 0;
    background: #fff;

@@ -29,7 +29,6 @@ type DeckReviewStatusCardProps = {
   statusCardTab: StatusCardTab;
   transferSource: TransferSource;
   onTabChange: (tab: StatusCardTab) => void;
-  onRefreshDeck: () => void;
   onApplyStaged: (message: string) => void;
   onError: (message: string) => void;
 };
@@ -223,11 +222,9 @@ function queueCardThumb(
 function QueuePane({
   deck,
   transferSource,
-  onRefreshDeck,
 }: {
   deck: DeckEntry;
   transferSource: TransferSource;
-  onRefreshDeck: () => void;
 }) {
   const queue = deriveSwapQueue(deck);
 
@@ -236,8 +233,8 @@ function QueuePane({
       <>
         <p className="dr-bridge-hint">
           {transferSource === 'deck-suggest' || transferSource === 'generate'
-            ? 'Snapshot missing from generation — refresh from Hub or start a new source.'
-            : 'No Hub deck snapshot. Refresh from Hub or regenerate suggestions with library decks.'}
+            ? 'Snapshot missing from generation — start a new source or regenerate.'
+            : 'No Hub deck snapshot. Regenerate or upload suggestions that include library decks.'}
         </p>
       </>
     );
@@ -285,9 +282,6 @@ function QueuePane({
     <>
       <div className="dr-swap-panel-meta">
         <span className="dr-swap-source">{sourceLabel}</span>
-        <button type="button" className="dr-btn dr-btn-ghost dr-swap-refresh" onClick={onRefreshDeck}>
-          Refresh from Hub
-        </button>
       </div>
       <div className="dr-swap-cols">
         <div>
@@ -349,7 +343,7 @@ function ExportPane({
   return (
     <>
       {!hasSnapshot ? (
-        <p className="dr-update-gate">Refresh from Hub before exporting a mirror import.</p>
+        <p className="dr-update-gate">Deck snapshot required before exporting a mirror import — regenerate or re-upload.</p>
       ) : !reviewProgress.complete ? (
         <p className="dr-update-gate">
           Review all suggestions first ({reviewProgress.reviewed}/{reviewProgress.total}).
@@ -388,7 +382,6 @@ export function DeckReviewStatusCard({
   statusCardTab,
   transferSource,
   onTabChange,
-  onRefreshDeck,
   onApplyStaged,
   onError: _onError,
 }: DeckReviewStatusCardProps) {
@@ -452,7 +445,7 @@ export function DeckReviewStatusCard({
             <DecisionsPane deck={deck} progress={progress} deckPrefs={deckPrefs} />
           </div>
           <div className="dr-status-pane" id="dr-status-pane-queue" hidden={statusCardTab !== 'queue'}>
-            <QueuePane deck={deck} transferSource={transferSource} onRefreshDeck={onRefreshDeck} />
+            <QueuePane deck={deck} transferSource={transferSource} />
           </div>
           <div className="dr-status-pane" id="dr-status-pane-export" hidden={statusCardTab !== 'export'}>
             <ExportPane

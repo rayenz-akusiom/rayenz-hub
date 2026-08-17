@@ -420,28 +420,6 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
   };
 }
 
-/** Reload a single Hub deck and project it into a Suggest/Review deck entry shape. */
-export async function refreshDeckFromHub(deckId: string): Promise<DeckRecord> {
-  const doc = await getDeck(deckId);
-  if (!doc) {
-    throw new Error('Deck not found in Hub library: ' + deckId);
-  }
-  return hubDeckToRecord(doc);
-}
-
-/** Merge Hub library snapshot fields onto an in-memory suggestion deck entry. */
-export function applyHubRecordToEntry<T extends { deck_id?: string; deck_name?: string; archidekt_url?: string; deck_snapshot?: unknown }>(
-  entry: T,
-  record: DeckRecord,
-): T {
-  return {
-    ...entry,
-    deck_name: record.deck_name || entry.deck_name,
-    archidekt_url: record.archidekt_url || entry.archidekt_url,
-    deck_snapshot: record.deck_snapshot,
-  };
-}
-
 /** Load commander decks from the Hub library for Deck Suggest. */
 export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
   const summaries = sortLibraryDecks(await listDecks(), readLibrarySort());

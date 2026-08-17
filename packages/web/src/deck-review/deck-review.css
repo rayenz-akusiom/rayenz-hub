@@ -53,6 +53,16 @@
    min-width: 0;
 }
 
+.dr-chrome-back {
+   flex-shrink: 0;
+   align-self: center;
+   min-width: 36px;
+   padding: 4px 10px;
+   font-size: 1.5rem;
+   line-height: 1;
+   font-weight: 400;
+}
+
 .dr-chrome h2 {
    margin: 0;
    font-size: 1.05rem;

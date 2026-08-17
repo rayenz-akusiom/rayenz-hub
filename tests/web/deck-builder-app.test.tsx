@@ -296,6 +296,30 @@ describe('CommanderBuilderApp', () => {
     expect(window.location.hash).toBe('#/commander-builder/default/fixture-commander');
   });
 
+  it('renames the open deck from the title pencil', async () => {
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Rename Fixture Commander' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Rename Fixture Commander' }));
+    const input = screen.getByRole('textbox', { name: 'Deck name' });
+    await user.clear(input);
+    await user.type(input, 'Renamed Commander{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Renamed Commander/i })).toBeInTheDocument();
+    });
+    expect(saveDeck).toHaveBeenCalledWith(expect.objectContaining({ name: 'Renamed Commander' }));
+  });
+
   it('opens a deck from a deep-link hash on load', async () => {
     window.location.hash = '#/commander-builder/default/fixture-commander';
     render(<CommanderBuilderApp />);

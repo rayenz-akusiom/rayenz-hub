@@ -43,6 +43,7 @@ export function ColourIdentityBrowse({
   onCardContextMenu,
   onVisibleOrderChange,
   onSetOwnership,
+  onRename,
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
@@ -81,6 +82,7 @@ export function ColourIdentityBrowse({
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  onRename?: (name: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -201,6 +203,7 @@ export function ColourIdentityBrowse({
         deckId={'deckId' in resolvedDeck ? resolvedDeck.deckId : undefined}
         ownership={'ownership' in resolvedDeck ? resolvedDeck.ownership : undefined}
         onSetOwnership={onSetOwnership}
+        onRename={onRename}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

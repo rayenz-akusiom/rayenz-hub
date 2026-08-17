@@ -1,8 +1,10 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type ReactNode,
 } from 'react';
@@ -696,6 +698,95 @@ function CommanderSlots({
   );
 }
 
+function DeckNameControl({
+  name,
+  onRename,
+}: {
+  name: string;
+  onRename?: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipBlurCommit = useRef(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [editing]);
+
+  if (!onRename) {
+    return <span>{name}</span>;
+  }
+
+  function commit(raw: string, save: boolean) {
+    skipBlurCommit.current = true;
+    setEditing(false);
+    if (!save) {
+      setDraft(name);
+      return;
+    }
+    const next = raw.trim();
+      if (!next || next === name) {
+        setDraft(name);
+        return;
+      }
+      onRename?.(next);
+    }
+
+  function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit(draft, true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      commit(draft, false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className="db-header-title-input"
+        value={draft}
+        aria-label="Deck name"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (skipBlurCommit.current) {
+            skipBlurCommit.current = false;
+            return;
+          }
+          commit(draft, true);
+        }}
+        onKeyDown={onKeyDown}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="db-header-title-edit"
+      title="Rename deck"
+      aria-label={`Rename ${name}`}
+      onClick={() => {
+        skipBlurCommit.current = false;
+        setDraft(name);
+        setEditing(true);
+      }}
+    >
+      <span className="db-header-title-text">{name}</span>
+      <span className="db-section-title-pencil" aria-hidden="true">
+        ✎
+      </span>
+    </button>
+  );
+}
+
 export function DeckHeaderRow({
   header,
   headerKeys,
@@ -711,6 +802,7 @@ export function DeckHeaderRow({
   deckId,
   ownership,
   onSetOwnership,
+  onRename,
   deckMeta,
   deckMetaWarn,
   syncStatus,
@@ -731,6 +823,7 @@ export function DeckHeaderRow({
   deckId?: string;
   ownership?: DeckOwnership;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  onRename?: (name: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -837,7 +930,7 @@ export function DeckHeaderRow({
                 Theory
               </span>
             ) : null}
-            <span>{deckName}</span>
+            <DeckNameControl name={deckName} onRename={onRename} />
           </h2>
           {deckMeta || syncStatus ? (
             <div className="db-meta-row">
@@ -874,6 +967,7 @@ export function CategoryBrowse({
   onMarkMainDeckSeeking,
   onVisibleOrderChange,
   onSetOwnership,
+  onRename,
   queuesReadOnly = false,
   mode = 'main',
   deckMeta,
@@ -918,6 +1012,7 @@ export function CategoryBrowse({
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  onRename?: (name: string) => void;
   /** Theory decks: Seeking actions stay visible but disabled. */
   queuesReadOnly?: boolean;
   mode?: 'main' | 'aside';
@@ -1091,6 +1186,7 @@ export function CategoryBrowse({
         deckId={'deckId' in deck ? deck.deckId : undefined}
         ownership={'ownership' in deck ? deck.ownership : undefined}
         onSetOwnership={onSetOwnership}
+        onRename={onRename}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

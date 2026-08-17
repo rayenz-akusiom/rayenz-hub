@@ -298,7 +298,69 @@ describe('DeckHeaderRow', () => {
     );
     expect(screen.getByLabelText('Deck leaders')).toBeInTheDocument();
     expect(screen.getByText('Untitled Cube')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rename / })).not.toBeInTheDocument();
     expect(screen.getByText('0 cards')).toBeInTheDocument();
+  });
+
+  it('renames the deck from the hover pencil on Enter', async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DeckHeaderRow
+        format="other"
+        header={{}}
+        headerKeys={[]}
+        deckName="Untitled Cube"
+        onRename={onRename}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Rename Untitled Cube' }));
+    const input = screen.getByRole('textbox', { name: 'Deck name' });
+    await user.clear(input);
+    await user.type(input, '  Renamed Cube  {Enter}');
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onRename).toHaveBeenCalledWith('Renamed Cube');
+  });
+
+  it('cancels rename on Escape without calling onRename', async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DeckHeaderRow
+        format="other"
+        header={{}}
+        headerKeys={[]}
+        deckName="Untitled Cube"
+        onRename={onRename}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Rename Untitled Cube' }));
+    await user.type(screen.getByRole('textbox', { name: 'Deck name' }), 'Nope');
+    await user.keyboard('{Escape}');
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Rename Untitled Cube' })).toBeInTheDocument();
+  });
+
+  it('does not rename when the input is emptied and blurred', async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DeckHeaderRow
+        format="other"
+        header={{}}
+        headerKeys={[]}
+        deckName="Untitled Cube"
+        onRename={onRename}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Rename Untitled Cube' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Deck name' }));
+    await user.tab();
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Rename Untitled Cube' })).toBeInTheDocument();
   });
 });
 

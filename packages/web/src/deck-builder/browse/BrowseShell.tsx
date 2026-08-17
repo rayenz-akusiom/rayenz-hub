@@ -943,6 +943,7 @@ export function BrowseShell({
               onCardContextMenu={onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={onSetOwnership}
+              onRename={(name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -958,6 +959,7 @@ export function BrowseShell({
               onCardContextMenu={onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={onSetOwnership}
+              onRename={(name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}

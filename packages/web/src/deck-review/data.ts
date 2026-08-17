@@ -243,6 +243,16 @@ export function isMissingSuggestedCut(suggestion: Suggestion): boolean {
   return needsSuggestedCut(suggestion) && !hasSuggestedCut(suggestion);
 }
 
+/** Out “Never suggest again” only for the originally suggested cut name. */
+export function canNeverSuggestOutCut(suggestion: Suggestion, selectedOutName: string): boolean {
+  if (!selectedOutName || !hasSuggestedCut(suggestion)) {
+    return false;
+  }
+  const replaces = (suggestion.replaces || []) as Array<{ name?: string }>;
+  const originalOut = replaces.find((r) => r && r.name)?.name || '';
+  return !!originalOut && selectedOutName === originalOut;
+}
+
 export function defaultOutKeyForSuggestion(
   deck: DeckEntry,
   suggestion: Suggestion,

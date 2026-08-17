@@ -14,6 +14,7 @@ import {
 } from '../../../packages/web/src/deck-review/decisions.ts';
 import {
   archidektApplyOpenUrl,
+  canNeverSuggestOutCut,
   cutOptionImageSrc,
   cutOptionLines,
   defaultOutKeyForSuggestion,
@@ -206,6 +207,10 @@ describe('deck-review data helpers', () => {
     expect(isMissingSuggestedCut({ action: 'replace', replaces: [] })).toBe(true);
     expect(isMissingSuggestedCut({ action: 'replace', replaces: [{ name: 'X' }] })).toBe(false);
     expect(isMissingSuggestedCut({ action: 'sideboard', replaces: [] })).toBe(false);
+    expect(canNeverSuggestOutCut({ replaces: [] }, 'Bolt')).toBe(false);
+    expect(canNeverSuggestOutCut({ replaces: [{ name: 'Bolt' }] }, 'Bolt')).toBe(true);
+    expect(canNeverSuggestOutCut({ replaces: [{ name: 'Bolt' }] }, 'Shock')).toBe(false);
+    expect(canNeverSuggestOutCut({ replaces: [{ name: 'Bolt' }] }, '')).toBe(false);
     expect(optionLabel({ name: 'Bolt' })).toBe('Bolt');
     expect(printingLabel({ name: 'Bolt', set: 'MH2', collector_number: '1' })).toContain('MH2 #1');
     expect(printOptionLines({ name: 'Bolt' })).toEqual([' #']);

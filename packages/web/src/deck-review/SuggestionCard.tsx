@@ -11,8 +11,10 @@ import {
   type AcceptSelections,
 } from './decisions';
 import {
+  canNeverSuggestOutCut,
   fetchPrintings,
   getSuggestionStaleness,
+  hasSuggestedCut,
   isMissingSuggestedCut,
   resolveDefaultCutKey,
 } from './data';
@@ -154,9 +156,19 @@ export function SuggestionCard({
   }, [cutMeta, cutOptions]);
 
   const canWrite = canWriteProfiles();
+  const canNeverOut = canWrite && canNeverSuggestOutCut(suggestion, cutMeta.name);
   const neverBtnTitle = canWrite
     ? undefined
     : 'Profile updates require a configured Hub API or desktop Chrome on PC.';
+  const neverOutBtnTitle = !canWrite
+    ? neverBtnTitle
+    : !hasSuggestedCut(suggestion)
+      ? 'No original cut was suggested — protect cuts only apply to the suggested Out card.'
+      : !cutMeta.name
+        ? 'Select the originally suggested cut first.'
+        : !canNeverSuggestOutCut(suggestion, cutMeta.name)
+          ? 'Cut was changed — Never suggest again only applies to the originally suggested Out card.'
+          : undefined;
 
   async function handleAccept() {
     if (saving) {
@@ -221,6 +233,14 @@ export function SuggestionCard({
     const cardLabel = side === 'in' ? inName : cutMeta.name;
     if (!cardLabel) {
       onProfileUpdate({ profileStatus: 'Select a card first.' });
+      return;
+    }
+    if (side === 'out' && !canNeverSuggestOutCut(suggestion, cutMeta.name)) {
+      onProfileUpdate({
+        profileStatus: !hasSuggestedCut(suggestion)
+          ? 'No original cut was suggested.'
+          : 'Cut was changed from the original suggestion.',
+      });
       return;
     }
     const confirmed = window.confirm(
@@ -409,8 +429,8 @@ export function SuggestionCard({
                   <button
                     type="button"
                     className="dr-btn dr-btn-ghost dr-never-btn"
-                    disabled={!canWrite}
-                    title={neverBtnTitle}
+                    disabled={!canNeverOut}
+                    title={neverOutBtnTitle}
                     onClick={() => void handleNever('out')}
                   >
                     Never suggest again

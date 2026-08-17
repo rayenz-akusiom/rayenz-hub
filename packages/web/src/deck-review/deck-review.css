@@ -165,25 +165,19 @@
    height: 100%;
 }
 
-.ds-lieutenants-col .dr-filmstrip {
-   width: 100%;
-   max-width: none;
-   margin: auto 0 0;
-}
-
 #dr-suggestion-panel,
 .dr-panel-main {
    width: 100%;
-   max-width: 960px;
-   margin-left: auto;
-   margin-right: auto;
+   max-width: none;
+   margin-left: 0;
+   margin-right: 0;
 }
 
 .dr-panel-layout {
    width: 100%;
    display: flex;
    flex-direction: column;
-   align-items: center;
+   align-items: stretch;
    gap: 0;
 }
 
@@ -191,13 +185,13 @@
    width: 100%;
    display: flex;
    flex-direction: column;
-   align-items: center;
+   align-items: stretch;
 }
 
 .dr-panel-main {
    display: flex;
    flex-direction: column;
-   align-items: center;
+   align-items: stretch;
    min-width: 0;
 }
 
@@ -210,12 +204,12 @@
 
 #dr-suggestion-panel {
    width: 100%;
-   max-width: 960px;
-   margin-left: auto;
-   margin-right: auto;
+   max-width: none;
+   margin-left: 0;
+   margin-right: 0;
    display: flex;
    flex-direction: column;
-   align-items: center;
+   align-items: stretch;
 }
 
 .dr-header h2 {
@@ -223,18 +217,47 @@
    font-size: 1.35rem;
 }
 
-.dr-filmstrip {
+.dr-one-at-a-time {
+   display: flex;
+   flex-direction: row;
+   align-items: flex-start;
+   justify-content: flex-start;
+   gap: 16px;
    width: 100%;
-   max-width: 720px;
-   margin: 0 0 12px;
+   min-width: 0;
+}
+
+.dr-one-at-a-time .dr-suggestion-card {
+   flex: 1 1 auto;
+   min-width: 0;
+   max-width: none;
+}
+
+.dr-one-at-a-time .dr-filmstrip {
+   flex: 0 0 auto;
+   width: auto;
+   max-width: none;
+   margin: 0;
+   max-height: min(70vh, 640px);
+   position: sticky;
+   top: 8px;
+}
+
+.dr-filmstrip {
+   width: auto;
+   max-width: none;
+   margin: 0;
 }
 
 .dr-filmstrip-track {
    display: flex;
+   flex-direction: column;
    gap: 8px;
-   overflow-x: auto;
-   padding: 4px 2px 8px;
-   scroll-snap-type: x proximity;
+   overflow-y: auto;
+   overflow-x: hidden;
+   padding: 4px 6px 4px 2px;
+   max-height: inherit;
+   scroll-snap-type: y proximity;
    -webkit-overflow-scrolling: touch;
 }
 
@@ -755,7 +778,7 @@
    background: #fff;
    border: 1px solid #e2e8f0;
    border-radius: 10px;
-   padding: 24px 28px 0;
+   padding: 24px 28px;
    margin-bottom: 16px;
    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
    width: 100%;
@@ -962,10 +985,6 @@
 }
 
 @media (min-width: 1100px) {
-   .dr-body {
-      max-width: 1240px;
-   }
-
    .dr-panel-layout {
       display: grid;
       grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
@@ -988,14 +1007,8 @@
    .dr-panel-main .dr-suggestion-card,
    .dr-panel-main .dr-empty,
    .dr-panel-main .dr-view-toolbar,
-   .dr-panel-main .dr-profile-status-global,
-   .dr-panel-main .dr-filmstrip {
+   .dr-panel-main .dr-profile-status-global {
       max-width: none;
-   }
-
-   .dr-swap-col {
-      flex: 0 1 300px;
-      width: 300px;
    }
 }
 
@@ -1040,8 +1053,6 @@
       font-size: 0.7rem;
       padding: 4px 6px;
    }
-
-   /* .dr-actions-bar.is-sticky mobile margins — see hub-mtg-ui.css */
 
    .dr-suggestion-card {
       padding-left: 16px;
@@ -1171,7 +1182,7 @@
 
 .dr-profile-status-global {
    width: 100%;
-   max-width: 720px;
+   max-width: none;
    text-align: center;
    margin: 0 0 12px;
 }
@@ -1179,14 +1190,17 @@
 .dr-suggestions-all {
    width: 100%;
    display: grid;
-   grid-template-columns: repeat(2, minmax(0, 1fr));
+   grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(280px, calc(2 * var(--db-card-w, 213px) + 72px)), 1fr)
+   );
    gap: 12px;
    align-items: start;
 }
 
 .dr-suggestion-compact {
    max-width: none;
-   padding: 14px 14px 0;
+   padding: 14px;
    margin-bottom: 0;
 }
 
@@ -1209,11 +1223,13 @@
 
 .dr-suggestion-compact .dr-swap-pair {
    gap: 8px 12px;
+   flex-wrap: nowrap;
 }
 
 .dr-suggestion-compact .dr-swap-col {
-   width: min(110px, 100%);
-   flex: 0 1 auto;
+   width: var(--db-card-w, 213px);
+   flex: 0 1 var(--db-card-w, 213px);
+   max-width: 100%;
    gap: 6px;
 }
 
@@ -1241,6 +1257,10 @@
 @media (max-width: 700px) {
    .dr-suggestions-all {
       grid-template-columns: 1fr;
+   }
+
+   .dr-suggestion-compact .dr-swap-pair {
+      flex-wrap: wrap;
    }
 
    .dr-swap-summaries {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
+import { acceptAllPendingAsSeeking } from '../deck-review/bulk-seeking';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
 import { checkProfilesConnected } from '../deck-review/profiles';
@@ -55,6 +56,7 @@ export function DeckSuggestApp() {
   const [decksLoading, setDecksLoading] = useState(true);
   const [processedIds, setProcessedIds] = useState<string[]>([]);
   const [navOpen, setNavOpen] = useState(false);
+  const [bulkSeeking, setBulkSeeking] = useState(false);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
@@ -122,14 +124,10 @@ export function DeckSuggestApp() {
   );
   const loaded = !!review.data;
   const activeDeck = getDeckById(review.data, review.activeDeckId);
-
-  const filmstripPending = useMemo(() => {
-    if (!activeDeck || review.showAllMode) return null;
-    const pending = pendingSuggestions(activeDeck, review.progress, review.deckPrefs);
-    if (pending.length < 2) return null;
-    const activeIndex = Math.min(review.suggestionIndex, Math.max(pending.length - 1, 0));
-    return { pending, activeIndex };
-  }, [activeDeck, review.showAllMode, review.progress, review.deckPrefs, review.suggestionIndex]);
+  const pendingForActiveDeck = useMemo(() => {
+    if (!activeDeck) return [];
+    return pendingSuggestions(activeDeck, review.progress, review.deckPrefs);
+  }, [activeDeck, review.progress, review.deckPrefs]);
 
   const persistSettings = useCallback((settings: DeckSuggestSettings) => {
     saveDeckSuggestSettings(settings);
@@ -176,6 +174,53 @@ export function DeckSuggestApp() {
       return recordDecision(prev, suggestionId, decision, advance);
     });
     setError('');
+  }
+
+  async function handleAcceptAllSeeking() {
+    if (!activeDeck || bulkSeeking || !pendingForActiveDeck.length) {
+      return;
+    }
+    const count = pendingForActiveDeck.length;
+    const confirmed = window.confirm(
+      `Accept all ${count} pending suggestion${count === 1 ? '' : 's'} as Seeking for ${activeDeck.deck_name}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    setBulkSeeking(true);
+    setError('');
+    try {
+      const snapshot = pendingForActiveDeck.slice();
+      const result = await acceptAllPendingAsSeeking(activeDeck, snapshot, {
+        onAccepted: (suggestionId, accepted) => {
+          setReview((prev) => {
+            if (!prev.fileId) {
+              return prev;
+            }
+            return recordDecision(prev, suggestionId, { status: 'accepted', accepted }, false);
+          });
+        },
+      });
+      if (result.failed.length) {
+        const first = result.failed[0]!;
+        setError(
+          `Accepted ${result.accepted} as Seeking; ${result.failed.length} failed (e.g. ${first.error}).`,
+        );
+        setReview((prev) => ({
+          ...prev,
+          profileStatus: `Accepted ${result.accepted} Seeking; ${result.failed.length} failed.`,
+        }));
+      } else {
+        setReview((prev) => ({
+          ...prev,
+          profileStatus: `Accepted ${result.accepted} suggestion${result.accepted === 1 ? '' : 's'} as Seeking.`,
+        }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBulkSeeking(false);
+    }
   }
 
   const handleNavigateSuggestion = useCallback((delta: number) => {
@@ -308,6 +353,20 @@ export function DeckSuggestApp() {
                   >
                     {review.showAllMode ? 'One at a time' : 'Show all'}
                   </button>
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost"
+                    id="dr-accept-all-seeking"
+                    disabled={bulkSeeking || pendingForActiveDeck.length === 0}
+                    title={
+                      pendingForActiveDeck.length === 0
+                        ? 'No pending suggestions'
+                        : `Accept ${pendingForActiveDeck.length} pending as Seeking`
+                    }
+                    onClick={() => void handleAcceptAllSeeking()}
+                  >
+                    {bulkSeeking ? 'Accepting…' : 'Accept all Seeking'}
+                  </button>
                   <CardSizePicker size={cardSize} onChange={setCardSize} />
                 </div>
               ) : (
@@ -407,20 +466,7 @@ export function DeckSuggestApp() {
               </div>
             ) : (
               <div id="dr-content">
-                {activeDeck ? (
-                  <SuggestDeckLeaders
-                    deck={activeDeck}
-                    filmstrip={
-                      filmstripPending
-                        ? {
-                            pending: filmstripPending.pending,
-                            activeIndex: filmstripPending.activeIndex,
-                            onJump: handleJumpSuggestion,
-                          }
-                        : null
-                    }
-                  />
-                ) : null}
+                {activeDeck ? <SuggestDeckLeaders deck={activeDeck} /> : null}
                 <div id="dr-suggestion-panel">
                   <DeckReviewSuggestionPanel
                     deck={activeDeck}
@@ -429,6 +475,7 @@ export function DeckSuggestApp() {
                     onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
                     onError={setError}
                     onNavigateSuggestion={handleNavigateSuggestion}
+                    onJumpSuggestion={handleJumpSuggestion}
                   />
                 </div>
               </div>

@@ -459,7 +459,7 @@ export function SuggestionCard({
         ) : null}
       </div>
 
-      <div className={'dr-actions-bar' + (advanceOnAction ? ' is-sticky' : '')}>
+      <div className="dr-actions-bar">
         {progressLabel && advanceOnAction ? <p className="dr-actions-progress">{progressLabel}</p> : null}
         <div className="dr-actions">
           <button type="button" className="dr-btn dr-btn-ghost" onClick={() => handleSkipReject('skipped')}>

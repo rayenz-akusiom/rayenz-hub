@@ -246,7 +246,7 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
   });
 
-  it('places the pending filmstrip inside the lieutenants column', async () => {
+  it('places the pending filmstrip left of the suggestion card', async () => {
     const data = handoffPayload();
     data.decks[0].suggestions.push({
       suggestion_id: 's2',
@@ -262,9 +262,37 @@ describe('DeckSuggestApp suggestion panel', () => {
     await loadSuggestionsViaUpload(data);
 
     const leaders = await waitFor(() => screen.getByRole('region', { name: 'Deck leaders' }));
-    expect(within(leaders).getByLabelText('Pending suggestions')).toBeInTheDocument();
-    expect(leaders.querySelector('.ds-lieutenants-col .dr-filmstrip')).toBeTruthy();
-    expect(document.querySelector('#dr-suggestion-panel .dr-filmstrip')).toBeNull();
+    expect(within(leaders).queryByLabelText('Pending suggestions')).toBeNull();
+    const panel = document.querySelector('#dr-suggestion-panel');
+    expect(panel?.querySelector('.dr-one-at-a-time .dr-filmstrip')).toBeTruthy();
+    expect(panel?.querySelector('.dr-filmstrip')).toBeTruthy();
+  });
+
+  it('bulk accepts all pending suggestions as Seeking from chrome', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const data = handoffPayload();
+    data.decks[0].suggestions.push({
+      suggestion_id: 's2',
+      priority_tier: 'upgrade',
+      confidence: 'medium',
+      action: 'add',
+      card: { name: 'Sol Ring', set_code: 'C21', collector_number: '1', scryfall_id: 'sf-sol' },
+      replaces: [],
+      roles_matched: ['ramp'],
+      rationale: 'Staple ramp',
+    });
+
+    const user = await loadSuggestionsViaUpload(data);
+
+    const bulkBtn = await waitFor(() => screen.getByRole('button', { name: 'Accept all Seeking' }));
+    expect(bulkBtn).toBeEnabled();
+    await user.click(bulkBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText(/All suggestions reviewed for Baird/i)).toBeInTheDocument();
+    });
+    confirmSpy.mockRestore();
   });
 
   it('accepts a suggestion and reaches the reviewed empty state', async () => {
@@ -329,7 +357,9 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(grid).toBeInTheDocument();
     expect(grid?.querySelectorAll('.dr-suggestion-compact').length).toBe(2);
     expect(screen.getAllByRole('button', { name: 'Show details' }).length).toBe(2);
-    expect(document.querySelector('.ds-lieutenants-col .dr-filmstrip')).toBeNull();
+    expect(document.querySelector('#dr-suggestion-panel .dr-filmstrip')).toBeNull();
+    expect(document.querySelector('.dr-one-at-a-time')).toBeNull();
+    expect(document.querySelector('#dr-suggestion-panel .dr-panel-main')).toBeTruthy();
 
     await user.click(screen.getAllByRole('button', { name: 'Show details' })[0]);
     expect(screen.getByText('Upgrade path')).toBeInTheDocument();

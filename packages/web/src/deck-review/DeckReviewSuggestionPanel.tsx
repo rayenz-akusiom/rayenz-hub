@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { currentSuggestion, allVisibleSuggestions, pendingSuggestions } from './review';
+import { PendingFilmstrip } from './PendingFilmstrip';
 import { SuggestionCard } from './SuggestionCard';
 import type { DeckReviewState, ReviewDecision } from './types';
 
@@ -11,6 +12,7 @@ type DeckReviewSuggestionPanelProps = {
   onProfileUpdate: (patch: Partial<Pick<DeckReviewState, 'deckPrefs' | 'profilesConnected' | 'profileStatus'>>) => void;
   onError: (message: string) => void;
   onNavigateSuggestion: (delta: number) => void;
+  onJumpSuggestion: (index: number) => void;
 };
 
 export function DeckReviewSuggestionPanel({
@@ -20,6 +22,7 @@ export function DeckReviewSuggestionPanel({
   onProfileUpdate,
   onError,
   onNavigateSuggestion,
+  onJumpSuggestion,
 }: DeckReviewSuggestionPanelProps) {
   const oneAtATime = !!deck && !state.showAllMode;
 
@@ -97,21 +100,27 @@ export function DeckReviewSuggestionPanel({
   const safeIndex = Math.min(suggestionIndex, Math.max(pending.length - 1, 0));
   const progressLabel =
     pending.length > 0 ? `${safeIndex + 1} of ${pending.length} · ${deck.deck_name}` : deck.deck_name;
+  const showFilmstrip = pending.length >= 2;
 
   return (
     <div className="dr-panel-main">
       {profileStatus ? <p className="dr-profile-status dr-profile-status-global">{profileStatus}</p> : null}
-      <SuggestionCard
-        deck={deck}
-        suggestion={suggestion}
-        progress={progress}
-        advanceOnAction={true}
-        progressLabel={progressLabel}
-        onDecision={onDecision}
-        onProfileUpdate={onProfileUpdate}
-        onError={onError}
-        deckPrefs={deckPrefs}
-      />
+      <div className={'dr-one-at-a-time' + (showFilmstrip ? ' has-filmstrip' : '')}>
+        {showFilmstrip ? (
+          <PendingFilmstrip pending={pending} activeIndex={safeIndex} onJump={onJumpSuggestion} />
+        ) : null}
+        <SuggestionCard
+          deck={deck}
+          suggestion={suggestion}
+          progress={progress}
+          advanceOnAction={true}
+          progressLabel={progressLabel}
+          onDecision={onDecision}
+          onProfileUpdate={onProfileUpdate}
+          onError={onError}
+          deckPrefs={deckPrefs}
+        />
+      </div>
     </div>
   );
 }

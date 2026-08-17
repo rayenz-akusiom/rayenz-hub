@@ -52,7 +52,7 @@ export function PendingFilmstrip({
     }
     const active = strip.querySelector('.dr-filmstrip-item.is-active') as HTMLElement | null;
     if (active && typeof active.scrollIntoView === 'function') {
-      active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+      active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
   }, [activeIndex, pending.length]);
 

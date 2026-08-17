@@ -1,7 +1,6 @@
-import type { DeckEntry, DeckFormat, Suggestion } from '@rayenz-hub/shared';
+import type { DeckEntry, DeckFormat } from '@rayenz-hub/shared';
 import { CardFace } from '../cards/CardFace';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
-import { PendingFilmstrip } from '../deck-review/PendingFilmstrip';
 import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
 import { commanderCardsFromDeck, lieutenantCardsFromDeck, type LeaderSnapshotCard } from './display';
 
@@ -28,22 +27,11 @@ function badgeFormat(format: string | undefined): DeckFormat {
   return 'commander';
 }
 
-export function SuggestDeckLeaders({
-  deck,
-  filmstrip,
-}: {
-  deck: DeckEntry;
-  filmstrip?: {
-    pending: Suggestion[];
-    activeIndex: number;
-    onJump: (index: number) => void;
-  } | null;
-}) {
+export function SuggestDeckLeaders({ deck }: { deck: DeckEntry }) {
   const commanders = commanderCardsFromDeck(deck);
   const lieutenants = lieutenantCardsFromDeck(deck);
   const deckName = String(deck.deck_name || deck.deck_id || 'Deck').trim() || 'Deck';
   const format = badgeFormat(deck.format);
-  const showFilmstrip = Boolean(filmstrip && filmstrip.pending.length >= 2);
 
   return (
     <div className="db-deck-leaders ds-deck-leaders" role="region" aria-label="Deck leaders">
@@ -76,13 +64,6 @@ export function SuggestDeckLeaders({
                   ))}
                 </div>
               </>
-            ) : null}
-            {showFilmstrip && filmstrip ? (
-              <PendingFilmstrip
-                pending={filmstrip.pending}
-                activeIndex={filmstrip.activeIndex}
-                onJump={filmstrip.onJump}
-              />
             ) : null}
           </div>
         </div>

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildAcceptedSeeking,
   buildAcceptedSwap,
   acceptedForDeck,
   decisionRecapInOut,
@@ -285,13 +286,23 @@ describe('deck-review decisions', () => {
       card: { name: 'Bolt', set_code: 'MH2' },
       replaces: [{ name: 'Shock' }],
     } as never;
-    expect(decisionRecapInOut(suggestion, null)).toEqual({ inName: 'Bolt', inSet: 'MH2', outName: 'Shock' });
+    expect(decisionRecapInOut(suggestion, null)).toEqual({
+      inName: 'Bolt',
+      inSet: 'MH2',
+      outName: 'Shock',
+      acceptKind: null,
+    });
     expect(
       decisionRecapInOut(suggestion, {
         status: 'accepted',
-        accepted: { card_in: { name: 'Lightning Bolt', set_code: 'LEA' }, card_out: { name: 'Shock' } },
+        accepted: {
+          card_in: { name: 'Lightning Bolt', set_code: 'LEA' },
+          card_out: { name: 'Shock' },
+          accept_kind: 'swap',
+          swap_categories: true,
+        } as never,
       }),
-    ).toEqual({ inName: 'Lightning Bolt', inSet: 'LEA', outName: 'Shock' });
+    ).toEqual({ inName: 'Lightning Bolt', inSet: 'LEA', outName: 'Shock', acceptKind: 'swap' });
   });
 
   it('acceptedForDeck collects accepted swaps only', () => {
@@ -356,7 +367,29 @@ describe('deck-review decisions', () => {
       prints: [{ id: 'p1', name: 'New', set: 'MSH', collector_number: '1' }],
       cutMeta: { name: 'Old', quantity: 1, set_code: null, collector_number: null },
     });
-    expect((accepted as { card_out: { set_code: string } }).card_out.set_code).toBe('CMM');
+    expect((accepted as { card_out: { set_code: string }; accept_kind: string }).card_out.set_code).toBe('CMM');
+    expect((accepted as { accept_kind: string }).accept_kind).toBe('swap');
+  });
+
+  it('buildAcceptedSeeking accepts without an Out cut', () => {
+    const deck = { deck_id: 'd1', archidekt_url: 'https://archidekt.com/decks/1/x' };
+    const suggestion = {
+      suggestion_id: 's1',
+      action: 'replace',
+      card: { name: 'New', set_code: 'MSH', collector_number: '1' },
+      replaces: [{ name: 'Old' }],
+    };
+    const accepted = buildAcceptedSeeking(deck, suggestion as never, {
+      printId: 'p1',
+      finish: 'nonfoil',
+      prints: [{ id: 'p1', name: 'New', set: 'MSH', collector_number: '1' }],
+    });
+    expect('error' in accepted).toBe(false);
+    if (!('error' in accepted)) {
+      expect(accepted.accept_kind).toBe('seeking');
+      expect(accepted.card_out).toBeNull();
+      expect(accepted.swap_categories).toBe(false);
+    }
   });
 
   it('allAcceptedByDeck groups accepted swaps by deck id', () => {
@@ -615,7 +648,9 @@ describe('deck-review review helpers', () => {
 
   it('showDownloadJson and refreshAllDecksLabel vary by transfer source', () => {
     expect(showDownloadJson('deck-suggest')).toBe(true);
-    expect(showDownloadJson('upload')).toBe(false);
+    expect(showDownloadJson('generate')).toBe(true);
+    expect(showDownloadJson('upload')).toBe(true);
+    expect(showDownloadJson(null)).toBe(false);
     expect(refreshAllDecksLabel('deck-suggest')).toContain('optional');
     expect(refreshAllDecksLabel('upload')).toBe('Refresh all decks');
   });
@@ -766,7 +801,7 @@ describe('deck-review review helpers', () => {
   });
 
   it('refreshAllDecksTitle varies by transfer source and bridge availability', () => {
-    expect(refreshAllDecksTitle(true, 'deck-suggest')).toContain('Deck Suggest');
+    expect(refreshAllDecksTitle(true, 'deck-suggest')).toContain('generation');
     expect(refreshAllDecksTitle(false, 'upload')).toContain('Bridge');
   });
 });

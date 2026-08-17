@@ -1,7 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
-import { saveReviewHandoff, navigateHub } from '../lib/hub-storage';
 import { attachProfileLists, enrichDeckWithProfile, resolveDeckEligibility } from './data';
-import { buildExport } from './export';
 import { getGenerateReadiness, normalizeCodesInput } from './readiness';
 import { apiPostSuggestGenerate } from './generate-api';
 import { pageIsOverCap } from './paging';
@@ -95,10 +93,4 @@ export async function runGenerationForDeck(
     };
   }
   throw new Error('Use Generate to run suggestions.');
-}
-
-export async function transferToDeckReview(state: DeckSuggestState): Promise<void> {
-  const payload = buildExport(state);
-  saveReviewHandoff(payload);
-  navigateHub('#/deck-review');
 }

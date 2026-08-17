@@ -55,16 +55,20 @@ export function decisionStatusText(status: string): string {
 export function decisionRecapInOut(
   suggestion: Suggestion,
   decision: ReviewDecision | null,
-): { inName: string; inSet: string; outName: string } {
+): { inName: string; inSet: string; outName: string; acceptKind: 'swap' | 'seeking' | null } {
   let inName = '';
   let inSet = '';
   let outName = '';
+  let acceptKind: 'swap' | 'seeking' | null = null;
   if (decision?.status === 'accepted' && decision.accepted) {
+    acceptKind = decision.accepted.accept_kind || (decision.accepted.swap_categories === false ? 'seeking' : 'swap');
     if (decision.accepted.card_in) {
       inName = decision.accepted.card_in.name || '';
       inSet = decision.accepted.card_in.set_code || '';
     }
-    if (decision.accepted.card_out?.name) {
+    if (acceptKind === 'seeking') {
+      outName = '';
+    } else if (decision.accepted.card_out?.name) {
       outName = decision.accepted.card_out.name;
     }
   } else {
@@ -74,7 +78,7 @@ export function decisionRecapInOut(
     const rep = (suggestion.replaces || [])[0] as { name?: string } | undefined;
     outName = rep?.name || '';
   }
-  return { inName, inSet, outName };
+  return { inName, inSet, outName, acceptKind };
 }
 
 export function acceptedForDeck(
@@ -112,11 +116,10 @@ export type AcceptSelections = {
   cutMeta: CardOutSelection;
 };
 
-export function buildAcceptedSwap(
-  deck: DeckEntry,
+function resolveCardIn(
   suggestion: Suggestion,
-  selections: AcceptSelections,
-): AcceptedSwap | { error: string } {
+  selections: Pick<AcceptSelections, 'printId' | 'finish' | 'prints'>,
+) {
   const card = suggestion.card as {
     name: string;
     set_code?: string;
@@ -127,7 +130,38 @@ export function buildAcceptedSwap(
   const print =
     selections.prints.find((p) => p.id === selections.printId) ||
     (card as unknown as ScryfallPrint);
-  const cardIn = printingToCardIn(print, card, selections.finish);
+  return printingToCardIn(print, card, selections.finish);
+}
+
+export function buildAcceptedSeeking(
+  deck: DeckEntry,
+  suggestion: Suggestion,
+  selections: Pick<AcceptSelections, 'printId' | 'finish' | 'prints'>,
+): AcceptedSwap | { error: string } {
+  const cardIn = resolveCardIn(suggestion, selections);
+  if (!cardIn.name) {
+    return { error: 'Select an In printing before accepting as Seeking.' };
+  }
+  return {
+    suggestion_id: String(suggestion.suggestion_id),
+    deck_id: deck.deck_id || '',
+    archidekt_deck_id: ArchidektExport.parseDeckId(deck.archidekt_url),
+    archidekt_url: deck.archidekt_url,
+    action: suggestion.action as string | undefined,
+    quantity: 1,
+    card_in: cardIn,
+    card_out: null,
+    swap_categories: false,
+    accept_kind: 'seeking',
+  };
+}
+
+export function buildAcceptedSwap(
+  deck: DeckEntry,
+  suggestion: Suggestion,
+  selections: AcceptSelections,
+): AcceptedSwap | { error: string } {
+  const cardIn = resolveCardIn(suggestion, selections);
   const cutMeta = { ...selections.cutMeta };
 
   if (isMissingSuggestedCut(suggestion) && !cutMeta.name) {
@@ -164,5 +198,6 @@ export function buildAcceptedSwap(
       suggestion.action === 'replace' ||
       suggestion.priority_tier === 'swap' ||
       !!cutMeta.name,
+    accept_kind: 'swap',
   };
 }

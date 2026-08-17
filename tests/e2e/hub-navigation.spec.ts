@@ -6,8 +6,8 @@ test('dailies link grid works after navigating away and back', async ({ page }) 
   const firstTile = page.locator('#app-root .daily-tile').first();
   await expect(firstTile).toBeVisible();
 
-  await page.getByRole('link', { name: 'Deck Review' }).click();
-  await expect(page.locator('.deck-review-app')).toBeVisible();
+  await page.getByRole('link', { name: 'Deck Suggest' }).click();
+  await expect(page.locator('.deck-suggest-app')).toBeVisible();
 
   await page.getByRole('link', { name: 'Dailies' }).click();
   const tileAfterReturn = page.locator('#app-root .daily-tile').first();

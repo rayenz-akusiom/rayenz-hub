@@ -160,15 +160,15 @@ export async function loadSuggestionsData(
 }
 
 export function handoffStatusMessage(data: SuggestionsPayload, transferSource: TransferSource): string | null {
-  if (transferSource !== 'deck-suggest') {
+  if (transferSource !== 'deck-suggest' && transferSource !== 'generate') {
     return null;
   }
   const summary = handoffSnapshotSummary(data);
   if (summary.missingSnapshots > 0) {
-    return summary.missingSnapshots + ' deck(s) missing snapshots — use Refresh from Archidekt (optional) or return to Deck Suggest.';
+    return summary.missingSnapshots + ' deck(s) missing snapshots — use Refresh from Archidekt (optional) or start a new generation.';
   }
   if (summary.allReady) {
-    return 'Ready to review — deck snapshots included from Deck Suggest.';
+    return 'Ready to review — deck snapshots included from generation.';
   }
   return null;
 }
@@ -255,17 +255,19 @@ export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewSt
 }
 
 export function showDownloadJson(transferSource: TransferSource): boolean {
-  return transferSource === 'deck-suggest';
+  return transferSource != null;
 }
 
 export function refreshAllDecksLabel(transferSource: TransferSource): string {
-  return transferSource === 'deck-suggest' ? 'Refresh from Archidekt (optional)' : 'Refresh all decks';
+  return transferSource === 'deck-suggest' || transferSource === 'generate'
+    ? 'Refresh from Archidekt (optional)'
+    : 'Refresh all decks';
 }
 
 export function refreshAllDecksTitle(bridgeOk: boolean, transferSource: TransferSource): string {
-  if (transferSource === 'deck-suggest') {
+  if (transferSource === 'deck-suggest' || transferSource === 'generate') {
     return bridgeOk
-      ? 'Snapshots loaded from Deck Suggest; refresh only if Archidekt changed since.'
+      ? 'Snapshots loaded from generation; refresh only if Archidekt changed since.'
       : 'Requires Archidekt Deck Review Bridge userscript';
   }
   return bridgeOk ? 'Fetch latest deck lists from Archidekt' : 'Requires Archidekt Deck Review Bridge userscript';

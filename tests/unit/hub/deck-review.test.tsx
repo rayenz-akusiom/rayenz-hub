@@ -1,6 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveReviewHandoff } from '../../../packages/web/src/lib/hub-storage.ts';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
 import {
   createInitialReviewState,
@@ -93,26 +92,13 @@ describe('DeckReview handoff and transferSource', () => {
     expect(next.data!.decks[0].deck_snapshot!.fetched_at).toBe('2026-06-22');
   });
 
-  it('DeckReviewApp loads handoff without fetching latest.json', async () => {
-    saveReviewHandoff({
-      data: sampleData,
-      source: 'deck-suggest',
-      savedAt: '2026-06-30T12:00:00.000Z',
-    });
-    const fetchSpy = vi.fn(async () => ({
-      ok: false,
-      status: 404,
-      json: () => Promise.resolve({}),
-    }));
-    global.fetch = fetchSpy;
-
+  it('DeckReviewApp redirects to Deck Suggest', async () => {
+    const hubStorage = await import('../../../packages/web/src/lib/hub-storage.ts');
+    const navigate = vi.spyOn(hubStorage, 'navigateHub').mockImplementation(() => {});
     render(<DeckReviewApp />);
-
     await waitFor(() => {
-      expect(document.getElementById('dr-content')).toBeTruthy();
+      expect(navigate).toHaveBeenCalledWith('#/deck-suggest');
     });
-
-    const latestCalls = fetchSpy.mock.calls.filter((call) => String(call[0]).indexOf('latest.json') >= 0);
-    expect(latestCalls).toHaveLength(0);
+    navigate.mockRestore();
   });
 });

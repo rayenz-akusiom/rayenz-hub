@@ -73,16 +73,6 @@ const MTG: NavItem[] = [
     ),
   },
   {
-    path: '/deck-review',
-    label: 'Deck Review',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="3" width="12" height="16" rx="1.5" />
-        <rect x="8" y="5" width="12" height="16" rx="1.5" />
-      </svg>
-    ),
-  },
-  {
     path: '/order-reconcile',
     label: 'Order Reconcile',
     icon: (

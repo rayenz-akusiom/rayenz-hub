@@ -3,6 +3,7 @@ import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { scryfallImageFromId, scryfallImageFromPrinting } from '../lib/hub-utils';
 import type { ReviewProgress } from '../lib/hub-storage';
 import {
+  buildAcceptedSeeking,
   buildAcceptedSwap,
   decisionStatusClass,
   decisionStatusText,
@@ -29,7 +30,7 @@ import {
   neverSuggestAgain,
   selectedInCardName,
 } from './profiles';
-import type { ReviewDecision, ScryfallPrint } from './types';
+import type { AcceptKind, ReviewDecision, ScryfallPrint } from './types';
 
 type SuggestionCardProps = {
   deck: DeckEntry;
@@ -80,7 +81,9 @@ export function SuggestionCard({
   const [finish, setFinish] = useState('nonfoil');
   const [cutKey, setCutKey] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(!compact);
+  const [acceptKind, setAcceptKind] = useState<AcceptKind>('swap');
   const cutMeta = useMemo(() => cutMetaFromKey(cutKey, cutOptions), [cutKey, cutOptions]);
+  const seekingMode = acceptKind === 'seeking';
 
   useEffect(() => {
     setDetailsOpen(!compact);
@@ -117,6 +120,7 @@ export function SuggestionCard({
   useEffect(() => {
     if (decision?.status === 'accepted' && decision.accepted) {
       const accepted = decision.accepted;
+      setAcceptKind(accepted.accept_kind || (accepted.swap_categories === false ? 'seeking' : 'swap'));
       if (accepted.card_in?.scryfall_id) {
         setPrintId(accepted.card_in.scryfall_id);
         setFinish(accepted.card_in.finish || 'nonfoil');
@@ -126,8 +130,10 @@ export function SuggestionCard({
           [accepted.card_out.name, accepted.card_out.set_code || '', accepted.card_out.collector_number || ''].join('|'),
         );
       }
+      return;
     }
-  }, [decision]);
+    setAcceptKind('swap');
+  }, [decision, suggestion.suggestion_id]);
 
   const outImgSrc = useMemo(() => {
     if (!cutMeta.name) {
@@ -149,6 +155,15 @@ export function SuggestionCard({
     : 'Profile updates require a configured Hub API or desktop Chrome on PC.';
 
   function handleAccept() {
+    if (seekingMode) {
+      const result = buildAcceptedSeeking(deck, suggestion, { printId, finish, prints });
+      if ('error' in result) {
+        onProfileUpdate({ profileStatus: result.error });
+        return;
+      }
+      onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted: result }, advanceOnAction);
+      return;
+    }
     const selections: AcceptSelections = {
       printId,
       finish,
@@ -241,8 +256,8 @@ export function SuggestionCard({
   const warningLine =
     showDetails && staleness.stale
       ? staleness.reasons.join(' ')
-      : showDetails && missingCut
-        ? 'No cut suggested — choose an Out card manually.'
+      : showDetails && missingCut && !seekingMode
+        ? 'No cut suggested — choose an Out card manually, or Accept as Seeking.'
         : '';
 
   return (
@@ -253,12 +268,31 @@ export function SuggestionCard({
         (compact && detailsOpen ? ' is-expanded' : '') +
         (suggestion.priority_tier === 'swap' ? ' swap-tier' : '') +
         decisionStatusClass(status) +
-        (missingCut ? ' dr-missing-cut' : '') +
+        (missingCut && !seekingMode ? ' dr-missing-cut' : '') +
+        (seekingMode ? ' dr-accept-seeking' : '') +
         staleClass
       }
       data-suggestion-id={String(suggestion.suggestion_id)}
     >
       <div className="dr-suggestion-body">
+        <div className="dr-accept-mode" role="group" aria-label="Accept as">
+          <button
+            type="button"
+            className={'dr-btn dr-btn-ghost dr-accept-mode-btn' + (!seekingMode ? ' is-active' : '')}
+            aria-pressed={!seekingMode}
+            onClick={() => setAcceptKind('swap')}
+          >
+            Swap
+          </button>
+          <button
+            type="button"
+            className={'dr-btn dr-btn-ghost dr-accept-mode-btn' + (seekingMode ? ' is-active' : '')}
+            aria-pressed={seekingMode}
+            onClick={() => setAcceptKind('seeking')}
+          >
+            Seeking
+          </button>
+        </div>
         <div className="dr-swap-pair">
           <div className="dr-swap-col dr-swap-in">
             <div className="dr-swap-label dr-swap-label-in">In</div>
@@ -277,23 +311,32 @@ export function SuggestionCard({
             </button>
           </div>
 
-          <div className="dr-swap-arrow" aria-hidden="true">
-            →
-          </div>
+          {!seekingMode ? (
+            <>
+              <div className="dr-swap-arrow" aria-hidden="true">
+                →
+              </div>
 
-          <div className="dr-swap-col dr-swap-out">
-            <div className="dr-swap-label dr-swap-label-out">Out</div>
-            <button
-              type="button"
-              className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
-              aria-label="Choose cut"
-              onClick={() =>
-                openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
-              }
-            >
-              <img data-dr-img-out src={outImgSrc || undefined} alt="" />
-            </button>
-          </div>
+              <div className="dr-swap-col dr-swap-out">
+                <div className="dr-swap-label dr-swap-label-out">Out</div>
+                <button
+                  type="button"
+                  className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
+                  aria-label="Choose cut"
+                  onClick={() =>
+                    openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
+                  }
+                >
+                  <img data-dr-img-out src={outImgSrc || undefined} alt="" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="dr-swap-col dr-swap-seeking-note">
+              <div className="dr-swap-label">Seeking</div>
+              <p className="dr-meta">No cut — add In to Seeking only.</p>
+            </div>
+          )}
         </div>
 
         <div className="dr-reasoning dr-reasoning-header">
@@ -308,7 +351,7 @@ export function SuggestionCard({
             ) : null}
             <span className={'dr-badge dr-badge-' + String(suggestion.confidence)}>{String(suggestion.confidence)}</span>
             <span className="dr-badge">{String(suggestion.action)}</span>
-            {missingCut ? <span className="dr-badge dr-badge-missing-cut">No cut suggested</span> : null}
+            {missingCut && !seekingMode ? <span className="dr-badge dr-badge-missing-cut">No cut suggested</span> : null}
             {status ? (
               <span className={'dr-decision-label dr-decision-label-' + status}>{decisionStatusText(status)}</span>
             ) : null}
@@ -343,18 +386,20 @@ export function SuggestionCard({
                   Never suggest again
                 </button>
               </div>
-              <div className="dr-swap-summary-col">
-                <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
-                <button
-                  type="button"
-                  className="dr-btn dr-btn-ghost dr-never-btn"
-                  disabled={!canWrite}
-                  title={neverBtnTitle}
-                  onClick={() => void handleNever('out')}
-                >
-                  Never suggest again
-                </button>
-              </div>
+              {!seekingMode ? (
+                <div className="dr-swap-summary-col">
+                  <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost dr-never-btn"
+                    disabled={!canWrite}
+                    title={neverBtnTitle}
+                    onClick={() => void handleNever('out')}
+                  >
+                    Never suggest again
+                  </button>
+                </div>
+              ) : null}
             </div>
             <div className="dr-reasoning dr-reasoning-detail">
               <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
@@ -387,7 +432,7 @@ export function SuggestionCard({
             Reject
           </button>
           <button type="button" className="dr-btn dr-btn-success" onClick={handleAccept}>
-            Accept
+            {seekingMode ? 'Accept Seeking' : 'Accept'}
           </button>
         </div>
         {advanceOnAction ? (

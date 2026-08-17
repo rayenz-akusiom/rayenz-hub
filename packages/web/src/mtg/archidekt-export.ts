@@ -1,6 +1,7 @@
 import {
   SWAP_IN,
   SWAP_OUT,
+  SEEKING,
   isSwapQueueCategoryName,
   appendCategory,
   buildCategorySettings,
@@ -18,6 +19,7 @@ import { getArchidektBridge as getSharedArchidektBridge } from '../lib/archidekt
 const MANIFEST_VERSION = '1.1';
 const IN_CATEGORY = SWAP_IN;
 const OUT_CATEGORY = SWAP_OUT;
+const SEEKING_CATEGORY = SEEKING;
 const APPLY_STORAGE_PREFIX = 'rayenz-deck-apply:';
 
 type CategorySettings = ArchidektCategorySettings;
@@ -48,6 +50,7 @@ type SwapDecision = {
   action?: string;
   quantity?: number;
   swap_categories?: boolean;
+  accept_kind?: 'swap' | 'seeking';
   card_in?: {
     name?: string;
     set_code?: string | null;
@@ -59,7 +62,7 @@ type SwapDecision = {
     set_code?: string | null;
     collector_number?: string | null;
     quantity?: number;
-  };
+  } | null;
 };
 
 type SnapshotCard = {
@@ -250,7 +253,7 @@ function collectSwapOperations(accepted: SwapDecision[] | null | undefined) {
     quantity: number;
   }[] = [];
   (accepted || []).forEach((decision) => {
-    if (!decision.swap_categories) {
+    if (decision.accept_kind === 'seeking' || !decision.swap_categories) {
       return;
     }
     const qty = decision.quantity || 1;
@@ -274,6 +277,33 @@ function collectSwapOperations(accepted: SwapDecision[] | null | undefined) {
     }
   });
   return { ins, outs };
+}
+
+function collectSeekingOperations(accepted: SwapDecision[] | null | undefined) {
+  const seeking: {
+    name: string;
+    set_code: string | null;
+    collector_number: string | null;
+    finish: string | null;
+    quantity: number;
+  }[] = [];
+  (accepted || []).forEach((decision) => {
+    if (decision.accept_kind !== 'seeking') {
+      return;
+    }
+    const cardIn = decision.card_in || {};
+    if (!cardIn.name) {
+      return;
+    }
+    seeking.push({
+      name: cardIn.name,
+      set_code: cardIn.set_code || null,
+      collector_number: cardIn.collector_number || null,
+      finish: cardIn.finish || null,
+      quantity: decision.quantity || 1,
+    });
+  });
+  return seeking;
 }
 
 function lineMapToImportLines(map: LineMap, categorySettings: CategorySettings | null | undefined): string[] {
@@ -303,6 +333,24 @@ function appendAcceptedSwapLines(
   categorySettings: CategorySettings | null | undefined,
 ): void {
   (accepted || []).forEach((decision) => {
+    if (decision.accept_kind === 'seeking') {
+      const qty = decision.quantity || 1;
+      const cardIn = decision.card_in || {};
+      if (cardIn.name) {
+        lines.push(
+          formatImportLine(
+            qty,
+            cardIn.name,
+            cardIn.set_code,
+            cardIn.collector_number,
+            [SEEKING_CATEGORY],
+            categorySettings,
+            cardIn.finish,
+          ),
+        );
+      }
+      return;
+    }
     if (!decision.swap_categories) {
       return;
     }
@@ -343,7 +391,11 @@ function buildImportTextForDeck(accepted: SwapDecision[] | null | undefined, cat
 }
 
 function buildTargetAcceptedSwaps(accepted: SwapDecision[] | null | undefined): SwapDecision[] {
-  return (accepted || []).filter((d) => d && d.swap_categories !== false);
+  return (accepted || []).filter((d) => {
+    if (!d) return false;
+    if (d.accept_kind === 'seeking') return true;
+    return d.swap_categories !== false;
+  });
 }
 
 function isReviewComplete<T extends Record<string, unknown>>(
@@ -379,10 +431,12 @@ function buildFullDeckImport(deck: DeckWithSnapshot, accepted: SwapDecision[] | 
     return '';
   }
   const ops = collectSwapOperations(accepted);
+  const seekingOps = collectSeekingOperations(accepted);
   const pool = buildMainDeckPool(snapshot);
   const categorySettings = snapshot.category_settings || null;
   const outMap: LineMap = {};
   const inMap: LineMap = {};
+  const seekingMap: LineMap = {};
 
   ops.outs.forEach((cut) => {
     deductCutFromPool(pool, cut, outMap);
@@ -390,6 +444,10 @@ function buildFullDeckImport(deck: DeckWithSnapshot, accepted: SwapDecision[] | 
 
   ops.ins.forEach((add) => {
     addToLineMap(inMap, add, [IN_CATEGORY], add.quantity);
+  });
+
+  seekingOps.forEach((add) => {
+    addToLineMap(seekingMap, add, [SEEKING_CATEGORY], add.quantity);
   });
 
   const mainMap: LineMap = {};
@@ -401,7 +459,8 @@ function buildFullDeckImport(deck: DeckWithSnapshot, accepted: SwapDecision[] | 
 
   const lines = lineMapToImportLines(mainMap, categorySettings)
     .concat(lineMapToImportLines(outMap, categorySettings))
-    .concat(lineMapToImportLines(inMap, categorySettings));
+    .concat(lineMapToImportLines(inMap, categorySettings))
+    .concat(lineMapToImportLines(seekingMap, categorySettings));
   return lines.join('\n');
 }
 
@@ -496,6 +555,7 @@ export const ArchidektExport = {
   MANIFEST_VERSION,
   IN_CATEGORY,
   OUT_CATEGORY,
+  SEEKING_CATEGORY,
   APPLY_STORAGE_PREFIX,
   parseDeckId,
   formatImportLine,

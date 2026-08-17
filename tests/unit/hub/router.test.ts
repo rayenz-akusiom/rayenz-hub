@@ -18,7 +18,8 @@ describe('hub routes', () => {
   });
 
   it('parses known paths', () => {
-    expect(pathFromHash('#/deck-review')).toBe('/deck-review');
+    expect(pathFromHash('#/deck-review')).toBe('/deck-suggest');
+    expect(pathFromHash('#/deck-suggest')).toBe('/deck-suggest');
     expect(pathFromHash('#/settings/dailies')).toBe('/settings/dailies');
     expect(pathFromHash('#/settings/hub-api')).toBe('/settings/hub-api');
     expect(pathFromHash('#/deck-builder')).toBe('/deck-builder');
@@ -99,7 +100,7 @@ describe('hub routes', () => {
       },
     };
     expect(redirectLegacyAppsPath(loc)).toBe(true);
-    expect(calls).toEqual(['/rayenz-akusiom/?x=1#/deck-review']);
+    expect(calls).toEqual(['/rayenz-akusiom/?x=1#/deck-suggest']);
   });
 
   it('does not redirect unknown /apps/ segments or non-apps paths', () => {

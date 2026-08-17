@@ -32,7 +32,6 @@ vi.mock('../../packages/web/src/api/hub-api', async (importOriginal) => {
 
 vi.mock('../../packages/web/src/deck-suggest/generation', () => ({
   generateSuggestions: vi.fn(),
-  transferToDeckReview: vi.fn(),
 }));
 
 vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
@@ -59,10 +58,7 @@ afterEach(() => {
 describe('Deck Suggest without API', () => {
   it('shows the API prerequisite and keeps generate disabled', () => {
     render(<DeckSuggestApp />);
-    expect(
-      screen.getByText(/Configure API URL and key in Settings to generate suggestions/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Configure API URL and key in Settings to generate/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
-    expect(screen.getByText(/Configure API URL and key in Settings/i)).toBeInTheDocument();
   });
 });

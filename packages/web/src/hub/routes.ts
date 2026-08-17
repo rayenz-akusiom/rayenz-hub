@@ -96,7 +96,7 @@ const LEGACY_APPS_SEGMENT_TO_HASH: Record<string, string> = {
   'neopets-more': '#/neopets-more',
   'deck-builder': '#/commander-builder',
   'deck-suggest': '#/deck-suggest',
-  'deck-review': '#/deck-review',
+  'deck-review': '#/deck-suggest',
   'order-reconcile': '#/order-reconcile',
   'swap-queue': '#/swap-queue',
   wishlist: '#/wishlist',
@@ -137,6 +137,10 @@ export function pathFromHash(hash?: string | null): HubPath {
   // Draft path → Swap Queue
   if (path === '/swap-wants') {
     return '/swap-queue';
+  }
+  // Deck Review merged into Deck Suggest
+  if (path === '/deck-review') {
+    return '/deck-suggest';
   }
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;

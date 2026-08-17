@@ -691,6 +691,31 @@
    flex-direction: column;
 }
 
+.dr-accept-mode {
+   display: flex;
+   gap: 8px;
+   margin-bottom: 12px;
+}
+
+.dr-accept-mode-btn.is-active {
+   border-color: #2b6cb0;
+   color: #2b6cb0;
+   font-weight: 600;
+}
+
+.dr-swap-seeking-note {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   padding-left: 8px;
+}
+
+.dr-badge-seeking {
+   background: #ebf8ff;
+   color: #2b6cb0;
+}
+
 .dr-suggestion-body {
    display: flex;
    flex-direction: column;

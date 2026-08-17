@@ -1,7 +1,7 @@
 import type { DeckEntry, Suggestion, SuggestionsPayload } from '@rayenz-hub/shared';
 import type { ReviewProgress } from '../lib/hub-storage';
 
-export type TransferSource = 'deck-suggest' | 'upload' | 'latest' | 'handoff' | null;
+export type TransferSource = 'deck-suggest' | 'generate' | 'upload' | 'latest' | 'handoff' | null;
 
 export type StatusCardTab = 'decisions' | 'queue' | 'update';
 
@@ -26,6 +26,8 @@ export type CardOutSelection = {
   collector_number: string | null;
 };
 
+export type AcceptKind = 'swap' | 'seeking';
+
 export type AcceptedSwap = {
   suggestion_id: string;
   deck_id: string;
@@ -34,8 +36,10 @@ export type AcceptedSwap = {
   action?: string;
   quantity: number;
   card_in: CardInSelection;
-  card_out: CardOutSelection;
+  /** Present for swap accepts; empty/null for Seeking. */
+  card_out: CardOutSelection | null;
   swap_categories: boolean;
+  accept_kind: AcceptKind;
 };
 
 export type ReviewDecision = {

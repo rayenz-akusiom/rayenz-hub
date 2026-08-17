@@ -3,7 +3,6 @@ import { DailiesApp } from '../dailies/DailiesApp';
 import { LegacyDeckBuilderRedirect } from '../deck-builder/LegacyDeckBuilderRedirect';
 import { CommanderBuilderApp } from '../deck-builder/commander/CommanderBuilderApp';
 import { CubeBuilderApp } from '../deck-builder/cube/CubeBuilderApp';
-import { DeckReviewApp } from '../deck-review/DeckReviewApp';
 import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
 import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
 import { OrderReconcileApp } from '../order-reconcile/OrderReconcileApp';
@@ -29,8 +28,7 @@ function AppOutlet({ path }: { path: string }) {
   if (path === '/commander-builder') return <CommanderBuilderApp />;
   if (path === '/cube-builder') return <CubeBuilderApp />;
   if (path === '/deck-builder') return <LegacyDeckBuilderRedirect />;
-  if (path === '/deck-review') return <DeckReviewApp />;
-  if (path === '/deck-suggest') return <DeckSuggestApp />;
+  if (path === '/deck-suggest' || path === '/deck-review') return <DeckSuggestApp />;
   if (path === '/order-reconcile') return <OrderReconcileApp />;
   if (path === '/swap-queue') return <SwapQueueApp entryPath="swap-queue" />;
   if (path === '/wishlist') return <SwapQueueApp entryPath="wishlist" />;

@@ -181,10 +181,16 @@ function DecisionsPane({
           const outSrc = decisionOutThumb(deck, s, decision);
           return (
             <div key={String(s.suggestion_id)} className={'dr-decision-recap-row dr-decision-recap-' + status}>
-              <div className="dr-decision-recap-faces" aria-hidden="true">
+                <div className="dr-decision-recap-faces" aria-hidden="true">
                 <MiniFace src={inSrc} label={recap.inName} />
-                <span className="dr-decision-recap-arrow">→</span>
-                <MiniFace src={outSrc} label={recap.outName || '(pick cut)'} />
+                {recap.acceptKind === 'seeking' ? (
+                  <span className="dr-decision-recap-arrow">Seeking</span>
+                ) : (
+                  <>
+                    <span className="dr-decision-recap-arrow">→</span>
+                    <MiniFace src={outSrc} label={recap.outName || '(pick cut)'} />
+                  </>
+                )}
               </div>
               <div className="dr-decision-recap-text">
                 <div
@@ -192,13 +198,18 @@ function DecisionsPane({
                   dangerouslySetInnerHTML={{
                     __html:
                       decisionStatusLabel(status) +
+                      (recap.acceptKind === 'seeking'
+                        ? '<span class="dr-badge dr-badge-seeking">Seeking</span>'
+                        : '') +
                       (stale.stale ? '<span class="dr-badge dr-badge-stale">Stale</span>' : ''),
                   }}
                 />
                 <div className="dr-decision-recap-swap">
                   <strong>{recap.inName}</strong>
                   {recap.inSet ? <span className="dr-decision-recap-set"> ({recap.inSet})</span> : null}
-                  {recap.outName ? (
+                  {recap.acceptKind === 'seeking' ? (
+                    <> → <em>Seeking</em></>
+                  ) : recap.outName ? (
                     <> → {recap.outName}</>
                   ) : needsSuggestedCut(s) ? (
                     <> → <em>(pick cut)</em></>
@@ -226,12 +237,12 @@ function QueuePane({
   const bridge = bridgeAvailable();
 
   if (!queue && !deck.deck_snapshot) {
-    if (transferSource === 'deck-suggest') {
+    if (transferSource === 'deck-suggest' || transferSource === 'generate') {
       return (
         <>
           {archidektDeckLink(deck, 'View deck on Archidekt')}
           <p className="dr-bridge-hint">
-            Snapshot missing from Deck Suggest handoff — use Refresh or return to Deck Suggest.
+            Snapshot missing from generation — use Refresh or start a new source.
           </p>
         </>
       );
@@ -264,8 +275,8 @@ function QueuePane({
   const recon = getSwapQueueReconciliation(deck);
   const fetchedAt = queue.fetched_at || 'unknown';
   const sourceLabel =
-    transferSource === 'deck-suggest' && deck.deck_snapshot
-      ? 'From Deck Suggest · as of ' + fetchedAt
+    (transferSource === 'deck-suggest' || transferSource === 'generate') && deck.deck_snapshot
+      ? 'From generation · as of ' + fetchedAt
       : 'From Archidekt · as of ' + fetchedAt;
 
   function renderQueueList(

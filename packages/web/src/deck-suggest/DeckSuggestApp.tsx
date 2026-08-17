@@ -1,40 +1,44 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
-import { CardSizePicker } from '../cards/CardSizePicker';
-import { useCardSize } from '../cards/card-size';
-import { DeckSuggestResults } from './DeckSuggestResults';
+import { bridgeAvailable, downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
+import { escapeHtml } from '../lib/string-utils';
+import { isApiConfigured } from '../api/hub-api';
+import { refreshActiveDeckSnapshot, refreshAllDeckSnapshots } from '../deck-review/archidekt-bridge';
+import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
+import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
+import { checkProfilesConnected, connectProfilesDir } from '../deck-review/profiles';
+import {
+  createInitialReviewState,
+  getDeckById,
+  handoffSnapshotDate,
+  handoffStatusMessage,
+  jumpToPendingSuggestion,
+  loadSuggestionsData,
+  navigatePendingSuggestion,
+  recordDecision,
+  selectDeck,
+} from '../deck-review/review';
+import type {
+  DeckReviewState,
+  ReviewDecision,
+  StatusCardTab,
+  SuggestionsPayload,
+} from '../deck-review/types';
+import '../deck-review/deck-review.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
 import { loadHubLibraryDecks } from './data';
 import { applyDeckList } from './deck-load';
-import { buildSummary, downloadJson, hasReviewableSuggestions } from './export';
-import { generateSuggestions, transferToDeckReview } from './generation';
-import { getGenerateReadiness, rulesDebugEnabled } from './readiness';
-import { AcceptDialogue } from './AcceptDialogue';
-import {
-  buildSeekingAcceptPatch,
-  buildSwapAcceptPatch,
-  persistSuggestPatch,
-  type AcceptPrintingChoice,
-  type SessionAccept,
-} from './accept';
-import { buildSessionWishlistText } from './wishlist-export';
+import { buildExport } from './export';
+import { generateSuggestions } from './generation';
+import { getGenerateReadiness } from './readiness';
 import { proposePageIds, remainingIds } from './paging';
-import { nextActionableSuggestion } from './session-queue';
-import { getDeck } from '../deck-builder/store/deck-store';
-import { apiGetDeck } from '../deck-builder/store/deck-api';
-import { isApiConfigured } from '../api/hub-api';
-import type { DeckDocument } from '@rayenz-hub/shared';
-import type {
-  DeckSelection,
-  DeckSuggestSettings,
-  DeckSuggestState,
-  SetInputMode,
-  Suggestion,
-} from './types';
+import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
 import './deck-suggest.css';
 
-function createInitialState(): DeckSuggestState {
+const LATEST_URL = 'data/suggestions/latest.json';
+
+function createSuggestState(): DeckSuggestState {
   const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
   const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
   return {
@@ -53,21 +57,53 @@ function createInitialState(): DeckSuggestState {
   };
 }
 
+function buildMetaHtml(review: DeckReviewState): string {
+  if (!review.data) {
+    return 'Generate from rules, or upload a suggestions JSON file.';
+  }
+  const meta = review.data.meta;
+  let html =
+    '<strong>' +
+    escapeHtml(meta.set_name || '') +
+    '</strong> · ' +
+    escapeHtml(meta.set_code || '') +
+    ' · ' +
+    escapeHtml(meta.generated_at || '') +
+    ' · ' +
+    review.data.decks.length +
+    ' decks';
+  const fromRules =
+    review.transferSource === 'deck-suggest' || review.transferSource === 'generate';
+  if (fromRules) {
+    const snapDate = handoffSnapshotDate(review.data);
+    const snapSummary = handoffSnapshotSummary(review.data);
+    html += '<span class="dr-meta-chip">Rules';
+    if (snapSummary.allReady) {
+      html += ' · ready';
+    }
+    if (snapDate) {
+      html += ' · ' + escapeHtml(snapDate);
+    }
+    html += '</span>';
+  } else if (meta.notes) {
+    html += '<span class="dr-meta-chip" title="' + escapeHtml(String(meta.notes)) + '">Notes</span>';
+  }
+  return html;
+}
+
 export function DeckSuggestApp() {
-  const [state, setState] = useState<DeckSuggestState>(createInitialState);
+  const [suggest, setSuggest] = useState<DeckSuggestState>(createSuggestState);
+  const [review, setReview] = useState<DeckReviewState>(createInitialReviewState);
   const [error, setError] = useState('');
   const [decksLoading, setDecksLoading] = useState(true);
-  const [sessionAccepts, setSessionAccepts] = useState<SessionAccept[]>([]);
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
-  const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
   const [processedIds, setProcessedIds] = useState<string[]>([]);
-  const [accepting, setAccepting] = useState<{ deckId: string; suggestion: Suggestion } | null>(
-    null,
-  );
-  const [acceptDeck, setAcceptDeck] = useState<DeckDocument | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
-  const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const bridgeOk = bridgeAvailable();
+  const reviewRef = useRef(review);
+  reviewRef.current = review;
 
   useEffect(() => {
     if (progressHostRef.current && !progressRef.current) {
@@ -78,7 +114,7 @@ export function DeckSuggestApp() {
   useEffect(() => {
     const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
     const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
-    setState((prev) => ({
+    setSuggest((prev) => ({
       ...prev,
       settings,
       ui: {
@@ -90,13 +126,19 @@ export function DeckSuggestApp() {
   }, []);
 
   useEffect(() => {
+    void checkProfilesConnected().then((connected) => {
+      setReview((prev) => ({ ...prev, profilesConnected: connected }));
+    });
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setDecksLoading(true);
       try {
         const loaded = await loadHubLibraryDecks();
         if (cancelled) return;
-        setState((prev) => ({
+        setSuggest((prev) => ({
           ...prev,
           deckSelection: applyDeckList(loaded, prev.deckSelection),
         }));
@@ -113,159 +155,203 @@ export function DeckSuggestApp() {
     };
   }, []);
 
-  const readiness = useMemo(() => getGenerateReadiness(state), [state]);
+  const readiness = useMemo(() => getGenerateReadiness(suggest), [suggest]);
   const blockedReason = readiness.ok
     ? ''
     : readiness.items.find((item) => !item.ok)?.label || 'Complete setup first';
-  const showPostGenerate = !!state.generationRun;
-
-  const visibleRun = useMemo(() => {
-    if (!state.generationRun) return null;
-    const dismissed = new Set(dismissedIds);
-    return {
-      ...state.generationRun,
-      deckResults: state.generationRun.deckResults.map((r) => ({
-        ...r,
-        suggestions: (r.suggestions || []).filter((s) => !dismissed.has(s.suggestion_id)),
-      })),
-    };
-  }, [state.generationRun, dismissedIds]);
-
-  const canReview = !!visibleRun && hasReviewableSuggestions({ ...state, generationRun: visibleRun });
-  const summary = visibleRun ? buildSummary({ ...state, generationRun: visibleRun }) : null;
-  const debugEnabled = rulesDebugEnabled(state.settings);
-  const resolvedSetCodes = visibleRun?.setCodes || [];
+  const remaining = remainingIds(
+    suggest.deckSelection.decks.map((d) => d.deck_id),
+    processedIds,
+  );
+  const loaded = !!review.data;
+  const activeDeck = getDeckById(review.data, review.activeDeckId);
 
   const persistSettings = useCallback((settings: DeckSuggestSettings) => {
     saveDeckSuggestSettings(settings);
-    setState((prev) => ({ ...prev, settings }));
+    setSuggest((prev) => ({ ...prev, settings }));
   }, []);
 
-  const remaining = remainingIds(
-    state.deckSelection.decks.map((d) => d.deck_id),
-    processedIds,
+  const applyLoaded = useCallback(
+    async (data: SuggestionsPayload, transferSource?: DeckReviewState['transferSource']) => {
+      setError('');
+      try {
+        const next = await loadSuggestionsData(reviewRef.current, data, transferSource);
+        setReview(next);
+        if (next.data) {
+          const statusMsg = handoffStatusMessage(next.data, next.transferSource);
+          if (statusMsg) {
+            const fromRules =
+              next.transferSource === 'deck-suggest' || next.transferSource === 'generate';
+            if (fromRules && handoffSnapshotSummary(next.data).missingSnapshots === 0) {
+              setReview((prev) => ({ ...prev, profileStatus: statusMsg }));
+            } else if (handoffSnapshotSummary(next.data).missingSnapshots > 0) {
+              setError(statusMsg);
+            }
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [],
   );
-  const wishlistText = buildSessionWishlistText(sessionAccepts);
 
-  async function openAccept(deckId: string, suggestion: Suggestion) {
+  async function handleFetchLatest() {
     setError('');
-    const doc = (await getDeck(deckId)) || (await apiGetDeck(deckId));
-    if (!doc) {
-      setError('Save this deck to Hub before accepting suggestions.');
+    try {
+      const resp = await fetch(LATEST_URL + '?t=' + Date.now());
+      if (!resp.ok) {
+        throw new Error('Could not fetch ' + LATEST_URL + ' (' + resp.status + ')');
+      }
+      const data = (await resp.json()) as SuggestionsPayload;
+      await applyLoaded(data, 'latest');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleFileUpload(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result)) as SuggestionsPayload;
+        void applyLoaded(data, 'upload');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleDecision(suggestionId: string, decision: ReviewDecision, advance: boolean) {
+    setReview((prev) => {
+      if (!prev.fileId) {
+        return prev;
+      }
+      return recordDecision(prev, suggestionId, decision, advance);
+    });
+    setError('');
+  }
+
+  const handleNavigateSuggestion = useCallback((delta: number) => {
+    setReview((prev) => navigatePendingSuggestion(prev, delta));
+  }, []);
+
+  const handleJumpSuggestion = useCallback((index: number) => {
+    setReview((prev) => jumpToPendingSuggestion(prev, index));
+  }, []);
+
+  function handleSelectDeck(deckId: string) {
+    setReview((prev) => selectDeck(prev, deckId));
+  }
+
+  function handleBackToSetup() {
+    setReview(createInitialReviewState());
+    setSuggest((prev) => ({ ...prev, generationRun: null }));
+    setError('');
+  }
+
+  async function handleConnectProfiles() {
+    if (review.profilesConnected) {
       return;
     }
-    setAcceptDeck(doc);
-    setAccepting({ deckId, suggestion });
-  }
-
-  async function finishAccept(justId: string) {
-    const exclude = new Set([...acceptedIds, ...dismissedIds, justId]);
-    setAcceptedIds((prev) => (prev.includes(justId) ? prev : [...prev, justId]));
-    setAccepting(null);
-    setAcceptDeck(null);
-    const next = nextActionableSuggestion(state.generationRun, exclude, justId);
-    if (next) {
-      await openAccept(next.deckId, next.suggestion);
+    try {
+      await connectProfilesDir();
+      setReview((prev) => ({
+        ...prev,
+        profilesConnected: true,
+        profileStatus: 'Profiles folder connected.',
+      }));
+    } catch (err) {
+      setReview((prev) => ({
+        ...prev,
+        profileStatus: err instanceof Error ? err.message : String(err),
+      }));
     }
   }
 
-  async function saveSwap(
-    outInstanceId: string,
-    choice: AcceptPrintingChoice,
-    meta?: { inTargetCategory: string | null; notes: string },
-  ) {
-    if (!accepting || !acceptDeck) return;
-    const justId = accepting.suggestion.suggestion_id;
-    try {
-      const patch = buildSwapAcceptPatch(
-        acceptDeck,
-        accepting.suggestion,
-        outInstanceId,
-        choice,
-        meta,
-      );
-      await persistSuggestPatch(accepting.deckId, patch);
-      setSessionAccepts((prev) => [
-        ...prev,
-        {
-          deckId: accepting.deckId,
-          cardName: accepting.suggestion.card.name,
-          quantity: 1,
-          printing: {
-            set_code: choice.printing.setCode,
-            collector_number: choice.printing.collectorNumber,
-          },
-          kind: 'queued_in',
-        },
-      ]);
-      await finishAccept(justId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+  async function handleRefreshAllDecks() {
+    if (!review.data) {
+      return;
     }
+    await refreshAllDeckSnapshots(
+      review.data.decks,
+      progressRef.current,
+      (updatedDecks) => {
+        setReview((prev) =>
+          prev.data
+            ? {
+                ...prev,
+                data: { ...prev.data, decks: updatedDecks },
+              }
+            : prev,
+        );
+      },
+      (msg) => {
+        if (!bridgeAvailable()) {
+          setReview((prev) => ({
+            ...prev,
+            profileStatus: 'Install Archidekt Deck Review Bridge userscript for live refresh.',
+          }));
+        } else {
+          setError(msg);
+        }
+      },
+    );
   }
 
-  async function saveSeeking(choice: AcceptPrintingChoice) {
-    if (!accepting || !acceptDeck) return;
-    const justId = accepting.suggestion.suggestion_id;
+  async function handleRefreshDeck() {
+    const deck = getDeckById(review.data, review.activeDeckId);
+    if (!deck) {
+      return;
+    }
     try {
-      const patch = buildSeekingAcceptPatch(acceptDeck, accepting.suggestion, choice);
-      await persistSuggestPatch(accepting.deckId, patch);
-      setSessionAccepts((prev) => [
-        ...prev,
-        {
-          deckId: accepting.deckId,
-          cardName: accepting.suggestion.card.name,
-          quantity: 1,
-          printing: {
-            set_code: choice.printing.setCode,
-            collector_number: choice.printing.collectorNumber,
-          },
-          kind: 'seeking',
-        },
-      ]);
-      await finishAccept(justId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      await refreshActiveDeckSnapshot(deck, progressRef.current);
+      setReview((prev) => ({ ...prev }));
+    } catch {
+      /* error shown via progress */
     }
   }
 
   function handleNextPage() {
-    const cap = state.generationRun?.cap || 20;
+    const cap = suggest.generationRun?.cap || 20;
     const nextIds = proposePageIds(
-      state.deckSelection.decks.map((d) => d.deck_id),
+      suggest.deckSelection.decks.map((d) => d.deck_id),
       processedIds,
       cap,
     );
-    setState((prev) => ({
+    setSuggest((prev) => ({
       ...prev,
       generationRun: null,
       deckSelection: { ...prev.deckSelection, selectedIds: nextIds },
     }));
+    setReview(createInitialReviewState());
   }
 
   async function handleGenerate() {
     if (!readiness.ok) return;
     setError('');
-    setState((prev) => ({ ...prev, generating: true }));
+    setSuggest((prev) => ({ ...prev, generating: true }));
     progressRef.current?.start({ label: 'Generating…' });
     try {
       const nextSettings = {
-        ...state.settings,
-        setCodes: state.ui.setCodesInput,
-        releaseId: state.ui.releaseId,
-        setInputMode: state.ui.setInputMode,
+        ...suggest.settings,
+        setCodes: suggest.ui.setCodesInput,
+        releaseId: suggest.ui.releaseId,
+        setInputMode: suggest.ui.setInputMode,
       };
       persistSettings(nextSettings);
       const run = await generateSuggestions(
-        { ...state, settings: nextSettings },
+        { ...suggest, settings: nextSettings },
         (update) => progressRef.current?.update(update),
-        state.generationRun?.cap || 20,
+        suggest.generationRun?.cap || 20,
       );
-      setProcessedIds((prev) => [...new Set([...prev, ...state.deckSelection.selectedIds])]);
-      setState((prev) => ({
-        ...prev,
-        generationRun: run,
+      setProcessedIds((prev) => [...new Set([...prev, ...suggest.deckSelection.selectedIds])]);
+      const nextSuggest: DeckSuggestState = {
+        ...suggest,
+        settings: nextSettings,
         generating: false,
+        generationRun: run,
         setScope: run.setCodes?.length
           ? {
               codes: run.setCodes,
@@ -273,178 +359,187 @@ export function DeckSuggestApp() {
               cards: [],
               complete: true,
             }
-          : prev.setScope,
-      }));
+          : suggest.setScope,
+      };
+      setSuggest(nextSuggest);
+      const payload = buildExport(nextSuggest);
+      await applyLoaded(payload, 'generate');
       progressRef.current?.finish({
         label: 'Generated suggestions for ' + run.deckResults.length + ' deck(s).',
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      setState((prev) => ({ ...prev, generating: false }));
+      setSuggest((prev) => ({ ...prev, generating: false }));
       progressRef.current?.finish({ label: msg, variant: 'error' });
     }
   }
 
-  async function handleReviewHandoff() {
-    if (!canReview) return;
-    try {
-      await transferToDeckReview(state);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  function handleDownload() {
-    if (!state.generationRun) return;
-    try {
-      downloadJson(state);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  const shellStyle = {
-    ['--db-card-w']: `${cardWidthPx}px`,
-  } as CSSProperties;
-
   return (
-    <div className="deck-suggest-app" style={shellStyle}>
-      <div className="hub-sticky-chrome">
-        <header className="ds-header">
-          <div className="ds-header-top">
-            <div className="ds-header-copy">
-              <h2>Deck Suggest</h2>
-              <p className="ds-meta">
-                Suggest upgrades for your Commander decks from a set release.
+    <div className={'deck-suggest-app' + (loaded ? ' deck-suggest-reviewing' : '')}>
+      <button
+        type="button"
+        id="dr-right-nav-toggle"
+        className="dr-right-nav-toggle"
+        aria-label="Decks"
+        aria-expanded={navOpen}
+        onClick={() => setNavOpen((o) => !o)}
+      >
+        Decks
+      </button>
+      <div
+        id="dr-right-nav-backdrop"
+        className={'dr-right-nav-backdrop' + (navOpen ? ' open' : '')}
+        onClick={() => setNavOpen(false)}
+      />
+
+      <div className="dr-layout">
+        <div className="dr-main-area">
+          <div className="hub-sticky-chrome">
+            <header className="dr-chrome">
+              <div className="dr-chrome-primary">
+                <h2>Deck Suggest</h2>
+                <div className="dr-meta" id="ds-meta" dangerouslySetInnerHTML={{ __html: buildMetaHtml(review) }} />
+              </div>
+              <div className="hub-progress-host dr-chrome-progress" id="ds-progress-host" ref={progressHostRef} />
+              {loaded ? (
+                <div className="dr-chrome-actions">
+                  {activeDeck?.archidekt_url ? (
+                    <a
+                      className="dr-deck-archidekt-link dr-chrome-archidekt"
+                      href={activeDeck.archidekt_url}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Archidekt
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-ghost"
+                    id="dr-toggle-view"
+                    onClick={() => setReview((prev) => ({ ...prev, showAllMode: !prev.showAllMode }))}
+                  >
+                    {review.showAllMode ? 'One at a time' : 'Show all'}
+                  </button>
+                </div>
+              ) : (
+                <div className="dr-chrome-actions">
+                  <button
+                    type="button"
+                    className="dr-btn dr-btn-primary"
+                    id="ds-generate"
+                    disabled={!readiness.ok || suggest.generating}
+                    title={!readiness.ok ? blockedReason : ''}
+                    onClick={() => void handleGenerate()}
+                  >
+                    Generate
+                  </button>
+                </div>
+              )}
+            </header>
+            {!loaded && !readiness.ok ? (
+              <p className="ds-meta ds-blocked-reason" id="ds-blocked-reason">
+                {blockedReason}
               </p>
-            </div>
-            <div className="ds-action-bar">
-              <CardSizePicker size={cardSize} onChange={setCardSize} />
-              <button
-                type="button"
-                className="ds-btn ds-btn-primary"
-                id="ds-generate"
-                disabled={!readiness.ok || state.generating}
-                title={!readiness.ok ? blockedReason : ''}
-                onClick={() => void handleGenerate()}
-              >
-                Generate
-              </button>
-              {showPostGenerate ? (
-                <>
-                  <button
-                    type="button"
-                    className="ds-btn ds-btn-primary"
-                    id="ds-review-handoff"
-                    disabled={!canReview}
-                    title={
-                      canReview ? '' : 'Generate suggestions with at least one match first'
-                    }
-                    onClick={() => void handleReviewHandoff()}
-                  >
-                    Review in Deck Review
-                  </button>
-                  <button
-                    type="button"
-                    className="ds-btn"
-                    id="ds-download"
-                    onClick={handleDownload}
-                  >
-                    Download JSON
-                  </button>
-                </>
-              ) : null}
-            </div>
+            ) : null}
           </div>
-          {!readiness.ok ? (
-            <p className="ds-meta ds-blocked-reason" id="ds-blocked-reason">
-              {blockedReason}
-            </p>
-          ) : null}
-        </header>
-        <div className="hub-progress-host" id="ds-progress-host" ref={progressHostRef} />
-      </div>
 
-      {error ? (
-        <div className="ds-error" id="ds-error">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="ds-body">
-        <section className="ds-panel" id="ds-results">
-          {!visibleRun ? (
-            <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
-              {isApiConfigured()
-                ? 'Press Generate to see suggestions.'
-                : 'Configure API URL and key in Settings to generate suggestions.'}
-            </p>
-          ) : (
-            <div id="ds-results-content">
-              <DeckSuggestResults
-                generationRun={visibleRun}
-                setScope={state.setScope}
-                summary={summary}
-                rulesDebug={debugEnabled}
-                acceptedIds={acceptedIds}
-                onAccept={(deckId, s) => void openAccept(deckId, s)}
-                onDismiss={(id) => setDismissedIds((prev) => [...prev, id])}
-                onNextPage={remaining.length ? handleNextPage : undefined}
-                remainingCount={remaining.length}
-                wishlistText={wishlistText}
-                wishlistEmpty={!sessionAccepts.length}
-              />
-              {accepting && acceptDeck ? (
-                <AcceptDialogue
-                  suggestion={accepting.suggestion}
-                  deck={acceptDeck}
-                  protectedCards={[
-                    ...(state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)?.profile
-                      ?.protected_cards || []),
-                    ...(state.deckSelection.decks.find((d) => d.deck_id === accepting.deckId)
-                      ?.profile_preferences?.protected_cards || []),
-                  ]}
-                  onCancel={() => {
-                    setAccepting(null);
-                    setAcceptDeck(null);
-                  }}
-                  onSwap={(outId, choice, meta) => void saveSwap(outId, choice, meta)}
-                  onSeeking={(choice) => void saveSeeking(choice)}
-                />
-              ) : null}
+          {error ? (
+            <div className="dr-error" id="ds-error">
+              {error}
             </div>
-          )}
-        </section>
+          ) : null}
 
-        <section className="ds-panel" id="ds-setup">
-          <DeckSuggestSetup
-            settings={state.settings}
-            setSettings={persistSettings}
-            setInputMode={state.ui.setInputMode}
-            onSetInputMode={(mode) => {
-              setState((prev) => ({
-                ...prev,
-                ui: { ...prev.ui, setInputMode: mode },
-              }));
-              persistSettings({ ...state.settings, setInputMode: mode });
-            }}
-            releaseId={state.ui.releaseId}
-            onReleaseId={(value) =>
-              setState((prev) => ({ ...prev, ui: { ...prev.ui, releaseId: value } }))
+          <div className="dr-body" id="ds-body">
+            {!loaded ? (
+              <div className="ds-setup-phase">
+                <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
+                  {isApiConfigured()
+                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON / refresh latest from the sidebar.'
+                    : 'Configure API URL and key in Settings to generate, or upload a suggestions JSON from the sidebar.'}
+                </p>
+                {remaining.length && processedIds.length ? (
+                  <p className="ds-meta">
+                    {remaining.length} deck(s) left unprocessed.{' '}
+                    <button type="button" className="dr-btn dr-btn-ghost" onClick={handleNextPage}>
+                      Select next page
+                    </button>
+                  </p>
+                ) : null}
+                <section className="ds-panel" id="ds-setup">
+                  <DeckSuggestSetup
+                    settings={suggest.settings}
+                    setSettings={persistSettings}
+                    setInputMode={suggest.ui.setInputMode}
+                    onSetInputMode={(mode) => {
+                      setSuggest((prev) => ({
+                        ...prev,
+                        ui: { ...prev.ui, setInputMode: mode },
+                      }));
+                      persistSettings({ ...suggest.settings, setInputMode: mode });
+                    }}
+                    releaseId={suggest.ui.releaseId}
+                    onReleaseId={(value) =>
+                      setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, releaseId: value } }))
+                    }
+                    setCodesInput={suggest.ui.setCodesInput}
+                    onSetCodesInput={(value) =>
+                      setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, setCodesInput: value } }))
+                    }
+                    resolvedSetCodes={suggest.generationRun?.setCodes || []}
+                    deckSelection={suggest.deckSelection}
+                    onDeckSelectionChange={(next: DeckSelection) =>
+                      setSuggest((prev) => ({ ...prev, deckSelection: next }))
+                    }
+                    decksLoading={decksLoading}
+                  />
+                </section>
+              </div>
+            ) : (
+              <div id="dr-content">
+                <div id="dr-suggestion-panel">
+                  <DeckReviewSuggestionPanel
+                    deck={activeDeck}
+                    state={review}
+                    onDecision={handleDecision}
+                    onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
+                    onTabChange={(tab: StatusCardTab) =>
+                      setReview((prev) => ({ ...prev, statusCardTab: tab }))
+                    }
+                    onRefreshDeck={() => void handleRefreshDeck()}
+                    onApplyStaged={(message) =>
+                      setReview((prev) => ({ ...prev, profileStatus: message }))
+                    }
+                    onError={setError}
+                    onNavigateSuggestion={handleNavigateSuggestion}
+                    onJumpSuggestion={handleJumpSuggestion}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DeckReviewSidebar
+          state={review}
+          navOpen={navOpen}
+          bridgeOk={bridgeOk}
+          onCloseNav={() => setNavOpen(false)}
+          onFetchLatest={() => void handleFetchLatest()}
+          onUploadClick={() => fileInputRef.current?.click()}
+          onFileChange={handleFileUpload}
+          onDownloadJson={() => {
+            if (review.data) {
+              downloadSuggestionsJson(review.data);
             }
-            setCodesInput={state.ui.setCodesInput}
-            onSetCodesInput={(value) =>
-              setState((prev) => ({ ...prev, ui: { ...prev.ui, setCodesInput: value } }))
-            }
-            resolvedSetCodes={resolvedSetCodes}
-            deckSelection={state.deckSelection}
-            onDeckSelectionChange={(next: DeckSelection) =>
-              setState((prev) => ({ ...prev, deckSelection: next }))
-            }
-            decksLoading={decksLoading}
-          />
-        </section>
+          }}
+          onConnectProfiles={() => void handleConnectProfiles()}
+          onRefreshAllDecks={() => void handleRefreshAllDecks()}
+          onSelectDeck={handleSelectDeck}
+          onBackToSetup={loaded ? handleBackToSetup : undefined}
+          fileInputRef={fileInputRef}
+        />
       </div>
     </div>
   );

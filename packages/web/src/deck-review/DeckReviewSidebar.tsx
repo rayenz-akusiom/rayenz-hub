@@ -20,6 +20,7 @@ type DeckReviewSidebarProps = {
   onConnectProfiles: () => void;
   onRefreshAllDecks: () => void;
   onSelectDeck: (deckId: string) => void;
+  onBackToSetup?: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 };
 
@@ -61,6 +62,7 @@ export function DeckReviewSidebar({
   onConnectProfiles,
   onRefreshAllDecks,
   onSelectDeck,
+  onBackToSetup,
   fileInputRef,
 }: DeckReviewSidebarProps) {
   const { data, activeDeckId, progress, transferSource, profilesConnected } = state;
@@ -78,28 +80,33 @@ export function DeckReviewSidebar({
   const activeDeck = decks.find((d) => d.deck_id === activeDeckId) || null;
   const canConnect = canConnectProfilesFolder();
   const canWrite = canWriteProfiles();
-  const refreshLabel =
-    transferSource === 'deck-suggest' ? 'Refresh from Archidekt (optional)' : 'Refresh all decks';
-  const refreshTitle =
-    transferSource === 'deck-suggest'
-      ? bridgeOk
-        ? 'Snapshots loaded from Deck Suggest; refresh only if Archidekt changed since.'
-        : 'Requires Archidekt Deck Review Bridge userscript'
-      : bridgeOk
-        ? 'Fetch latest deck lists from Archidekt'
-        : 'Requires Archidekt Deck Review Bridge userscript';
+  const fromRules =
+    transferSource === 'deck-suggest' || transferSource === 'generate';
+  const refreshLabel = fromRules ? 'Refresh from Archidekt (optional)' : 'Refresh all decks';
+  const refreshTitle = fromRules
+    ? bridgeOk
+      ? 'Snapshots loaded from generation; refresh only if Archidekt changed since.'
+      : 'Requires Archidekt Deck Review Bridge userscript'
+    : bridgeOk
+      ? 'Fetch latest deck lists from Archidekt'
+      : 'Requires Archidekt Deck Review Bridge userscript';
 
   return (
       <aside id="dr-right-nav" className={'dr-right-nav' + (navOpen ? ' open' : '')} aria-label="Deck navigation">
         <div className="dr-nav-actions">
           <h3>Data</h3>
+          {onBackToSetup ? (
+            <button type="button" className="dr-btn dr-btn-ghost" id="dr-back-setup" onClick={onBackToSetup}>
+              New source
+            </button>
+          ) : null}
           <button type="button" className="dr-btn dr-btn-primary" id="dr-fetch-latest" onClick={onFetchLatest}>
             Refresh latest
           </button>
           <button type="button" className="dr-btn dr-btn-ghost" id="dr-upload-btn" onClick={onUploadClick}>
             Upload JSON
           </button>
-          {transferSource === 'deck-suggest' ? (
+          {data ? (
             <button type="button" className="dr-btn dr-btn-ghost" id="dr-download-json" onClick={onDownloadJson}>
               Download JSON
             </button>

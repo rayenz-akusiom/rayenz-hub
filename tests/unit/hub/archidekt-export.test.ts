@@ -232,6 +232,23 @@ describe('ArchidektExport.buildFullDeckImport', () => {
     expect(text).toContain('1x Llanowar Elves (m19) 314 [Ramp]');
   });
 
+  it('emits Seeking category lines for seeking accepts', () => {
+    const text = ArchidektExport.buildFullDeckImport(deck, [
+      {
+        suggestion_id: 's2',
+        action: 'add',
+        quantity: 1,
+        accept_kind: 'seeking',
+        swap_categories: false,
+        card_in: { name: 'Rhystic Study', set_code: 'pc2', collector_number: '1', finish: 'nonfoil' },
+        card_out: null,
+      },
+    ]);
+    expect(text).toContain('1x Rhystic Study (pc2) 1 [Seeking');
+    expect(text).toContain('1x Llanowar Elves (m19) 314 [Ramp]');
+    expect(text).not.toContain('[Queued In');
+  });
+
   it('emits the swapped-in card with foil token in the Queued In category', () => {
     const text = ArchidektExport.buildFullDeckImport(deck, accepted);
     expect(text).toContain('1x Sol Ring (cmm) 1 *F* [Queued In{noDeck}{noPrice}]');

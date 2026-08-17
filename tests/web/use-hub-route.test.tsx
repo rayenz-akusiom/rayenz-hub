@@ -49,11 +49,11 @@ describe('useHubRoute', () => {
   });
 
   it('restores hash from localStorage when location hash is empty', async () => {
-    localStorage.setItem(ROUTE_KEY, '#/deck-review');
+    localStorage.setItem(ROUTE_KEY, '#/deck-suggest');
     window.location.hash = '';
     render(<RouteProbe />);
     await waitFor(() => {
-      expect(screen.getByTestId('path')).toHaveTextContent('/deck-review');
+      expect(screen.getByTestId('path')).toHaveTextContent('/deck-suggest');
     });
   });
 

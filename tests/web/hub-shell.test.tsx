@@ -22,9 +22,6 @@ vi.mock('../../packages/web/src/deck-builder/commander/CommanderBuilderApp', () 
 vi.mock('../../packages/web/src/deck-builder/cube/CubeBuilderApp', () => ({
   CubeBuilderApp: () => <div data-testid="cube-builder">Cube Builder</div>,
 }));
-vi.mock('../../packages/web/src/deck-review/DeckReviewApp', () => ({
-  DeckReviewApp: () => <div data-testid="deck-review">Deck Review</div>,
-}));
 vi.mock('../../packages/web/src/deck-suggest/DeckSuggestApp', () => ({
   DeckSuggestApp: () => <div data-testid="deck-suggest">Deck Suggest</div>,
 }));
@@ -77,7 +74,7 @@ describe('HubShell AppOutlet', () => {
     ['/commander-builder', 'commander-builder', undefined],
     ['/cube-builder', 'cube-builder', undefined],
     ['/deck-builder', 'deck-builder-legacy', undefined],
-    ['/deck-review', 'deck-review', undefined],
+    ['/deck-review', 'deck-suggest', undefined],
     ['/deck-suggest', 'deck-suggest', undefined],
     ['/order-reconcile', 'order-reconcile', undefined],
     ['/swap-queue', 'swap-queue', undefined],
@@ -176,9 +173,9 @@ describe('HubShell nav toggle', () => {
 
 describe('HubNav active links', () => {
   it('marks the current app link active', () => {
-    render(<HubNav path="/deck-review" open={false} onClose={() => {}} />);
-    expect(navLink('Deck Review')).toHaveClass('active');
-    expect(navLink('Deck Review')).toHaveAttribute('aria-current', 'page');
+    render(<HubNav path="/deck-suggest" open={false} onClose={() => {}} />);
+    expect(navLink('Deck Suggest')).toHaveClass('active');
+    expect(navLink('Deck Suggest')).toHaveAttribute('aria-current', 'page');
     expect(navLink('Dailies')).not.toHaveClass('active');
   });
 

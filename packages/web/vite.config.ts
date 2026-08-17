@@ -64,7 +64,7 @@ function pagesFallbackPlugin(): Plugin {
     'neopets-more': '#/neopets-more',
     'deck-builder': '#/commander-builder',
     'deck-suggest': '#/deck-suggest',
-    'deck-review': '#/deck-review',
+    'deck-review': '#/deck-suggest',
     'order-reconcile': '#/order-reconcile',
     settings: '#/settings/dailies',
   };

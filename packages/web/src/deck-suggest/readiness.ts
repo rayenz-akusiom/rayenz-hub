@@ -93,7 +93,7 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
     });
   }
 
-  const ok = !missing.length && !state.generating;
+  const ok = !missing.length;
   return { ok, missing, items, generating: !!state.generating };
 }
 

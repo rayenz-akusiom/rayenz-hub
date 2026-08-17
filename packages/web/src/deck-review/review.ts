@@ -183,10 +183,7 @@ export function handoffStatusMessage(data: SuggestionsPayload, transferSource: T
   }
   const summary = handoffSnapshotSummary(data);
   if (summary.missingSnapshots > 0) {
-    return summary.missingSnapshots + ' deck(s) missing snapshots — regenerate or start a new source.';
-  }
-  if (summary.allReady) {
-    return 'Ready to review — deck snapshots included from generation.';
+    return summary.missingSnapshots + ' deck(s) missing snapshots — generate again.';
   }
   return null;
 }

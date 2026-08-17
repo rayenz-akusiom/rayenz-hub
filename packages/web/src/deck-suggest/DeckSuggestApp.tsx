@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
-import { handoffSnapshotSummary } from '../lib/hub-utils';
-import { isApiConfigured } from '../api/hub-api';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
 import { checkProfilesConnected } from '../deck-review/profiles';
@@ -147,13 +145,7 @@ export function DeckSuggestApp() {
         if (next.data) {
           const statusMsg = handoffStatusMessage(next.data, next.transferSource);
           if (statusMsg) {
-            const fromRules =
-              next.transferSource === 'deck-suggest' || next.transferSource === 'generate';
-            if (fromRules && handoffSnapshotSummary(next.data).missingSnapshots === 0) {
-              setReview((prev) => ({ ...prev, profileStatus: statusMsg }));
-            } else if (handoffSnapshotSummary(next.data).missingSnapshots > 0) {
-              setError(statusMsg);
-            }
+            setError(statusMsg);
           }
         }
       } catch (err) {
@@ -297,7 +289,7 @@ export function DeckSuggestApp() {
                     type="button"
                     className="dr-btn dr-btn-ghost dr-chrome-back"
                     id="dr-back-setup"
-                    aria-label="New source"
+                    aria-label="Back to setup"
                     title="Back to setup"
                     onClick={handleBackToSetup}
                   >
@@ -376,11 +368,6 @@ export function DeckSuggestApp() {
           <div className="dr-body" id="ds-body">
             {!loaded ? (
               <div className="ds-setup-phase">
-                <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
-                  {isApiConfigured()
-                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON.'
-                    : 'Configure API URL and key in Settings to generate, or upload a suggestions JSON.'}
-                </p>
                 {remaining.length && processedIds.length ? (
                   <p className="ds-meta">
                     {remaining.length} deck(s) left unprocessed.{' '}

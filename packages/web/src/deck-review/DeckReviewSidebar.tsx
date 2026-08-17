@@ -135,9 +135,6 @@ export function DeckReviewSidebar({ state, navOpen, onCloseNav, onSelectDeck }: 
                 </div>
               </details>
             ) : null}
-            {!data ? (
-              <p className="dr-meta">Generate or upload suggestions to review decks here.</p>
-            ) : null}
           </div>
         </div>
       </div>
@@ -155,7 +152,6 @@ export function DeckReviewSidebar({ state, navOpen, onCloseNav, onSelectDeck }: 
           ) : (
             <section className="db-profile" aria-label="Deck profile">
               <h3 className="db-profile-title">Profile</h3>
-              <p className="db-muted">Generate or upload suggestions, then select a deck to view its profile.</p>
             </section>
           )
         ) : null}

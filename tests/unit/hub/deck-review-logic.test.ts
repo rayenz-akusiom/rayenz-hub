@@ -773,10 +773,10 @@ describe('deck-review review helpers', () => {
         suggestions: [{ suggestion_id: 's1' }],
       }],
     };
-    expect(handoffStatusMessage(readyData as never, 'deck-suggest')).toContain('Ready to review');
+    expect(handoffStatusMessage(readyData as never, 'deck-suggest')).toBe(null);
     expect(
       handoffStatusMessage({ decks: [{ deck_snapshot: null, suggestions: [{ suggestion_id: 's1' }] }] } as never, 'deck-suggest'),
-    ).toContain('missing snapshots');
+    ).toBe('1 deck(s) missing snapshots — generate again.');
   });
 
   it('recordDecision and selectDeck persist progress when fileId is set', () => {

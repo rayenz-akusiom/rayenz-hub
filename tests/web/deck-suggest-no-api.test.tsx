@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 import { progressController } from './helpers/hub-progress-mock';
@@ -56,9 +56,10 @@ afterEach(() => {
 });
 
 describe('Deck Suggest without API', () => {
-  it('shows the API prerequisite and keeps generate disabled', () => {
+  it('shows the API prerequisite and keeps generate disabled', async () => {
     render(<DeckSuggestApp />);
-    expect(screen.getByText(/Configure API URL and key in Settings to generate/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Test Deck')).toBeInTheDocument());
+    expect(screen.getByText(/Configure API URL and key in Settings/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
   });
 });

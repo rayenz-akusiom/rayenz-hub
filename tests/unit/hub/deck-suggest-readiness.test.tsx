@@ -104,10 +104,11 @@ describe('getGenerateReadiness', () => {
     expect(result.missing).not.toContain('decks');
   });
 
-  it('fails when generating even if requirements are met', () => {
+  it('stays ok while generating when requirements are met', () => {
     const result = getGenerateReadiness(readyState({ generating: true }));
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
     expect(result.generating).toBe(true);
+    expect(result.missing).toEqual([]);
   });
 
   it('reads release id from settings when ui input is absent', () => {

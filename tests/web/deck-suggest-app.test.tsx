@@ -142,13 +142,13 @@ afterEach(() => {
 });
 
 describe('DeckSuggestApp chrome', () => {
-  it('renders header, generate, and setup placeholder', async () => {
+  it('renders header, generate, and setup', async () => {
     mockLoadHubLibraryDecks.mockResolvedValueOnce([]);
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
-    expect(screen.getByText(/Configure a set release/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText(/No commander decks found/i)).toBeInTheDocument();
     });
@@ -217,11 +217,35 @@ describe('DeckSuggestApp generate to review', () => {
       expect(document.getElementById('dr-content')).toBeTruthy();
     });
     expect(screen.getByRole('heading', { name: 'Take Up the Shield' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New source' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New source' })).toHaveClass('dr-chrome-back');
+    expect(screen.getByRole('button', { name: 'Back to setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to setup' })).toHaveClass('dr-chrome-back');
     expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
+  });
+
+  it('does not show Complete setup first while generating', async () => {
+    let resolveGenerate: (value: ReturnType<typeof sampleGenerationRun>) => void = () => {};
+    mockGenerateSuggestions.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveGenerate = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    await prepareReadyState();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
+    });
+    expect(screen.queryByText(/Complete setup first/i)).not.toBeInTheDocument();
+    expect(document.getElementById('ds-blocked-reason')).toBeNull();
+    resolveGenerate(sampleGenerationRun());
+    await waitFor(() => {
+      expect(document.getElementById('dr-content')).toBeTruthy();
+    });
   });
 
   it('shows generation error in the error banner', async () => {

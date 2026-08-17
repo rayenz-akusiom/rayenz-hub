@@ -184,8 +184,8 @@ describe('DeckSuggestApp upload and sidebar', () => {
 
   it('shows chrome back control and sidebar deck list after upload', async () => {
     await loadSuggestionsViaUpload(handoffPayload());
-    expect(screen.getByRole('button', { name: 'New source' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New source' })).toHaveClass('dr-chrome-back');
+    expect(screen.getByRole('button', { name: 'Back to setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to setup' })).toHaveClass('dr-chrome-back');
     expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
@@ -212,10 +212,10 @@ describe('DeckSuggestApp upload and sidebar', () => {
     expect(screen.getByRole('heading', { name: 'Decks' })).toBeVisible();
   });
 
-  it('returns to setup for a new upload via New source', async () => {
+  it('returns to setup for a new upload via Back to setup', async () => {
     const user = await loadSuggestionsViaUpload(handoffPayload());
     expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'New source' }));
+    await user.click(screen.getByRole('button', { name: 'Back to setup' }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();

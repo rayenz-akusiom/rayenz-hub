@@ -153,16 +153,17 @@ afterEach(() => {
 });
 
 describe('DeckSuggestApp empty state', () => {
-  it('shows empty guidance and sidebar data actions', () => {
+  it('shows empty guidance and setup actions', () => {
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Upload JSON' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Connect profiles folder/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
   });
 });
 
@@ -177,14 +178,16 @@ describe('DeckSuggestApp upload and sidebar', () => {
 
     await loadSuggestionsViaUpload(handoffPayload());
 
-    expect(screen.getByText(/Marvel Super Heroes/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
   });
 
   it('shows chrome back control and sidebar deck list after upload', async () => {
     await loadSuggestionsViaUpload(handoffPayload());
     expect(screen.getByRole('button', { name: 'New source' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New source' })).toHaveClass('dr-chrome-back');
-    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
     expect(screen.queryByText('Hub library')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
@@ -192,7 +195,7 @@ describe('DeckSuggestApp upload and sidebar', () => {
     expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Deck leaders' })).toBeInTheDocument();
     expect(screen.getByLabelText('Baird, Steward of Argive')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Lieutenants' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Lieutenants' })).not.toBeInTheDocument();
     expect(document.querySelector('.ds-deck-leaders')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Open status/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/No cut suggested/i)).not.toBeInTheDocument();
@@ -200,13 +203,23 @@ describe('DeckSuggestApp upload and sidebar', () => {
 
   it('flips the sidebar between Deck and Profile tabs', async () => {
     const user = await loadSuggestionsViaUpload(handoffPayload());
-    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Decks' })).toBeVisible();
     await user.click(screen.getByRole('tab', { name: 'Profile' }));
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'Deck profile' })).toBeInTheDocument();
     });
     await user.click(screen.getByRole('tab', { name: 'Deck' }));
-    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Decks' })).toBeVisible();
+  });
+
+  it('returns to setup for a new upload via New source', async () => {
+    const user = await loadSuggestionsViaUpload(handoffPayload());
+    expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New source' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
+    });
   });
 
   it('opens and closes the deck navigation drawer', async () => {
@@ -231,7 +244,6 @@ describe('DeckSuggestApp suggestion panel', () => {
       expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument();
     });
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
-    expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
   });
 
   it('places the pending filmstrip inside the lieutenants column', async () => {

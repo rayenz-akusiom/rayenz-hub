@@ -2,17 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
-import { downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
-import { escapeHtml } from '../lib/string-utils';
+import { handoffSnapshotSummary } from '../lib/hub-utils';
 import { isApiConfigured } from '../api/hub-api';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
 import { checkProfilesConnected } from '../deck-review/profiles';
 import {
   createInitialReviewState,
-  deckReviewStatusCounts,
   getDeckById,
-  handoffSnapshotDate,
   handoffStatusMessage,
   jumpToPendingSuggestion,
   loadSuggestionsData,
@@ -51,40 +48,6 @@ function createSuggestState(): DeckSuggestState {
     statusMessage: '',
     generating: false,
   };
-}
-
-function buildMetaHtml(review: DeckReviewState): string {
-  if (!review.data) {
-    return 'Generate from rules, or upload a suggestions JSON file.';
-  }
-  const meta = review.data.meta;
-  let html =
-    '<strong>' +
-    escapeHtml(meta.set_name || '') +
-    '</strong> · ' +
-    escapeHtml(meta.set_code || '') +
-    ' · ' +
-    escapeHtml(meta.generated_at || '') +
-    ' · ' +
-    review.data.decks.length +
-    ' decks';
-  const fromRules =
-    review.transferSource === 'deck-suggest' || review.transferSource === 'generate';
-  if (fromRules) {
-    const snapDate = handoffSnapshotDate(review.data);
-    const snapSummary = handoffSnapshotSummary(review.data);
-    html += '<span class="dr-meta-chip">Rules';
-    if (snapSummary.allReady) {
-      html += ' · ready';
-    }
-    if (snapDate) {
-      html += ' · ' + escapeHtml(snapDate);
-    }
-    html += '</span>';
-  } else if (meta.notes) {
-    html += '<span class="dr-meta-chip" title="' + escapeHtml(String(meta.notes)) + '">Notes</span>';
-  }
-  return html;
 }
 
 export function DeckSuggestApp() {
@@ -161,10 +124,6 @@ export function DeckSuggestApp() {
   );
   const loaded = !!review.data;
   const activeDeck = getDeckById(review.data, review.activeDeckId);
-  const tallyCounts = useMemo(() => {
-    if (!activeDeck) return null;
-    return deckReviewStatusCounts(activeDeck, review.progress, review.deckPrefs);
-  }, [activeDeck, review.progress, review.deckPrefs]);
 
   const filmstripPending = useMemo(() => {
     if (!activeDeck || review.showAllMode) return null;
@@ -346,18 +305,9 @@ export function DeckSuggestApp() {
                   </button>
                 ) : null}
                 <h2>Deck Suggest</h2>
-                <div className="dr-meta" id="ds-meta" dangerouslySetInnerHTML={{ __html: buildMetaHtml(review) }} />
               </div>
-              <div className="hub-progress-host dr-chrome-progress" id="ds-progress-host" ref={progressHostRef} />
               {loaded ? (
                 <div className="dr-chrome-actions">
-                  {tallyCounts ? (
-                    <span className="dr-chrome-tally" aria-live="polite">
-                      {tallyCounts.pending} pending · {tallyCounts.accepted} accepted · {tallyCounts.rejected}{' '}
-                      rejected
-                      {tallyCounts.skipped ? ` · ${tallyCounts.skipped} skipped` : ''}
-                    </span>
-                  ) : null}
                   <button
                     type="button"
                     className="dr-btn dr-btn-ghost"
@@ -372,6 +322,28 @@ export function DeckSuggestApp() {
                 <div className="dr-chrome-actions">
                   <button
                     type="button"
+                    className="dr-btn dr-btn-ghost"
+                    id="ds-upload-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload JSON
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    id="dr-file-input"
+                    className="dr-file-input"
+                    accept=".json,application/json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleFileUpload(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
                     className="dr-btn dr-btn-primary"
                     id="ds-generate"
                     disabled={!readiness.ok || suggest.generating}
@@ -383,6 +355,11 @@ export function DeckSuggestApp() {
                 </div>
               )}
             </header>
+            <div
+              className="hub-progress-host dr-chrome-progress-below"
+              id="ds-progress-host"
+              ref={progressHostRef}
+            />
             {!loaded && !readiness.ok ? (
               <p className="ds-meta ds-blocked-reason" id="ds-blocked-reason">
                 {blockedReason}
@@ -401,8 +378,8 @@ export function DeckSuggestApp() {
               <div className="ds-setup-phase">
                 <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
                   {isApiConfigured()
-                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON from the sidebar.'
-                    : 'Configure API URL and key in Settings to generate, or upload a suggestions JSON from the sidebar.'}
+                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON.'
+                    : 'Configure API URL and key in Settings to generate, or upload a suggestions JSON.'}
                 </p>
                 {remaining.length && processedIds.length ? (
                   <p className="ds-meta">
@@ -476,15 +453,7 @@ export function DeckSuggestApp() {
           state={review}
           navOpen={navOpen}
           onCloseNav={() => setNavOpen(false)}
-          onUploadClick={() => fileInputRef.current?.click()}
-          onFileChange={handleFileUpload}
-          onDownloadJson={() => {
-            if (review.data) {
-              downloadSuggestionsJson(review.data);
-            }
-          }}
           onSelectDeck={handleSelectDeck}
-          fileInputRef={fileInputRef}
         />
       </div>
     </div>

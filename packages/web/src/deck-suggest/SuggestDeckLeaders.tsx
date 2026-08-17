@@ -67,13 +67,15 @@ export function SuggestDeckLeaders({
         <div className="db-header-slot is-lieutenants">
           <div className="db-header-divider" aria-hidden="true" />
           <div className="db-header-cat ds-lieutenants-col">
-            <h3 className="db-header-cat-title">Lieutenants</h3>
             {lieutenants.length ? (
-              <div className="db-card-grid">
-                {lieutenants.map((c) => (
-                  <LeaderFace key={c.name} card={c} />
-                ))}
-              </div>
+              <>
+                <h3 className="db-header-cat-title">Lieutenants</h3>
+                <div className="db-card-grid">
+                  {lieutenants.map((c) => (
+                    <LeaderFace key={c.name} card={c} />
+                  ))}
+                </div>
+              </>
             ) : null}
             {showFilmstrip && filmstrip ? (
               <PendingFilmstrip

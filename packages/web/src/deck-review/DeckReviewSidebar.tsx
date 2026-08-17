@@ -10,11 +10,7 @@ type DeckReviewSidebarProps = {
   state: DeckReviewState;
   navOpen: boolean;
   onCloseNav: () => void;
-  onUploadClick: () => void;
-  onFileChange: (file: File) => void;
-  onDownloadJson: () => void;
   onSelectDeck: (deckId: string) => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
 };
 
 function DeckChip({
@@ -51,16 +47,7 @@ function profileDeckRef(deck: DeckEntry | null): { deckId: string; archidektId: 
   };
 }
 
-export function DeckReviewSidebar({
-  state,
-  navOpen,
-  onCloseNav,
-  onUploadClick,
-  onFileChange,
-  onDownloadJson,
-  onSelectDeck,
-  fileInputRef,
-}: DeckReviewSidebarProps) {
+export function DeckReviewSidebar({ state, navOpen, onCloseNav, onSelectDeck }: DeckReviewSidebarProps) {
   const { data, activeDeckId, progress } = state;
   const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
   const decks = data?.decks || [];
@@ -111,31 +98,6 @@ export function DeckReviewSidebar({
         className="db-aside-panel"
         hidden={asideTab !== 'deck'}
       >
-        <div className="dr-nav-actions">
-          <h3>Data</h3>
-          <button type="button" className="dr-btn dr-btn-primary" id="dr-upload-btn" onClick={onUploadClick}>
-            Upload JSON
-          </button>
-          {data ? (
-            <button type="button" className="dr-btn dr-btn-ghost" id="dr-download-json" onClick={onDownloadJson}>
-              Download JSON
-            </button>
-          ) : null}
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="dr-file-input"
-            className="dr-file-input"
-            accept=".json,application/json"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                onFileChange(file);
-              }
-            }}
-          />
-        </div>
-
         <div>
           <h3>Decks</h3>
           <div className="hub-deck-list" id="dr-deck-list">
@@ -172,6 +134,9 @@ export function DeckReviewSidebar({
                   ))}
                 </div>
               </details>
+            ) : null}
+            {!data ? (
+              <p className="dr-meta">Generate or upload suggestions to review decks here.</p>
             ) : null}
           </div>
         </div>

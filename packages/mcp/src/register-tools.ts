@@ -143,8 +143,32 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
     {
       description:
         'Apply a delta patch to an existing Hub deck (prefer over hub_put_deck for list/queue edits). Supports cardOps (add/remove/update), formalSwapOps, lookingForOps, optional metadata, and expectedUpdatedAt for optimistic concurrency.',
-      inputSchema: DeckPatchSchema.extend({
+      // Local zod 4 schema: shared DeckPatchSchema is zod 3 and MCP SDK 2 cannot convert it.
+      inputSchema: z.object({
         deckId: z.string().describe('Hub deck id'),
+        expectedUpdatedAt: z.string().optional(),
+        name: z.string().min(1).optional(),
+        format: z.string().optional(),
+        ownership: z.enum(['owned', 'theory']).optional(),
+        archidektId: z.number().nullable().optional(),
+        archidektUrl: z.string().nullable().optional(),
+        coverInstanceId: z.string().nullable().optional(),
+        browseViewDefault: z.string().nullable().optional(),
+        cardLayoutDefault: z.string().optional(),
+        cardSortDefault: z.string().optional(),
+        lastArchidektSyncAt: z.string().nullable().optional(),
+        lastArchidektImportAt: z.string().nullable().optional(),
+        cubeTargetSize: z.number().positive().nullable().optional(),
+        categories: z.array(z.unknown()).optional(),
+        oracle: z.record(z.string(), z.unknown()).optional(),
+        cardOps: z
+          .array(z.unknown())
+          .optional()
+          .describe(
+            'add/remove/update card ops: {op:"add",card}, {op:"remove",instanceId}, {op:"update",instanceId,patch}',
+          ),
+        formalSwapOps: z.array(z.unknown()).optional().describe('add/remove/update formal swap ops'),
+        lookingForOps: z.array(z.unknown()).optional().describe('add/remove/update looking-for ops'),
       }),
     },
     async ({ deckId, ...patch }) => {

@@ -1,6 +1,7 @@
 import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
+import { matchSetCardToRoles } from '@rayenz-hub/shared/suggest';
 import * as G from './rule-guards';
-import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, SnapshotCard, Suggestion } from './types';
+import type { DebugEntry, DeckProfile, DeckRecord, SetScope, SnapshotCard, Suggestion } from './types';
 
 export const REASON_LABELS: Record<string, string> = {
   not_in_set_scope: 'Card not in selected set pool',
@@ -28,29 +29,6 @@ function normalizeName(name: string): string {
 function isProxyCard(card: SnapshotCard): boolean {
   const cats = card.categories || [];
   return cats.indexOf('Proxies') >= 0 || card.primary_category === 'Proxies';
-}
-
-function matchSetCardToRoles(
-  setCard: SetPoolCard,
-  profile?: DeckProfile | null,
-): { roleId: string; score: number; hint: string } | null {
-  const roles = G.normalizeProfile(profile).roles;
-  let best: { roleId: string; score: number; hint: string } | null = null;
-  const blob = String([setCard.type_line, setCard.oracle_text, (setCard.keywords || []).join(' ')].join(' ')).toLowerCase();
-  roles.forEach((role) => {
-    const tags = role.tags || [];
-    let overlap = tags.filter((t) => blob.indexOf(String(t).toLowerCase()) >= 0).length;
-    if (!overlap) {
-      const roleId = String(role.id || '').toLowerCase();
-      if (roleId && blob.indexOf(roleId) >= 0) overlap = 1;
-    }
-    if (!overlap) return;
-    const score = overlap * 10 + (role.priority === 'high' ? 3 : role.priority === 'medium' ? 2 : 1);
-    if (!best || score > best.score) {
-      best = { roleId: role.id, score, hint: tags.slice(0, 2).join(', ') };
-    }
-  });
-  return best;
 }
 
 export function createCollector(deckId: string) {

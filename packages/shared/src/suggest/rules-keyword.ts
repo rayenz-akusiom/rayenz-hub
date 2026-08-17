@@ -1,5 +1,5 @@
 import type { DeckProfile, DeckRecord, SetScope, Suggestion, TaggerContext } from './types';
-import { cardTextBlob } from './signals';
+import { hasScryfallOracleTags, oracleTextForFallback, textMatchesNeedle } from './signals';
 import { eligibleSetCards, emitSynergyHits } from './synergy-emit';
 
 export function runKeywordSynergy(
@@ -15,14 +15,15 @@ export function runKeywordSynergy(
   const hits = eligibleSetCards(deck, setScope, profile)
     .map((card) => {
       const printed = (card.keywords || []).map((k) => k.toLowerCase());
-      const blob = cardTextBlob(card);
+      const tagged = hasScryfallOracleTags(card);
+      const fallbackText = tagged ? '' : oracleTextForFallback(card);
       const keywordHits: string[] = [];
       const textHits: string[] = [];
       interests.forEach((interest) => {
         const needle = interest.toLowerCase();
         if (printed.some((k) => k === needle || k.indexOf(needle) >= 0)) {
           keywordHits.push(interest);
-        } else if (blob.indexOf(needle) >= 0) {
+        } else if (!tagged && textMatchesNeedle(fallbackText, needle)) {
           textHits.push(interest);
         }
       });

@@ -107,6 +107,7 @@ export type Suggestion = {
   fills_swap_slot?: string;
   priority_tier: string;
   swap_source?: string;
+  match_score?: number;
   signals?: SuggestionSignals;
   source?: 'missing_cards';
   profile_lozenges?: import('@rayenz-hub/shared').ProfileLozenge[];

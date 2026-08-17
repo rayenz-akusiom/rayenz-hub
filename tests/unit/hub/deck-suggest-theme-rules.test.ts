@@ -32,6 +32,7 @@ function setScope() {
     cards: [
       { name: 'New Elf', set_code: 'MSH', collector_number: '1', type_line: 'Creature — Elf Warrior', cmc: 2, color_identity: ['G'] },
       { name: 'Token Maker', set_code: 'MSH', collector_number: '2', type_line: 'Enchantment', oracle_text: 'Create two tokens.', oracle_tags: ['tokens'], cmc: 3, color_identity: ['G'] },
+      { name: 'Tagged Lifegain', set_code: 'MSH', collector_number: '9', type_line: 'Enchantment', oracle_text: 'Create tokens. Landfall — draw a card.', oracle_tags: ['lifegain'], cmc: 2, color_identity: ['G'] },
       { name: 'Landfall Scout', set_code: 'MSH', collector_number: '3', type_line: 'Creature — Scout', keywords: ['Landfall'], oracle_text: 'Landfall — draw a card.', cmc: 2, color_identity: ['G'] },
       { name: 'Text Only Tokens', set_code: 'MSH', collector_number: '8', type_line: 'Sorcery', oracle_text: 'Create tokens.', cmc: 2, color_identity: ['G'] },
       { name: 'Bad Elf', set_code: 'MSH', collector_number: '4', type_line: 'Creature — Elf', cmc: 2, color_identity: ['G'] },
@@ -50,6 +51,7 @@ describe('typal/theme/keyword rules', () => {
     expect(names).toContain('Token Maker');
     expect(names).toContain('Landfall Scout');
     expect(names).not.toContain('Text Only Tokens');
+    expect(names).not.toContain('Tagged Lifegain');
     expect(names).not.toContain('Bad Elf');
     expect(names).not.toContain('Expensive Elf');
     expect(names).not.toContain('Mill Elf');

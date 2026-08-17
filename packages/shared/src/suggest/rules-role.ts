@@ -1,6 +1,6 @@
 import type { DeckProfile, DeckRecord, SetPoolCard, SetScope, Suggestion, TaggerContext } from './types';
 import * as G from './rule-guards';
-import { cardTextBlob, countTagOverlap } from './signals';
+import { hasScryfallOracleTags, matchTagNeedles, oracleTextForFallback, textMatchesNeedle } from './signals';
 
 function normalizeText(value: string | null | undefined): string {
   return String(value || '').toLowerCase();
@@ -19,15 +19,18 @@ function priorityWeight(priority?: string): number {
 export function matchSetCardToRoles(
   setCard: SetPoolCard,
   profile?: DeckProfile | null,
-): { roleId: string; score: number; hint: string } | null {
+): { roleId: string; score: number; hint: string; matched: string[] } | null {
   const roles = G.normalizeProfile(profile).roles;
-  let best: { roleId: string; score: number; hint: string } | null = null;
+  let best: { roleId: string; score: number; hint: string; matched: string[] } | null = null;
   roles.forEach((role) => {
-    let overlap = countTagOverlap(setCard, role.tags || [], null);
-    if (!overlap) {
+    const hit = matchTagNeedles(setCard, role.tags || []);
+    let overlap = hit.count;
+    let matched = hit.matched.slice();
+    if (!overlap && !hasScryfallOracleTags(setCard)) {
       const roleId = normalizeText(role.id);
-      if (roleId && cardTextBlob(setCard).indexOf(roleId) >= 0) {
+      if (roleId && textMatchesNeedle(oracleTextForFallback(setCard), roleId)) {
         overlap = 1;
+        matched = [role.id];
       }
     }
     if (!overlap) {
@@ -35,7 +38,7 @@ export function matchSetCardToRoles(
     }
     const score = overlap * 10 + priorityWeight(role.priority);
     if (!best || score > best.score) {
-      best = { roleId: role.id, score, hint: (role.tags || []).slice(0, 2).join(', ') };
+      best = { roleId: role.id, score, hint: matched.join(', '), matched };
     }
   });
   return best;
@@ -84,7 +87,8 @@ export function runRoleSynergy(
       replaces: [],
       priority_tier: 'normal',
       swap_source: 'analysis',
-      signals: { tags: match.hint ? match.hint.split(', ') : [] },
+      match_score: match.score,
+      signals: { tags: match.matched },
     };
     const emitted = G.emitIfValid(suggestion, profile, existing.concat(added), debug);
     if (emitted) {

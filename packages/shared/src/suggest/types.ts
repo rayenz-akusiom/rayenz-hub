@@ -121,6 +121,8 @@ export type Suggestion = {
   fills_swap_slot?: string;
   priority_tier: 'swap' | 'normal' | string;
   swap_source?: string;
+  /** Role overlap score; used when capping equal-confidence suggestions. */
+  match_score?: number;
   signals?: SuggestionSignals;
   /** Client-injected from the missing-cards picker. */
   source?: 'missing_cards';

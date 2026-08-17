@@ -23,20 +23,40 @@ describe('Tagger.countTagOverlap', () => {
     expect(Tagger.countTagOverlap({ name: 'Bolt', type_line: 'Instant' }, [], null)).toBe(0);
   });
 
-  it('matches via tagger context tags and oracle text blob', () => {
+  it('matches printed keywords and untagged oracle text, not type line', () => {
     const card = {
       name: 'Shield',
       type_line: 'Instant',
       oracle_text: 'protection indestructible',
       keywords: ['Flash'],
     };
-    const ctx = {
-      resolve: () => ({ cardName: 'Shield', taggerTags: ['Flash'], source: 'fallback' as const }),
-      cache: {},
-      coverage: { cardsResolved: 1, cardsWithTags: 1, percent: 100 },
-    };
-    expect(Tagger.countTagOverlap(card, ['flash', 'protection'], ctx)).toBe(2);
+    expect(Tagger.countTagOverlap(card, ['flash', 'protection'], null)).toBe(2);
     expect(Tagger.countTagOverlap(card, ['missing'], null)).toBe(0);
+    expect(Tagger.countTagOverlap(card, ['instant'], null)).toBe(0);
+  });
+
+  it('ignores oracle text when Scryfall oracle tags are present', () => {
+    const card = {
+      name: 'Tagged Trap',
+      type_line: 'Instant',
+      oracle_text: 'Counter target spell. Destroy target creature.',
+      oracle_tags: ['lifegain'],
+    };
+    expect(Tagger.countTagOverlap(card, ['counter', 'instant', 'destroy'], null)).toBe(0);
+    expect(Tagger.countTagOverlap(card, ['lifegain'], null)).toBe(1);
+  });
+
+  it('does not let needle counter match plus-one-plus-one-counters slugs', () => {
+    const card = {
+      name: 'Hardened Scales',
+      type_line: 'Enchantment',
+      oracle_text: 'If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead.',
+      oracle_tags: ['plus-one-plus-one-counters'],
+    };
+    expect(Tagger.tagSlugMatches('plus-one-plus-one-counters', 'counter')).toBe(false);
+    expect(Tagger.tagSlugMatches('counterspell', 'counter')).toBe(true);
+    expect(Tagger.countTagOverlap(card, ['counter'], null)).toBe(0);
+    expect(Tagger.countTagOverlap(card, ['counters'], null)).toBe(1);
   });
 });
 
@@ -68,6 +88,7 @@ describe('Tagger.matchSetCardToRoles', () => {
     };
     const match = Tagger.matchSetCardToRoles(card, profile);
     expect(match!.roleId).toBe('protection');
+    expect(match!.hint).toBe('protection');
     expect(match!.score).toBeGreaterThan(10);
 
     const idMatch = Tagger.matchSetCardToRoles(
@@ -145,6 +166,8 @@ describe('RoleRules.runRoleSynergy', () => {
     expect(added).toHaveLength(1);
     expect(added[0].action).toBe('consider');
     expect(added[0].confidence).toBe('medium');
+    expect(added[0].rationale).toMatch(/protection, extra/);
+    expect(added[0].match_score).toBeGreaterThanOrEqual(13);
   });
 });
 

@@ -9,7 +9,15 @@ import { RoleRules, matchSetCardToRoles } from './rules-role';
 import { runTypalSynergy } from './rules-typal';
 import { runThemeSynergy } from './rules-theme';
 import { runKeywordSynergy } from './rules-keyword';
-import { createContext, countTagOverlap, resolveCardTags, cardTextBlob, cardStoredTags } from './signals';
+import {
+  createContext,
+  countTagOverlap,
+  resolveCardTags,
+  cardTextBlob,
+  cardStoredTags,
+  hasScryfallOracleTags,
+  tagSlugMatches,
+} from './signals';
 import {
   SUGGEST_PER_DECK_SOFT_CAP,
   SUGGEST_PER_RULE_SOFT_CAP,
@@ -33,6 +41,8 @@ export const Tagger = {
   createContext,
   cardTextBlob,
   cardStoredTags,
+  hasScryfallOracleTags,
+  tagSlugMatches,
   matchSetCardToRoles,
 };
 
@@ -70,7 +80,7 @@ function compareColourIdentity(a: string[] | undefined, b: string[] | undefined)
   return 0;
 }
 
-/** Soft-cap ranking: tier → confidence → id (no colour — CI must not bias who survives). */
+/** Soft-cap ranking: tier → confidence → match score → id (no colour — CI must not bias who survives). */
 export function rankSuggestionsForCap(suggestions: Suggestion[]): Suggestion[] {
   return suggestions.slice().sort((a, b) => {
     const tierA = a.priority_tier === 'swap' ? 0 : 1;
@@ -82,6 +92,11 @@ export function rankSuggestionsForCap(suggestions: Suggestion[]): Suggestion[] {
     const confB = CONFIDENCE_ORDER[b.confidence] != null ? CONFIDENCE_ORDER[b.confidence] : 9;
     if (confA !== confB) {
       return confA - confB;
+    }
+    const scoreA = a.match_score != null ? a.match_score : 0;
+    const scoreB = b.match_score != null ? b.match_score : 0;
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
     }
     return String(a.suggestion_id).localeCompare(String(b.suggestion_id));
   });

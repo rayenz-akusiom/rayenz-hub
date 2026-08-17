@@ -1,7 +1,24 @@
 import type { SetPoolCard, SnapshotCard, TaggerContext } from './types';
 
+const CARD_TYPE_WORDS = new Set([
+  'instant',
+  'sorcery',
+  'creature',
+  'artifact',
+  'enchantment',
+  'land',
+  'planeswalker',
+  'battle',
+  'tribal',
+  'kindred',
+]);
+
 function normalizeText(value: string | null | undefined): string {
   return String(value || '').toLowerCase();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function cardTextBlob(
@@ -17,35 +34,151 @@ export function cardStoredTags(card: SnapshotCard | SetPoolCard | undefined): st
   return tags.filter(Boolean);
 }
 
+/** True when Scryfall oracle tagging was attached to this card. */
+export function hasScryfallOracleTags(card: SnapshotCard | SetPoolCard | undefined): boolean {
+  return cardStoredTags(card).length > 0;
+}
+
+/** Strip parenthetical reminder text used for untagged rules-text fallback. */
+export function stripReminderText(oracleText: string | null | undefined): string {
+  let text = String(oracleText || '');
+  let prev = '';
+  while (text !== prev) {
+    prev = text;
+    text = text.replace(/\s*\([^()]*\)/g, ' ');
+  }
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+export function oracleTextForFallback(
+  card: SnapshotCard | SetPoolCard | { oracle_text?: string } | undefined,
+): string {
+  return normalizeText(stripReminderText(card?.oracle_text));
+}
+
+const ABILITY_COUNTER_KINDS = [
+  'loyalty',
+  'charge',
+  'oil',
+  'lore',
+  'time',
+  'stun',
+  'shield',
+  'keyword',
+  'finality',
+  'blight',
+  'isolation',
+];
+
+const SPELL_COUNTER_RE =
+  /\bcounter(?:ed)?\s+(?:target|that|it)\b|\bcounter (?:a|this) spell\b|\b(?:can'?t|cannot) be countered\b|\bwould be countered\b|\bis countered\b/i;
+
+const STAT_COUNTER_RE = new RegExp(
+  [
+    '[+-]\\d+\\/[+-]\\d+\\s+counters?\\b',
+    '\\b(?:' + ABILITY_COUNTER_KINDS.join('|') + ')\\s+counters?\\b',
+    '\\bput\\s+(?:a|an|\\d+|that many)\\s+(?:[\\w+/\\-]+\\s+)?counters?\\s+on\\b',
+    '\\bremove\\s+(?:a|an|\\d+)\\s+(?:[\\w+/\\-]+\\s+)?counters?\\b',
+    '\\bproliferate\\b',
+  ].join('|'),
+  'i',
+);
+
+function hyphenSegments(slug: string): string[] {
+  return normalizeText(slug)
+    .split(/[-_]+/)
+    .filter(Boolean);
+}
+
+/** Exact or hyphen-segment match; `counter` may alias `counterspell`, not `counters`. */
+export function tagSlugMatches(tagSlug: string, needle: string): boolean {
+  const tt = normalizeText(tagSlug);
+  const n = normalizeText(needle).trim();
+  if (!tt || !n) return false;
+  if (tt === n) return true;
+  const segs = hyphenSegments(tt);
+  if (segs.includes(n)) return true;
+  if (n === 'counter' && (tt === 'counterspell' || segs.includes('counterspell'))) return true;
+  return false;
+}
+
+function counterTextFamily(needle: string): 'spell' | 'stat' | null {
+  const n = normalizeText(needle).trim().replace(/_/g, '-');
+  if (n === 'counter' || n === 'counterspell' || n === 'counter-spell') return 'spell';
+  if (n === 'counters' || n === 'proliferate') return 'stat';
+  if (n.includes('+1/+1') || n.includes('plus-one-plus-one') || n.includes('plus-1-plus-1')) return 'stat';
+  if (n.endsWith('-counters') || n.endsWith('-counter')) return 'stat';
+  if (ABILITY_COUNTER_KINDS.some((kind) => n === kind || n.startsWith(kind + '-'))) return 'stat';
+  return null;
+}
+
+/** Word-boundary match; card-type words never hit via rules text. Counter needles use phrase families. */
+export function textMatchesNeedle(text: string, needle: string): boolean {
+  const n = normalizeText(needle).trim();
+  if (!n || !text || CARD_TYPE_WORDS.has(n)) return false;
+  const family = counterTextFamily(n);
+  if (family === 'spell') return SPELL_COUNTER_RE.test(text);
+  if (family === 'stat') return STAT_COUNTER_RE.test(text);
+  const escaped = escapeRegExp(n).replace(/[-_]+/g, '[-_\\s]+').replace(/\s+/g, '\\s+');
+  return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
+}
+
+export type TagMatchResult = {
+  count: number;
+  matched: string[];
+  source: 'oracle_tags' | 'text_fallback' | 'none';
+};
+
+export function matchTagNeedles(
+  card: SnapshotCard | SetPoolCard,
+  tags: string[] | undefined,
+): TagMatchResult {
+  const needles = (tags || []).map((t) => String(t || '').trim()).filter(Boolean);
+  if (!needles.length) {
+    return { count: 0, matched: [], source: 'none' };
+  }
+  const stored = cardStoredTags(card);
+  if (stored.length) {
+    const matched: string[] = [];
+    needles.forEach((tag) => {
+      const t = normalizeText(tag);
+      if (stored.some((tt) => tagSlugMatches(tt, t))) {
+        matched.push(tag);
+      }
+    });
+    return {
+      count: matched.length,
+      matched,
+      source: 'oracle_tags',
+    };
+  }
+
+  const printed = ((card as SetPoolCard).keywords || []).map((k) => String(k || ''));
+  const fallbackText = oracleTextForFallback(card);
+  const matched: string[] = [];
+  needles.forEach((tag) => {
+    const t = normalizeText(tag);
+    if (printed.some((k) => tagSlugMatches(k, t))) {
+      matched.push(tag);
+      return;
+    }
+    if (textMatchesNeedle(fallbackText, t)) {
+      matched.push(tag);
+    }
+  });
+  return {
+    count: matched.length,
+    matched,
+    source: matched.length ? 'text_fallback' : 'none',
+  };
+}
+
 export function countTagOverlap(
   card: SnapshotCard | SetPoolCard,
   tags: string[] | undefined,
-  taggerCtx: TaggerContext | null | undefined,
+  _taggerCtx?: TaggerContext | null,
 ): number {
-  if (!tags || !tags.length) {
-    return 0;
-  }
-  const resolved = taggerCtx && taggerCtx.resolve ? taggerCtx.resolve(card.name || '', card) : null;
-  const blob = cardTextBlob(card);
-  const taggerTags = [
-    ...((resolved && resolved.taggerTags) || []),
-    ...cardStoredTags(card),
-  ];
-  let count = 0;
-  tags.forEach((tag) => {
-    const t = normalizeText(tag);
-    if (!t) {
-      return;
-    }
-    if (taggerTags.some((tt) => normalizeText(tt) === t || normalizeText(tt).indexOf(t) >= 0)) {
-      count += 1;
-      return;
-    }
-    if (blob.indexOf(t) >= 0) {
-      count += 1;
-    }
-  });
-  return count;
+  return matchTagNeedles(card, tags).count;
 }
 
 export function resolveCardTags(cardName: string, card?: SnapshotCard | SetPoolCard) {
@@ -99,11 +232,11 @@ export function createContext(
 
   function track(name: string, card?: SnapshotCard | SetPoolCard) {
     total += 1;
-    const res = resolve(name, card);
     const stored = cardStoredTags(card);
-    if ((res.taggerTags && res.taggerTags.length) || stored.length) {
+    if (stored.length) {
       withTags += 1;
     }
+    resolve(name, card);
   }
 
   ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((c) => {

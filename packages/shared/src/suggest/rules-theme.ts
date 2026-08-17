@@ -1,5 +1,5 @@
 import type { DeckProfile, DeckRecord, SetScope, Suggestion, TaggerContext } from './types';
-import { cardStoredTags, cardTextBlob } from './signals';
+import { cardStoredTags, hasScryfallOracleTags, oracleTextForFallback, textMatchesNeedle } from './signals';
 import { eligibleSetCards, emitSynergyHits } from './synergy-emit';
 
 export function runThemeSynergy(
@@ -14,15 +14,16 @@ export function runThemeSynergy(
   if (!themes.length) return [];
   const hits = eligibleSetCards(deck, setScope, profile)
     .map((card) => {
-      const blob = cardTextBlob(card);
       const stored = cardStoredTags(card).map((t) => t.toLowerCase());
+      const tagged = hasScryfallOracleTags(card);
+      const fallbackText = tagged ? '' : oracleTextForFallback(card);
       const tagHits: string[] = [];
       const textHits: string[] = [];
       themes.forEach((theme) => {
         const needle = theme.toLowerCase();
         if (stored.some((t) => t === needle || t.indexOf(needle) >= 0)) {
           tagHits.push(theme);
-        } else if (blob.indexOf(needle) >= 0) {
+        } else if (!tagged && textMatchesNeedle(fallbackText, needle)) {
           textHits.push(theme);
         }
       });
@@ -33,7 +34,7 @@ export function runThemeSynergy(
         confidence: (tagHits.length ? 'medium' : 'low') as 'medium' | 'low',
         rationale: tagHits.length
           ? 'Theme match (' + tagHits.join(', ') + ') via Scryfall tags.'
-          : 'Theme match (' + textHits.join(', ') + ') via type line / rules text.',
+          : 'Theme match (' + textHits.join(', ') + ') via rules text.',
         rolesMatched: ['theme', ...primary],
         signals: { tags: tagHits, textHints: textHits },
       };

@@ -56,6 +56,16 @@ describe('suggest soft caps', () => {
     expect(capped).toHaveLength(5);
   });
 
+  it('prefers higher match_score when capping equal-confidence suggestions', () => {
+    const list = [
+      ...Array.from({ length: 5 }, (_, i) => stubSuggestion('a' + i, 'medium', { match_score: 13 })),
+      stubSuggestion('z-strong', 'medium', { match_score: 30 }),
+    ];
+    const capped = applySoftCap(list, 5, rankSuggestionsForCap);
+    expect(capped.some((s) => s.suggestion_id === 'z-strong')).toBe(true);
+    expect(capped).toHaveLength(5);
+  });
+
   it('soft cap does not prefer early WUBRG over equal-confidence greens', () => {
     const list = [
       ...Array.from({ length: 8 }, (_, i) =>

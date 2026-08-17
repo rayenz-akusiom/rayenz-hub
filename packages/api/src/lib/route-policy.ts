@@ -10,6 +10,8 @@ export function classifyPath(method: string, path: string): RouteClass {
   if (method === 'POST' && path === '/v1/auth/sign-in') return 'sign-in';
   if (method === 'POST' && path === '/v1/auth/refresh') return 'refresh';
   if (method === 'POST' && path === '/v1/auth/register') return 'register';
+  if (method === 'POST' && path === '/v1/auth/confirm') return 'register';
+  if (method === 'POST' && path === '/v1/auth/resend-confirmation') return 'register';
   if (method === 'POST' && path === '/v1/auth/sign-out') return 'ordinary';
   if (method === 'GET' && path === '/v1/auth/me') return 'ordinary';
   if (path === '/v1/invites' || path.startsWith('/v1/invites/')) return 'invite-admin';

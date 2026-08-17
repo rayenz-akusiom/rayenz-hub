@@ -18,9 +18,9 @@ Do **not** interpret bare “deploy” as AWS / SAM / `deploy:api`.
 
 ## Never run (unless AWS is named)
 
-- `npm run deploy:api` or `npm run deploy:api:guided`
+- `npm run deploy:api` or `npm run deploy:api:guided` or `npm run deploy:cognito`
 - `sam deploy` (any variant)
-- AWS CLI that creates, updates, or deletes cloud resources (stacks, Lambda, DynamoDB, S3, SSM, etc.)
+- AWS CLI that creates, updates, or deletes cloud resources (stacks, Lambda, DynamoDB, S3, SSM, Cognito, etc.)
 - Offering or suggesting an AWS deploy when the user only said “deploy”
 
 ## Allowed without override
@@ -32,5 +32,5 @@ Do **not** interpret bare “deploy” as AWS / SAM / `deploy:api`.
 
 ## AWS override (strict)
 
-Only touch AWS when the user **names AWS or the API script**, e.g. “deploy to AWS”, “run deploy:api”, “sam deploy”, “push the Lambda stack”.  
+Only touch AWS when the user **names AWS or the API script**, e.g. “deploy to AWS”, “run deploy:api”, “deploy:cognito”, “sam deploy”, “push the Lambda stack”.  
 Phrases like “deploy”, “deploy it”, “commit push and deploy” are **not** an AWS override.

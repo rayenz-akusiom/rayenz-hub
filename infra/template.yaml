@@ -36,11 +36,17 @@ Parameters:
     Default: https://rayenz-akusiom.github.io/rayenz-akusiom
   CognitoUserPoolId:
     Type: String
-    Default: ''
-    Description: Leave empty to use the stack User Pool (set after first deploy if overriding).
+    Description: From rayenz-hub-cognito stack output HubUserPoolId (SAM local uses a placeholder; overlay supplies the live pool).
+  CognitoUserPoolArn:
+    Type: String
+    Description: From rayenz-hub-cognito stack output HubUserPoolArn.
   CognitoClientId:
     Type: String
-    Default: ''
+    Description: From rayenz-hub-cognito stack output HubUserPoolClientId.
+  CognitoClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Cognito app client secret (DescribeUserPoolClient). Not stored in git.
   BudgetNotifyEmail:
     Type: String
     Default: ''
@@ -88,53 +94,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-
-  HubUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: rayenz-hub
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true
-      UsernameConfiguration:
-        CaseSensitive: false
-      AutoVerifiedAttributes: []
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireUppercase: true
-          RequireSymbols: false
-      AccountRecoverySetting:
-        RecoveryMechanisms:
-          - Name: admin_only
-            Priority: 1
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-
-  HubUserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: rayenz-hub-api
-      UserPoolId: !Ref HubUserPool
-      GenerateSecret: true
-      PreventUserExistenceErrors: ENABLED
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_ADMIN_USER_PASSWORD_AUTH
-      SupportedIdentityProviders:
-        - COGNITO
-      TokenValidityUnits:
-        AccessToken: hours
-        IdToken: hours
-        RefreshToken: days
-      AccessTokenValidity: 1
-      IdTokenValidity: 1
-      RefreshTokenValidity: 30
 
   HubBudgetTopic:
     Type: AWS::SNS::Topic
@@ -242,9 +201,9 @@ Resources:
           HUB_OWNER_USERNAME: !Ref HubOwnerUsername
           HUB_PAGES_ORIGIN: !Ref HubPagesOrigin
           HUB_SUGGEST_DECK_CAP: '20'
-          COGNITO_USER_POOL_ID: !Ref HubUserPool
-          COGNITO_CLIENT_ID: !Ref HubUserPoolClient
-          COGNITO_CLIENT_SECRET: !GetAtt HubUserPoolClient.ClientSecret
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_CLIENT_SECRET: !Ref CognitoClientSecret
           HUB_INVITE_SECRET: !If
             - UseAwsSecrets
             - !Sub '{{resolve:secretsmanager:${HubInviteSecretId}:SecretString}}'
@@ -268,7 +227,13 @@ Resources:
                 - cognito-idp:AdminDeleteUser
                 - cognito-idp:GlobalSignOut
                 - cognito-idp:GetUser
-              Resource: !GetAtt HubUserPool.Arn
+              Resource: !Ref CognitoUserPoolArn
+            - Effect: Allow
+              Action:
+                - cognito-idp:SignUp
+                - cognito-idp:ConfirmSignUp
+                - cognito-idp:ResendConfirmationCode
+              Resource: '*'
       Events:
         Health:
           Type: HttpApi
@@ -396,6 +361,18 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/auth/register
             Method: POST
+        AuthConfirm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/confirm
+            Method: POST
+        AuthResendConfirmation:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/resend-confirmation
+            Method: POST
         AuthRefresh:
           Type: HttpApi
           Properties:
@@ -432,6 +409,12 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/invites/{inviteId}/revoke
             Method: POST
+        CorsPreflight:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /{proxy+}
+            Method: OPTIONS
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -472,7 +455,3 @@ Outputs:
     Value: !Ref HubTable
   HubDataBucketName:
     Value: !Ref HubDataBucket
-  HubUserPoolId:
-    Value: !Ref HubUserPool
-  HubUserPoolClientId:
-    Value: !Ref HubUserPoolClient

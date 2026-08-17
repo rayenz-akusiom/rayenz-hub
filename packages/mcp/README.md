@@ -13,7 +13,7 @@ npm install
 npm run start:api   # or use the local development dashboard
 ```
 
-Local defaults (see `infra/env.local.json`):
+Local defaults (see `infra/env.local.json`; `HUB_USER_ID` is overridden to the Rayenz Cognito `sub` by `npm run setup:local-cognito`):
 
 | Env | Example |
 |-----|---------|

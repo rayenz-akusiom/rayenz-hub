@@ -76,7 +76,7 @@ describe('auth session API', () => {
     const { services } = createMemoryStores();
     const res = await handleAuthRegister(
       {},
-      JSON.stringify({ token: 'nope', username: 'friend', password: 'password1' }),
+      JSON.stringify({ token: 'nope', username: 'friend', email: 'friend@example.test', password: 'password1' }),
       services,
     );
     expect(res.statusCode).toBe(403);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handleSuggestGenerate } from '../../packages/api/src/handlers/suggest-generate.ts';
-import { handleAuthRegister, handleAuthSignIn } from '../../packages/api/src/handlers/auth-sign-in.ts';
+import { handleAuthConfirm, handleAuthRegister, handleAuthSignIn } from '../../packages/api/src/handlers/auth-sign-in.ts';
 import { handleSettings } from '../../packages/api/src/handlers/settings.ts';
 import { handleHealth } from '../../packages/api/src/handlers/health.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
@@ -22,11 +22,18 @@ describe('spend lock', () => {
 
     const register = await handleAuthRegister(
       {},
-      JSON.stringify({ token: 'x', username: 'friend', password: 'password1' }),
+      JSON.stringify({ token: 'x', username: 'friend', email: 'friend@example.test', password: 'password1' }),
       services,
     );
     expect(register.statusCode).toBe(403);
     expect(JSON.parse(String(register.body)).error).toBe('SPEND_LOCK');
+
+    const confirm = await handleAuthConfirm(
+      {},
+      JSON.stringify({ username: 'friend', code: '123456', password: 'password1' }),
+      services,
+    );
+    expect(confirm.statusCode).toBe(403);
 
     const generate = await handleSuggestGenerate(
       TEST_AUTH_HEADERS,

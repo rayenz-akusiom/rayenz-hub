@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Rayenz Hub Cognito identity (user pool + app client). Deploy separately from the API stack. Stack termination protection is enabled by npm run deploy:cognito.
+
+Resources:
+  HubUserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: rayenz-hub
+      # Self-signup is allowed at the pool so Cognito can email a verification code.
+      # The API still requires an invite token; the SPA cannot SignUp (client secret).
+      # Do not set UsernameAttributes or AliasAttributes — sign-in is username, not email.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes:
+        - email
+      UserAttributeUpdateSettings:
+        AttributesRequireVerificationBeforeUpdate:
+          - email
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: admin_only
+            Priority: 1
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+
+  HubUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ClientName: rayenz-hub-api
+      UserPoolId: !Ref HubUserPool
+      GenerateSecret: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+Outputs:
+  HubUserPoolId:
+    Description: Cognito user pool id (sign-in username, not email)
+    Value: !Ref HubUserPool
+    Export:
+      Name: rayenz-hub-cognito-UserPoolId
+  HubUserPoolArn:
+    Value: !GetAtt HubUserPool.Arn
+    Export:
+      Name: rayenz-hub-cognito-UserPoolArn
+  HubUserPoolClientId:
+    Value: !Ref HubUserPoolClient
+    Export:
+      Name: rayenz-hub-cognito-ClientId

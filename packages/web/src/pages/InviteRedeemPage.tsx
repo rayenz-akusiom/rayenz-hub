@@ -8,15 +8,22 @@ function tokenFromHash(): string {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 export function InviteRedeemPage() {
   const token = useMemo(() => tokenFromHash(), []);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [pendingConfirm, setPendingConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleRegister(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
@@ -31,11 +38,47 @@ export function InviteRedeemPage() {
       const res = await fetch(`${cfg.url}/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ token, username: username.trim(), password }),
+        body: JSON.stringify({
+          token,
+          username: username.trim(),
+          email: email.trim(),
+          password,
+        }),
       });
       const text = await res.text();
       if (!res.ok) {
         throw new Error('Registration failed.');
+      }
+      const body = JSON.parse(text) as { status?: string; username?: string };
+      if (body.status !== 'CONFIRM_EMAIL') {
+        throw new Error('Registration failed.');
+      }
+      setPendingConfirm(true);
+      setStatus('Check your email for a confirmation code.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConfirm(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const cfg = getHubApiConfig();
+      if (!cfg.url) {
+        throw new Error('Set the Hub API URL in Settings first.');
+      }
+      const res = await fetch(`${cfg.url}/v1/auth/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ username: username.trim(), code: code.trim(), password }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error('Confirmation failed.');
       }
       const body = JSON.parse(text) as {
         accessToken: string;
@@ -60,6 +103,30 @@ export function InviteRedeemPage() {
     }
   }
 
+  async function handleResend() {
+    setBusy(true);
+    setError(null);
+    try {
+      const cfg = getHubApiConfig();
+      if (!cfg.url) {
+        throw new Error('Set the Hub API URL in Settings first.');
+      }
+      const res = await fetch(`${cfg.url}/v1/auth/resend-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ username: username.trim() }),
+      });
+      if (!res.ok) {
+        throw new Error('Could not resend the confirmation code.');
+      }
+      setStatus('A new confirmation code was sent.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!token) {
     return (
       <div className="hub-web-page">
@@ -72,7 +139,11 @@ export function InviteRedeemPage() {
   return (
     <div className="hub-web-page">
       <h2>Complete invite</h2>
-      <p className="hub-web-hint">Choose a username and password. This account starts empty.</p>
+      <p className="hub-web-hint">
+        {pendingConfirm
+          ? 'Enter the code Cognito emailed you, then you can sign in with your username and password.'
+          : 'Choose a username, email, and password. Cognito will email a verification code. This account starts empty.'}
+      </p>
       {error && (
         <div className="hub-web-banner hub-web-banner--error" role="alert">
           {error}
@@ -83,24 +154,57 @@ export function InviteRedeemPage() {
           {status}
         </div>
       )}
-      <form className="hub-web-form" onSubmit={(e) => void handleSubmit(e)}>
-        <label className="hub-web-field">
-          Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-        </label>
-        <label className="hub-web-field">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
-        <button type="submit" className="hub-web-button" disabled={busy || !username.trim() || password.length < 8}>
-          {busy ? 'Creating…' : 'Create account'}
-        </button>
-      </form>
+      {pendingConfirm ? (
+        <form className="hub-web-form" onSubmit={(e) => void handleConfirm(e)}>
+          <label className="hub-web-field">
+            Confirmation code
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              autoComplete="one-time-code"
+              inputMode="numeric"
+            />
+          </label>
+          <button type="submit" className="hub-web-button" disabled={busy || code.trim().length < 6}>
+            {busy ? 'Confirming…' : 'Confirm email'}
+          </button>
+          <button type="button" className="hub-web-button hub-web-button--secondary" disabled={busy} onClick={() => void handleResend()}>
+            Resend code
+          </button>
+        </form>
+      ) : (
+        <form className="hub-web-form" onSubmit={(e) => void handleRegister(e)}>
+          <label className="hub-web-field">
+            Username
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+          </label>
+          <label className="hub-web-field">
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </label>
+          <label className="hub-web-field">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <button
+            type="submit"
+            className="hub-web-button"
+            disabled={busy || !username.trim() || !looksLikeEmail(email.trim()) || password.length < 8}
+          >
+            {busy ? 'Creating…' : 'Create account'}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

@@ -16,6 +16,18 @@ function normalizeUrl(raw: string): string {
   return raw.trim().replace(/\/$/, '');
 }
 
+export function signInErrorFromResponse(status: number, text: string): Error {
+  try {
+    const body = JSON.parse(text) as { error?: unknown };
+    if (typeof body.error === 'string' && body.error.trim()) {
+      return new Error(body.error);
+    }
+  } catch {
+    /* ignore non-JSON */
+  }
+  return new Error(`Sign-in failed (${status}).`);
+}
+
 export function HubApiSettingsPage() {
   const initial = getHubApiConfig();
   const [url, setUrl] = useState(initial.url);
@@ -40,9 +52,9 @@ export function HubApiSettingsPage() {
     } else if (cfg.enabled) {
       setStatus(`Configured — API mode on (${cfg.url}).`);
     } else if (cfg.url && !session && !cfg.key) {
-      setStatus('API URL saved — sign in to use production, or add a local operator key.');
+      setStatus('API URL saved — sign in as Rayenz, or add a local operator key for MCP/curl.');
     } else if (cfg.url || cfg.key) {
-      setStatus('Partial — URL plus sign-in (or local operator key) is required for API mode.');
+      setStatus('Partial — URL plus sign-in (or a local operator key) is required for API mode.');
     } else {
       setStatus('Not configured — apps use localStorage only.');
     }
@@ -107,7 +119,7 @@ export function HubApiSettingsPage() {
       });
       const text = await res.text();
       if (!res.ok) {
-        throw new Error('Sign-in failed.');
+        throw signInErrorFromResponse(res.status, text);
       }
       const body = JSON.parse(text) as {
         accessToken: string;
@@ -163,7 +175,7 @@ export function HubApiSettingsPage() {
         throw new Error(`Health check failed (${healthRes.status}).`);
       }
       if (!token) {
-        setStatus('Health OK — sign in (or add a local operator key) and Save to enable API mode.');
+        setStatus('Health OK — sign in as Rayenz (or add a local operator key) and Save to enable API mode.');
         return;
       }
       const authRes = await fetch(`${nextUrl}/v1/auth/me`, {
@@ -187,8 +199,8 @@ export function HubApiSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Hub API</h2>
       <p className="hub-web-hint">
-        Optional sync backend. Production uses a signed-in session (not a shared API key). Local
-        development may still use an operator key. Default:{' '}
+        Optional sync backend. Sign in as Rayenz (local SAM uses the live Cognito pool). The
+        operator key is for MCP/curl, not the browser session. Default:{' '}
         <code>http://127.0.0.1:3000</code>. Do not set the URL to this page&apos;s origin.
       </p>
 
@@ -274,7 +286,7 @@ export function HubApiSettingsPage() {
               Signed in as <strong>{sessionLabel}</strong>.
             </p>
           ) : (
-            <p className="hub-web-hint">Required for the production API. Client-only mode needs no login.</p>
+            <p className="hub-web-hint">Required for API mode. Client-only mode needs no login.</p>
           )}
           <label className="hub-web-field">
             Username

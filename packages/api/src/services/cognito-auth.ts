@@ -3,9 +3,16 @@ import {
   AdminCreateUserCommand,
   AdminGetUserCommand,
   AdminSetUserPasswordCommand,
+  CodeMismatchException,
   CognitoIdentityProviderClient,
+  ConfirmSignUpCommand,
+  ExpiredCodeException,
   GlobalSignOutCommand,
   InitiateAuthCommand,
+  InvalidPasswordException,
+  NotAuthorizedException,
+  ResendConfirmationCodeCommand,
+  SignUpCommand,
   UsernameExistsException,
   UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider';
@@ -13,11 +20,16 @@ import type { AuthTokensResponse } from '@rayenz-hub/shared';
 import { AuthError, BadRequestError, ConflictError, type ApiEnv } from '../lib/auth.js';
 import { encodeTestJwt } from '../lib/jwt.js';
 
+export const MEMORY_CONFIRMATION_CODE = '123456';
+
 export interface CognitoAuthPort {
   initiateAuth(username: string, password: string): Promise<AuthTokensResponse>;
   refresh(refreshToken: string, username?: string): Promise<AuthTokensResponse>;
   globalSignOut(accessToken: string): Promise<void>;
-  adminCreateUser(username: string, password: string): Promise<{ sub: string; username: string }>;
+  signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }>;
+  confirmSignUp(username: string, code: string): Promise<void>;
+  resendConfirmationCode(username: string): Promise<void>;
+  adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }>;
   findUser(username: string): Promise<{ sub: string; username: string } | null>;
 }
 
@@ -135,7 +147,75 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
     }
   }
 
-  async adminCreateUser(username: string, password: string): Promise<{ sub: string; username: string }> {
+  async signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
+    const { clientId, clientSecret } = this.requirePool();
+    try {
+      const out = await this.client.send(
+        new SignUpCommand({
+          ClientId: clientId,
+          Username: username,
+          Password: password,
+          UserAttributes: [{ Name: 'email', Value: email }],
+          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+        }),
+      );
+      const sub = out.UserSub || '';
+      if (!sub) {
+        throw new Error('Cognito SignUp returned no sub');
+      }
+      return { sub, username };
+    } catch (err) {
+      if (err instanceof UsernameExistsException) {
+        throw new ConflictError('Username is not available');
+      }
+      if (err instanceof InvalidPasswordException) {
+        throw new BadRequestError('Password does not meet requirements');
+      }
+      throw err;
+    }
+  }
+
+  async confirmSignUp(username: string, code: string): Promise<void> {
+    const { clientId, clientSecret } = this.requirePool();
+    try {
+      await this.client.send(
+        new ConfirmSignUpCommand({
+          ClientId: clientId,
+          Username: username,
+          ConfirmationCode: code,
+          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof CodeMismatchException || err instanceof ExpiredCodeException) {
+        throw new BadRequestError('Invalid or expired confirmation code');
+      }
+      if (err instanceof NotAuthorizedException || err instanceof UserNotFoundException) {
+        throw new AuthError();
+      }
+      throw err;
+    }
+  }
+
+  async resendConfirmationCode(username: string): Promise<void> {
+    const { clientId, clientSecret } = this.requirePool();
+    try {
+      await this.client.send(
+        new ResendConfirmationCodeCommand({
+          ClientId: clientId,
+          Username: username,
+          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof UserNotFoundException || err instanceof NotAuthorizedException) {
+        throw new AuthError();
+      }
+      throw err;
+    }
+  }
+
+  async adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
     const { poolId } = this.requirePool();
     try {
       const created = await this.client.send(
@@ -144,6 +224,10 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
           Username: username,
           MessageAction: 'SUPPRESS',
           TemporaryPassword: password,
+          UserAttributes: [
+            { Name: 'email', Value: email },
+            { Name: 'email_verified', Value: 'true' },
+          ],
         }),
       );
       await this.client.send(
@@ -187,19 +271,26 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
   }
 }
 
+type MemoryUser = { sub: string; password: string; email: string; confirmed: boolean };
+
 /** In-memory Cognito stand-in for tests and optional JWT test mode. */
 export class MemoryCognitoAuthPort implements CognitoAuthPort {
-  private readonly users = new Map<string, { sub: string; password: string }>();
+  private readonly users = new Map<string, MemoryUser>();
 
-  constructor(seed: Array<{ username: string; password: string; sub: string }> = []) {
+  constructor(seed: Array<{ username: string; password: string; sub: string; email?: string }> = []) {
     for (const u of seed) {
-      this.users.set(u.username, { sub: u.sub, password: u.password });
+      this.users.set(u.username, {
+        sub: u.sub,
+        password: u.password,
+        email: u.email || `${u.username.toLowerCase()}@example.test`,
+        confirmed: true,
+      });
     }
   }
 
   async initiateAuth(username: string, password: string): Promise<AuthTokensResponse> {
     const user = this.users.get(username);
-    if (!user || user.password !== password) {
+    if (!user || user.password !== password || !user.confirmed) {
       throw new AuthError();
     }
     return this.issue(username, user.sub);
@@ -211,6 +302,10 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
     if (!username || !this.users.has(username)) {
       throw new AuthError();
     }
+    const user = this.users.get(username);
+    if (!user?.confirmed) {
+      throw new AuthError();
+    }
     return this.issue(username, sub);
   }
 
@@ -218,12 +313,39 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
     /* no-op */
   }
 
-  async adminCreateUser(username: string, password: string): Promise<{ sub: string; username: string }> {
+  async signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
     if (this.users.has(username)) {
       throw new ConflictError('Username is not available');
     }
     const sub = crypto.randomUUID();
-    this.users.set(username, { sub, password });
+    this.users.set(username, { sub, password, email, confirmed: false });
+    return { sub, username };
+  }
+
+  async confirmSignUp(username: string, code: string): Promise<void> {
+    const user = this.users.get(username);
+    if (!user || user.confirmed) {
+      throw new AuthError();
+    }
+    if (code !== MEMORY_CONFIRMATION_CODE) {
+      throw new BadRequestError('Invalid or expired confirmation code');
+    }
+    user.confirmed = true;
+  }
+
+  async resendConfirmationCode(username: string): Promise<void> {
+    const user = this.users.get(username);
+    if (!user || user.confirmed) {
+      throw new AuthError();
+    }
+  }
+
+  async adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
+    if (this.users.has(username)) {
+      throw new ConflictError('Username is not available');
+    }
+    const sub = crypto.randomUUID();
+    this.users.set(username, { sub, password, email, confirmed: true });
     return { sub, username };
   }
 

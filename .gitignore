@@ -8,6 +8,8 @@ dist/
 .env
 .env.local
 .env.*.local
+infra/env.local.overlay.json
+infra/env.local.merged.json
 packages/*/dist/
 tools/dev-dashboard/logs/*.log
 tools/dev-dashboard/.state.json

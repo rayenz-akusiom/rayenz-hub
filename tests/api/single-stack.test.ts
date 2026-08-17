@@ -2,6 +2,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+  API_BASE_PARAMETER_OVERRIDES,
+  COGNITO_STACK_NAME,
+  formatApiParameterOverrides,
+  stackOutput,
+} from '../../scripts/cognito-stack.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -16,8 +22,70 @@ describe('production stack inventory', () => {
     const samconfig = readFileSync(path.join(root, 'infra/samconfig.toml'), 'utf8');
     expect(samconfig).toMatch(/stack_name = "rayenz-hub-api"/);
     expect(samconfig).not.toMatch(/staging/i);
-    expect(template).not.toMatch(/ssm-secure/);
+    expect(template).not.toMatch(/\{\{resolve:ssm-secure/);
+    expect(template).toMatch(/Type: HttpApi[\s\S]*Path: \/\{\s*proxy\+\}[\s\S]*Method: OPTIONS/);
     expect(template).toMatch(/resolve:secretsmanager:\$\{HubApiKeySecretId\}:SecretString/);
     expect(template).toMatch(/resolve:secretsmanager:\$\{HubInviteSecretId\}:SecretString/);
+    expect(template).toMatch(/Path: \/v1\/auth\/confirm/);
+    expect(template).toMatch(/Path: \/v1\/auth\/resend-confirmation/);
+    expect(template).not.toMatch(/Type: AWS::Cognito::UserPool/);
+    expect(template).not.toMatch(/Type: AWS::Cognito::UserPoolClient/);
+  });
+
+  it('keeps Cognito in a separate stack with retain policies', () => {
+    const cognito = readFileSync(path.join(root, 'infra/cognito.yaml'), 'utf8');
+    const samconfig = readFileSync(path.join(root, 'infra/samconfig.toml'), 'utf8');
+    const deployCognito = readFileSync(path.join(root, 'scripts/deploy-cognito.ts'), 'utf8');
+    expect(samconfig).toMatch(/stack_name = "rayenz-hub-cognito"/);
+    expect(samconfig).toMatch(/template_file = "infra\/cognito.yaml"/);
+    expect(cognito).toMatch(/Type: AWS::Cognito::UserPool/);
+    expect(cognito).toMatch(/Type: AWS::Cognito::UserPoolClient/);
+    expect(cognito).toMatch(/AutoVerifiedAttributes:[\s\S]*?- email/);
+    expect(cognito).toMatch(/DeletionPolicy: Retain/);
+    expect(cognito).toMatch(/UpdateReplacePolicy: Retain/);
+    expect(cognito).not.toMatch(/^\s+UsernameAttributes:/m);
+    expect(cognito).not.toMatch(/^\s+AliasAttributes:/m);
+    expect(deployCognito).toMatch(/update-termination-protection/);
+    expect(deployCognito).toMatch(/--enable-termination-protection/);
+    expect(deployCognito).toMatch(/COGNITO_STACK_NAME/);
+  });
+});
+
+describe('Cognito API parameter overrides', () => {
+  it('appends pool ids and client secret to the Secrets Manager overrides', () => {
+    expect(
+      formatApiParameterOverrides({
+        poolId: 'us-east-1_abc',
+        poolArn: 'arn:aws:cognito-idp:us-east-1:1:userpool/us-east-1_abc',
+        clientId: 'client1',
+        clientSecret: 'secret1',
+      }),
+    ).toBe(
+      `${API_BASE_PARAMETER_OVERRIDES} CognitoUserPoolId=us-east-1_abc CognitoUserPoolArn=arn:aws:cognito-idp:us-east-1:1:userpool/us-east-1_abc CognitoClientId=client1 CognitoClientSecret=secret1`,
+    );
+  });
+
+  it('rejects empty or unsafe override values', () => {
+    expect(() =>
+      formatApiParameterOverrides({
+        poolId: '',
+        poolArn: 'arn',
+        clientId: 'c',
+        clientSecret: 's',
+      }),
+    ).toThrow(/poolId/);
+    expect(() =>
+      formatApiParameterOverrides({
+        poolId: 'p',
+        poolArn: 'arn',
+        clientId: 'c',
+        clientSecret: 'se cret',
+      }),
+    ).toThrow(/clientSecret/);
+  });
+
+  it('reads named stack outputs', () => {
+    expect(stackOutput([{ OutputKey: 'HubUserPoolId', OutputValue: ' pool ' }], 'HubUserPoolId')).toBe('pool');
+    expect(() => stackOutput([], 'HubUserPoolId')).toThrow(/HubUserPoolId/);
   });
 });

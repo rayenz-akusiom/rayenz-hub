@@ -1,7 +1,10 @@
 import {
   AuthMeResponseSchema,
+  ConfirmRequestSchema,
   RefreshRequestSchema,
+  RegisterPendingResponseSchema,
   RegisterRequestSchema,
+  ResendConfirmationRequestSchema,
   SignInRequestSchema,
   resolveUserId,
 } from '@rayenz-hub/shared';
@@ -123,10 +126,64 @@ export async function handleAuthRegister(
     if (existing) {
       throw new ForbiddenError('Registration failed', 'INVITE_INVALID');
     }
-    const created = await services.cognitoAuth.adminCreateUser(parsed.data.username, parsed.data.password);
+    const created = await services.cognitoAuth.signUp(
+      parsed.data.username,
+      parsed.data.password,
+      parsed.data.email,
+    );
     await services.inviteService.markUsed(invite, created.sub);
+    return jsonResponse(201, RegisterPendingResponseSchema.parse({ status: 'CONFIRM_EMAIL', username: created.username }));
+  } catch (e) {
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) return mapped;
+    throw e;
+  }
+}
+
+export async function handleAuthConfirm(
+  headers: Record<string, string | undefined>,
+  body: string | null | undefined,
+  services: AppServices = getAppServices(),
+) {
+  try {
+    if (await services.spendLock.isActive()) {
+      return spendLockResponse();
+    }
+    await services.rateLimit.consume('register', clientIp(headers));
+    const parsedBody = parseJsonBody(body);
+    if (!parsedBody.ok) return parsedBody.response;
+    const parsed = ConfirmRequestSchema.safeParse(parsedBody.value);
+    if (!parsed.success) {
+      return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
+    }
+    await services.cognitoAuth.confirmSignUp(parsed.data.username, parsed.data.code);
     const tokens = await services.cognitoAuth.initiateAuth(parsed.data.username, parsed.data.password);
     return jsonResponse(200, tokens);
+  } catch (e) {
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) return mapped;
+    throw e;
+  }
+}
+
+export async function handleAuthResendConfirmation(
+  headers: Record<string, string | undefined>,
+  body: string | null | undefined,
+  services: AppServices = getAppServices(),
+) {
+  try {
+    if (await services.spendLock.isActive()) {
+      return spendLockResponse();
+    }
+    await services.rateLimit.consume('register', clientIp(headers));
+    const parsedBody = parseJsonBody(body);
+    if (!parsedBody.ok) return parsedBody.response;
+    const parsed = ResendConfirmationRequestSchema.safeParse(parsedBody.value);
+    if (!parsed.success) {
+      return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
+    }
+    await services.cognitoAuth.resendConfirmationCode(parsed.data.username);
+    return jsonResponse(200, { ok: true });
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);
     if (mapped) return mapped;

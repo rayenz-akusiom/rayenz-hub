@@ -31,8 +31,10 @@
     "stop:minio": "node tools/dev-dashboard/cli.mjs stop minio",
 
     "build:api": "sam build --template-file infra/template.yaml --build-in-source && node scripts/copy-api-lambda-assets.mjs",
-    "start:api": "npm run build:api && sam local start-api --template .aws-sam/build/template.yaml --env-vars infra/env.local.json --port 3000 --host 0.0.0.0",
-    "deploy:api": "npm run build:api && sam deploy --config-file infra/samconfig.toml",
+    "setup:local-cognito": "tsx scripts/setup-local-cognito.ts",
+    "start:api": "npm run build:api && node scripts/merge-local-env.mjs && node scripts/start-local-api.mjs",
+    "deploy:cognito": "tsx scripts/deploy-cognito.ts",
+    "deploy:api": "npm run build:api && tsx scripts/deploy-api.ts",
     "deploy:api:guided": "npm run build:api && sam deploy --guided --config-file infra/samconfig.toml",
     "test:api:deployed": "vitest run tests/api/deployed.contract.test.ts",
     "migrate:user-partition": "tsx scripts/migrate-user-partition.ts",

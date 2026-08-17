@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { errorResponse } from './lib/response.js';
+import { errorResponse, optionsResponse } from './lib/response.js';
 import { handleHealth } from './handlers/health.js';
 import { handleSettings } from './handlers/settings.js';
 import { handleListProfiles, handleProfile } from './handlers/profiles.js';
@@ -15,6 +15,10 @@ export async function route(
   const path = event.rawPath;
   const headers = normalizeHeaders(event.headers);
 
+  if (method === 'OPTIONS') {
+    return optionsResponse();
+  }
+
   if (method === 'POST' && path === '/v1/auth/sign-in') {
     const { handleAuthSignIn } = await import('./handlers/auth-sign-in.js');
     return handleAuthSignIn(headers, event.body);
@@ -22,6 +26,14 @@ export async function route(
   if (method === 'POST' && path === '/v1/auth/register') {
     const { handleAuthRegister } = await import('./handlers/auth-sign-in.js');
     return handleAuthRegister(headers, event.body);
+  }
+  if (method === 'POST' && path === '/v1/auth/confirm') {
+    const { handleAuthConfirm } = await import('./handlers/auth-sign-in.js');
+    return handleAuthConfirm(headers, event.body);
+  }
+  if (method === 'POST' && path === '/v1/auth/resend-confirmation') {
+    const { handleAuthResendConfirmation } = await import('./handlers/auth-sign-in.js');
+    return handleAuthResendConfirmation(headers, event.body);
   }
   if (method === 'POST' && path === '/v1/auth/refresh') {
     const { handleAuthRefresh } = await import('./handlers/auth-sign-in.js');

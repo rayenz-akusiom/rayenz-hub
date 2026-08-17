@@ -96,7 +96,7 @@ export function HubInvitesPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Invites</h2>
       <p className="hub-web-hint">
-        Owner-only. Create a single-use link (7 days). Share it yourself — the Hub does not send email.
+        Owner-only. Create a single-use link (7 days). Share it yourself. Cognito emails the invitee a verification code; they sign in with username and password.
       </p>
       {error && (
         <div className="hub-web-banner hub-web-banner--error" role="alert">

@@ -204,13 +204,43 @@ docker run -p 9000:9000 -e MINIO_ROOT_USER=local -e MINIO_ROOT_PASSWORD=localpas
 $env:AWS_ACCESS_KEY_ID = "local"
 $env:AWS_SECRET_ACCESS_KEY = "localpass1"
 aws --endpoint-url http://127.0.0.1:9000 s3 mb s3://rayenz-hub-data-local
+Remove-Item Env:AWS_ACCESS_KEY_ID -ErrorAction SilentlyContinue
+Remove-Item Env:AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
 ```
 
 Without AWS CLI, create the bucket from the monorepo with the SDK (same credentials/endpoint as above), or use MinIO Console if you expose it.
 
+**Dummy keys (`local` / `localpass1`)** are a MinIO username/password, not your AWS login. The snippet above sets them on the *current PowerShell window* so `aws --endpoint-url … s3 mb` can talk to MinIO. You only need to clear them if you still see them in *this same window*:
+
+```powershell
+Get-ChildItem Env:AWS_ACCESS_KEY_ID, Env:AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:AWS_ACCESS_KEY_ID, Env:AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
+```
+
+A new PowerShell window does not inherit them. `setup:local-cognito` and `start:api` need your real AWS profile (SSO/`aws configure`) so they can call live Cognito. DynamoDB Local and MinIO still use in-code dummy credentials when endpoints are set — you do not set `AWS_ACCESS_KEY_ID=local` for those.
 
 
 ### Terminal 3 — API
+
+One-time: pull live Cognito pool/client/secret and the Rayenz `sub` into a **gitignored** overlay (do not commit the client secret):
+
+```powershell
+npm run setup:local-cognito
+```
+
+Writes `infra/env.local.overlay.json`. Re-run after rotating the app client or re-provisioning Rayenz.
+
+If local decks still live under `USER::rayenz-local` (or `USER::default`), copy them onto that `sub` once:
+
+```powershell
+$env:DYNAMODB_ENDPOINT = 'http://127.0.0.1:8000'
+$env:S3_ENDPOINT = 'http://127.0.0.1:9000'
+$env:HUB_MIGRATE_SOURCE_USER_ID = 'rayenz-local'
+npx tsx scripts/migrate-user-partition.ts --dry-run
+npx tsx scripts/migrate-user-partition.ts --execute --target-sub <rayenzSub>
+```
+
+Then start the API:
 
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
@@ -221,23 +251,26 @@ Equivalent to:
 
 ```powershell
 npm run build:api
-sam local start-api --template .aws-sam/build/template.yaml --env-vars infra/env.local.json --port 3000
+node scripts/merge-local-env.mjs
+node scripts/start-local-api.mjs
 ```
 
-`npm run start:api` runs `sam build --build-in-source` first. Without the build, SAM mounts raw TypeScript and health returns 500 (`Cannot find module 'handler'`). Re-run `npm run start:api` (or `npm run build:api`) after API source changes.
+`start:api` merges committed [`infra/env.local.json`](../infra/env.local.json) with the overlay (overlay wins) and **exits** if the overlay is missing. `sam build --build-in-source` runs first. Without the build, SAM mounts raw TypeScript and health returns 500 (`Cannot find module 'handler'`). Re-run `npm run start:api` (or `npm run build:api`) after API source changes. `start-local-api.mjs` passes an absolute `--config-file` because SAM resolves that flag relative to `.aws-sam/build/template.yaml`, so `infra/samconfig.toml` would be looked up in the wrong folder.
 
-`[infra/env.local.json](../../rayenz-hub/infra/env.local.json)` defaults:
+Do **not** leave `AWS_ACCESS_KEY_ID=local` set in the PowerShell window that runs SAM (that value is only for the one-time MinIO `s3 mb` command). `setup:local-cognito` exits with instructions if it sees that dummy. The Lambda uses your default AWS profile for Cognito (`cognito-idp:InitiateAuth`; `AdminGetUser` / list pools for the setup script).
+
+Committed [`infra/env.local.json`](../infra/env.local.json) defaults (overlay overrides `HUB_USER_ID` to the Cognito `sub`):
 
 
 | Variable            | Value                              |
 | ------------------- | ---------------------------------- |
 | `HUB_API_KEY`       | `test-api-key-local`               |
-| `HUB_USER_ID`       | `default`                          |
+| `HUB_USER_ID`       | `rayenz-local` (fallback)          |
 | `DYNAMODB_ENDPOINT` | `http://host.docker.internal:8000` |
 | `S3_ENDPOINT`       | `http://host.docker.internal:9000` |
 
 
-`host.docker.internal` lets the SAM Lambda container reach services on the Windows host.
+`host.docker.internal` lets the SAM Lambda container reach services on the Windows host. SAM local adds CORS headers when `DYNAMODB_ENDPOINT` is set so the Vite app (`:5173`) can call `:3000`.
 
 ### Smoke tests
 
@@ -274,11 +307,12 @@ Serve `rayenz-hub/rayenz-hub/` over **HTTP** (not `file://`). Options:
 - `npx serve rayenz-hub/rayenz-hub`
 - Playwright static server (used by `npm run test:e2e`)
 
-Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`), or in DevTools:
+Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): API URL `http://127.0.0.1:3000`, **Sign in as Rayenz** (live Cognito). Do **not** paste the operator key into the SPA for normal local work — that key is for MCP/curl and maps to the same Cognito `sub` once the overlay is in place.
+
+DevTools equivalent (URL only):
 
 ```javascript
 localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
 ```
 
 Try:
@@ -360,9 +394,10 @@ Edit code
   → npm run test:web   (if packages/web changed)
 
 Need real HTTP?
+  → npm run setup:local-cognito   (once; gitignored Cognito overlay)
   → Docker (DynamoDB persist + MinIO persist)
   → npm run start:api
-  → Static Hub + localStorage API keys
+  → Vite Hub + Sign in as Rayenz (no operator key in the SPA)
 ```
 
 
@@ -372,7 +407,7 @@ Need real HTTP?
 | Vanilla Hub          | `npm run test:unit`          | No                |
 | React shell          | `npm run test:web`           | No                |
 | Live REST API        | `npm run start:api`          | Yes               |
-| Browser + API        | Static server + localStorage | Yes (for API)     |
+| Browser + API        | Vite + Sign in as Rayenz     | Yes (for API)     |
 | Production contract  | `npm run test:api:deployed`  | AWS endpoint      |
 
 
@@ -384,6 +419,6 @@ Need real HTTP?
 
 - [mobile-local-testing.md](./mobile-local-testing.md) — phone/iPad via LAN (dashboard Device access panel; Vite/SAM bind LAN by default)
 - [quickstart.md](./quickstart.md) — prerequisites, deploy, free-tier, migration
-- [../../rayenz-hub/rayenz-hub/docs/hub-api-production.md](../../rayenz-hub/rayenz-hub/docs/hub-api-production.md) — production `localStorage` keys
-- [../../rayenz-hub/tests/README.md](../../rayenz-hub/tests/README.md) — test layout and fixtures
+- [hub-api-production.md](./hub-api-production.md) — Cognito, local overlay, owner sync
+- [../tests/README.md](../tests/README.md) — test layout and fixtures
 

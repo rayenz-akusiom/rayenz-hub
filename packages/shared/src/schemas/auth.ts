@@ -25,9 +25,28 @@ export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;
 export const RegisterRequestSchema = z.object({
   token: z.string().min(1),
   username: z.string().min(1).max(128),
+  email: z.string().email().max(256),
   password: z.string().min(8),
 });
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+
+export const RegisterPendingResponseSchema = z.object({
+  status: z.literal('CONFIRM_EMAIL'),
+  username: z.string(),
+});
+export type RegisterPendingResponse = z.infer<typeof RegisterPendingResponseSchema>;
+
+export const ConfirmRequestSchema = z.object({
+  username: z.string().min(1).max(128),
+  code: z.string().min(1).max(32),
+  password: z.string().min(8),
+});
+export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
+
+export const ResendConfirmationRequestSchema = z.object({
+  username: z.string().min(1).max(128),
+});
+export type ResendConfirmationRequest = z.infer<typeof ResendConfirmationRequestSchema>;
 
 export const AuthMeResponseSchema = z.object({
   username: z.string(),

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HubApiSettingsPage } from '../../packages/web/src/pages/HubApiSettingsPage';
+import { HubApiSettingsPage, signInErrorFromResponse } from '../../packages/web/src/pages/HubApiSettingsPage';
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -93,5 +94,29 @@ describe('HubApiSettingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Hide key' }));
     expect(input).toHaveAttribute('type', 'password');
+  });
+
+  it('shows the API error body when sign-in fails', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ error: 'Cognito is not configured on this API', code: 'BAD_REQUEST' }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<HubApiSettingsPage />);
+    await user.type(screen.getByLabelText('API base URL'), 'http://127.0.0.1:3000');
+    await user.type(screen.getByLabelText('Username'), 'Rayenz');
+    await user.type(screen.getByLabelText('Password'), 'secret');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Cognito is not configured on this API');
+    });
+  });
+
+  it('falls back to status when sign-in body is not JSON', () => {
+    expect(signInErrorFromResponse(401, '<html>nope</html>').message).toBe('Sign-in failed (401).');
   });
 });

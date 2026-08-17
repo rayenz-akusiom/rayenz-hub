@@ -29,18 +29,52 @@ export function suggestQueueBadge(
   return null;
 }
 
-export function commanderNamesFromDeck(deck: DeckRecord): string[] {
-  const names: string[] = [];
+export type LeaderSnapshotCard = {
+  name: string;
+  set_code?: string;
+  collector_number?: string;
+  scryfall_id?: string;
+  quantity?: number;
+};
+
+function cardsInCategory(
+  deck: { deck_snapshot?: { cards?: Array<Record<string, unknown>> } },
+  category: string,
+): LeaderSnapshotCard[] {
+  const out: LeaderSnapshotCard[] = [];
   const seen: Record<string, boolean> = {};
   ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
-    const primary = cardPrimaryCategory(card);
-    if (primary !== 'Commander' || !card.name) return;
-    const key = card.name.toLowerCase();
+    const primary = cardPrimaryCategory(card as { primary_category?: string; categories?: string[] });
+    const cats = [primary, ...((card.categories as string[] | undefined) || [])].filter(Boolean);
+    if (!cats.includes(category) || !card.name) return;
+    const key = String(card.name).toLowerCase();
     if (seen[key]) return;
     seen[key] = true;
-    names.push(card.name);
+    out.push({
+      name: String(card.name),
+      set_code: card.set_code != null ? String(card.set_code) : undefined,
+      collector_number: card.collector_number != null ? String(card.collector_number) : undefined,
+      scryfall_id: card.scryfall_id != null ? String(card.scryfall_id) : undefined,
+      quantity: typeof card.quantity === 'number' ? card.quantity : undefined,
+    });
   });
-  return names;
+  return out;
+}
+
+export function commanderCardsFromDeck(
+  deck: { deck_snapshot?: { cards?: Array<Record<string, unknown>> } },
+): LeaderSnapshotCard[] {
+  return cardsInCategory(deck, 'Commander');
+}
+
+export function lieutenantCardsFromDeck(
+  deck: { deck_snapshot?: { cards?: Array<Record<string, unknown>> } },
+): LeaderSnapshotCard[] {
+  return cardsInCategory(deck, 'Lieutenants');
+}
+
+export function commanderNamesFromDeck(deck: DeckRecord): string[] {
+  return commanderCardsFromDeck(deck).map((c) => c.name);
 }
 
 export function deckSuggestHeaderText(deck: DeckRecord): string {

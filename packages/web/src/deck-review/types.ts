@@ -3,8 +3,6 @@ import type { ReviewProgress } from '../lib/hub-storage';
 
 export type TransferSource = 'deck-suggest' | 'generate' | 'upload' | 'handoff' | null;
 
-export type StatusCardTab = 'decisions' | 'queue' | 'export';
-
 export type DeckPrefs = {
   blocked_cards: string[];
   protected_cards: string[];
@@ -77,7 +75,6 @@ export type DeckReviewState = {
   profileStatus: string;
   profilesConnected: boolean;
   showAllMode: boolean;
-  statusCardTab: StatusCardTab;
   transferSource: TransferSource;
 };
 

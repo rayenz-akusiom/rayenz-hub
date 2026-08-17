@@ -102,6 +102,34 @@
    gap: 8px;
    flex-shrink: 0;
    margin-left: auto;
+   flex-wrap: wrap;
+}
+
+.dr-chrome-tally {
+   font-size: 0.78rem;
+   color: #4a5568;
+   white-space: nowrap;
+}
+
+.dr-right-nav .db-aside-tabs {
+   margin-bottom: 0.75rem;
+   max-width: none;
+   width: 100%;
+}
+
+.dr-right-nav .db-aside-panel {
+   width: 100%;
+   max-width: none;
+   min-height: 0;
+}
+
+.dr-right-nav .db-profile {
+   max-width: none;
+}
+
+.ds-leader-tile {
+   cursor: default;
+   pointer-events: none;
 }
 
 .dr-chrome-archidekt {
@@ -111,10 +139,39 @@
 
 .dr-body {
    width: 100%;
-   max-width: 960px;
-   margin: 0 auto;
+   max-width: none;
+   margin: 0;
    padding: 24px 28px 48px;
    box-sizing: border-box;
+}
+
+.ds-deck-leaders {
+   width: 100%;
+   max-width: none;
+   margin-left: 0;
+   margin-right: 0;
+}
+
+.ds-lieutenants-col {
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+   min-width: 0;
+   width: 100%;
+}
+
+.ds-lieutenants-col .dr-filmstrip {
+   width: 100%;
+   max-width: none;
+   margin: 0;
+}
+
+#dr-suggestion-panel,
+.dr-panel-main {
+   width: 100%;
+   max-width: 960px;
+   margin-left: auto;
+   margin-right: auto;
 }
 
 .dr-panel-layout {
@@ -133,7 +190,6 @@
 }
 
 .dr-panel-main {
-   width: 100%;
    display: flex;
    flex-direction: column;
    align-items: center;
@@ -144,11 +200,14 @@
    width: 100%;
    display: flex;
    flex-direction: column;
-   align-items: center;
+   align-items: stretch;
 }
 
 #dr-suggestion-panel {
    width: 100%;
+   max-width: 960px;
+   margin-left: auto;
+   margin-right: auto;
    display: flex;
    flex-direction: column;
    align-items: center;

@@ -53,6 +53,25 @@ export function allVisibleSuggestions(
   return sortSuggestions(deck.suggestions || []).filter((s) => !isSuggestionFiltered(s, prefs));
 }
 
+export function deckReviewStatusCounts(
+  deck: DeckEntry,
+  progress: ReviewProgress,
+  deckPrefs: Record<string, DeckPrefs>,
+): { pending: number; accepted: number; rejected: number; skipped: number } {
+  let pending = 0;
+  let accepted = 0;
+  let rejected = 0;
+  let skipped = 0;
+  for (const s of allVisibleSuggestions(deck, deckPrefs)) {
+    const status = getDecision(progress, String(s.suggestion_id))?.status || 'pending';
+    if (status === 'accepted') accepted++;
+    else if (status === 'rejected') rejected++;
+    else if (status === 'skipped') skipped++;
+    else pending++;
+  }
+  return { pending, accepted, rejected, skipped };
+}
+
 export function pendingSuggestions(
   deck: DeckEntry,
   progress: ReviewProgress,
@@ -114,7 +133,6 @@ export function createInitialReviewState(): DeckReviewState {
     profileStatus: '',
     profilesConnected: false,
     showAllMode: false,
-    statusCardTab: 'decisions',
     transferSource: null,
   };
 }

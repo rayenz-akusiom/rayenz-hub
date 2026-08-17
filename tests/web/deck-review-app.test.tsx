@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
-import { DeckReviewStatusCard } from '../../packages/web/src/deck-review/DeckReviewStatusCard';
-import { ArchidektExport } from '../../packages/web/src/mtg/archidekt-export';
-import * as archidektBridge from '../../packages/web/src/deck-review/archidekt-bridge';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
@@ -18,6 +15,25 @@ vi.mock('../../packages/web/src/deck-review/profiles', async (importOriginal) =>
     ...actual,
     checkProfilesConnected: vi.fn(() => Promise.resolve(false)),
     connectProfilesDir: vi.fn(() => Promise.resolve()),
+  };
+});
+
+vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
+  ProfileSync: {
+    isConnected: vi.fn(() => Promise.resolve(false)),
+    connectProfilesDir: vi.fn(() => Promise.resolve()),
+    readProfileYaml: vi.fn(() => Promise.resolve(null)),
+    canWriteProfiles: vi.fn(() => false),
+    canWriteProfilesViaDirectory: vi.fn(() => false),
+  },
+}));
+
+vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
+  return {
+    ...actual,
+    loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
+    readProfileForDeck: vi.fn(() => Promise.resolve(null)),
   };
 });
 
@@ -47,14 +63,6 @@ vi.mock('../../packages/web/src/lib/hub-storage', async (importOriginal) => {
       setInputMode: 'release',
     })),
     saveDeckSuggestSettings: vi.fn(),
-  };
-});
-
-vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
-  return {
-    ...actual,
-    loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
   };
 });
 
@@ -114,6 +122,13 @@ function handoffPayload() {
         deck_snapshot: {
           fetched_at: '2026-06-22',
           cards: [
+            {
+              name: 'Baird, Steward of Argive',
+              primary_category: 'Commander',
+              categories: ['Commander'],
+              set_code: 'DOM',
+              collector_number: '4',
+            },
             { name: 'Plains', primary_category: 'Queued Out', categories: ['Queued Out'] },
             { name: "Caretaker's Talent", primary_category: 'Queued In', categories: ['Queued In'] },
             { name: 'Sol Ring', primary_category: 'Ramp', categories: ['Ramp'] },
@@ -145,6 +160,9 @@ describe('DeckSuggestApp empty state', () => {
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Upload JSON' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Connect profiles folder/i })).not.toBeInTheDocument();
   });
 });
 
@@ -169,6 +187,26 @@ describe('DeckSuggestApp upload and sidebar', () => {
     expect(screen.getByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
     expect(screen.queryByText('Hub library')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Deck leaders' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Baird, Steward of Argive')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lieutenants' })).toBeInTheDocument();
+    expect(document.querySelector('.ds-deck-leaders')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open status/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No cut suggested/i)).not.toBeInTheDocument();
+  });
+
+  it('flips the sidebar between Deck and Profile tabs', async () => {
+    const user = await loadSuggestionsViaUpload(handoffPayload());
+    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: 'Profile' }));
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Deck profile' })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('tab', { name: 'Deck' }));
+    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeVisible();
   });
 
   it('opens and closes the deck navigation drawer', async () => {
@@ -186,13 +224,35 @@ describe('DeckSuggestApp upload and sidebar', () => {
 });
 
 describe('DeckSuggestApp suggestion panel', () => {
-  it('renders suggestion cards and status toolbar for active deck', async () => {
+  it('renders suggestion cards and toolbar tally for active deck', async () => {
     await loadSuggestionsViaUpload(handoffPayload());
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument();
     });
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
+    expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
+  });
+
+  it('places the pending filmstrip inside the lieutenants column', async () => {
+    const data = handoffPayload();
+    data.decks[0].suggestions.push({
+      suggestion_id: 's2',
+      priority_tier: 'upgrade',
+      confidence: 'medium',
+      action: 'add',
+      card: { name: 'Sol Ring', set_code: 'C21', collector_number: '1' },
+      replaces: [],
+      roles_matched: ['ramp'],
+      rationale: 'Staple ramp',
+    });
+
+    await loadSuggestionsViaUpload(data);
+
+    const leaders = await waitFor(() => screen.getByRole('region', { name: 'Deck leaders' }));
+    expect(within(leaders).getByLabelText('Pending suggestions')).toBeInTheDocument();
+    expect(leaders.querySelector('.ds-lieutenants-col .dr-filmstrip')).toBeTruthy();
+    expect(document.querySelector('#dr-suggestion-panel .dr-filmstrip')).toBeNull();
   });
 
   it('accepts a suggestion and reaches the reviewed empty state', async () => {
@@ -235,36 +295,6 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(screen.getAllByText('Rejected').length).toBeGreaterThan(0);
   });
 
-  it('switches status card tabs and shows queue/export panes', async () => {
-    const user = await loadSuggestionsViaUpload(handoffPayload());
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: /Open status/i }));
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Decisions' })).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Swap queue' }));
-    expect(screen.getAllByText(/From Hub|From generation/i).length).toBeGreaterThan(0);
-
-    await user.click(screen.getByRole('button', { name: 'Export' }));
-    expect(screen.getByText(/Review all suggestions first/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Decisions' }));
-    expect(screen.getByText(/1\/1 reviewed|0\/1 reviewed/i)).toBeInTheDocument();
-  });
-
-  it('keeps status collapsed by default and expands from the summary', async () => {
-    const user = await loadSuggestionsViaUpload(handoffPayload());
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Decisions' })).not.toBeInTheDocument();
-    expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /Open queue/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Swap queue' })).toHaveClass('active'));
-    expect(screen.getAllByText(/From Hub|From generation/i).length).toBeGreaterThan(0);
-  });
-
   it('shows a denser show-all grid of compact suggestion tiles', async () => {
     const data = handoffPayload();
     data.decks[0].suggestions.push({
@@ -287,6 +317,7 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(grid).toBeInTheDocument();
     expect(grid?.querySelectorAll('.dr-suggestion-compact').length).toBe(2);
     expect(screen.getAllByRole('button', { name: 'Show details' }).length).toBe(2);
+    expect(document.querySelector('.ds-lieutenants-col .dr-filmstrip')).toBeNull();
 
     await user.click(screen.getAllByRole('button', { name: 'Show details' })[0]);
     expect(screen.getByText('Upgrade path')).toBeInTheDocument();
@@ -315,337 +346,3 @@ describe('DeckSuggestApp suggestion panel', () => {
     });
   });
 });
-
-describe('DeckReviewStatusCard panes', () => {
-  const emptyProgress = { decisions: {}, currentDeckId: null, currentSuggestionIndex: {} };
-  const suggestion = {
-    suggestion_id: 's1',
-    card: { name: 'New Card', set_code: 'MSH', collector_number: '1' },
-    replaces: [{ name: 'Old Card', set_code: 'CMM', collector_number: '2' }],
-    action: 'replace',
-  };
-
-  function deck(overrides: Record<string, unknown> = {}) {
-    return {
-      deck_id: 'd1',
-      deck_name: 'Test Deck',
-      archidekt_url: 'https://archidekt.com/decks/1',
-      suggestions: [suggestion],
-      ...overrides,
-    };
-  }
-
-  beforeEach(() => {
-    sessionStorage.setItem('dr-status-expanded', '0');
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('shows skipped counts and empty-suggestion decisions', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({ suggestions: [] })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="decisions"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/No suggestions for this deck/i)).toBeInTheDocument();
-    expect(screen.getByText(/0 pending/i)).toBeInTheDocument();
-  });
-
-  it('renders decision recap thumbs and skipped status', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    const accepted = {
-      ...suggestion,
-      suggestion_id: 's-acc',
-      card: { name: 'In Card', scryfall_id: 'abc-123' },
-      replaces: [{ name: 'Out Card', scryfall_id: 'def-456' }],
-    };
-    const skipped = { ...suggestion, suggestion_id: 's-skip', card: { name: 'Skip Me' }, replaces: [] };
-    const rejected = { ...suggestion, suggestion_id: 's-rej', card: { name: 'Reject Me' }, replaces: [{ name: 'Cut' }] };
-    const named = {
-      ...suggestion,
-      suggestion_id: 's-name',
-      card: { name: 'Named Only' },
-      replaces: [{ name: 'Cut Me' }],
-    };
-    render(
-      <DeckReviewStatusCard
-        deck={deck({ suggestions: [accepted, skipped, named, rejected] })}
-        progress={{
-          decisions: {
-            's-acc': {
-              status: 'accepted',
-              accepted: {
-                card_in: { name: 'In Card', scryfall_id: 'abc-123' },
-                card_out: { name: 'Out Card', set_code: 'CMM', collector_number: '1' },
-              },
-            },
-            's-skip': { status: 'skipped' },
-            's-rej': { status: 'rejected' },
-          },
-          currentDeckId: null,
-          currentSuggestionIndex: {},
-        }}
-        deckPrefs={{}}
-        statusCardTab="decisions"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/1 skipped/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 rejected/i)).toBeInTheDocument();
-    expect(screen.getByText('In Card')).toBeInTheDocument();
-    expect(screen.getByText(/pick cut/i)).toBeInTheDocument();
-  });
-
-  it('queue pane explains missing snapshots for suggest vs upload', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    const { rerender } = render(
-      <DeckReviewStatusCard
-        deck={deck({ deck_snapshot: undefined, archidekt_url: '' })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="deck-suggest"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Snapshot missing from generation/i)).toBeInTheDocument();
-
-    rerender(
-      <DeckReviewStatusCard
-        deck={deck({ deck_snapshot: undefined })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/No Hub deck snapshot/i)).toBeInTheDocument();
-  });
-
-  it('queue pane shows uncovered names and flags', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: {
-            fetched_at: '2026-06-22',
-            cards: [
-              { name: 'Queued In', primary_category: 'Queued In', categories: ['Queued In'] },
-              { name: 'Solo Out', primary_category: 'Queued Out', categories: ['Queued Out'] },
-              { name: 'Flag Card', primary_category: 'Ramp', categories: ['Ramp', 'Queued In'] },
-            ],
-          },
-        })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="deck-suggest"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/From generation/i)).toBeInTheDocument();
-    expect(screen.getByText(/No suggestion yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/Flag Card \(primary: Ramp\)/)).toBeInTheDocument();
-  });
-
-  it('queue pane reports no swap queue when snapshot cards are missing', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: { fetched_at: '2026-06-22' },
-        })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/No swap queue on this deck/i)).toBeInTheDocument();
-  });
-
-  it('queue pane labels upload source as From Hub', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: {
-            fetched_at: '2026-06-22',
-            cards: [
-              { name: 'Queued In', primary_category: 'Queued In', categories: ['Queued In'] },
-            ],
-          },
-        })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/From Hub · as of/i)).toBeInTheDocument();
-  });
-
-  it('queue pane shows empty in/out placeholders', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: { fetched_at: '2026-06-22', cards: [] },
-        })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="queue"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getAllByText('empty').length).toBeGreaterThan(0);
-  });
-
-  it('export pane copies Archidekt import text', async () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
-      complete: true,
-      reviewed: 1,
-      total: 1,
-    } as never);
-    vi.spyOn(ArchidektExport, 'buildFullDeckImport').mockReturnValue('1 Sol Ring');
-    vi.spyOn(ArchidektExport, 'copyText').mockResolvedValue(undefined as never);
-    const onApplyStaged = vi.fn();
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
-        })}
-        progress={{
-          decisions: { s1: { status: 'accepted' } },
-          currentDeckId: null,
-          currentSuggestionIndex: {},
-        }}
-        deckPrefs={{}}
-        statusCardTab="export"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={onApplyStaged}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Accepts are saved on Hub/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Copy Archidekt import/i }));
-    await waitFor(() =>
-      expect(onApplyStaged).toHaveBeenCalledWith('Copied Archidekt import (mirror) to clipboard.'),
-    );
-  });
-
-  it('export pane gates on missing snapshot and incomplete review', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    const { rerender } = render(
-      <DeckReviewStatusCard
-        deck={deck({ deck_snapshot: undefined })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="export"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Deck snapshot required before exporting/i)).toBeInTheDocument();
-
-    rerender(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
-        })}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="export"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Review all suggestions first/i)).toBeInTheDocument();
-  });
-
-  it('collapses from the summary and opens the queue from the collapsed bar', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    const onTabChange = vi.fn();
-    render(
-      <DeckReviewStatusCard
-        deck={deck()}
-        progress={emptyProgress}
-        deckPrefs={{}}
-        statusCardTab="decisions"
-        transferSource="upload"
-        onTabChange={onTabChange}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: /Collapse/i }));
-    expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Open queue/i }));
-    expect(onTabChange).toHaveBeenCalledWith('queue');
-  });
-
-  it('export pane reports nothing to export when import text is blank', () => {
-    sessionStorage.setItem('dr-status-expanded', '1');
-    vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
-      complete: true,
-      reviewed: 1,
-      total: 1,
-    } as never);
-    vi.spyOn(ArchidektExport, 'buildFullDeckImport').mockReturnValue('   ');
-    render(
-      <DeckReviewStatusCard
-        deck={deck({
-          deck_snapshot: { fetched_at: '2026-06-22', cards: [{ name: 'Sol Ring' }] },
-        })}
-        progress={{
-          decisions: { s1: { status: 'accepted' } },
-          currentDeckId: null,
-          currentSuggestionIndex: {},
-        }}
-        deckPrefs={{}}
-        statusCardTab="export"
-        transferSource="upload"
-        onTabChange={vi.fn()}
-        onApplyStaged={vi.fn()}
-        onError={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Nothing to export for this deck/i)).toBeInTheDocument();
-  });
-});
-

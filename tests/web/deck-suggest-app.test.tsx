@@ -220,6 +220,9 @@ describe('DeckSuggestApp generate to review', () => {
     expect(screen.getByRole('button', { name: 'New source' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New source' })).toHaveClass('dr-chrome-back');
     expect(document.querySelector('.dr-meta-chip')?.textContent).toMatch(/Rules/i);
+    expect(screen.getByRole('group', { name: 'Card size' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
   });
 
   it('shows generation error in the error banner', async () => {

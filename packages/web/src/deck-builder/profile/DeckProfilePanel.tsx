@@ -63,7 +63,7 @@ function CardNameList({ title, names }: { title: string; names: string[] }) {
   );
 }
 
-export function DeckProfilePanel({ deck }: { deck: DeckDocument }) {
+export function DeckProfilePanel({ deck }: { deck: Pick<DeckDocument, 'deckId' | 'archidektId'> }) {
   const [profile, setProfile] = useState<DeckProfile | null | undefined>(undefined);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -71,12 +71,20 @@ export function DeckProfilePanel({ deck }: { deck: DeckDocument }) {
   useEffect(() => {
     let cancelled = false;
     setProfile(undefined);
-    void loadDeckProfile(deck).then((p) => {
-      if (!cancelled) setProfile(p);
-    });
-    void ProfileSync.isConnected().then((c) => {
-      if (!cancelled) setConnected(c);
-    });
+    void loadDeckProfile(deck)
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch(() => {
+        if (!cancelled) setProfile(null);
+      });
+    void ProfileSync.isConnected()
+      .then((c) => {
+        if (!cancelled) setConnected(c);
+      })
+      .catch(() => {
+        if (!cancelled) setConnected(false);
+      });
     return () => {
       cancelled = true;
     };

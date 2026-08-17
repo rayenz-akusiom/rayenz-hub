@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
 import { downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
@@ -6,24 +7,21 @@ import { escapeHtml } from '../lib/string-utils';
 import { isApiConfigured } from '../api/hub-api';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
-import { checkProfilesConnected, connectProfilesDir } from '../deck-review/profiles';
+import { checkProfilesConnected } from '../deck-review/profiles';
 import {
   createInitialReviewState,
+  deckReviewStatusCounts,
   getDeckById,
   handoffSnapshotDate,
   handoffStatusMessage,
   jumpToPendingSuggestion,
   loadSuggestionsData,
   navigatePendingSuggestion,
+  pendingSuggestions,
   recordDecision,
   selectDeck,
 } from '../deck-review/review';
-import type {
-  DeckReviewState,
-  ReviewDecision,
-  StatusCardTab,
-  SuggestionsPayload,
-} from '../deck-review/types';
+import type { DeckReviewState, ReviewDecision, SuggestionsPayload } from '../deck-review/types';
 import '../deck-review/deck-review.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
 import { loadHubLibraryDecks } from './data';
@@ -32,6 +30,7 @@ import { buildExport } from './export';
 import { generateSuggestions } from './generation';
 import { getGenerateReadiness } from './readiness';
 import { proposePageIds, remainingIds } from './paging';
+import { SuggestDeckLeaders } from './SuggestDeckLeaders';
 import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
 import './deck-suggest.css';
 
@@ -95,6 +94,7 @@ export function DeckSuggestApp() {
   const [decksLoading, setDecksLoading] = useState(true);
   const [processedIds, setProcessedIds] = useState<string[]>([]);
   const [navOpen, setNavOpen] = useState(false);
+  const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +161,18 @@ export function DeckSuggestApp() {
   );
   const loaded = !!review.data;
   const activeDeck = getDeckById(review.data, review.activeDeckId);
+  const tallyCounts = useMemo(() => {
+    if (!activeDeck) return null;
+    return deckReviewStatusCounts(activeDeck, review.progress, review.deckPrefs);
+  }, [activeDeck, review.progress, review.deckPrefs]);
+
+  const filmstripPending = useMemo(() => {
+    if (!activeDeck || review.showAllMode) return null;
+    const pending = pendingSuggestions(activeDeck, review.progress, review.deckPrefs);
+    if (pending.length < 2) return null;
+    const activeIndex = Math.min(review.suggestionIndex, Math.max(pending.length - 1, 0));
+    return { pending, activeIndex };
+  }, [activeDeck, review.showAllMode, review.progress, review.deckPrefs, review.suggestionIndex]);
 
   const persistSettings = useCallback((settings: DeckSuggestSettings) => {
     saveDeckSuggestSettings(settings);
@@ -233,25 +245,6 @@ export function DeckSuggestApp() {
     setError('');
   }
 
-  async function handleConnectProfiles() {
-    if (review.profilesConnected) {
-      return;
-    }
-    try {
-      await connectProfilesDir();
-      setReview((prev) => ({
-        ...prev,
-        profilesConnected: true,
-        profileStatus: 'Profiles folder connected.',
-      }));
-    } catch (err) {
-      setReview((prev) => ({
-        ...prev,
-        profileStatus: err instanceof Error ? err.message : String(err),
-      }));
-    }
-  }
-
   function handleNextPage() {
     const cap = suggest.generationRun?.cap || 20;
     const nextIds = proposePageIds(
@@ -315,7 +308,10 @@ export function DeckSuggestApp() {
   }
 
   return (
-    <div className={'deck-suggest-app' + (loaded ? ' deck-suggest-reviewing' : '')}>
+    <div
+      className={'deck-suggest-app' + (loaded ? ' deck-suggest-reviewing' : '')}
+      style={{ ['--db-card-w' as string]: `${cardWidthPx}px` }}
+    >
       <button
         type="button"
         id="dr-right-nav-toggle"
@@ -355,6 +351,13 @@ export function DeckSuggestApp() {
               <div className="hub-progress-host dr-chrome-progress" id="ds-progress-host" ref={progressHostRef} />
               {loaded ? (
                 <div className="dr-chrome-actions">
+                  {tallyCounts ? (
+                    <span className="dr-chrome-tally" aria-live="polite">
+                      {tallyCounts.pending} pending · {tallyCounts.accepted} accepted · {tallyCounts.rejected}{' '}
+                      rejected
+                      {tallyCounts.skipped ? ` · ${tallyCounts.skipped} skipped` : ''}
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     className="dr-btn dr-btn-ghost"
@@ -363,6 +366,7 @@ export function DeckSuggestApp() {
                   >
                     {review.showAllMode ? 'One at a time' : 'Show all'}
                   </button>
+                  <CardSizePicker size={cardSize} onChange={setCardSize} />
                 </div>
               ) : (
                 <div className="dr-chrome-actions">
@@ -439,21 +443,28 @@ export function DeckSuggestApp() {
               </div>
             ) : (
               <div id="dr-content">
+                {activeDeck ? (
+                  <SuggestDeckLeaders
+                    deck={activeDeck}
+                    filmstrip={
+                      filmstripPending
+                        ? {
+                            pending: filmstripPending.pending,
+                            activeIndex: filmstripPending.activeIndex,
+                            onJump: handleJumpSuggestion,
+                          }
+                        : null
+                    }
+                  />
+                ) : null}
                 <div id="dr-suggestion-panel">
                   <DeckReviewSuggestionPanel
                     deck={activeDeck}
                     state={review}
                     onDecision={handleDecision}
                     onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
-                    onTabChange={(tab: StatusCardTab) =>
-                      setReview((prev) => ({ ...prev, statusCardTab: tab }))
-                    }
-                    onApplyStaged={(message) =>
-                      setReview((prev) => ({ ...prev, profileStatus: message }))
-                    }
                     onError={setError}
                     onNavigateSuggestion={handleNavigateSuggestion}
-                    onJumpSuggestion={handleJumpSuggestion}
                   />
                 </div>
               </div>
@@ -472,7 +483,6 @@ export function DeckSuggestApp() {
               downloadSuggestionsJson(review.data);
             }
           }}
-          onConnectProfiles={() => void handleConnectProfiles()}
           onSelectDeck={handleSelectDeck}
           fileInputRef={fileInputRef}
         />

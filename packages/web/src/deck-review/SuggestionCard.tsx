@@ -282,12 +282,7 @@ export function SuggestionCard({
 
   const showDetails = !compact || detailsOpen;
   const inImgSrc = printId ? scryfallImageFromId(printId) : undefined;
-  const warningLine =
-    showDetails && staleness.stale
-      ? staleness.reasons.join(' ')
-      : showDetails && missingCut && !seekingMode
-        ? 'No cut suggested — choose an Out card manually, or Accept as Seeking.'
-        : '';
+  const warningLine = showDetails && staleness.stale ? staleness.reasons.join(' ') : '';
 
   return (
     <div
@@ -380,7 +375,6 @@ export function SuggestionCard({
             ) : null}
             <span className={'dr-badge dr-badge-' + String(suggestion.confidence)}>{String(suggestion.confidence)}</span>
             <span className="dr-badge">{String(suggestion.action)}</span>
-            {missingCut && !seekingMode ? <span className="dr-badge dr-badge-missing-cut">No cut suggested</span> : null}
             {status ? (
               <span className={'dr-decision-label dr-decision-label-' + status}>{decisionStatusText(status)}</span>
             ) : null}
@@ -389,13 +383,7 @@ export function SuggestionCard({
         </div>
 
         {warningLine ? (
-          <p
-            className={
-              'dr-edge-warning' +
-              (staleness.stale ? ' dr-edge-warning-stale' : '') +
-              (missingCut && !staleness.stale ? ' dr-edge-warning-cut' : '')
-            }
-          >
+          <p className={'dr-edge-warning' + (staleness.stale ? ' dr-edge-warning-stale' : '')}>
             {warningLine}
           </p>
         ) : null}

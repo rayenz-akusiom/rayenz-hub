@@ -5,19 +5,24 @@ import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-sto
 import { acceptAllPendingAsSeeking } from '../deck-review/bulk-seeking';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
+import { MissingCardsProfileSection } from '../deck-review/MissingCardsProfileSection';
 import { checkProfilesConnected } from '../deck-review/profiles';
 import {
+  appendDeckSuggestions,
   createInitialReviewState,
   getDeckById,
   handoffStatusMessage,
   jumpToPendingSuggestion,
   loadSuggestionsData,
   navigatePendingSuggestion,
+  patchSuggestionLozenges,
   pendingSuggestions,
+  promoteConfirmedLozengesOnDeck,
   recordDecision,
   selectDeck,
 } from '../deck-review/review';
 import type { DeckReviewState, ReviewDecision, SuggestionsPayload } from '../deck-review/types';
+import type { ProfileLozenge, ProfileLozengeUpdates, Suggestion } from '@rayenz-hub/shared';
 import '../deck-review/deck-review.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
 import { loadHubLibraryDecks } from './data';
@@ -29,6 +34,17 @@ import { proposePageIds, remainingIds } from './paging';
 import { SuggestDeckLeaders } from './SuggestDeckLeaders';
 import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
 import './deck-suggest.css';
+
+function reviewSetCodes(
+  generationCodes?: string[],
+  meta?: { set_codes?: string[]; set_code?: string },
+  scopeCodes?: string[],
+): string[] {
+  if (generationCodes?.length) return generationCodes;
+  if (meta?.set_codes?.length) return meta.set_codes;
+  if (meta?.set_code) return [String(meta.set_code)];
+  return scopeCodes || [];
+}
 
 function createSuggestState(): DeckSuggestState {
   const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
@@ -176,6 +192,66 @@ export function DeckSuggestApp() {
     setError('');
   }
 
+  function handleAddMissingSuggestion(suggestion: Suggestion) {
+    const deckId = String(activeDeck?.deck_id || '');
+    if (!deckId) return;
+    setReview((prev) => appendDeckSuggestions(prev, deckId, [suggestion]));
+    setSuggest((prev) => {
+      const run = prev.generationRun;
+      if (!run?.deckResults?.length) return prev;
+      return {
+        ...prev,
+        generationRun: {
+          ...run,
+          deckResults: run.deckResults.map((result) => {
+            if (String(result.deck.deck_id) !== deckId) return result;
+            const existing = (result.suggestions || []).some(
+              (s) => String(s.suggestion_id) === String(suggestion.suggestion_id),
+            );
+            if (existing) return result;
+            return {
+              ...result,
+              suggestions: [...(result.suggestions || []), suggestion],
+            };
+          }),
+        },
+      };
+    });
+  }
+
+  function handleToggleLozenge(suggestionId: string, lozenges: ProfileLozenge[]) {
+    const deckId = String(activeDeck?.deck_id || '');
+    if (!deckId) return;
+    setReview((prev) => patchSuggestionLozenges(prev, deckId, suggestionId, lozenges));
+    setSuggest((prev) => {
+      const run = prev.generationRun;
+      if (!run?.deckResults?.length) return prev;
+      return {
+        ...prev,
+        generationRun: {
+          ...run,
+          deckResults: run.deckResults.map((result) => {
+            if (String(result.deck.deck_id) !== deckId) return result;
+            return {
+              ...result,
+              suggestions: (result.suggestions || []).map((s) =>
+                String(s.suggestion_id) === String(suggestionId)
+                  ? { ...s, profile_lozenges: lozenges }
+                  : s,
+              ),
+            };
+          }),
+        },
+      };
+    });
+  }
+
+  function handleConfirmedProfileTags(_suggestionId: string, updates: ProfileLozengeUpdates) {
+    const deckId = String(activeDeck?.deck_id || '');
+    if (!deckId) return;
+    setReview((prev) => promoteConfirmedLozengesOnDeck(prev, deckId, updates));
+  }
+
   async function handleAcceptAllSeeking() {
     if (!activeDeck || bulkSeeking || !pendingForActiveDeck.length) {
       return;
@@ -200,6 +276,7 @@ export function DeckSuggestApp() {
             return recordDecision(prev, suggestionId, { status: 'accepted', accepted }, false);
           });
         },
+        onConfirmedProfileTags: handleConfirmedProfileTags,
       });
       if (result.failed.length) {
         const first = result.failed[0]!;
@@ -476,8 +553,22 @@ export function DeckSuggestApp() {
                     onError={setError}
                     onNavigateSuggestion={handleNavigateSuggestion}
                     onJumpSuggestion={handleJumpSuggestion}
+                    onToggleLozenge={handleToggleLozenge}
+                    onConfirmedProfileTags={handleConfirmedProfileTags}
                   />
                 </div>
+                {activeDeck ? (
+                  <MissingCardsProfileSection
+                    deck={activeDeck}
+                    setCodes={reviewSetCodes(
+                      suggest.generationRun?.setCodes,
+                      review.data?.meta,
+                      suggest.setScope?.codes,
+                    )}
+                    onAddSuggestion={handleAddMissingSuggestion}
+                    onStatus={(message) => setReview((prev) => ({ ...prev, profileStatus: message }))}
+                  />
+                ) : null}
               </div>
             )}
           </div>

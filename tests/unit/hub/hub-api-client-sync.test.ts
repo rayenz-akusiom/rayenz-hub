@@ -500,6 +500,32 @@ describe('ProfileSync.appendToProfileList validation and no-op paths', () => {
   });
 });
 
+describe('ProfileSync.appendToProfileLists', () => {
+  it('appends multiple yaml lists in one pull/push', async () => {
+    enableHubApi();
+    const fetchMock = vi.fn(async (_url, opts) => {
+      if (!opts?.method || opts.method === 'GET') {
+        return jsonResponse({ yaml: 'themes:\n  - tokens\n' });
+      }
+      return jsonResponse({ deckId: 'deck-1' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await ProfileSync.appendToProfileLists('deck-1', {
+      themes: ['ramp'],
+      keyword_interests: ['landfall'],
+      typal_types: ['Elf'],
+      art_tags: ['tree'],
+    });
+    expect(result.changed).toBe(true);
+    const putCall = fetchMock.mock.calls.find((c) => c[1]?.method === 'PUT');
+    const yaml = JSON.parse(putCall![1].body).yaml as string;
+    expect(yaml).toContain('  - ramp');
+    expect(yaml).toContain('keyword_interests:');
+    expect(yaml).toContain('typal_types:');
+    expect(yaml).toContain('art_tags:');
+  });
+});
+
 describe('ProfileSync read and connect paths', () => {
   function installFakeIndexedDb(storedHandle: FileSystemDirectoryHandle | undefined = undefined) {
     vi.stubGlobal('indexedDB', {

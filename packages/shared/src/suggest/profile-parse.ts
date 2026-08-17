@@ -1,6 +1,14 @@
 import type { DeckProfile } from './types';
 
-type ListKey = 'protected_cards' | 'blocked_cards' | 'typal_types' | 'themes' | 'keyword_interests' | 'avoid_tags';
+type ListKey =
+  | 'protected_cards'
+  | 'blocked_cards'
+  | 'typal_types'
+  | 'themes'
+  | 'keyword_interests'
+  | 'art_tags'
+  | 'tags'
+  | 'avoid_tags';
 
 export function parseYamlProfile(text: string): DeckProfile {
   const profile: DeckProfile = {
@@ -10,6 +18,8 @@ export function parseYamlProfile(text: string): DeckProfile {
     typal_types: [],
     themes: [],
     keyword_interests: [],
+    art_tags: [],
+    tags: [],
     constraints: {},
   };
   let currentList: ListKey | null = null;
@@ -81,6 +91,29 @@ export function parseYamlProfile(text: string): DeckProfile {
       if (trimmed === 'keyword_interests:') {
         currentList = 'keyword_interests';
         currentRole = null;
+        inConstraints = false;
+        return;
+      }
+      if (trimmed === 'art_tags:') {
+        currentList = 'art_tags';
+        currentRole = null;
+        inConstraints = false;
+        return;
+      }
+      if (!currentRole && trimmed === 'tags:') {
+        currentList = 'tags';
+        inConstraints = false;
+        return;
+      }
+      if (!currentRole && trimmed.indexOf('tags:') === 0) {
+        const tagMatch = trimmed.match(/\[(.*)\]/);
+        if (tagMatch) {
+          profile.tags = tagMatch[1]
+            .split(',')
+            .map((t) => t.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+        }
+        currentList = null;
         inConstraints = false;
         return;
       }

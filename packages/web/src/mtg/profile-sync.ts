@@ -1,4 +1,5 @@
 import { HubApiClient } from '../api/hub-api-client';
+import { appendToYamlList, appendToYamlLists, parseYamlList } from '@rayenz-hub/shared';
 
 const DB_NAME = 'rayenz-hub-profiles';
 const STORE_NAME = 'handles';
@@ -6,6 +7,10 @@ const HANDLE_KEY = 'profiles-dir';
 const LIST_FIELDS = {
   protected_cards: 'protected_cards',
   blocked_cards: 'blocked_cards',
+  themes: 'themes',
+  keyword_interests: 'keyword_interests',
+  typal_types: 'typal_types',
+  art_tags: 'art_tags',
 } as const;
 
 type ListFieldKey = keyof typeof LIST_FIELDS;
@@ -109,94 +114,6 @@ function connectProfilesDir(): Promise<FileSystemDirectoryHandle> {
     .then((handle) => idbSet(HANDLE_KEY, handle).then(() => handle));
 }
 
-function parseYamlList(text: string, fieldName: string): string[] {
-  const lines = text.split(/\r?\n/);
-  const items: string[] = [];
-  let inSection = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^[^\s#]/.test(line) && !line.startsWith('-')) {
-      inSection = line.trim() === fieldName + ':';
-      continue;
-    }
-    if (inSection) {
-      if (/^[^\s#-]/.test(line)) {
-        break;
-      }
-      const match = line.match(/^\s*-\s+(.+?)\s*$/);
-      if (match) {
-        items.push(match[1].replace(/^["']|["']$/g, ''));
-      }
-    }
-  }
-  return items;
-}
-
-function listHasItem(items: string[], name: string): boolean {
-  return items.some((item) => item === name);
-}
-
-function appendToYamlList(text: string, fieldName: string, cardName: string): { text: string; changed: boolean } {
-  const items = parseYamlList(text, fieldName);
-  if (listHasItem(items, cardName)) {
-    return { text, changed: false };
-  }
-
-  const lines = text.split(/\r?\n/);
-  let sectionIndex = -1;
-  let insertAt = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === fieldName + ':') {
-      sectionIndex = i;
-      insertAt = i + 1;
-      for (let j = i + 1; j < lines.length; j++) {
-        if (/^\s*-\s+/.test(lines[j])) {
-          insertAt = j + 1;
-        } else if (/^[^\s#-]/.test(lines[j])) {
-          break;
-        }
-      }
-      break;
-    }
-  }
-
-  const entry = '  - ' + cardName;
-  if (sectionIndex >= 0) {
-    lines.splice(insertAt, 0, entry);
-  } else {
-    let anchor = -1;
-    const anchors = ['archidekt_swaps:', 'constraints:', 'roles:', 'notes:'];
-    for (let a = 0; a < anchors.length; a++) {
-      for (let k = 0; k < lines.length; k++) {
-        if (lines[k].trim() === anchors[a]) {
-          anchor = k;
-          break;
-        }
-      }
-      if (anchor >= 0) {
-        break;
-      }
-    }
-    const block = [fieldName + ':', entry];
-    if (anchor >= 0) {
-      lines.splice(anchor, 0, '', block[0], block[1]);
-    } else {
-      if (lines.length && lines[lines.length - 1] !== '') {
-        lines.push('');
-      }
-      lines.push(block[0], block[1]);
-    }
-  }
-
-  let out = lines.join('\n');
-  if (!out.endsWith('\n')) {
-    out += '\n';
-  }
-  return { text: out, changed: true };
-}
-
 function readProfileFile(handle: FileSystemDirectoryHandle, deckId: string): Promise<string> {
   return handle
     .getFileHandle(deckId + '.yaml')
@@ -213,6 +130,16 @@ function writeProfileFile(handle: FileSystemDirectoryHandle, deckId: string, tex
     );
 }
 
+function pushProfileText(deckId: string, text: string) {
+  const protectedCards = parseYamlList(text, 'protected_cards');
+  const blockedCards = parseYamlList(text, 'blocked_cards');
+  return HubApiClient.pushProfile(deckId, {
+    yaml: text,
+    protectedCards,
+    blockedCards,
+  });
+}
+
 function appendToProfileListViaApi(deckId: string, yamlField: string, cardName: string) {
   return HubApiClient.pullProfileYaml(deckId).then((yaml) => {
     const text = yaml || '';
@@ -220,13 +147,11 @@ function appendToProfileListViaApi(deckId: string, yamlField: string, cardName: 
     if (!result.changed) {
       return { field: yamlField, cardName, changed: false };
     }
-    const protectedCards = parseYamlList(result.text, 'protected_cards');
-    const blockedCards = parseYamlList(result.text, 'blocked_cards');
-    return HubApiClient.pushProfile(deckId, {
-      yaml: result.text,
-      protectedCards,
-      blockedCards,
-    }).then(() => ({ field: yamlField, cardName, changed: true }));
+    return pushProfileText(deckId, result.text).then(() => ({
+      field: yamlField,
+      cardName,
+      changed: true,
+    }));
   });
 }
 
@@ -263,6 +188,60 @@ function appendToProfileList(deckId: string, field: string, cardName: string) {
     return appendToProfileListViaApi(deckId, yamlField, cardName);
   }
   return appendToProfileListViaDirectory(deckId, yamlField, cardName);
+}
+
+export type ProfileListUpdates = Partial<{
+  themes: string[];
+  keyword_interests: string[];
+  typal_types: string[];
+  art_tags: string[];
+  protected_cards: string[];
+  blocked_cards: string[];
+}>;
+
+function appendToProfileListsViaApi(deckId: string, updates: ProfileListUpdates) {
+  return HubApiClient.pullProfileYaml(deckId).then((yaml) => {
+    const result = appendToYamlLists(yaml || '', updates);
+    if (!result.changed) {
+      return { changed: false, added: result.added };
+    }
+    return pushProfileText(deckId, result.text).then(() => ({
+      changed: true,
+      added: result.added,
+    }));
+  });
+}
+
+function appendToProfileListsViaDirectory(deckId: string, updates: ProfileListUpdates) {
+  return getProfilesDir()
+    .then((handle) => {
+      if (!handle) {
+        return connectProfilesDir();
+      }
+      return handle;
+    })
+    .then((handle) =>
+      readProfileFile(handle, deckId).then((text) => {
+        const result = appendToYamlLists(text, updates);
+        if (!result.changed) {
+          return { changed: false, added: result.added };
+        }
+        return writeProfileFile(handle, deckId, result.text).then(() => ({
+          changed: true,
+          added: result.added,
+        }));
+      }),
+    );
+}
+
+function appendToProfileLists(deckId: string, updates: ProfileListUpdates) {
+  if (!deckId) {
+    return Promise.reject(new Error('Missing deck, field, or card name.'));
+  }
+  if (isApiProfilesEnabled()) {
+    return appendToProfileListsViaApi(deckId, updates);
+  }
+  return appendToProfileListsViaDirectory(deckId, updates);
 }
 
 function readProfileYamlFromDir(deckId: string): Promise<string | null> {
@@ -302,6 +281,7 @@ export const ProfileSync = {
   getProfilesDir,
   isConnected,
   appendToProfileList,
+  appendToProfileLists,
   readProfileYaml,
   parseYamlList,
   LIST_FIELDS,

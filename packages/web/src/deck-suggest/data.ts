@@ -12,6 +12,7 @@ import {
   type DeckDocument,
   type DeckWithSnapshot,
 } from '@rayenz-hub/shared';
+import { maybeAttachScryfallTags, parseYamlProfile as parseSharedYamlProfile } from '@rayenz-hub/shared';
 import {
   clearSetPoolCache,
   hydrateSetPoolFromApi,
@@ -30,59 +31,7 @@ import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 const setPoolCache: Record<string, SetScope> = {};
 
 export function parseYamlProfile(text: string): DeckProfile {
-  const profile: DeckProfile = { roles: [], protected_cards: [], blocked_cards: [] };
-  let currentList: 'protected_cards' | 'blocked_cards' | null = null;
-  let currentRole: { id: string; priority?: string; tags?: string[] } | null = null;
-  String(text || '')
-    .split(/\r?\n/)
-    .forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.charAt(0) === '#') {
-        return;
-      }
-      if (trimmed === 'roles:') {
-        return;
-      }
-      if (trimmed.indexOf('- id:') === 0) {
-        currentRole = { id: trimmed.replace('- id:', '').trim(), tags: [] };
-        profile.roles!.push(currentRole);
-        return;
-      }
-      if (currentRole && trimmed.indexOf('priority:') === 0) {
-        currentRole.priority = trimmed.replace('priority:', '').trim();
-        return;
-      }
-      if (currentRole && trimmed.indexOf('tags:') === 0) {
-        const tagMatch = trimmed.match(/\[(.*)\]/);
-        if (tagMatch) {
-          currentRole.tags = tagMatch[1]
-            .split(',')
-            .map((t) => t.trim().replace(/^['"]|['"]$/g, ''))
-            .filter(Boolean);
-        }
-        return;
-      }
-      if (trimmed === 'protected_cards:') {
-        currentList = 'protected_cards';
-        return;
-      }
-      if (trimmed === 'blocked_cards:') {
-        currentList = 'blocked_cards';
-        return;
-      }
-      if (trimmed.indexOf('deck_id:') === 0) {
-        profile.deck_id = trimmed.replace('deck_id:', '').trim();
-        return;
-      }
-      if (trimmed.indexOf('format:') === 0) {
-        profile.format = trimmed.replace('format:', '').trim();
-        return;
-      }
-      if (trimmed.indexOf('- ') === 0 && currentList) {
-        profile[currentList]!.push(trimmed.replace('- ', '').trim().replace(/^['"]|['"]$/g, ''));
-      }
-    });
-  return profile;
+  return parseSharedYamlProfile(text);
 }
 
 export function resolveDeckEligibility(deck: DeckRecord) {
@@ -279,6 +228,9 @@ export async function fetchSetPool(
           type_line: (card.type_line as string) || '',
           oracle_text: (card.oracle_text as string) || '',
           keywords: (card.keywords as string[]) || [],
+          oracle_id: card.oracle_id != null ? String(card.oracle_id) : null,
+          illustration_id: card.illustration_id != null ? String(card.illustration_id) : null,
+          color_identity: Array.isArray(card.color_identity) ? (card.color_identity as string[]) : [],
         });
       });
       hasMore = json.has_more === true;
@@ -289,7 +241,8 @@ export async function fetchSetPool(
     }
   }
 
-  const scope = buildScopeFromCodes(normalized, cards, 'scryfall');
+  const tagged = await maybeAttachScryfallTags(cards);
+  const scope = buildScopeFromCodes(normalized, tagged, 'scryfall');
   setPoolCache[codesKey] = scope;
   saveSetPoolCache(codesKey, {
     ...scope,
@@ -404,6 +357,7 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
       type_line: oracle?.typeLine ?? undefined,
       oracle_text: oracle?.oracleText ?? undefined,
       keywords: oracle?.keywords ?? undefined,
+      color_identity: oracle?.colourIdentity || [],
     } as SnapshotCard;
   });
   return {

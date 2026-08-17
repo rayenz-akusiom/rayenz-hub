@@ -6,6 +6,7 @@ import {
 } from '../../../packages/web/src/deck-suggest/index.ts';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
 import type { DeckDocument } from '@rayenz-hub/shared';
+import { oracleKey } from '@rayenz-hub/shared';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
 beforeEach(() => {
@@ -105,6 +106,71 @@ describe('hubDeckToRecord', () => {
     );
     expect(byName['Sol Ring']).toBe('Queued In');
     expect(byName['Arcane Signet']).toBe('Queued Out');
+  });
+
+  it('copies commander colour identity from oracle onto the snapshot', () => {
+    const doc = {
+      schemaVersion: 1,
+      deckId: 'hub-ci',
+      name: 'Elves',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: '',
+      categories: [],
+      cards: [
+        {
+          instanceId: 'cmd',
+          name: 'Lathril, Blade of the Elves',
+          quantity: 1,
+          primaryCategory: 'Commander',
+          categories: ['Commander'],
+          stack: null,
+          setCode: 'khm',
+          collectorNumber: '1',
+          scryfallId: 'sf-lathril',
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+      ],
+      oracle: {
+        [oracleKey({
+          scryfallId: 'sf-lathril',
+          setCode: 'khm',
+          collectorNumber: '1',
+          name: 'Lathril, Blade of the Elves',
+        })]: {
+          scryfallId: 'sf-lathril',
+          colourIdentity: ['B', 'G'],
+          typeLine: 'Legendary Creature — Elf Noble',
+          layout: null,
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 4,
+          imageUrl: null,
+          colours: ['B', 'G'],
+          finishes: null,
+          updatedAt: null,
+        },
+      },
+      formalSwapEntries: [],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      cardLayoutDefault: 'stacked',
+      cardSortDefault: 'name_asc',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+      cubeTargetSize: null,
+    } as DeckDocument;
+
+    const record = hubDeckToRecord(doc);
+    expect(record.deck_snapshot!.cards![0].color_identity).toEqual(['B', 'G']);
   });
 });
 

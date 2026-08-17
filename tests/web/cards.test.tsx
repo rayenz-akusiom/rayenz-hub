@@ -186,6 +186,23 @@ describe('CardPickerModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('keeps the dialog open after a pick when keepOpen is set', async () => {
+    const user = userEvent.setup();
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <CardPickerModal
+        config={{ items, keepOpen: true, selectedValues: ['a'], onPick }}
+        onClose={onClose}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Beta Beta 2 MV' }));
+    expect(onPick).toHaveBeenCalledWith('b', items[1], { foil: false });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('groups by category with pinned Queued In header', () => {
     render(
       <CardPickerModal config={{ items, groupByCategory: true }} onClose={() => {}} />,

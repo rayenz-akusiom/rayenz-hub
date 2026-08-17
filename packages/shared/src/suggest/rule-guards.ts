@@ -59,6 +59,7 @@ export function normalizeProfile(profile?: DeckProfile | null) {
     typal_types: profile.typal_types || [],
     themes: profile.themes || [],
     keyword_interests: profile.keyword_interests || [],
+    art_tags: profile.art_tags || [],
     constraints: profile.constraints || {},
   };
 }

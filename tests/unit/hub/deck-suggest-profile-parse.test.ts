@@ -7,15 +7,17 @@ describe('profile intent parse', () => {
     expect(profile.typal_types).toEqual([]);
     expect(profile.themes).toEqual([]);
     expect(profile.keyword_interests).toEqual([]);
+    expect(profile.art_tags).toEqual([]);
   });
 
-  it('parses typal, theme, and keyword lists', () => {
+  it('parses typal, theme, keyword, and art lists', () => {
     const profile = parseYamlProfile(
-      'typal_types:\n  - Elf\nthemes:\n  - tokens\nkeyword_interests:\n  - landfall\n',
+      'typal_types:\n  - Elf\nthemes:\n  - tokens\nkeyword_interests:\n  - landfall\nart_tags:\n  - tree\n',
     );
     expect(profile.typal_types).toEqual(['Elf']);
     expect(profile.themes).toEqual(['tokens']);
     expect(profile.keyword_interests).toEqual(['landfall']);
+    expect(profile.art_tags).toEqual(['tree']);
   });
 
   it('ignores unknown keys', () => {

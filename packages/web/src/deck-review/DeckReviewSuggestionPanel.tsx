@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import type { DeckEntry, ProfileLozenge, Suggestion } from '@rayenz-hub/shared';
+import type { ProfileLozengeUpdates } from '@rayenz-hub/shared';
 import { currentSuggestion, allVisibleSuggestions, pendingSuggestions } from './review';
 import { PendingFilmstrip } from './PendingFilmstrip';
 import { SuggestionCard } from './SuggestionCard';
@@ -13,6 +14,8 @@ type DeckReviewSuggestionPanelProps = {
   onError: (message: string) => void;
   onNavigateSuggestion: (delta: number) => void;
   onJumpSuggestion: (index: number) => void;
+  onToggleLozenge?: (suggestionId: string, lozenges: ProfileLozenge[]) => void;
+  onConfirmedProfileTags?: (suggestionId: string, updates: ProfileLozengeUpdates) => void;
 };
 
 export function DeckReviewSuggestionPanel({
@@ -23,6 +26,8 @@ export function DeckReviewSuggestionPanel({
   onError,
   onNavigateSuggestion,
   onJumpSuggestion,
+  onToggleLozenge,
+  onConfirmedProfileTags,
 }: DeckReviewSuggestionPanelProps) {
   const oneAtATime = !!deck && !state.showAllMode;
 
@@ -84,6 +89,8 @@ export function DeckReviewSuggestionPanel({
               onProfileUpdate={onProfileUpdate}
               onError={onError}
               deckPrefs={deckPrefs}
+              onToggleLozenge={onToggleLozenge}
+              onConfirmedProfileTags={onConfirmedProfileTags}
             />
           ))}
         </div>
@@ -119,6 +126,8 @@ export function DeckReviewSuggestionPanel({
           onProfileUpdate={onProfileUpdate}
           onError={onError}
           deckPrefs={deckPrefs}
+          onToggleLozenge={onToggleLozenge}
+          onConfirmedProfileTags={onConfirmedProfileTags}
         />
       </div>
     </div>

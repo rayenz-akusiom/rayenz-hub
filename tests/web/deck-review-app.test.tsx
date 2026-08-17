@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
+import { readProfileForDeck, tryRestoreSetPool } from '../../packages/web/src/deck-suggest/data';
+import { ProfileSync } from '../../packages/web/src/mtg/profile-sync';
+import { MISSING_CARDS_INFO } from '../../packages/shared/src/suggest/missing-cards';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
@@ -25,6 +28,7 @@ vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
     readProfileYaml: vi.fn(() => Promise.resolve(null)),
     canWriteProfiles: vi.fn(() => false),
     canWriteProfilesViaDirectory: vi.fn(() => false),
+    appendToProfileLists: vi.fn(() => Promise.resolve({ changed: true, added: {} })),
   },
 }));
 
@@ -34,6 +38,8 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
     ...actual,
     loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
     readProfileForDeck: vi.fn(() => Promise.resolve(null)),
+    tryRestoreSetPool: vi.fn(() => null),
+    fetchSetPool: vi.fn(() => Promise.resolve({ codes: [], cards: [] })),
   };
 });
 
@@ -128,6 +134,7 @@ function handoffPayload() {
               categories: ['Commander'],
               set_code: 'DOM',
               collector_number: '4',
+              color_identity: ['W'],
             },
             { name: 'Plains', primary_category: 'Queued Out', categories: ['Queued Out'] },
             { name: "Caretaker's Talent", primary_category: 'Queued In', categories: ['Queued In'] },
@@ -386,5 +393,84 @@ describe('DeckSuggestApp suggestion panel', () => {
     await waitFor(() => {
       expect(screen.getByText('All suggestions reviewed for Second Deck.')).toBeInTheDocument();
     });
+  });
+});
+
+describe('DeckSuggestApp missing cards profile', () => {
+  it('injects a suggestion from the set pool with minus tags, then writes only plus tags on Accept Seeking', async () => {
+    vi.mocked(readProfileForDeck).mockResolvedValue({
+      themes: ['tokens'],
+    });
+    vi.mocked(tryRestoreSetPool).mockReturnValue({
+      codes: ['MSH'],
+      cards: [
+        {
+          name: 'Missing Elf',
+          set_code: 'MSH',
+          collector_number: '9',
+          type_line: 'Creature — Elf Druid',
+          keywords: ['Landfall'],
+          oracle_tags: ['mana-dork'],
+          art_tags: ['forest'],
+          color_identity: ['W'],
+        },
+        {
+          name: 'Off Identity',
+          set_code: 'MSH',
+          collector_number: '10',
+          type_line: 'Creature — Goblin',
+          color_identity: ['R'],
+        },
+      ],
+    } as ReturnType<typeof tryRestoreSetPool>);
+    vi.mocked(ProfileSync.canWriteProfiles).mockReturnValue(true);
+    vi.mocked(ProfileSync.appendToProfileLists).mockResolvedValue({
+      changed: true,
+      added: { themes: ['mana-dork'] },
+    });
+
+    const user = await loadSuggestionsViaUpload(handoffPayload());
+
+    expect(screen.getByRole('heading', { name: 'Any cards missing? Add them here...' })).toBeInTheDocument();
+    expect(screen.getByLabelText(MISSING_CARDS_INFO)).toHaveAttribute('title', MISSING_CARDS_INFO);
+
+    await user.click(screen.getByRole('button', { name: 'Add cards' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Missing cards from this set' });
+    expect(within(dialog).getByRole('button', { name: /Missing Elf/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Caretaker/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Off Identity/ })).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: /Missing Elf/ }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Missing Elf' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('✓ tokens')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '− mana-dork' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '− Landfall' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '− Elf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '− forest' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 4 }).map((el) => el.textContent)).toEqual([
+      'Functional',
+      'Keywords',
+      'Types',
+      'Art',
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '− mana-dork' }));
+    expect(screen.getByRole('button', { name: '+ mana-dork' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Seeking' }));
+    await user.click(screen.getByRole('button', { name: 'Accept Seeking' }));
+
+    await waitFor(() => {
+      expect(ProfileSync.appendToProfileLists).toHaveBeenCalled();
+    });
+    const updates = vi.mocked(ProfileSync.appendToProfileLists).mock.calls[0][1];
+    expect(updates.themes).toEqual(['mana-dork']);
+    expect(updates.keyword_interests).toEqual([]);
+    expect(updates.typal_types).toEqual([]);
+    expect(updates.art_tags).toEqual([]);
   });
 });

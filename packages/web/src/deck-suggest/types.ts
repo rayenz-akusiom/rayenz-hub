@@ -9,6 +9,10 @@ export type SetPoolCard = {
   type_line?: string;
   oracle_text?: string;
   keywords?: string[];
+  oracle_id?: string | null;
+  illustration_id?: string | null;
+  oracle_tags?: string[];
+  art_tags?: string[];
   color_identity?: string[];
   colorIdentity?: string[];
 };
@@ -37,6 +41,7 @@ export type SnapshotCard = {
   type_line?: string;
   oracle_text?: string;
   keywords?: string[];
+  color_identity?: string[];
 };
 
 export type DeckProfile = {
@@ -46,6 +51,10 @@ export type DeckProfile = {
   tags?: string[];
   protected_cards?: string[];
   blocked_cards?: string[];
+  typal_types?: string[];
+  themes?: string[];
+  keyword_interests?: string[];
+  art_tags?: string[];
 };
 
 export type DeckRecord = {
@@ -99,6 +108,8 @@ export type Suggestion = {
   priority_tier: string;
   swap_source?: string;
   signals?: SuggestionSignals;
+  source?: 'missing_cards';
+  profile_lozenges?: import('@rayenz-hub/shared').ProfileLozenge[];
 };
 
 export type DeckResult = {

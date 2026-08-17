@@ -35,7 +35,11 @@ function hasProfileContent(p: DeckProfile): boolean {
       (p.tags && p.tags.length) ||
       (p.roles && p.roles.length) ||
       (p.protected_cards && p.protected_cards.length) ||
-      (p.blocked_cards && p.blocked_cards.length),
+      (p.blocked_cards && p.blocked_cards.length) ||
+      (p.themes && p.themes.length) ||
+      (p.typal_types && p.typal_types.length) ||
+      (p.keyword_interests && p.keyword_interests.length) ||
+      (p.art_tags && p.art_tags.length),
   );
 }
 
@@ -138,6 +142,10 @@ export function DeckProfilePanel({ deck }: { deck: Pick<DeckDocument, 'deckId' |
           ) : null}
           <CardNameList title="Protected" names={profile.protected_cards || []} />
           <CardNameList title="Blocked" names={profile.blocked_cards || []} />
+          <CardNameList title="Themes" names={profile.themes || []} />
+          <CardNameList title="Types" names={profile.typal_types || []} />
+          <CardNameList title="Keywords" names={profile.keyword_interests || []} />
+          <CardNameList title="Art tags" names={profile.art_tags || []} />
         </div>
       ) : (
         <div className="db-profile-empty">

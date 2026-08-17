@@ -31,7 +31,7 @@ describe('HubStorage API hydration', () => {
       codes: ['MSH'],
       codesKey: 'MSH',
       cards: [{ name: 'Remote Card' }],
-      formatVersion: 2,
+      formatVersion: 3,
     };
     enableHubApi();
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(remote)));
@@ -126,7 +126,7 @@ describe('HubStorage set pool cache', () => {
       cards: [{ name: 'Card A' }],
     };
     expect(HubStorage.saveSetPoolCache('MAR,MSH', scope)).toBe(true);
-    expect(HubStorage.loadSetPoolCache('MAR,MSH')).toEqual({ ...scope, formatVersion: 2 });
+    expect(HubStorage.loadSetPoolCache('MAR,MSH')).toEqual({ ...scope, formatVersion: 3 });
   });
 
   it('does not save incomplete scopes', () => {
@@ -335,7 +335,7 @@ describe('HubStorage hydrateSetPoolFromApi edge cases', () => {
   it('returns memory cache when API disabled or remote incomplete', async () => {
     const scope = { complete: true, codes: ['MSH'], codesKey: 'MSH', cards: [{ name: 'A' }] };
     HubStorage.saveSetPoolCache('MSH', scope);
-    const stamped = { ...scope, formatVersion: 2 };
+    const stamped = { ...scope, formatVersion: 3 };
     await expect(HubStorage.hydrateSetPoolFromApi('MSH')).resolves.toEqual(stamped);
 
     enableHubApi();

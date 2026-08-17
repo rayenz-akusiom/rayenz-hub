@@ -198,7 +198,7 @@ describe('POST /v1/suggest/generate', () => {
     expect(res.statusCode).toBe(200);
     expect(fetchCalls).toBe(1);
     const pool = await services.setPoolRepository.get(auth, env, 'MSH');
-    expect(pool?.formatVersion).toBe(2);
+    expect(pool?.formatVersion).toBe(3);
     expect(pool?.cards?.[0]?.name).toBe('Take Up the Shield');
   });
 

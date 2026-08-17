@@ -30,6 +30,9 @@ export type CardPickerConfig = {
   foilDefault?: boolean;
   /** Prefer a right side-sheet on wide viewports (Review print/cut). */
   layout?: 'modal' | 'dock';
+  /** Keep the dialog open after a pick (multi-select). */
+  keepOpen?: boolean;
+  selectedValues?: unknown[];
   onPick?: (value: unknown, item: CardPickerItem, ctx: CardPickerPickContext) => void;
 };
 
@@ -153,7 +156,9 @@ export function CardPickerModal({
 
   function pick(item: CardPickerItem) {
     config.onPick?.(item.value, item, { foil });
-    onClose();
+    if (!config.keepOpen) {
+      onClose();
+    }
   }
 
   return (
@@ -210,7 +215,9 @@ export function CardPickerModal({
               ) : null}
               {group.items.map((item, i) => {
                 const name = item.lines?.[0] || 'Card';
-                const selected = item.value === config.selectedValue;
+                const selected =
+                  item.value === config.selectedValue ||
+                  (config.selectedValues || []).some((v) => v === item.value);
                 const showFoil = foil && (item.finishes || []).includes('foil');
                 const doubleFaced = cardHasBackFace(item.layout);
                 const backSrc =

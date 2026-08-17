@@ -1,4 +1,5 @@
 import type { ReleaseKind } from './release-catalog.js';
+import { maybeAttachScryfallTags } from './oracle-tags.js';
 
 /**
  * Scryfall + Wizards Collecting set resolution (shared by API + MCP).
@@ -319,6 +320,7 @@ export type NormalizedSetCard = {
   scryfall_id: string;
   scryfall_uri: string | null;
   oracle_id: string | null;
+  illustration_id: string | null;
   mana_cost: string;
   cmc: number;
   type_line: string;
@@ -331,6 +333,8 @@ export type NormalizedSetCard = {
   power: string | null;
   toughness: string | null;
   rarity: string | null;
+  oracle_tags?: string[];
+  art_tags?: string[];
 };
 
 /** Merge multi-face oracle text (adventures, MDFCs, split) for set-review tagging. */
@@ -359,6 +363,7 @@ function normalizeCard(card: Record<string, unknown>): NormalizedSetCard {
     scryfall_id: String(card.id || ''),
     scryfall_uri: card.scryfall_uri != null ? String(card.scryfall_uri) : null,
     oracle_id: card.oracle_id != null ? String(card.oracle_id) : null,
+    illustration_id: card.illustration_id != null ? String(card.illustration_id) : null,
     mana_cost: String(card.mana_cost || ''),
     cmc: Number(card.cmc || 0),
     type_line: String(card.type_line || ''),
@@ -463,7 +468,7 @@ export async function fetchSetCards(
     throw new Error('No valid sets fetched.');
   }
 
-  const cardsOut = dedupe ? dedupeCards(allCards) : allCards;
+  const cardsOut = await maybeAttachScryfallTags(dedupe ? dedupeCards(allCards) : allCards);
   const primary =
     perSet.find((s) => ['expansion', 'core', 'masters'].includes(s.set_type)) || perSet[0];
 
@@ -515,7 +520,7 @@ export async function fetchReleaseCards(
 
   const normalized = raw.map(normalizeCard);
   const dedupe = opts?.dedupe !== false;
-  const cardsOut = dedupe ? dedupeCards(normalized) : normalized;
+  const cardsOut = await maybeAttachScryfallTags(dedupe ? dedupeCards(normalized) : normalized);
   const codeSet = new Set(cardsOut.map((c) => c.set_code).filter(Boolean));
   const setCodes = [...codeSet].sort();
   const meta = await fetchSetMetadata(seed);

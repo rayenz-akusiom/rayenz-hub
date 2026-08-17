@@ -1,7 +1,11 @@
 import {
+  markLozengesExisting,
+  plusLozengesToProfileUpdates,
   sortSuggestions,
   validatePayload,
   type DeckEntry,
+  type ProfileLozenge,
+  type ProfileLozengeUpdates,
   type Suggestion,
   type SuggestionsPayload,
 } from '@rayenz-hub/shared';
@@ -272,3 +276,126 @@ export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewSt
 export function showDownloadJson(transferSource: TransferSource): boolean {
   return transferSource != null;
 }
+
+function mapDeckSuggestions(
+  decks: DeckEntry[],
+  deckId: string,
+  mapFn: (suggestions: Suggestion[]) => Suggestion[],
+): DeckEntry[] {
+  return decks.map((deck) => {
+    if (String(deck.deck_id) !== String(deckId)) return deck;
+    return {
+      ...deck,
+      suggestions: mapFn([...(deck.suggestions || [])] as Suggestion[]),
+    };
+  });
+}
+
+/** Append missing-card suggestions and jump the filmstrip to the first appended pending item. */
+export function appendDeckSuggestions(
+  state: DeckReviewState,
+  deckId: string,
+  incoming: Suggestion[],
+): DeckReviewState {
+  if (!state.data || !deckId || !incoming.length) return state;
+
+  const deck = state.data.decks.find((d) => String(d.deck_id) === String(deckId));
+  if (!deck) return state;
+
+  const existingIds = new Set((deck.suggestions || []).map((s) => String(s.suggestion_id)));
+  const toAdd = incoming.filter((s) => !existingIds.has(String(s.suggestion_id)));
+  const focusId = String((toAdd[0] || incoming[0]).suggestion_id);
+
+  const nextData: SuggestionsPayload = {
+    ...state.data,
+    decks: mapDeckSuggestions(state.data.decks, deckId, (suggestions) => {
+      if (!toAdd.length) return suggestions;
+      return [...suggestions, ...toAdd];
+    }),
+  };
+
+  const nextDeck = nextData.decks.find((d) => String(d.deck_id) === String(deckId))!;
+  const pending = pendingSuggestions(nextDeck, state.progress, state.deckPrefs);
+  const focusIndex = Math.max(
+    0,
+    pending.findIndex((s) => String(s.suggestion_id) === focusId),
+  );
+  const suggestionIndex = focusIndex >= 0 ? focusIndex : pending.length ? pending.length - 1 : 0;
+
+  const progress = {
+    ...state.progress,
+    currentDeckId: deckId,
+    currentSuggestionIndex: {
+      ...state.progress.currentSuggestionIndex,
+      [deckId]: suggestionIndex,
+    },
+  };
+  if (state.fileId) {
+    saveReviewProgress(state.fileId, progress);
+  }
+
+  return {
+    ...state,
+    data: nextData,
+    activeDeckId: deckId,
+    suggestionIndex,
+    progress,
+  };
+}
+
+export function patchSuggestionLozenges(
+  state: DeckReviewState,
+  deckId: string,
+  suggestionId: string,
+  lozenges: ProfileLozenge[],
+): DeckReviewState {
+  if (!state.data) return state;
+  return {
+    ...state,
+    data: {
+      ...state.data,
+      decks: mapDeckSuggestions(state.data.decks, deckId, (suggestions) =>
+        suggestions.map((s) =>
+          String(s.suggestion_id) === String(suggestionId)
+            ? { ...s, profile_lozenges: lozenges }
+            : s,
+        ),
+      ),
+    },
+  };
+}
+
+/** After profile YAML append, mark confirmed values existing on remaining missing-card suggestions. */
+export function promoteConfirmedLozengesOnDeck(
+  state: DeckReviewState,
+  deckId: string,
+  confirmed: ProfileLozengeUpdates,
+): DeckReviewState {
+  if (!state.data) return state;
+  const total =
+    confirmed.themes.length +
+    confirmed.keyword_interests.length +
+    confirmed.typal_types.length +
+    confirmed.art_tags.length;
+  if (!total) return state;
+  return {
+    ...state,
+    data: {
+      ...state.data,
+      decks: mapDeckSuggestions(state.data.decks, deckId, (suggestions) =>
+        suggestions.map((s) => {
+          if (s.source !== 'missing_cards') return s;
+          return {
+            ...s,
+            profile_lozenges: markLozengesExisting(s.profile_lozenges, confirmed),
+          };
+        }),
+      ),
+    },
+  };
+}
+
+export function profileUpdatesFromSuggestion(suggestion: Suggestion): ProfileLozengeUpdates {
+  return plusLozengesToProfileUpdates(suggestion.profile_lozenges);
+}
+

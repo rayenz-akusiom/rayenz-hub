@@ -40,3 +40,6 @@ export * from './mtg/wants-export';
 export * from './mtg/archidekt-import-text';
 export * from './mtg/cut-candidates';
 export * from './mtg/suggestions-bundle';
+export { parseYamlProfile } from './suggest/profile-parse';
+export * from './suggest/yaml-lists';
+export * from './suggest/missing-cards';

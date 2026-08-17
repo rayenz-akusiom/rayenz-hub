@@ -27,3 +27,16 @@ export {
 } from './release-catalog.js';
 
 export { getReleaseCatalog } from './release-catalog-data.js';
+
+export {
+  attachTagsToCard,
+  indexArtTags,
+  indexOracleTags,
+  loadScryfallTagIndexes,
+  maybeAttachScryfallTags,
+  resetScryfallTagIndexCache,
+  tagsForIllustrationId,
+  tagsForOracleId,
+  type ScryfallTag,
+  type ScryfallTagIndexes,
+} from './oracle-tags.js';

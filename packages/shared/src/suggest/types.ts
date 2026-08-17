@@ -9,7 +9,10 @@ export type SetPoolCard = {
   type_line?: string;
   oracle_text?: string;
   keywords?: string[];
+  oracle_id?: string | null;
+  illustration_id?: string | null;
   oracle_tags?: string[];
+  art_tags?: string[];
   tags?: string[];
   color_identity?: string[];
   colorIdentity?: string[];
@@ -64,6 +67,7 @@ export type DeckProfile = {
   typal_types?: string[];
   themes?: string[];
   keyword_interests?: string[];
+  art_tags?: string[];
   constraints?: DeckProfileConstraints;
 };
 
@@ -118,6 +122,9 @@ export type Suggestion = {
   priority_tier: 'swap' | 'normal' | string;
   swap_source?: string;
   signals?: SuggestionSignals;
+  /** Client-injected from the missing-cards picker. */
+  source?: 'missing_cards';
+  profile_lozenges?: import('./missing-cards.js').ProfileLozenge[];
 };
 
 export type RuleAudit = {

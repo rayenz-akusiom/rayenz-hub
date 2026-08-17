@@ -1,5 +1,7 @@
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import { plusLozengesToProfileUpdates } from '@rayenz-hub/shared';
 import { persistAcceptedSuggestion } from '../deck-suggest/accept';
+import { ProfileSync } from '../mtg/profile-sync';
 import { buildAcceptedSeeking } from './decisions';
 import type { AcceptedSwap } from './types';
 
@@ -18,6 +20,10 @@ export async function acceptAllPendingAsSeeking(
   options?: {
     persist?: typeof persistAcceptedSuggestion;
     onAccepted?: (suggestionId: string, accepted: AcceptedSwap) => void;
+    onConfirmedProfileTags?: (
+      suggestionId: string,
+      updates: ReturnType<typeof plusLozengesToProfileUpdates>,
+    ) => void;
   },
 ): Promise<BulkSeekingResult> {
   const persist = options?.persist ?? persistAcceptedSuggestion;
@@ -38,6 +44,18 @@ export async function acceptAllPendingAsSeeking(
     }
     try {
       await persist(suggestion as Parameters<typeof persistAcceptedSuggestion>[0], built);
+      if (suggestion.source === 'missing_cards' && ProfileSync.canWriteProfiles()) {
+        const updates = plusLozengesToProfileUpdates(suggestion.profile_lozenges);
+        const total =
+          updates.themes.length +
+          updates.keyword_interests.length +
+          updates.typal_types.length +
+          updates.art_tags.length;
+        if (total) {
+          await ProfileSync.appendToProfileLists(String(deck.deck_id || ''), updates);
+          options?.onConfirmedProfileTags?.(suggestionId, updates);
+        }
+      }
       options?.onAccepted?.(suggestionId, built);
       accepted += 1;
     } catch (err) {

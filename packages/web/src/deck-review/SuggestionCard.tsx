@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import type { DeckEntry, ProfileLozenge, Suggestion } from '@rayenz-hub/shared';
+import {
+  lozengeKey,
+  lozengesByGroup,
+  plusLozengesToProfileUpdates,
+  toggleProfileLozenge,
+} from '@rayenz-hub/shared';
 import { scryfallImageFromId, scryfallImageFromPrinting } from '../lib/hub-utils';
 import type { ReviewProgress } from '../lib/hub-storage';
+import { ProfileSync } from '../mtg/profile-sync';
 import {
   buildAcceptedSeeking,
   buildAcceptedSwap,
@@ -35,6 +42,13 @@ import {
 import { persistAcceptedSuggestion } from '../deck-suggest/accept';
 import type { AcceptKind, ReviewDecision, ScryfallPrint } from './types';
 
+const GROUP_LABELS = {
+  functional: 'Functional',
+  keywords: 'Keywords',
+  types: 'Types',
+  art: 'Art',
+} as const;
+
 type SuggestionCardProps = {
   deck: DeckEntry;
   suggestion: Suggestion;
@@ -50,6 +64,11 @@ type SuggestionCardProps = {
   }) => void;
   onError?: (message: string) => void;
   deckPrefs: Record<string, { blocked_cards: string[]; protected_cards: string[] }>;
+  onToggleLozenge?: (suggestionId: string, lozenges: ProfileLozenge[]) => void;
+  onConfirmedProfileTags?: (
+    suggestionId: string,
+    updates: ReturnType<typeof plusLozengesToProfileUpdates>,
+  ) => void;
 };
 
 export function SuggestionCard({
@@ -63,6 +82,8 @@ export function SuggestionCard({
   onProfileUpdate,
   onError,
   deckPrefs,
+  onToggleLozenge,
+  onConfirmedProfileTags,
 }: SuggestionCardProps) {
   const decision = getDecision(progress, String(suggestion.suggestion_id));
   const status = decision?.status || '';
@@ -199,6 +220,18 @@ export function SuggestionCard({
     setSaving(true);
     try {
       await persistAcceptedSuggestion(suggestion as Parameters<typeof persistAcceptedSuggestion>[0], accepted);
+      if (suggestion.source === 'missing_cards') {
+        const updates = plusLozengesToProfileUpdates(suggestion.profile_lozenges);
+        const total =
+          updates.themes.length +
+          updates.keyword_interests.length +
+          updates.typal_types.length +
+          updates.art_tags.length;
+        if (total && ProfileSync.canWriteProfiles()) {
+          await ProfileSync.appendToProfileLists(String(deck.deck_id || ''), updates);
+          onConfirmedProfileTags?.(String(suggestion.suggestion_id), updates);
+        }
+      }
       onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted }, advanceOnAction);
       onProfileUpdate({
         profileStatus:
@@ -440,9 +473,19 @@ export function SuggestionCard({
             </div>
             <div className="dr-reasoning dr-reasoning-detail">
               <p className="dr-rationale">{String(suggestion.rationale || '')}</p>
-              <p className="dr-roles">
-                Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
-              </p>
+              {suggestion.source === 'missing_cards' ? (
+                <MissingCardLozenges
+                  lozenges={suggestion.profile_lozenges || []}
+                  onToggle={(key) => {
+                    const next = toggleProfileLozenge(suggestion.profile_lozenges || [], key);
+                    onToggleLozenge?.(String(suggestion.suggestion_id), next);
+                  }}
+                />
+              ) : (
+                <p className="dr-roles">
+                  Roles: {((suggestion.roles_matched || []) as string[]).join(', ')}
+                </p>
+              )}
             </div>
           </>
         ) : null}
@@ -483,6 +526,54 @@ export function SuggestionCard({
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function MissingCardLozenges({
+  lozenges,
+  onToggle,
+}: {
+  lozenges: ProfileLozenge[];
+  onToggle: (key: string) => void;
+}) {
+  const groups = lozengesByGroup(lozenges);
+  if (!groups.length) return null;
+  return (
+    <div className="dr-missing-cards-groups" aria-label="Profile reasoning">
+      {groups.map((row) => (
+        <div key={row.group} className="dr-missing-cards-group">
+          <h4 className="dr-missing-cards-group-title">{GROUP_LABELS[row.group]}</h4>
+          <div className="dr-missing-cards-lozenges">
+            {row.existing.map((lozenge) => (
+              <span
+                key={lozengeKey(lozenge)}
+                className="ds-lozenge dr-missing-lozenge dr-missing-lozenge-existing"
+              >
+                ✓ {lozenge.value}
+              </span>
+            ))}
+            {row.proposed.map((lozenge) => {
+              const active = lozenge.state === 'plus';
+              return (
+                <button
+                  key={lozengeKey(lozenge)}
+                  type="button"
+                  className={
+                    'ds-lozenge dr-missing-lozenge' +
+                    (active ? ' dr-missing-lozenge-plus' : ' dr-missing-lozenge-minus')
+                  }
+                  aria-pressed={active}
+                  onClick={() => onToggle(lozengeKey(lozenge))}
+                >
+                  {active ? '+ ' : '− '}
+                  {lozenge.value}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

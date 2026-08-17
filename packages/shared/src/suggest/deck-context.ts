@@ -87,7 +87,7 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
       type_line: oracle?.typeLine ?? undefined,
       oracle_text: oracle?.oracleText ?? undefined,
       keywords: oracle?.keywords ?? undefined,
-      color_identity: oracle?.colourIdentity,
+      color_identity: oracle?.colourIdentity || [],
     };
   });
   return {
@@ -144,7 +144,10 @@ export function normalizePoolCard(card: SetPoolCard): SetPoolCard {
     color_identity: raw.color_identity || raw.colorIdentity,
     cmc: raw.cmc != null ? raw.cmc : raw.manaValue,
     oracle_tags: raw.oracle_tags,
+    art_tags: raw.art_tags,
     tags: raw.tags,
+    oracle_id: (raw as { oracle_id?: string | null }).oracle_id,
+    illustration_id: (raw as { illustration_id?: string | null }).illustration_id,
   };
 }
 

@@ -132,13 +132,24 @@
 }
 
 .ds-suggestion-card {
-   display: flex;
-   flex-direction: column;
-   border: 1px solid #e2e8f0;
-   border-radius: 8px;
-   overflow: hidden;
-   background: #fff;
-   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  min-width: 0;
+}
+
+.ds-suggestion-card-accepted {
+  border-color: #9ae6b4;
+  background: #f0fff4;
+  opacity: 0.92;
+}
+
+.ds-lozenge-accepted {
+  background: #c6f6d5;
+  color: #22543d;
 }
 
 .ds-suggestion-art {

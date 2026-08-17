@@ -34,11 +34,13 @@ function ruleLozengeLabels(tags: string[] | undefined): string[] {
 function SuggestionCard({
   s,
   deck,
+  accepted,
   onAccept,
   onDismiss,
 }: {
   s: Suggestion;
   deck: DeckRecord;
+  accepted?: boolean;
   onAccept?: (s: Suggestion) => void;
   onDismiss?: (id: string) => void;
 }) {
@@ -48,8 +50,12 @@ function SuggestionCard({
   const isSwap = s.priority_tier === 'swap';
   const confidence = s.confidence ? String(s.confidence) : '';
   const rules = ruleLozengeLabels(s.tags);
+  const showActions = !accepted && (onAccept || onDismiss);
   return (
-    <article className="ds-suggestion-card" aria-label={s.card.name}>
+    <article
+      className={'ds-suggestion-card' + (accepted ? ' ds-suggestion-card-accepted' : '')}
+      aria-label={s.card.name}
+    >
       {img ? (
         <img className="ds-suggestion-art" src={img} alt={s.card.name} loading="lazy" />
       ) : (
@@ -57,6 +63,7 @@ function SuggestionCard({
       )}
       <div className="ds-suggestion-body">
         <div className="ds-suggestion-topline">
+          {accepted ? <span className="ds-lozenge ds-lozenge-accepted">Accepted</span> : null}
           {isSwap ? <span className="ds-tier ds-tier-swap">swap</span> : null}
           {queueBadge ? (
             <span className={'ds-queue-badge ds-queue-badge-' + queueBadge}>
@@ -74,7 +81,7 @@ function SuggestionCard({
         </div>
         {rep && rep.name ? <p className="ds-meta">Cut {rep.name}</p> : null}
         {s.rationale ? <p className="ds-suggestion-rationale">{s.rationale}</p> : null}
-        {onAccept || onDismiss ? (
+        {showActions ? (
           <div className="ds-actions">
             {onAccept ? (
               <button type="button" className="ds-btn ds-btn-primary" onClick={() => onAccept(s)}>
@@ -96,11 +103,13 @@ function SuggestionCard({
 function DeckResultBlock({
   result,
   compact,
+  acceptedIds,
   onAccept,
   onDismiss,
 }: {
   result: DeckResult;
   compact?: boolean;
+  acceptedIds?: Set<string>;
   onAccept?: (deckId: string, s: Suggestion) => void;
   onDismiss?: (id: string) => void;
 }) {
@@ -121,6 +130,7 @@ function DeckResultBlock({
                 key={s.suggestion_id}
                 s={s}
                 deck={result.deck}
+                accepted={acceptedIds?.has(s.suggestion_id)}
                 onAccept={onAccept ? (sug) => onAccept(result.deck.deck_id, sug) : undefined}
                 onDismiss={onDismiss}
               />
@@ -280,6 +290,7 @@ export function DeckSuggestResults({
   setScope,
   summary,
   rulesDebug,
+  acceptedIds,
   onAccept,
   onDismiss,
   onNextPage,
@@ -291,6 +302,7 @@ export function DeckSuggestResults({
   setScope: SetScope | null;
   summary: ReturnType<typeof import('./export').buildSummary>;
   rulesDebug: boolean;
+  acceptedIds?: string[];
   onAccept?: (deckId: string, s: Suggestion) => void;
   onDismiss?: (id: string) => void;
   onNextPage?: () => void;
@@ -298,6 +310,7 @@ export function DeckSuggestResults({
   wishlistText?: string;
   wishlistEmpty?: boolean;
 }) {
+  const acceptedSet = useMemo(() => new Set(acceptedIds || []), [acceptedIds]);
   const withSuggestions: DeckResult[] = [];
   const withoutSuggestions: DeckResult[] = [];
   (generationRun.deckResults || []).forEach((result) => {
@@ -316,6 +329,7 @@ export function DeckSuggestResults({
         <DeckResultBlock
           key={result.deck.deck_id}
           result={result}
+          acceptedIds={acceptedSet}
           onAccept={onAccept}
           onDismiss={onDismiss}
         />

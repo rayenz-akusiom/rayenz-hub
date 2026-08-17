@@ -239,4 +239,23 @@ describe('DeckSuggestResults', () => {
     await user.click(dismissButtons[0]);
     expect(onDismiss).toHaveBeenCalledWith('s1');
   });
+
+  it('marks accepted suggestions and hides Accept/Dismiss actions', () => {
+    render(
+      <DeckSuggestResults
+        generationRun={sampleRun()}
+        setScope={setScope}
+        summary={summary}
+        rulesDebug={false}
+        acceptedIds={['s1']}
+        onAccept={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+    expect(screen.getByText('Accepted')).toBeInTheDocument();
+    expect(document.querySelector('.ds-suggestion-card-accepted')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Accept' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(1);
+    expect(screen.getByAltText('Take Up the Shield')).toBeInTheDocument();
+  });
 });

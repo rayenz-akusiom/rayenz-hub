@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { DeckDocument } from '@rayenz-hub/shared';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
 import { getGenerateReadiness } from '../../packages/web/src/deck-suggest/readiness';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 import { progressController } from './helpers/hub-progress-mock';
+import commander from '../fixtures/deck-builder/commander-slice.json';
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
   const { hubProgressMockModule } = await import('./helpers/hub-progress-mock');
@@ -35,6 +37,9 @@ vi.mock('../../packages/web/src/api/hub-api', async (importOriginal) => {
 const mockGenerateSuggestions = vi.fn();
 const mockTransferToDeckReview = vi.fn();
 const mockLoadHubLibraryDecks = vi.fn();
+const mockGetDeck = vi.fn();
+const mockApiGetDeck = vi.fn();
+const mockPersistSuggestPatch = vi.fn();
 
 vi.mock('../../packages/web/src/deck-suggest/generation', () => ({
   generateSuggestions: (...args: unknown[]) => mockGenerateSuggestions(...args),
@@ -46,6 +51,22 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   return {
     ...actual,
     loadHubLibraryDecks: (...args: unknown[]) => mockLoadHubLibraryDecks(...args),
+  };
+});
+
+vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
+  getDeck: (...args: unknown[]) => mockGetDeck(...args),
+}));
+
+vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
+  apiGetDeck: (...args: unknown[]) => mockApiGetDeck(...args),
+}));
+
+vi.mock('../../packages/web/src/deck-suggest/accept', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/accept')>();
+  return {
+    ...actual,
+    persistSuggestPatch: (...args: unknown[]) => mockPersistSuggestPatch(...args),
   };
 });
 
@@ -108,6 +129,20 @@ function sampleGenerationRun() {
             replaces: [{ name: 'Plains' }],
             rationale: 'Better protection',
           },
+          {
+            suggestion_id: 's2',
+            priority_tier: 'normal',
+            confidence: 'medium',
+            tags: ['rule:typal_synergy'],
+            card: {
+              name: 'Sol Ring',
+              set_code: 'LTR',
+              collector_number: '1',
+              scryfall_id: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff',
+            },
+            replaces: [],
+            rationale: 'Ramp',
+          },
         ],
         audit: [],
         analysis: null,
@@ -130,6 +165,9 @@ beforeEach(() => {
   mockGenerateSuggestions.mockReset();
   mockTransferToDeckReview.mockReset();
   mockLoadHubLibraryDecks.mockReset();
+  mockGetDeck.mockReset();
+  mockApiGetDeck.mockReset();
+  mockPersistSuggestPatch.mockReset();
   progressController.start.mockClear();
   progressController.update.mockClear();
   progressController.finish.mockClear();
@@ -139,6 +177,9 @@ beforeEach(() => {
   ]);
   mockGenerateSuggestions.mockResolvedValue(sampleGenerationRun());
   mockTransferToDeckReview.mockResolvedValue(undefined);
+  mockGetDeck.mockResolvedValue(commander as unknown as DeckDocument);
+  mockApiGetDeck.mockResolvedValue(null);
+  mockPersistSuggestPatch.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -237,9 +278,9 @@ describe('DeckSuggestResults via generate', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Results' })).toBeInTheDocument();
     });
-    expect(document.querySelector('.ds-summary-total')?.textContent).toMatch(/1 suggestions/);
+    expect(document.querySelector('.ds-summary-total')?.textContent).toMatch(/2 suggestions/);
     expect(screen.getByRole('heading', { name: 'Test Deck' })).toBeInTheDocument();
-    expect(screen.getByText('Take Up the Shield')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Take Up the Shield' })).toBeInTheDocument();
     expect(document.querySelector('.ds-suggestion-grid')).toBeInTheDocument();
   });
 
@@ -247,9 +288,44 @@ describe('DeckSuggestResults via generate', () => {
     const user = userEvent.setup();
     await prepareReadyState();
     await user.click(screen.getByRole('button', { name: 'Generate' }));
-    await waitFor(() => expect(screen.getByText('Take Up the Shield')).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(screen.queryByText('Take Up the Shield')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('article', { name: 'Take Up the Shield' })).toBeInTheDocument(),
+    );
+    await user.click(screen.getAllByRole('button', { name: 'Dismiss' })[0]);
+    expect(screen.queryByRole('article', { name: 'Take Up the Shield' })).not.toBeInTheDocument();
+  });
+
+  it('keeps accepted cards visible and opens the next Accept dialogue', async () => {
+    const user = userEvent.setup();
+    await prepareReadyState();
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() =>
+      expect(screen.getByRole('article', { name: 'Take Up the Shield' })).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getAllByRole('button', { name: 'Accept' })[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Accept suggestion/i })).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('swap-queue-edit')).toHaveTextContent('Take Up the Shield');
+
+    await user.click(screen.getByRole('tab', { name: 'Add to Seeking' }));
+    await user.click(screen.getByRole('button', { name: 'Add to Seeking' }));
+
+    await waitFor(() => {
+      expect(mockPersistSuggestPatch).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Accepted')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('article', { name: 'Take Up the Shield' })).toBeInTheDocument();
+    expect(document.querySelector('.ds-suggestion-card-accepted')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Accept suggestion/i })).toBeInTheDocument();
+    });
+    const dialog = screen.getByRole('dialog', { name: /Accept suggestion/i });
+    expect(within(dialog).getByTestId('swap-queue-edit')).toHaveTextContent('Sol Ring');
   });
 
   it('shows generation error in the error banner', async () => {

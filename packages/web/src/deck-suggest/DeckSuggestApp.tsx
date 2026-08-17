@@ -20,6 +20,7 @@ import {
 } from './accept';
 import { buildSessionWishlistText } from './wishlist-export';
 import { proposePageIds, remainingIds } from './paging';
+import { nextActionableSuggestion } from './session-queue';
 import { getDeck } from '../deck-builder/store/deck-store';
 import { apiGetDeck } from '../deck-builder/store/deck-api';
 import { isApiConfigured } from '../api/hub-api';
@@ -58,6 +59,7 @@ export function DeckSuggestApp() {
   const [decksLoading, setDecksLoading] = useState(true);
   const [sessionAccepts, setSessionAccepts] = useState<SessionAccept[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
   const [processedIds, setProcessedIds] = useState<string[]>([]);
   const [accepting, setAccepting] = useState<{ deckId: string; suggestion: Suggestion } | null>(
     null,
@@ -156,12 +158,24 @@ export function DeckSuggestApp() {
     setAccepting({ deckId, suggestion });
   }
 
+  async function finishAccept(justId: string) {
+    const exclude = new Set([...acceptedIds, ...dismissedIds, justId]);
+    setAcceptedIds((prev) => (prev.includes(justId) ? prev : [...prev, justId]));
+    setAccepting(null);
+    setAcceptDeck(null);
+    const next = nextActionableSuggestion(state.generationRun, exclude, justId);
+    if (next) {
+      await openAccept(next.deckId, next.suggestion);
+    }
+  }
+
   async function saveSwap(
     outInstanceId: string,
     choice: AcceptPrintingChoice,
     meta?: { inTargetCategory: string | null; notes: string },
   ) {
     if (!accepting || !acceptDeck) return;
+    const justId = accepting.suggestion.suggestion_id;
     try {
       const patch = buildSwapAcceptPatch(
         acceptDeck,
@@ -184,9 +198,7 @@ export function DeckSuggestApp() {
           kind: 'queued_in',
         },
       ]);
-      setDismissedIds((prev) => [...prev, accepting.suggestion.suggestion_id]);
-      setAccepting(null);
-      setAcceptDeck(null);
+      await finishAccept(justId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -194,6 +206,7 @@ export function DeckSuggestApp() {
 
   async function saveSeeking(choice: AcceptPrintingChoice) {
     if (!accepting || !acceptDeck) return;
+    const justId = accepting.suggestion.suggestion_id;
     try {
       const patch = buildSeekingAcceptPatch(acceptDeck, accepting.suggestion, choice);
       await persistSuggestPatch(accepting.deckId, patch);
@@ -210,9 +223,7 @@ export function DeckSuggestApp() {
           kind: 'seeking',
         },
       ]);
-      setDismissedIds((prev) => [...prev, accepting.suggestion.suggestion_id]);
-      setAccepting(null);
-      setAcceptDeck(null);
+      await finishAccept(justId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -376,6 +387,7 @@ export function DeckSuggestApp() {
                 setScope={state.setScope}
                 summary={summary}
                 rulesDebug={debugEnabled}
+                acceptedIds={acceptedIds}
                 onAccept={(deckId, s) => void openAccept(deckId, s)}
                 onDismiss={(id) => setDismissedIds((prev) => [...prev, id])}
                 onNextPage={remaining.length ? handleNextPage : undefined}

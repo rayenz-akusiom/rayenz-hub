@@ -389,11 +389,13 @@
 }
 
 .dr-deck-empty-collapse summary::before {
-   content: 'Γû╕ ';
+   content: '▸ ';
+   display: inline-block;
+   transition: transform 0.15s ease;
 }
 
 .dr-deck-empty-collapse[open] summary::before {
-   content: 'Γû╛ ';
+   transform: rotate(90deg);
 }
 
 .dr-toolbar {

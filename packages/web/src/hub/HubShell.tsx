@@ -8,6 +8,7 @@ import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
 import { OrderReconcileApp } from '../order-reconcile/OrderReconcileApp';
 import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
 import { InviteRedeemPage } from '../pages/InviteRedeemPage';
+import { SettingsShell, type SettingsTab } from '../SettingsShell';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
 import { HubNav } from './HubNav';
 import { isSettingsPath } from './routes';

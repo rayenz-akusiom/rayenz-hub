@@ -11,6 +11,7 @@ import {
   partitionWantSourcesBySwimlane,
   retargetFormalSwap,
   retargetLookingFor,
+  cancelFormalSwap,
   syncCardsWithFormalSwaps,
   toDeckSummary,
   type DeckDocument,
@@ -730,19 +731,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     if (!deck || !draft || !originId) return;
 
     if (deck.deckId === originId) {
-      const entries = deck.formalSwapEntries
-        .filter((e) => e.id !== draft.entryId)
-        .map((e, i) => ({ ...e, sortIndex: i }));
-      void persistDeck(syncCardsWithFormalSwaps(deck, entries), { closeEdit: true });
+      void persistDeck(cancelFormalSwap(deck, draft.entryId), { closeEdit: true });
       return;
     }
 
     const origin = findDeck(decksRef.current, originId);
     if (!origin) return;
-    const entries = origin.formalSwapEntries
-      .filter((e) => e.id !== draft.entryId)
-      .map((e, i) => ({ ...e, sortIndex: i }));
-    void persistDeck(syncCardsWithFormalSwaps(origin, entries), { closeEdit: true });
+    void persistDeck(cancelFormalSwap(origin, draft.entryId), { closeEdit: true });
   }
 
   function finalizePairEdit() {

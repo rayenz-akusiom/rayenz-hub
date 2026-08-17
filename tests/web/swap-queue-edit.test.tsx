@@ -61,11 +61,15 @@ describe('SwapQueueApp edit chrome', () => {
     await waitFor(() =>
       expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument(),
     );
+    expect(screen.queryByRole('tab', { name: 'Add to Seeking' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => expect(mockSaveDeck).toHaveBeenCalledTimes(1));
     const saved = mockSaveDeck.mock.calls[0]![0]!;
     expect(saved.formalSwapEntries).toHaveLength(0);
+    expect(saved.cards.find((c) => c.instanceId === 'in1')).toBeUndefined();
+    const outCard = saved.cards.find((c) => c.instanceId === 'out1')!;
+    expect(outCard.primaryCategory).toBe('Other');
   });
 
   it('finalizes a complete pair from the edit modal', async () => {

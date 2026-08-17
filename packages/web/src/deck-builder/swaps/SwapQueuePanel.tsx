@@ -5,7 +5,7 @@ import {
   incompleteEntryCount,
   newFormalSwapEntry,
   resolveDeckCards,
-  syncCardsWithFormalSwaps,
+  removeFormalSwapEntries,
   type CardView,
   type DeckDocument,
   type FormalSwapEntry,
@@ -178,7 +178,7 @@ export function SwapQueuePanel({
 
   function updateEntries(next: FormalSwapEntry[]) {
     if (readOnly) return;
-    onChange(syncCardsWithFormalSwaps(deck, next));
+    onChange(removeFormalSwapEntries(deck, next));
   }
 
   const panelStyle = {

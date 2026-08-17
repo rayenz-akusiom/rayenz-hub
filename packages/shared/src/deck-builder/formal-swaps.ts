@@ -14,7 +14,7 @@ import {
   isSwapQueueCategoryName,
 } from '../mtg/swap-queue.js';
 import { categoryIncluded } from './browse.js';
-import { ensureCategoryDef } from './card-edits.js';
+import { ensureCategoryDef, removeCardFromDeck } from './card-edits.js';
 
 const MAYBEBOARD = 'Maybeboard';
 
@@ -476,6 +476,51 @@ export function finalizeFormalSwap(
   };
 
   return syncCardsWithFormalSwaps(nextDeck, remaining);
+}
+
+/**
+ * Replace the formal swap entry list: delete Ins bound only to removed entries,
+ * then sync so Outs restore to their prior categories. Opposite of finalize
+ * (which deletes Out and keeps In).
+ */
+export function removeFormalSwapEntries(
+  deck: DeckDocument,
+  nextEntries: FormalSwapEntry[],
+): DeckDocument {
+  const nextNorm = normalizeFormalEntries(nextEntries);
+  const nextIds = new Set(nextNorm.map((e) => e.id));
+  const removed = (deck.formalSwapEntries || []).filter((e) => !nextIds.has(e.id));
+  const keepIn = new Set(
+    nextNorm.map((e) => e.inInstanceId).filter((id): id is string => Boolean(id)),
+  );
+  const deleteIns = new Set<string>();
+  for (const entry of removed) {
+    const inId = entry.inInstanceId;
+    if (inId && !keepIn.has(inId)) deleteIns.add(inId);
+  }
+
+  let next: DeckDocument = {
+    ...deck,
+    formalSwapEntries: nextNorm,
+  };
+  for (const id of deleteIns) {
+    if ((next.cards || []).some((c) => c.instanceId === id)) {
+      next = removeCardFromDeck(next, id);
+    }
+  }
+
+  return syncCardsWithFormalSwaps(next, nextNorm);
+}
+
+/**
+ * Abort a formal swap: delete its In (if any and not shared), restore Out via
+ * sync, and drop the queue entry. Works for incomplete entries too.
+ */
+export function cancelFormalSwap(deck: DeckDocument, entryId: string): DeckDocument {
+  const remaining = (deck.formalSwapEntries || [])
+    .filter((e) => e.id !== entryId)
+    .map((e, i) => ({ ...e, sortIndex: i }));
+  return removeFormalSwapEntries(deck, remaining);
 }
 
 /**

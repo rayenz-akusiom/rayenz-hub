@@ -11,7 +11,7 @@ import {
 } from './card-edits.js';
 import { moveCardCategory } from './browse.js';
 import { normalizeCardQuantities } from './quantities.js';
-import { normalizeFormalEntries, syncCardsWithFormalSwaps } from './formal-swaps.js';
+import { normalizeFormalEntries, removeFormalSwapEntries } from './formal-swaps.js';
 import { syncCardsWithLookingFor } from './looking-for.js';
 import { upsertOracle } from './card-oracle.js';
 
@@ -164,10 +164,7 @@ function applyFormalSwapOps(
     }
     entries[idx] = { ...entries[idx]!, ...op.patch, id: entries[idx]!.id };
   }
-  return syncCardsWithFormalSwaps({
-    ...deck,
-    formalSwapEntries: normalizeFormalEntries(entries),
-  });
+  return removeFormalSwapEntries(deck, normalizeFormalEntries(entries));
 }
 
 function applyLookingForOps(

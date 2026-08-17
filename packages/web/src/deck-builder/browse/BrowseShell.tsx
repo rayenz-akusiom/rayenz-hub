@@ -43,6 +43,7 @@ import {
   setCardsFoil,
   setCardsProxy,
   syncCardsWithFormalSwaps,
+  cancelFormalSwap,
   finalizeFormalSwap,
   upsertOracle,
   isTheoryDeck,
@@ -647,10 +648,7 @@ export function BrowseShell({
     flushSwapAutosave();
     if (!draftRef.current) return;
     const currentDraft = draftRef.current;
-    const entries = deckRef.current.formalSwapEntries
-      .filter((e) => e.id !== currentDraft.entryId)
-      .map((e, i) => ({ ...e, sortIndex: i }));
-    commit(syncCardsWithFormalSwaps(deckRef.current, entries));
+    commit(cancelFormalSwap(deckRef.current, currentDraft.entryId));
     clearSwapEdit();
   }
 
@@ -1005,7 +1003,7 @@ export function BrowseShell({
               setMembership={setFilter.active ? setFilter.membership : null}
               readOnly={queuesReadOnly}
               onChange={(next) => {
-                commit(syncCardsWithFormalSwaps(deckRef.current, next.formalSwapEntries));
+                commit(next);
               }}
               draft={draft}
               onStartEdit={(entry) => {

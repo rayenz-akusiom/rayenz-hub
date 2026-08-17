@@ -122,12 +122,26 @@ describe('applyDeckPatch', () => {
       true,
     );
 
-    const cleared = applyDeckPatch(updated, {
+    const withIn = applyDeckPatch(updated, {
+      formalSwapOps: [
+        {
+          op: 'update',
+          id: 'swap-1',
+          patch: { inInstanceId: 'c3', inTargetCategory: 'Creature' },
+        },
+      ],
+    });
+    expect(withIn.cards.find((c) => c.instanceId === 'c3')?.primaryCategory).toBe('Creature');
+
+    const outOriginal = baseDeck().cards.find((c) => c.instanceId === 'c1')!.primaryCategory;
+    const cleared = applyDeckPatch(withIn, {
       formalSwapOps: [{ op: 'remove', id: 'swap-1' }],
       lookingForOps: [{ op: 'remove', id: 'lf-1' }],
     });
     expect(cleared.formalSwapEntries).toHaveLength(0);
     expect(cleared.lookingForEntries.some((e) => e.id === 'lf-1')).toBe(false);
+    expect(cleared.cards.find((c) => c.instanceId === 'c3')).toBeUndefined();
+    expect(cleared.cards.find((c) => c.instanceId === 'c1')?.primaryCategory).toBe(outOriginal);
   });
 
   it('throws on unknown swap / looking-for ids', () => {

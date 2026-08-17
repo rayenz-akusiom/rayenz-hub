@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addCardsToSwapQueueAsOut,
   applyFormalSwapsToCards,
+  cancelFormalSwap,
   defaultSwapInTargetCategory,
   finalizeFormalSwap,
   formalSwapInIds,
@@ -10,6 +11,7 @@ import {
   isValidSwapInTargetCategory,
   normalizeFormalEntries,
   queueCardsAsOut,
+  removeFormalSwapEntries,
   resolveSwapInTargetCategory,
   seedFormalSwapsFromCategories,
   splitOutInstance,
@@ -712,6 +714,115 @@ describe('formal swaps', () => {
       expect(done.cards.find((c) => c.instanceId === 'c1')).toBeUndefined();
       expect(done.cards.find((c) => c.instanceId === 'c2')!.primaryCategory).toBe('Queued Out');
       expect(done.cards.find((c) => c.instanceId === 'c4')!.primaryCategory).toBe('Instant');
+    });
+  });
+
+  describe('cancelFormalSwap', () => {
+    const baseDeck = commander as unknown as DeckDocument;
+
+    it('deletes In, restores Out to original category, and drops the entry', () => {
+      const inId = baseDeck.cards[2]!.instanceId;
+      const outId = baseDeck.cards[0]!.instanceId;
+      const originalOutPrimary = baseDeck.cards[0]!.primaryCategory;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: inId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      expect(staged.cards.find((c) => c.instanceId === outId)!.primaryCategory).toBe('Queued Out');
+
+      const cancelled = cancelFormalSwap(staged, 's1');
+      expect(cancelled.formalSwapEntries).toHaveLength(0);
+      expect(cancelled.cards.find((c) => c.instanceId === inId)).toBeUndefined();
+      const outCard = cancelled.cards.find((c) => c.instanceId === outId)!;
+      expect(outCard.primaryCategory).toBe(originalOutPrimary);
+      expect(outCard.primaryCategory).not.toBe('Queued Out');
+    });
+
+    it('restores Out-only incomplete entries without deleting other cards', () => {
+      const outId = baseDeck.cards[0]!.instanceId;
+      const originalPrimary = baseDeck.cards[0]!.primaryCategory;
+      const beforeIds = new Set(baseDeck.cards.map((c) => c.instanceId));
+      const staged = queueCardsAsOut(baseDeck, [outId]);
+      const cancelled = cancelFormalSwap(staged, staged.formalSwapEntries[0]!.id);
+      expect(cancelled.formalSwapEntries).toHaveLength(0);
+      expect(cancelled.cards.find((c) => c.instanceId === outId)!.primaryCategory).toBe(
+        originalPrimary,
+      );
+      expect(cancelled.cards.map((c) => c.instanceId).sort()).toEqual([...beforeIds].sort());
+    });
+
+    it('deletes In-only incomplete entries', () => {
+      const inId = baseDeck.cards[2]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: inId,
+          outInstanceId: null,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      const cancelled = cancelFormalSwap(staged, 's1');
+      expect(cancelled.formalSwapEntries).toHaveLength(0);
+      expect(cancelled.cards.find((c) => c.instanceId === inId)).toBeUndefined();
+    });
+
+    it('does not delete an In still referenced by another remaining entry', () => {
+      const sharedIn = baseDeck.cards[2]!.instanceId;
+      const out1 = baseDeck.cards[0]!.instanceId;
+      const out2 = baseDeck.cards[1]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: sharedIn,
+          outInstanceId: out1,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+        {
+          id: 's2',
+          inInstanceId: sharedIn,
+          outInstanceId: out2,
+          inTargetCategory: 'Creature',
+          sortIndex: 1,
+          notes: null,
+        },
+      ]);
+      const cancelled = cancelFormalSwap(staged, 's1');
+      expect(cancelled.formalSwapEntries).toHaveLength(1);
+      expect(cancelled.formalSwapEntries[0]!.id).toBe('s2');
+      expect(cancelled.cards.find((c) => c.instanceId === sharedIn)).toBeDefined();
+      expect(cancelled.cards.find((c) => c.instanceId === out1)!.primaryCategory).not.toBe(
+        'Queued Out',
+      );
+      expect(cancelled.cards.find((c) => c.instanceId === out2)!.primaryCategory).toBe('Queued Out');
+    });
+
+    it('removeFormalSwapEntries cancels multiple removed entries at once', () => {
+      const inId = baseDeck.cards[2]!.instanceId;
+      const outId = baseDeck.cards[0]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: inId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      const cleared = removeFormalSwapEntries(staged, []);
+      expect(cleared.formalSwapEntries).toHaveLength(0);
+      expect(cleared.cards.find((c) => c.instanceId === inId)).toBeUndefined();
+      expect(cleared.cards.find((c) => c.instanceId === outId)).toBeDefined();
     });
   });
 });

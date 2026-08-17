@@ -28,7 +28,7 @@ describe('profiles API', () => {
     const stored = [...memory.snapshot().values()][0];
     expect(stored.PK).toBe('USER::default');
     expect(stored.SK).toBe('PROFILE::deck-1');
-    expect(s3.snapshot().has('profiles/deck-1.yaml')).toBe(true);
+    expect(s3.snapshot().has('users/default/profiles/deck-1.yaml')).toBe(true);
   });
 
   it('lists profile summaries', async () => {

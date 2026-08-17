@@ -4,8 +4,9 @@ This file captures conventions for automated agents working in this repo. Prefer
 
 ## Non-negotiables
 
-- **“Deploy” means GitHub Pages** (`npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`) — production has **not** cut over to AWS yet.
-- **Do not deploy to AWS** unless the user **names AWS** or an API script (`deploy to AWS`, `sam deploy`, `npm run deploy:api`). Bare “deploy” / “commit push and deploy” is **not** an AWS override. Local SAM/`start:api` is fine.
+- **“Deploy” means GitHub Pages** (`npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`).
+- **Do not deploy to AWS** unless the user **names AWS** or an API script (`deploy to AWS`, `sam deploy`, `npm run deploy:api`). Bare “deploy” is **not** an AWS override. Local SAM/`start:api` is fine.
+- Production Hub **browser** identity is a Cognito session (Settings → Hub API → Sign in). Do not paste a shared production API key into Pages as the user identity. Local operator `HUB_API_KEY` maps to `HUB_USER_ID` (Rayenz `sub` after cutover). See `docs/hub-api-production.md`.
 - **Do not commit or push** unless the user explicitly asks.
 - Prefer **Ask mode** for exploration; switch to Agent only when implementing.
 - Keep diffs focused: no drive-by refactors, no unsolicited markdown docs beyond what was requested.
@@ -111,7 +112,7 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 ## Dual-mode storage / API client
 
 - **MTG settings / review progress / set pools:** Hub API (DynamoDB) is required to persist; in-memory only within the tab when API is off (no durable localStorage). Order-reconcile session progress is memory-only (no API endpoint yet).
-- **Dailies (Neopets):** still localStorage-first with optional Hub API sync when `rayenz-hub-api-url` + `rayenz-hub-api-key` are set.
+- **Dailies (Neopets):** still localStorage-first with optional Hub API sync when the API URL is set and the user is signed in (or a local operator key is present).
 - **Decks / swap queues:** IndexedDB local store with optional Hub API sync (`saveDualMode`) — unchanged.
 - Device config (API URL/key) and UI prefs (route, card size, etc.) stay in localStorage.
 - Tests should cover API-off and API-on paths for persistence helpers.

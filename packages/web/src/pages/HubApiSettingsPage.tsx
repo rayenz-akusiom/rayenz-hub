@@ -1,10 +1,16 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   assertApiNotPageOrigin,
   clearHubApiConfig,
   getHubApiConfig,
   setHubApiConfig,
 } from '../api/hub-api';
+import {
+  HUB_AUTH_REQUIRED_EVENT,
+  clearHubAuthSession,
+  getHubAuthSession,
+  setHubAuthSession,
+} from '../lib/hub-auth-session';
 
 function normalizeUrl(raw: string): string {
   return raw.trim().replace(/\/$/, '');
@@ -19,18 +25,37 @@ export function HubApiSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
+  const [sessionLabel, setSessionLabel] = useState(() => getHubAuthSession()?.username || '');
 
-  const configured = !!(normalizeUrl(url) && key.trim());
+  const configured = !!(normalizeUrl(url) && (key.trim() || sessionLabel));
 
   function refreshStatusMessage(cfg = getHubApiConfig()) {
-    if (cfg.enabled) {
+    const session = getHubAuthSession();
+    setSessionLabel(session?.username || '');
+    if (session && cfg.url) {
+      setStatus(`Signed in as ${session.username || 'user'} — API mode on (${cfg.url}).`);
+    } else if (cfg.enabled) {
       setStatus(`Configured — API mode on (${cfg.url}).`);
+    } else if (cfg.url && !session && !cfg.key) {
+      setStatus('API URL saved — sign in to use production, or add a local operator key.');
     } else if (cfg.url || cfg.key) {
-      setStatus('Partial — both URL and key are required for API mode.');
+      setStatus('Partial — URL plus sign-in (or local operator key) is required for API mode.');
     } else {
       setStatus('Not configured — apps use localStorage only.');
     }
   }
+
+  useEffect(() => {
+    const onAuthRequired = () => {
+      setError('Session expired — sign in again.');
+      refreshStatusMessage();
+    };
+    window.addEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthRequired);
+  }, []);
 
   function handleSave(event: FormEvent) {
     event.preventDefault();
@@ -55,9 +80,70 @@ export function HubApiSettingsPage() {
   function handleClear() {
     setError(null);
     clearHubApiConfig();
+    clearHubAuthSession();
     setUrl('');
     setKey('');
+    setUsername('');
+    setPassword('');
+    setSessionLabel('');
     setStatus('Cleared — apps use localStorage only.');
+  }
+
+  async function handleSignIn(event: FormEvent) {
+    event.preventDefault();
+    setSigningIn(true);
+    setError(null);
+    try {
+      const nextUrl = normalizeUrl(url);
+      if (!nextUrl) {
+        throw new Error('Enter an API base URL first.');
+      }
+      assertApiNotPageOrigin(nextUrl);
+      setHubApiConfig({ url: nextUrl, key: key.trim() });
+      const res = await fetch(`${nextUrl}/v1/auth/sign-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error('Sign-in failed.');
+      }
+      const body = JSON.parse(text) as {
+        accessToken: string;
+        idToken?: string;
+        refreshToken?: string;
+        username?: string;
+        sub?: string;
+      };
+      setHubAuthSession({
+        accessToken: body.accessToken,
+        idToken: body.idToken,
+        refreshToken: body.refreshToken,
+        username: body.username || username.trim(),
+        sub: body.sub,
+      });
+      setPassword('');
+      refreshStatusMessage();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  function handleSignOut() {
+    const nextUrl = normalizeUrl(url);
+    const session = getHubAuthSession();
+    if (nextUrl && session?.accessToken) {
+      void fetch(`${nextUrl}/v1/auth/sign-out`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+    }
+    clearHubAuthSession();
+    setSessionLabel('');
+    setStatus('Signed out.');
   }
 
   async function handleTest() {
@@ -66,6 +152,7 @@ export function HubApiSettingsPage() {
     setStatus(null);
     const nextUrl = normalizeUrl(url);
     const nextKey = key.trim();
+    const token = getHubAuthSession()?.accessToken || nextKey;
     try {
       if (!nextUrl) {
         throw new Error('Enter an API base URL first.');
@@ -75,20 +162,20 @@ export function HubApiSettingsPage() {
       if (!healthRes.ok) {
         throw new Error(`Health check failed (${healthRes.status}).`);
       }
-      if (!nextKey) {
-        setStatus('Health OK — add an API key and Save to enable API mode.');
+      if (!token) {
+        setStatus('Health OK — sign in (or add a local operator key) and Save to enable API mode.');
         return;
       }
-      const authRes = await fetch(`${nextUrl}/v1/settings/dailies`, {
-        headers: { Authorization: `Bearer ${nextKey}`, Accept: 'application/json' },
+      const authRes = await fetch(`${nextUrl}/v1/auth/me`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       if (authRes.status === 401) {
-        throw new Error('Unauthorized — check the API key.');
+        throw new Error('Unauthorized — sign in again or check the local operator key.');
       }
       if (!authRes.ok && authRes.status !== 404) {
         throw new Error(`API check failed (${authRes.status}).`);
       }
-      setStatus('Connection OK — health and API key look good. Save to keep these values.');
+      setStatus('Connection OK — health and credentials look good. Save to keep the URL.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -100,9 +187,9 @@ export function HubApiSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Hub API</h2>
       <p className="hub-web-hint">
-        Optional sync backend. Stored only in this browser&apos;s localStorage (not uploaded). Local
-        default: <code>http://127.0.0.1:3000</code>. On a phone/iPad use your PC LAN IP, e.g.{' '}
-        <code>http://192.168.x.x:3000</code>. Do not set the URL to this page&apos;s origin.
+        Optional sync backend. Production uses a signed-in session (not a shared API key). Local
+        development may still use an operator key. Default:{' '}
+        <code>http://127.0.0.1:3000</code>. Do not set the URL to this page&apos;s origin.
       </p>
 
       {error && (
@@ -137,7 +224,7 @@ export function HubApiSettingsPage() {
             />
           </label>
           <div className="hub-web-field">
-            <span className="hub-web-field-label">API key</span>
+            <span className="hub-web-field-label">Local operator key (optional)</span>
             <div className="hub-web-secret-row">
               <input
                 id="hub-api-key"
@@ -175,6 +262,47 @@ export function HubApiSettingsPage() {
           </button>
           <button type="button" className="hub-web-button hub-web-button--secondary" onClick={handleClear}>
             Clear
+          </button>
+        </div>
+      </form>
+
+      <form className="hub-web-form" onSubmit={(e) => void handleSignIn(e)}>
+        <fieldset>
+          <legend>Sign in</legend>
+          {sessionLabel ? (
+            <p className="hub-web-hint">
+              Signed in as <strong>{sessionLabel}</strong>.
+            </p>
+          ) : (
+            <p className="hub-web-hint">Required for the production API. Client-only mode needs no login.</p>
+          )}
+          <label className="hub-web-field">
+            Username
+            <input
+              type="text"
+              name="hub-username"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+          <label className="hub-web-field">
+            Password
+            <input
+              type="password"
+              name="hub-password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+        </fieldset>
+        <div className="hub-web-form-actions">
+          <button type="submit" className="hub-web-button" disabled={signingIn || !username.trim() || !password}>
+            {signingIn ? 'Signing in…' : 'Sign in'}
+          </button>
+          <button type="button" className="hub-web-button hub-web-button--secondary" onClick={handleSignOut}>
+            Sign out
           </button>
         </div>
       </form>

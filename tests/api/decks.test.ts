@@ -24,7 +24,7 @@ describe('decks API', () => {
 
     const stored = [...memory.snapshot().values()][0];
     expect(stored.SK).toBe('DECK::cmd-fixture');
-    expect(s3.snapshot().has('decks/cmd-fixture.json')).toBe(true);
+    expect(s3.snapshot().has('users/default/decks/cmd-fixture.json')).toBe(true);
   });
 
   it('lists and deletes decks', async () => {
@@ -36,7 +36,7 @@ describe('decks API', () => {
 
     const del = await handleDeck('DELETE', 'cmd-fixture', TEST_AUTH_HEADERS, null, services);
     expect(del.statusCode).toBe(204);
-    expect(s3.snapshot().has('decks/cmd-fixture.json')).toBe(false);
+    expect(s3.snapshot().has('users/default/decks/cmd-fixture.json')).toBe(false);
   });
 
   it('patches deck list with card ops without full document', async () => {

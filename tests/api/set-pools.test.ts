@@ -44,7 +44,7 @@ describe('set pool API', () => {
     );
     const item = [...memory.snapshot().values()][0];
     expect(item.inlineCards).toBe(false);
-    expect(item.s3Key).toBe('set-pools/MAR,MSH.json');
-    expect(s3.snapshot().has('set-pools/MAR,MSH.json')).toBe(true);
+    expect(item.s3Key).toBe('users/default/set-pools/MAR,MSH.json');
+    expect(s3.snapshot().has('users/default/set-pools/MAR,MSH.json')).toBe(true);
   });
 });

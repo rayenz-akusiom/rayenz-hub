@@ -15,7 +15,9 @@ export type HubPath =
   | '/settings/deck-builder'
   | '/settings/deck-suggest'
   | '/settings/order-reconcile'
-  | '/settings/swap-queue';
+  | '/settings/swap-queue'
+  | '/settings/invites'
+  | '/invite';
 
 export const DEFAULT_PATH: HubPath = '/dailies';
 
@@ -85,6 +87,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/settings/deck-suggest',
   '/settings/order-reconcile',
   '/settings/swap-queue',
+  '/settings/invites',
 ]);
 
 /** All hub routes are React-owned. */
@@ -141,6 +144,9 @@ export function pathFromHash(hash?: string | null): HubPath {
   // Deck Review merged into Deck Suggest
   if (path === '/deck-review') {
     return '/deck-suggest';
+  }
+  if (path === '/invite' || path.startsWith('/invite/')) {
+    return '/invite';
   }
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;

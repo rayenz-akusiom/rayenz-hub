@@ -8,7 +8,7 @@ export async function handleSuggestReleases(
   services: AppServices = getAppServices(),
 ) {
   try {
-    services.authService.authenticate(headers);
+    await services.authService.authenticate(headers);
     const catalog = getReleaseCatalog();
     const payload = SuggestReleasesResponseSchema.parse(catalog);
     return jsonResponse(200, payload);

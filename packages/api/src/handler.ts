@@ -15,6 +15,36 @@ export async function route(
   const path = event.rawPath;
   const headers = normalizeHeaders(event.headers);
 
+  if (method === 'POST' && path === '/v1/auth/sign-in') {
+    const { handleAuthSignIn } = await import('./handlers/auth-sign-in.js');
+    return handleAuthSignIn(headers, event.body);
+  }
+  if (method === 'POST' && path === '/v1/auth/register') {
+    const { handleAuthRegister } = await import('./handlers/auth-sign-in.js');
+    return handleAuthRegister(headers, event.body);
+  }
+  if (method === 'POST' && path === '/v1/auth/refresh') {
+    const { handleAuthRefresh } = await import('./handlers/auth-sign-in.js');
+    return handleAuthRefresh(headers, event.body);
+  }
+  if (method === 'POST' && path === '/v1/auth/sign-out') {
+    const { handleAuthSignOut } = await import('./handlers/auth-sign-in.js');
+    return handleAuthSignOut(headers);
+  }
+  if (method === 'GET' && path === '/v1/auth/me') {
+    const { handleAuthMe } = await import('./handlers/auth-sign-in.js');
+    return handleAuthMe(headers);
+  }
+  if (path === '/v1/invites' && (method === 'GET' || method === 'POST')) {
+    const { handleInvites } = await import('./handlers/invites.js');
+    return handleInvites(method, headers);
+  }
+  const inviteRevoke = /^\/v1\/invites\/([^/]+)\/revoke$/.exec(path);
+  if (inviteRevoke && method === 'POST') {
+    const { handleInviteRevoke } = await import('./handlers/invites.js');
+    return handleInviteRevoke(decodeURIComponent(inviteRevoke[1]), headers);
+  }
+
   if (method === 'GET' && path === '/v1/health') {
     return handleHealth();
   }

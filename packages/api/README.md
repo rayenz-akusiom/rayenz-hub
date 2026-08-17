@@ -2,6 +2,8 @@
 
 Hub API Lambda package.
 
+Production browser auth is Cognito JWT (`Authorization: Bearer <access token>`). Local SAM / MCP may use `HUB_API_KEY` mapped to `HUB_USER_ID`. See `docs/hub-api-production.md`.
+
 ## Glance image generation
 
 `POST /v1/decks/{deckId}/glance` composites PNGs with [`sharp`](https://sharp.pixelplumbing.com/) (native linux-x64 bindings).

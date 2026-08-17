@@ -46,7 +46,7 @@ export async function handleKeyedResource<TRecord, TUpsert>(
 ): Promise<APIGatewayProxyResultV2> {
   const { method, key, headers, body, authService, schema, ops, unwrapDocument } = options;
   try {
-    const { auth, env } = authService.authenticate(headers);
+    const { auth, env } = await authService.authenticate(headers);
 
     if (method === 'GET') {
       const record = await ops.get(auth, env, key);
@@ -112,7 +112,7 @@ export async function handleListResource<TItem>(
 ): Promise<APIGatewayProxyResultV2> {
   const { headers, authService, list, collectionKey } = options;
   try {
-    const { auth, env } = authService.authenticate(headers);
+    const { auth, env } = await authService.authenticate(headers);
     const items = await list(auth, env);
     return jsonResponse(200, { [collectionKey]: items });
   } catch (e) {

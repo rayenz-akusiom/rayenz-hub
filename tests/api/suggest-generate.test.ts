@@ -168,7 +168,7 @@ describe('POST /v1/suggest/generate', () => {
   it('refetches set pool when cached formatVersion is stale', async () => {
     const { services } = createMemoryStores();
     await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
-    const { auth, env } = services.authService.authenticate(TEST_AUTH_HEADERS);
+    const { auth, env } = await services.authService.authenticate(TEST_AUTH_HEADERS);
     await services.setPoolRepository.put(auth, env, 'MSH', {
       codes: ['MSH'],
       complete: true,

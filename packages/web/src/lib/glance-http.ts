@@ -2,14 +2,16 @@
 
 async function getGlanceApiConfig(): Promise<{ url: string; key: string }> {
   const { getHubApiConfig, assertApiNotPageOrigin } = await import('../api/hub-api-client');
+  const { getAccessToken } = await import('./hub-auth-session');
   const cfg = getHubApiConfig();
-  if (!cfg.enabled) {
+  const token = getAccessToken() || cfg.key;
+  if (!cfg.url || !token) {
     throw new Error(
-      'Hub API not configured. Set rayenz-hub-api-url and rayenz-hub-api-key in localStorage.',
+      'Hub API not configured. Set the API URL and sign in (or set a local operator key).',
     );
   }
   assertApiNotPageOrigin(cfg.url);
-  return { url: cfg.url, key: cfg.key };
+  return { url: cfg.url, key: token };
 }
 
 export async function postGlanceRequest(
@@ -26,7 +28,7 @@ export async function postGlanceRequest(
     body: JSON.stringify(body),
   });
   if (res.status === 401) {
-    throw new Error('Hub API unauthorized — check rayenz-hub-api-key.');
+    throw new Error('Hub API unauthorized — sign in again.');
   }
   if (!res.ok) {
     const peek = await res.text();

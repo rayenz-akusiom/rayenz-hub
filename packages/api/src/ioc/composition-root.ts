@@ -2,6 +2,10 @@ import 'reflect-metadata';
 import { Container } from 'inversify';
 import { readEnv, type ApiEnv } from '../lib/auth.js';
 import { AuthService } from '../services/auth-service.js';
+import { createCognitoAuthPort, type CognitoAuthPort } from '../services/cognito-auth.js';
+import { SpendLockService } from '../services/spend-lock.js';
+import { RateLimitService } from '../services/rate-limit.js';
+import { InviteRepository, InviteService } from '../services/invite-service.js';
 import { ProfileRepository } from '../repositories/profile-repository.js';
 import { ReviewProgressRepository } from '../repositories/review-repository.js';
 import { SetPoolRepository } from '../repositories/set-pool-repository.js';
@@ -13,11 +17,16 @@ import { TYPES } from './types.js';
 export interface ContainerOverrides {
   apiEnv?: ApiEnv;
   authService?: AuthService;
+  cognitoAuth?: CognitoAuthPort;
+  spendLock?: SpendLockService;
+  rateLimit?: RateLimitService;
+  inviteService?: InviteService;
   settingsRepository?: SettingsRepository;
   profileRepository?: ProfileRepository;
   reviewProgressRepository?: ReviewProgressRepository;
   setPoolRepository?: SetPoolRepository;
   deckRepository?: DeckRepository;
+  docClient?: { send: (command: unknown) => Promise<unknown> };
 }
 
 function bindRepositories(container: Container, env: ApiEnv, overrides: ContainerOverrides): void {
@@ -94,6 +103,34 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   }
 
   bindRepositories(container, env, overrides);
+
+  const doc = overrides.docClient ?? createDocClient(env);
+
+  if (overrides.cognitoAuth) {
+    container.bind(TYPES.CognitoAuthPort).toConstantValue(overrides.cognitoAuth);
+  } else {
+    container.bind(TYPES.CognitoAuthPort).toConstantValue(createCognitoAuthPort(env));
+  }
+
+  if (overrides.spendLock) {
+    container.bind(TYPES.SpendLockService).toConstantValue(overrides.spendLock);
+  } else {
+    container.bind(TYPES.SpendLockService).toConstantValue(new SpendLockService(doc, env.HUB_TABLE_NAME || 'HubTable'));
+  }
+
+  if (overrides.rateLimit) {
+    container.bind(TYPES.RateLimitService).toConstantValue(overrides.rateLimit);
+  } else {
+    container.bind(TYPES.RateLimitService).toConstantValue(new RateLimitService(doc, env.HUB_TABLE_NAME || 'HubTable'));
+  }
+
+  if (overrides.inviteService) {
+    container.bind(TYPES.InviteService).toConstantValue(overrides.inviteService);
+  } else {
+    const invites = new InviteRepository(doc, env.HUB_TABLE_NAME || 'HubTable');
+    container.bind(TYPES.InviteService).toConstantValue(new InviteService(invites, env));
+  }
+
   return container;
 }
 

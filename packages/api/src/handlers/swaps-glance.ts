@@ -3,6 +3,7 @@ import {
   buildSwapGlanceLayoutPlans,
   normalizeSetCodes,
   SWAP_GLANCE_GENERATION_VERSION,
+  resolveUserId,
   type DeckDocument,
   type SwapGlanceMode,
   type SwapGlanceRequestItem,
@@ -10,6 +11,7 @@ import {
 } from '@rayenz-hub/shared';
 import { binaryResponse, errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
+import { spendLockResponse } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import { swapGlanceCacheKey } from '../repositories/glance-cache.js';
 import { renderSwapGlancePng } from '../services/glance-render.js';
@@ -114,7 +116,10 @@ export async function handleSwapsGlance(
   options: SwapsGlanceOptions = {},
 ) {
   try {
-    const { auth, env } = services.authService.authenticate(headers);
+    const { auth, env } = await services.authService.authenticate(headers);
+    if (await services.spendLock.isActive()) {
+      return spendLockResponse();
+    }
     const request = parseSwapsGlanceRequest(body);
     if (!request.ok) {
       return errorResponse(400, request.message, 'BAD_REQUEST');
@@ -141,10 +146,11 @@ export async function handleSwapsGlance(
 
     const layout = buildSwapGlanceLayoutPlans(includeResult.includeSet);
     const plans = layout.plans;
+    const userId = resolveUserId(auth, env);
     const { cache, fetchImpl, inlineMaxBytes } = createGlanceCacheFromOptions(
       env,
       options,
-      swapGlanceCacheKey,
+      (v, f) => swapGlanceCacheKey(v, f, userId),
     );
 
     const pages: PageImageResult[] = [];

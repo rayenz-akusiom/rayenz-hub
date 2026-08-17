@@ -7,6 +7,7 @@ import {
   navigateHub,
   setParentHash,
 } from '../../../packages/web/src/lib/hub-storage.ts';
+import { getHubApiConfig } from '../../../packages/web/src/api/hub-api-client.ts';
 import {
   enableHubApi,
   installHubApiGlobalsLifecycle,
@@ -384,5 +385,14 @@ describe('HubStorage host helpers', () => {
     (window as Window & { HubRouter?: { navigate: (h: string) => void } }).HubRouter = { navigate };
     setParentHash('#/order-reconcile');
     expect(navigate).toHaveBeenCalledWith('#/order-reconcile');
+  });
+
+  it('API-off client-only path works without auth', () => {
+    localStorage.clear();
+    expect(getHubApiConfig().enabled).toBe(false);
+    HubStorage.saveDailiesSettings({ wishlists: ['x'] });
+    expect(JSON.parse(localStorage.getItem('rayenz-dailies-settings') || '{}')).toMatchObject({
+      wishlists: ['x'],
+    });
   });
 });

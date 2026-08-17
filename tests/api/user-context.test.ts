@@ -26,8 +26,8 @@ describe('resolveUserId', () => {
     expect(resolveUserId({ type: 'api-key', validated: true }, { HUB_USER_ID: 'solo' })).toBe('solo');
   });
 
-  it('uses bootstrap default only via user-context when HUB_USER_ID unset', () => {
-    expect(resolveUserId({ type: 'api-key', validated: true }, {})).toBe('default');
+  it('rejects API key when HUB_USER_ID is unset', () => {
+    expect(() => resolveUserId({ type: 'api-key', validated: true }, {})).toThrow('Unauthorized');
   });
 
   it('uses JWT sub when Cognito auth is enabled', () => {

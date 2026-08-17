@@ -2,19 +2,17 @@ import {
   buildGlanceIncludeSet,
   buildGlanceLayoutPlan,
   GLANCE_GENERATION_VERSION,
+  resolveUserId,
   type DeckDocument,
   type GlanceLayoutMode,
 } from '@rayenz-hub/shared';
 import { binaryResponse, errorResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
+import { spendLockResponse } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import { renderGlancePng } from '../services/glance-render.js';
-import {
-  createGlanceCacheFromOptions,
-  glancePresignedDeliveryResponse,
-  renderPlanThroughCache,
-  type GlanceHandlerOptions,
-} from './glance-pipeline.js';
+import { createGlanceCacheFromOptions, glancePresignedDeliveryResponse, renderPlanThroughCache, type GlanceHandlerOptions } from './glance-pipeline.js';
+import { glanceCacheKey } from '../repositories/glance-cache.js';
 
 function safeFilename(name: string): string {
   return String(name || 'deck')
@@ -73,7 +71,10 @@ export async function handleDeckGlance(
   options: DeckGlanceOptions = {},
 ) {
   try {
-    const { auth, env } = services.authService.authenticate(headers);
+    const { auth, env } = await services.authService.authenticate(headers);
+    if (await services.spendLock.isActive()) {
+      return spendLockResponse();
+    }
     const record = await services.deckRepository.get(auth, env, deckId);
     if (!record) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
@@ -98,7 +99,10 @@ export async function handleDeckGlance(
     }
 
     const plan = buildGlanceLayoutPlan(includeResult.includeSet, deck.name || null);
-    const { cache, fetchImpl, inlineMaxBytes } = createGlanceCacheFromOptions(env, options);
+    const userId = resolveUserId(auth, env);
+    const { cache, fetchImpl, inlineMaxBytes } = createGlanceCacheFromOptions(env, options, (v, f) =>
+      glanceCacheKey(v, f, userId),
+    );
 
     const { png, cacheStatus } = await renderPlanThroughCache({
       generationVersion: GLANCE_GENERATION_VERSION,

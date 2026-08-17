@@ -3,6 +3,7 @@ import {
   profileSk,
   resolveUserId,
   userPk,
+  userProfileS3Key,
   type AuthContext,
   type ProfileUpsert,
 } from '@rayenz-hub/shared';
@@ -70,7 +71,7 @@ export class ProfileRepository {
     const blockedCards = input.blockedCards ?? [];
     const tags = input.tags ?? [];
     const yaml = input.yaml ?? buildYaml(deckId, input.deckName, protectedCards, blockedCards, tags);
-    const s3Key = `profiles/${deckId}.yaml`;
+    const s3Key = userProfileS3Key(userId, deckId);
     await this.s3.putText(s3Key, yaml, 'text/yaml');
     const item = {
       PK: userPk(userId),

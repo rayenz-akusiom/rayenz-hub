@@ -17,5 +17,5 @@ capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
 region = "us-east-1"
-# Create the SSM SecureString first — see documents/specs/002-hub-backend-platform/quickstart.md §12
-parameter_overrides = "HubApiKeySsmPath=/rayenz-hub/prod/api-key HubUserId=default"
+# Create Secrets Manager secrets first (ssm-secure cannot be used in Lambda env vars).
+parameter_overrides = "HubApiKeySecretId=rayenz-hub/prod/api-key HubInviteSecretId=rayenz-hub/prod/invite-hmac HubUserId=rayenz-local HubOwnerUsername=Rayenz"

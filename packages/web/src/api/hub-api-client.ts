@@ -4,6 +4,7 @@
  */
 
 import { SET_POOL_FORMAT_VERSION } from '@rayenz-hub/shared';
+import { getAccessToken, HubAuthRequiredError, notifyAuthRequired } from '../lib/hub-auth-session';
 
 const API_URL_KEY = 'rayenz-hub-api-url';
 const API_KEY_KEY = 'rayenz-hub-api-key';
@@ -23,7 +24,7 @@ export function getHubApiConfig(): HubApiConfig {
   } catch {
     /* ignore */
   }
-  return { url, key, enabled: !!(url && key) };
+  return { url, key, enabled: !!(url && (key || getAccessToken())) };
 }
 
 /** Persist Hub API base URL and key to localStorage (device-local). Empty values remove that key. */
@@ -86,14 +87,15 @@ export function parseHubApiJsonBody(text: string, fullUrl: string, configuredUrl
 
 export async function clientApiFetch(path: string, options?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<unknown> {
   const cfg = getHubApiConfig();
-  if (!cfg.enabled) {
+  const token = getAccessToken() || cfg.key;
+  if (!cfg.url || !token) {
     return Promise.reject(new Error('Hub API not configured'));
   }
   assertApiNotPageOrigin(cfg.url);
   const opts = options || {};
   const headers = {
     ...(opts.headers || {}),
-    Authorization: 'Bearer ' + cfg.key,
+    Authorization: 'Bearer ' + token,
     'Content-Type': 'application/json',
   };
   const fullUrl = cfg.url + path;
@@ -104,7 +106,8 @@ export async function clientApiFetch(path: string, options?: { method?: string; 
   });
   const peek = await res.text();
   if (res.status === 401) {
-    throw new Error('Hub API unauthorized');
+    notifyAuthRequired();
+    throw new HubAuthRequiredError('Hub API unauthorized');
   }
   if (res.status === 404 || res.status === 204) {
     return null;

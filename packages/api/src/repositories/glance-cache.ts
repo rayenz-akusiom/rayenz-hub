@@ -2,18 +2,19 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { S3Client } from '@aws-sdk/client-s3';
 import type { BlobStore } from './s3-blob-store.js';
+import { userGlanceCacheKey, userSwapGlanceCacheKey } from '@rayenz-hub/shared';
 
 /** Raw PNG bytes above this use presigned S3 delivery (Lambda 6 MB response cap). */
 export const GLANCE_INLINE_MAX_BYTES = 4 * 1024 * 1024;
 
 const DEFAULT_PRESIGN_SECONDS = 15 * 60;
 
-export function glanceCacheKey(generationVersion: string, fingerprint: string): string {
-  return `glance-cache/${generationVersion}/${fingerprint}.png`;
+export function glanceCacheKey(generationVersion: string, fingerprint: string, userId = '_shared'): string {
+  return userGlanceCacheKey(userId, generationVersion, fingerprint);
 }
 
-export function swapGlanceCacheKey(generationVersion: string, fingerprint: string): string {
-  return `swap-glance-cache/${generationVersion}/${fingerprint}.png`;
+export function swapGlanceCacheKey(generationVersion: string, fingerprint: string, userId = '_shared'): string {
+  return userSwapGlanceCacheKey(userId, generationVersion, fingerprint);
 }
 
 export class GlanceCacheRepository {

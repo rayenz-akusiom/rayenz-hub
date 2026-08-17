@@ -7,7 +7,7 @@ import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
 import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
 import { OrderReconcileApp } from '../order-reconcile/OrderReconcileApp';
 import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
-import { SettingsShell, type SettingsTab } from '../SettingsShell';
+import { InviteRedeemPage } from '../pages/InviteRedeemPage';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
 import { HubNav } from './HubNav';
 import { isSettingsPath } from './routes';
@@ -19,6 +19,7 @@ function settingsTabFromPath(path: string): SettingsTab {
   if (path.startsWith('/settings/deck-suggest')) return 'deck-suggest';
   if (path.startsWith('/settings/order-reconcile')) return 'order-reconcile';
   if (path.startsWith('/settings/swap-queue')) return 'swap-queue';
+  if (path.startsWith('/settings/invites')) return 'invites';
   return 'dailies';
 }
 
@@ -32,6 +33,7 @@ function AppOutlet({ path }: { path: string }) {
   if (path === '/order-reconcile') return <OrderReconcileApp />;
   if (path === '/swap-queue') return <SwapQueueApp entryPath="swap-queue" />;
   if (path === '/wishlist') return <SwapQueueApp entryPath="wishlist" />;
+  if (path === '/invite') return <InviteRedeemPage />;
   if (isSettingsPath(path)) {
     return <SettingsShell tab={settingsTabFromPath(path)} />;
   }

@@ -36,6 +36,8 @@
     "deploy:api:guided": "npm run build:api && sam deploy --guided --config-file infra/samconfig.toml",
     "test:api:deployed": "vitest run tests/api/deployed.contract.test.ts",
     "migrate:user-partition": "tsx scripts/migrate-user-partition.ts",
+    "provision:owner": "tsx scripts/provision-owner-rayenz.ts",
+    "sync:owner-local-to-prod": "tsx scripts/sync-owner-local-to-prod.ts",
     "build:release-catalog": "node scripts/build-scryfall-release-catalog.mjs",
     "seed:local-library": "tsx scripts/seed-local-library.ts",
     "stage:sl-limitless": "tsx scripts/stage-sl-limitless-swaps.ts"

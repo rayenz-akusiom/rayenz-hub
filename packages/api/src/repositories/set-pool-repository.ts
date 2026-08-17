@@ -4,6 +4,7 @@ import {
   resolveUserId,
   setPoolSk,
   userPk,
+  userSetPoolS3Key,
   type AuthContext,
   type SetPoolUpsert,
 } from '@rayenz-hub/shared';
@@ -50,7 +51,7 @@ export class SetPoolRepository {
     const cards = input.cards ?? [];
     const cardsJson = JSON.stringify(cards);
     const useS3 = Buffer.byteLength(cardsJson, 'utf8') > INLINE_SET_POOL_MAX_BYTES;
-    const s3Key = `set-pools/${codesKey}.json`;
+    const s3Key = userSetPoolS3Key(userId, codesKey);
     const item: Record<string, unknown> = {
       PK: userPk(userId),
       SK: setPoolSk(codesKey),

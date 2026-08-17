@@ -8,6 +8,7 @@ import {
   deckSk,
   resolveUserId,
   userPk,
+  userDeckS3Key,
   type AuthContext,
   type DeckDocument,
   type DeckPatch,
@@ -65,7 +66,7 @@ export class DeckRepository {
     if (!result.Item) {
       return null;
     }
-    const s3Key = String(result.Item.s3Key || `decks/${deckId}.json`);
+    const s3Key = String(result.Item.s3Key || userDeckS3Key(userId, deckId));
     const body = await this.s3.getText(s3Key);
     if (!body) {
       return null;
@@ -83,7 +84,7 @@ export class DeckRepository {
       updatedAt: now,
       createdAt: input.createdAt || now,
     });
-    const s3Key = `decks/${deckId}.json`;
+    const s3Key = userDeckS3Key(userId, deckId);
     const json = JSON.stringify(doc);
     await this.s3.putText(s3Key, json, 'application/json');
     await this.doc.send(
@@ -137,7 +138,7 @@ export class DeckRepository {
     if (!existing.Item) {
       return false;
     }
-    const s3Key = String(existing.Item.s3Key || `decks/${deckId}.json`);
+    const s3Key = String(existing.Item.s3Key || userDeckS3Key(userId, deckId));
     if (this.s3.deleteObject) {
       await this.s3.deleteObject(s3Key);
     }

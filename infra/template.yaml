@@ -11,18 +11,40 @@ Globals:
       - x86_64
 
 Parameters:
-  HubApiKeySsmPath:
+  HubApiKeySecretId:
     Type: String
     Default: ''
-    Description: SSM SecureString path (e.g. /rayenz-hub/prod/api-key). Leave empty for inline HubApiKey (local only).
+    Description: Secrets Manager secret name for operator HUB_API_KEY (e.g. rayenz-hub/prod/api-key). Empty = inline HubApiKey (local). Do not use SSM SecureString here — CloudFormation cannot resolve ssm-secure into Lambda env vars.
+  HubInviteSecretId:
+    Type: String
+    Default: ''
+    Description: Secrets Manager secret name for HUB_INVITE_SECRET (e.g. rayenz-hub/prod/invite-hmac). Do not end the name with a hyphen plus six characters (CloudFormation treats that as a partial ARN). Empty = fall back to HubApiKey (local).
   HubApiKey:
     Type: String
     Default: local-dev-key
     NoEcho: true
-    Description: Inline API key for SAM local only. Production uses HubApiKeySsmPath.
+    Description: Inline API key for SAM local only. Production uses HubApiKeySecretId.
   HubUserId:
     Type: String
     Default: default
+    Description: Local/operator partition user id (Rayenz Cognito sub after cutover). Not a browser identity.
+  HubOwnerUsername:
+    Type: String
+    Default: Rayenz
+  HubPagesOrigin:
+    Type: String
+    Default: https://rayenz-akusiom.github.io/rayenz-akusiom
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Leave empty to use the stack User Pool (set after first deploy if overriding).
+  CognitoClientId:
+    Type: String
+    Default: ''
+  BudgetNotifyEmail:
+    Type: String
+    Default: ''
+    Description: Optional email for AWS Budget alerts (in addition to SNS → lock Lambda).
   DynamoDbEndpoint:
     Type: String
     Default: ''
@@ -35,7 +57,7 @@ Parameters:
 Conditions:
   UseLocalDynamo: !Not [!Equals [!Ref DynamoDbEndpoint, '']]
   UseLocalS3: !Not [!Equals [!Ref S3Endpoint, '']]
-  UseSsmApiKey: !Not [!Equals [!Ref HubApiKeySsmPath, '']]
+  UseAwsSecrets: !Not [!Equals [!Ref HubApiKeySecretId, '']]
 
 Resources:
   HubTable:
@@ -67,6 +89,142 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  HubUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: rayenz-hub
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: []
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: admin_only
+            Priority: 1
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+
+  HubUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: rayenz-hub-api
+      UserPoolId: !Ref HubUserPool
+      GenerateSecret: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+  HubBudgetTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: rayenz-hub-budget
+      DisplayName: Rayenz Hub budget alerts
+
+  HubBudgetTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref HubBudgetTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowBudgetsPublish
+            Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref HubBudgetTopic
+
+  HubMonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: rayenz-hub-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 100
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref HubBudgetTopic
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref HubBudgetTopic
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 95
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref HubBudgetTopic
+
+  SpendLockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../packages/api
+      Handler: src/handlers/spend-lock-events.handler
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          HUB_TABLE_NAME: !Ref HubTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HubTable
+      Events:
+        BudgetSns:
+          Type: SNS
+          Properties:
+            Topic: !Ref HubBudgetTopic
+        MonthStart:
+          Type: Schedule
+          Properties:
+            Schedule: cron(5 0 1 * ? *)
+            Input: '{"action":"clear","reason":"period_start"}'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/spend-lock-events.ts
+
   HubApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -77,11 +235,20 @@ Resources:
           HUB_TABLE_NAME: !Ref HubTable
           HUB_BUCKET_NAME: !Ref HubDataBucket
           HUB_API_KEY: !If
-            - UseSsmApiKey
-            - !Sub '{{resolve:ssm-secure:${HubApiKeySsmPath}}}'
+            - UseAwsSecrets
+            - !Sub '{{resolve:secretsmanager:${HubApiKeySecretId}:SecretString}}'
             - !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
+          HUB_OWNER_USERNAME: !Ref HubOwnerUsername
+          HUB_PAGES_ORIGIN: !Ref HubPagesOrigin
           HUB_SUGGEST_DECK_CAP: '20'
+          COGNITO_USER_POOL_ID: !Ref HubUserPool
+          COGNITO_CLIENT_ID: !Ref HubUserPoolClient
+          COGNITO_CLIENT_SECRET: !GetAtt HubUserPoolClient.ClientSecret
+          HUB_INVITE_SECRET: !If
+            - UseAwsSecrets
+            - !Sub '{{resolve:secretsmanager:${HubInviteSecretId}:SecretString}}'
+            - !Ref HubApiKey
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
           # Empty string (not NoValue) so `sam local --env-vars` can override for MinIO
           S3_ENDPOINT: !If [UseLocalS3, !Ref S3Endpoint, '']
@@ -90,6 +257,18 @@ Resources:
             TableName: !Ref HubTable
         - S3CrudPolicy:
             BucketName: !Ref HubDataBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:InitiateAuth
+                - cognito-idp:AdminInitiateAuth
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminSetUserPassword
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminDeleteUser
+                - cognito-idp:GlobalSignOut
+                - cognito-idp:GetUser
+              Resource: !GetAtt HubUserPool.Arn
       Events:
         Health:
           Type: HttpApi
@@ -205,6 +384,54 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/suggest/releases
             Method: GET
+        AuthSignIn:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/sign-in
+            Method: POST
+        AuthRegister:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/register
+            Method: POST
+        AuthRefresh:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/refresh
+            Method: POST
+        AuthSignOut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/sign-out
+            Method: POST
+        AuthMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/me
+            Method: GET
+        InvitesCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/invites
+            Method: POST
+        InvitesList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/invites
+            Method: GET
+        InvitesRevoke:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/invites/{inviteId}/revoke
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -221,6 +448,9 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 40
+        ThrottlingRateLimit: 20
       CorsConfiguration:
         AllowOrigins:
           - '*'
@@ -242,3 +472,7 @@ Outputs:
     Value: !Ref HubTable
   HubDataBucketName:
     Value: !Ref HubDataBucket
+  HubUserPoolId:
+    Value: !Ref HubUserPool
+  HubUserPoolClientId:
+    Value: !Ref HubUserPoolClient

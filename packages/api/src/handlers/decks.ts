@@ -54,7 +54,7 @@ async function handleDeckPatch(
   services: AppServices,
 ) {
   try {
-    const { auth, env } = services.authService.authenticate(headers);
+    const { auth, env } = await services.authService.authenticate(headers);
     const parsedBody = parseJsonBody(body);
     if (!parsedBody.ok) {
       return parsedBody.response;

@@ -16,6 +16,7 @@ import {
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { parseJsonBody } from '../lib/keyed-resource-handler.js';
+import { spendLockResponse } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import type { SetPoolRecord } from '../repositories/set-pool-repository.js';
 
@@ -97,7 +98,10 @@ export async function handleSuggestGenerate(
   deps: SuggestGenerateDeps = {},
 ) {
   try {
-    const { auth, env } = services.authService.authenticate(headers);
+    const { auth, env } = await services.authService.authenticate(headers);
+    if (await services.spendLock.isActive()) {
+      return spendLockResponse();
+    }
     const parsedBody = parseJsonBody(body);
     if (!parsedBody.ok) {
       return parsedBody.response;

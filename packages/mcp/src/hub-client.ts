@@ -1,5 +1,8 @@
 /**
  * Thin Hub API client for the MCP server (env-configured Bearer auth).
+ * Use local SAM (`HUB_API_URL` + `HUB_API_KEY`) mapped to the Rayenz partition
+ * (`HUB_USER_ID` / owner sub). Do not use a global production secret as a
+ * multi-user identity.
  */
 
 export type HubClientConfig = {

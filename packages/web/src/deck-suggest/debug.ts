@@ -4,7 +4,7 @@ import type { DebugEntry, DeckProfile, DeckRecord, SetPoolCard, SetScope, Snapsh
 
 export const REASON_LABELS: Record<string, string> = {
   not_in_set_scope: 'Card not in selected set pool',
-  no_swap_queue: 'No Archidekt swap queue on deck snapshot',
+  no_swap_queue: 'No swap queue on deck snapshot',
   no_cut_candidate: 'No eligible main-deck cut found',
   blocked_add: 'Card is on profile blocklist (add)',
   protected_cut: 'Suggested cut is on profile protected list',

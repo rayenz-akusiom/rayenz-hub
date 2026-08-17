@@ -30,6 +30,7 @@ import {
   neverSuggestAgain,
   selectedInCardName,
 } from './profiles';
+import { persistAcceptedSuggestion } from '../deck-suggest/accept';
 import type { AcceptKind, ReviewDecision, ScryfallPrint } from './types';
 
 type SuggestionCardProps = {
@@ -45,6 +46,7 @@ type SuggestionCardProps = {
     profilesConnected?: boolean;
     profileStatus?: string;
   }) => void;
+  onError?: (message: string) => void;
   deckPrefs: Record<string, { blocked_cards: string[]; protected_cards: string[] }>;
 };
 
@@ -57,6 +59,7 @@ export function SuggestionCard({
   progressLabel,
   onDecision,
   onProfileUpdate,
+  onError,
   deckPrefs,
 }: SuggestionCardProps) {
   const decision = getDecision(progress, String(suggestion.suggestion_id));
@@ -82,6 +85,7 @@ export function SuggestionCard({
   const [cutKey, setCutKey] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(!compact);
   const [acceptKind, setAcceptKind] = useState<AcceptKind>('swap');
+  const [saving, setSaving] = useState(false);
   const cutMeta = useMemo(() => cutMetaFromKey(cutKey, cutOptions), [cutKey, cutOptions]);
   const seekingMode = acceptKind === 'seeking';
 
@@ -154,37 +158,62 @@ export function SuggestionCard({
     ? undefined
     : 'Profile updates require a configured Hub API or desktop Chrome on PC.';
 
-  function handleAccept() {
+  async function handleAccept() {
+    if (saving) {
+      return;
+    }
+    let accepted;
     if (seekingMode) {
       const result = buildAcceptedSeeking(deck, suggestion, { printId, finish, prints });
       if ('error' in result) {
         onProfileUpdate({ profileStatus: result.error });
         return;
       }
-      onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted: result }, advanceOnAction);
-      return;
+      accepted = result;
+    } else {
+      const selections: AcceptSelections = {
+        printId,
+        finish,
+        prints,
+        cutMeta,
+      };
+      const result = buildAcceptedSwap(deck, suggestion, selections);
+      if ('error' in result) {
+        onProfileUpdate({ profileStatus: result.error });
+        return;
+      }
+      accepted = result;
     }
-    const selections: AcceptSelections = {
-      printId,
-      finish,
-      prints,
-      cutMeta,
-    };
-    const result = buildAcceptedSwap(deck, suggestion, selections);
-    if ('error' in result) {
-      onProfileUpdate({ profileStatus: result.error });
-      return;
+    setSaving(true);
+    try {
+      await persistAcceptedSuggestion(suggestion as Parameters<typeof persistAcceptedSuggestion>[0], accepted);
+      onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted }, advanceOnAction);
+      onProfileUpdate({
+        profileStatus:
+          accepted.accept_kind === 'seeking'
+            ? 'Saved Seeking to Hub.'
+            : 'Saved formal swap to Hub.',
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onError?.(msg);
+      onProfileUpdate({ profileStatus: msg });
+    } finally {
+      setSaving(false);
     }
-    onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted: result }, advanceOnAction);
   }
 
   function handleSkipReject(nextStatus: 'skipped' | 'rejected') {
     onDecision(String(suggestion.suggestion_id), { status: nextStatus }, advanceOnAction);
   }
 
-  const acceptRef = useRef(handleAccept);
+  const acceptRef = useRef(() => {
+    void handleAccept();
+  });
   const skipRejectRef = useRef(handleSkipReject);
-  acceptRef.current = handleAccept;
+  acceptRef.current = () => {
+    void handleAccept();
+  };
   skipRejectRef.current = handleSkipReject;
 
   async function handleNever(side: 'in' | 'out') {
@@ -431,8 +460,13 @@ export function SuggestionCard({
           <button type="button" className="dr-btn dr-btn-danger" onClick={() => handleSkipReject('rejected')}>
             Reject
           </button>
-          <button type="button" className="dr-btn dr-btn-success" onClick={handleAccept}>
-            {seekingMode ? 'Accept Seeking' : 'Accept'}
+          <button
+            type="button"
+            className="dr-btn dr-btn-success"
+            disabled={saving}
+            onClick={() => void handleAccept()}
+          >
+            {saving ? 'Saving…' : seekingMode ? 'Accept Seeking' : 'Accept'}
           </button>
         </div>
         {advanceOnAction ? (

@@ -11,9 +11,7 @@ import type { DeckReviewState } from './types';
 type DeckReviewSidebarProps = {
   state: DeckReviewState;
   navOpen: boolean;
-  bridgeOk: boolean;
   onCloseNav: () => void;
-  onFetchLatest: () => void;
   onUploadClick: () => void;
   onFileChange: (file: File) => void;
   onDownloadJson: () => void;
@@ -53,9 +51,7 @@ function DeckChip({
 export function DeckReviewSidebar({
   state,
   navOpen,
-  bridgeOk,
   onCloseNav,
-  onFetchLatest,
   onUploadClick,
   onFileChange,
   onDownloadJson,
@@ -80,135 +76,128 @@ export function DeckReviewSidebar({
   const activeDeck = decks.find((d) => d.deck_id === activeDeckId) || null;
   const canConnect = canConnectProfilesFolder();
   const canWrite = canWriteProfiles();
-  const fromRules =
-    transferSource === 'deck-suggest' || transferSource === 'generate';
-  const refreshLabel = fromRules ? 'Refresh from Archidekt (optional)' : 'Refresh all decks';
+  const fromRules = transferSource === 'deck-suggest' || transferSource === 'generate';
+  const refreshLabel = fromRules ? 'Refresh from Hub (optional)' : 'Refresh all decks from Hub';
   const refreshTitle = fromRules
-    ? bridgeOk
-      ? 'Snapshots loaded from generation; refresh only if Archidekt changed since.'
-      : 'Requires Archidekt Deck Review Bridge userscript'
-    : bridgeOk
-      ? 'Fetch latest deck lists from Archidekt'
-      : 'Requires Archidekt Deck Review Bridge userscript';
+    ? 'Snapshots loaded from generation; refresh if Hub decks changed since.'
+    : 'Reload deck lists from the Hub library';
 
   return (
-      <aside id="dr-right-nav" className={'dr-right-nav' + (navOpen ? ' open' : '')} aria-label="Deck navigation">
-        <div className="dr-nav-actions">
-          <h3>Data</h3>
-          {onBackToSetup ? (
-            <button type="button" className="dr-btn dr-btn-ghost" id="dr-back-setup" onClick={onBackToSetup}>
-              New source
-            </button>
-          ) : null}
-          <button type="button" className="dr-btn dr-btn-primary" id="dr-fetch-latest" onClick={onFetchLatest}>
-            Refresh latest
+    <aside id="dr-right-nav" className={'dr-right-nav' + (navOpen ? ' open' : '')} aria-label="Deck navigation">
+      <div className="dr-nav-actions">
+        <h3>Data</h3>
+        {onBackToSetup ? (
+          <button type="button" className="dr-btn dr-btn-ghost" id="dr-back-setup" onClick={onBackToSetup}>
+            New source
           </button>
-          <button type="button" className="dr-btn dr-btn-ghost" id="dr-upload-btn" onClick={onUploadClick}>
-            Upload JSON
-          </button>
-          {data ? (
-            <button type="button" className="dr-btn dr-btn-ghost" id="dr-download-json" onClick={onDownloadJson}>
-              Download JSON
-            </button>
-          ) : null}
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="dr-file-input"
-            className="dr-file-input"
-            accept=".json,application/json"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                onFileChange(file);
-              }
-            }}
-          />
-        </div>
-
-        {data ? (
-          <div className="dr-profiles-section" id="dr-profiles-section">
-            <h3>Profiles</h3>
-            {!canWrite ? (
-              <p className="dr-profiles-note" id="dr-tablet-profiles-note">
-                Profile updates require desktop Chrome on PC.
-              </p>
-            ) : null}
-            {canConnect ? (
-              <button
-                type="button"
-                className="dr-btn dr-btn-ghost"
-                id="dr-connect-profiles"
-                disabled={profilesConnected}
-                onClick={onConnectProfiles}
-              >
-                {profilesConnected ? 'Profiles folder connected' : 'Connect profiles folder'}
-              </button>
-            ) : null}
-            {state.profileStatus ? (
-              <div id="dr-profile-status" className="dr-profiles-status">
-                {state.profileStatus}
-              </div>
-            ) : null}
-            <div id="dr-pref-counts" className="dr-pref-counts">
-              {prefCountsLabel(activeDeck, state.deckPrefs)}
-            </div>
-          </div>
         ) : null}
+        <button type="button" className="dr-btn dr-btn-primary" id="dr-upload-btn" onClick={onUploadClick}>
+          Upload JSON
+        </button>
+        {data ? (
+          <button type="button" className="dr-btn dr-btn-ghost" id="dr-download-json" onClick={onDownloadJson}>
+            Download JSON
+          </button>
+        ) : null}
+        <input
+          ref={fileInputRef}
+          type="file"
+          id="dr-file-input"
+          className="dr-file-input"
+          accept=".json,application/json"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              onFileChange(file);
+            }
+          }}
+        />
+      </div>
 
+      {data ? (
+        <div className="dr-profiles-section" id="dr-profiles-section">
+          <h3>Profiles</h3>
+          {!canWrite ? (
+            <p className="dr-profiles-note" id="dr-tablet-profiles-note">
+              Profile updates require desktop Chrome on PC.
+            </p>
+          ) : null}
+          {canConnect ? (
+            <button
+              type="button"
+              className="dr-btn dr-btn-ghost"
+              id="dr-connect-profiles"
+              disabled={profilesConnected}
+              onClick={onConnectProfiles}
+            >
+              {profilesConnected ? 'Profiles folder connected' : 'Connect profiles folder'}
+            </button>
+          ) : null}
+          {state.profileStatus ? (
+            <div id="dr-profile-status" className="dr-profiles-status">
+              {state.profileStatus}
+            </div>
+          ) : null}
+          <div id="dr-pref-counts" className="dr-pref-counts">
+            {prefCountsLabel(activeDeck, state.deckPrefs)}
+          </div>
+        </div>
+      ) : null}
+
+      {data ? (
         <div className="dr-nav-actions">
-          <h3>Archidekt</h3>
+          <h3>Hub library</h3>
           <button
             type="button"
             className="dr-btn dr-btn-ghost"
             id="dr-refresh-all-decks"
-            disabled={!bridgeOk}
             title={refreshTitle}
             onClick={onRefreshAllDecks}
           >
             {refreshLabel}
           </button>
         </div>
+      ) : null}
 
-        <div>
-          <h3>Decks</h3>
-          <div className="hub-deck-list" id="dr-deck-list">
-            {sortDecksByName(withSuggestions).map((deck) => (
-              <DeckChip
-                key={deck.deck_id}
-                deck={deck}
-                activeDeckId={activeDeckId}
-                progress={progress}
-                onSelect={(id) => {
-                  onSelectDeck(id);
-                  onCloseNav();
-                }}
-              />
-            ))}
-            {withoutSuggestions.length ? (
-              <details
-                className="dr-deck-empty-collapse"
-                open={withoutSuggestions.some((d) => d.deck_id === activeDeckId)}
-              >
-                <summary>No suggestions ({withoutSuggestions.length})</summary>
-                <div className="hub-deck-list">
-                  {sortDecksByName(withoutSuggestions).map((deck) => (
-                    <DeckChip
-                      key={deck.deck_id}
-                      deck={deck}
-                      activeDeckId={activeDeckId}
-                      progress={progress}
-                      onSelect={(id) => {
-                        onSelectDeck(id);
-                        onCloseNav();
-                      }}
-                    />
-                  ))}
-                </div>
-              </details>
-            ) : null}
-          </div>
+      <div>
+        <h3>Decks</h3>
+        <div className="hub-deck-list" id="dr-deck-list">
+          {sortDecksByName(withSuggestions).map((deck) => (
+            <DeckChip
+              key={deck.deck_id}
+              deck={deck}
+              activeDeckId={activeDeckId}
+              progress={progress}
+              onSelect={(id) => {
+                onSelectDeck(id);
+                onCloseNav();
+              }}
+            />
+          ))}
+          {withoutSuggestions.length ? (
+            <details
+              className="dr-deck-empty-collapse"
+              open={withoutSuggestions.some((d) => d.deck_id === activeDeckId)}
+            >
+              <summary>No suggestions ({withoutSuggestions.length})</summary>
+              <div className="hub-deck-list">
+                {sortDecksByName(withoutSuggestions).map((deck) => (
+                  <DeckChip
+                    key={deck.deck_id}
+                    deck={deck}
+                    activeDeckId={activeDeckId}
+                    progress={progress}
+                    onSelect={(id) => {
+                      onSelectDeck(id);
+                      onCloseNav();
+                    }}
+                  />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
-      </aside>
+      </div>
+    </aside>
   );
 }

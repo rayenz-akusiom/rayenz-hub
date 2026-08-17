@@ -55,6 +55,19 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   return {
     ...actual,
     loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
+    refreshDeckFromHub: vi.fn(async (deckId: string) => ({
+      deck_id: deckId,
+      deck_name: 'Refreshed',
+      deck_snapshot: { fetched_at: '2026-08-16', source: 'hub-library', cards: [] },
+    })),
+  };
+});
+
+vi.mock('../../packages/web/src/deck-suggest/accept', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/accept')>();
+  return {
+    ...actual,
+    persistAcceptedSuggestion: vi.fn(async () => ({ deckId: 'baird' })),
   };
 });
 
@@ -135,31 +148,13 @@ describe('DeckSuggestApp empty state', () => {
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Refresh latest' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole('button', { name: 'Upload JSON' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
-  });
-
-  it('reports fetch error when Refresh latest fails', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: () => Promise.resolve({}),
-    } as Response);
-
-    const user = userEvent.setup();
-    render(<DeckSuggestApp />);
-    await user.click(screen.getAllByRole('button', { name: 'Refresh latest' })[0]);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Could not fetch data\/suggestions\/latest.json/i)).toBeInTheDocument();
-    });
-    fetchSpy.mockRestore();
   });
 });
 
 describe('DeckSuggestApp upload and sidebar', () => {
-  it('loads uploaded suggestions JSON without fetching latest.json', async () => {
+  it('loads uploaded suggestions JSON', async () => {
     const fetchSpy = vi.fn(async () => ({
       ok: false,
       status: 404,
@@ -169,15 +164,13 @@ describe('DeckSuggestApp upload and sidebar', () => {
 
     await loadSuggestionsViaUpload(handoffPayload());
 
-    const latestCalls = fetchSpy.mock.calls.filter((call) => String(call[0]).indexOf('latest.json') >= 0);
-    expect(latestCalls).toHaveLength(0);
     expect(screen.getByText(/Marvel Super Heroes/i)).toBeInTheDocument();
   });
 
   it('shows upload-source controls in the sidebar', async () => {
     await loadSuggestionsViaUpload(handoffPayload());
     expect(screen.getByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh all decks' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Refresh all decks from Hub/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
   });
 
@@ -200,9 +193,8 @@ describe('DeckSuggestApp suggestion panel', () => {
     await loadSuggestionsViaUpload(handoffPayload());
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'Archidekt' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
   });
 
@@ -246,7 +238,7 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(screen.getAllByText('Rejected').length).toBeGreaterThan(0);
   });
 
-  it('switches status card tabs and shows queue/update panes', async () => {
+  it('switches status card tabs and shows queue/export panes', async () => {
     const user = await loadSuggestionsViaUpload(handoffPayload());
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Open status/i })).toBeInTheDocument());
@@ -254,10 +246,10 @@ describe('DeckSuggestApp suggestion panel', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Decisions' })).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Archidekt queue' }));
-    expect(screen.getAllByText(/From Archidekt/i).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Swap queue' }));
+    expect(screen.getAllByText(/From Hub|From generation/i).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: 'Update' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
     expect(screen.getByText(/Review all suggestions first/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Decisions' }));
@@ -272,8 +264,8 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(screen.getByText(/1 pending/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Open queue/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Archidekt queue' })).toHaveClass('active'));
-    expect(screen.getAllByText(/From Archidekt/i).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Swap queue' })).toHaveClass('active'));
+    expect(screen.getAllByText(/From Hub|From generation/i).length).toBeGreaterThan(0);
   });
 
   it('shows a denser show-all grid of compact suggestion tiles', async () => {
@@ -452,12 +444,11 @@ describe('DeckReviewStatusCard panes', () => {
         onError={vi.fn()}
       />,
     );
-    expect(screen.getByText(/No Archidekt snapshot/i)).toBeInTheDocument();
+    expect(screen.getByText(/No Hub deck snapshot/i)).toBeInTheDocument();
   });
 
-  it('queue pane shows uncovered names, flags, and refresh when bridged', () => {
+  it('queue pane shows uncovered names, flags, and Hub refresh', () => {
     sessionStorage.setItem('dr-status-expanded', '1');
-    vi.mocked(archidektBridge.bridgeAvailable).mockReturnValue(true);
     const onRefreshDeck = vi.fn();
     render(
       <DeckReviewStatusCard
@@ -484,7 +475,7 @@ describe('DeckReviewStatusCard panes', () => {
     expect(screen.getByText(/From generation/i)).toBeInTheDocument();
     expect(screen.getByText(/No suggestion yet/i)).toBeInTheDocument();
     expect(screen.getByText(/Flag Card \(primary: Ramp\)/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: /Refresh from Hub/i }));
     expect(onRefreshDeck).toHaveBeenCalled();
   });
 
@@ -508,9 +499,8 @@ describe('DeckReviewStatusCard panes', () => {
     expect(screen.getByText(/No swap queue on this deck/i)).toBeInTheDocument();
   });
 
-  it('queue pane shows the bridge install hint when a queue exists without the userscript', () => {
+  it('queue pane labels upload source as From Hub', () => {
     sessionStorage.setItem('dr-status-expanded', '1');
-    vi.mocked(archidektBridge.bridgeAvailable).mockReturnValue(false);
     render(
       <DeckReviewStatusCard
         deck={deck({
@@ -531,8 +521,7 @@ describe('DeckReviewStatusCard panes', () => {
         onError={vi.fn()}
       />,
     );
-    expect(screen.getByText(/From Archidekt/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Archidekt Deck Review Bridge/i })).toBeInTheDocument();
+    expect(screen.getByText(/From Hub · as of/i)).toBeInTheDocument();
   });
 
   it('queue pane shows empty in/out placeholders', () => {
@@ -555,7 +544,7 @@ describe('DeckReviewStatusCard panes', () => {
     expect(screen.getAllByText('empty').length).toBeGreaterThan(0);
   });
 
-  it('update pane copies import text and reports bridge apply errors', async () => {
+  it('export pane copies Archidekt import text', async () => {
     sessionStorage.setItem('dr-status-expanded', '1');
     vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
       complete: true,
@@ -564,10 +553,7 @@ describe('DeckReviewStatusCard panes', () => {
     } as never);
     vi.spyOn(ArchidektExport, 'buildFullDeckImport').mockReturnValue('1 Sol Ring');
     vi.spyOn(ArchidektExport, 'copyText').mockResolvedValue(undefined as never);
-    vi.mocked(archidektBridge.bridgeApplyAvailable).mockReturnValue(true);
-    vi.spyOn(archidektBridge, 'stageDeckApply').mockReturnValue({ error: 'staged fail' });
     const onApplyStaged = vi.fn();
-    const onError = vi.fn();
     render(
       <DeckReviewStatusCard
         deck={deck({
@@ -579,37 +565,29 @@ describe('DeckReviewStatusCard panes', () => {
           currentSuggestionIndex: {},
         }}
         deckPrefs={{}}
-        statusCardTab="update"
+        statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
         onRefreshDeck={vi.fn()}
         onApplyStaged={onApplyStaged}
-        onError={onError}
+        onError={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Ready to update Archidekt/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Copy full deck import/i }));
-    await waitFor(() => expect(onApplyStaged).toHaveBeenCalledWith('Copied to clipboard.'));
-    fireEvent.click(screen.getByRole('button', { name: /Apply via bridge/i }));
-    expect(onError).toHaveBeenCalledWith('staged fail');
-
-    vi.spyOn(archidektBridge, 'stageDeckApply').mockReturnValue({ deckId: 1, url: 'https://archidekt.com' });
-    const openSpy = vi.fn();
-    vi.stubGlobal('open', openSpy);
-    fireEvent.click(screen.getByRole('button', { name: /Apply via bridge/i }));
-    expect(openSpy).toHaveBeenCalled();
-    expect(onApplyStaged).toHaveBeenCalledWith(expect.stringMatching(/Staged/));
-    vi.unstubAllGlobals();
+    expect(screen.getByText(/Accepts are saved on Hub/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Copy Archidekt import/i }));
+    await waitFor(() =>
+      expect(onApplyStaged).toHaveBeenCalledWith('Copied Archidekt import (mirror) to clipboard.'),
+    );
   });
 
-  it('update pane gates on missing snapshot and incomplete review', () => {
+  it('export pane gates on missing snapshot and incomplete review', () => {
     sessionStorage.setItem('dr-status-expanded', '1');
     const { rerender } = render(
       <DeckReviewStatusCard
         deck={deck({ deck_snapshot: undefined })}
         progress={emptyProgress}
         deckPrefs={{}}
-        statusCardTab="update"
+        statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
         onRefreshDeck={vi.fn()}
@@ -617,7 +595,7 @@ describe('DeckReviewStatusCard panes', () => {
         onError={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Refresh or enrich deck snapshot/i)).toBeInTheDocument();
+    expect(screen.getByText(/Refresh from Hub before exporting/i)).toBeInTheDocument();
 
     rerender(
       <DeckReviewStatusCard
@@ -626,7 +604,7 @@ describe('DeckReviewStatusCard panes', () => {
         })}
         progress={emptyProgress}
         deckPrefs={{}}
-        statusCardTab="update"
+        statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
         onRefreshDeck={vi.fn()}
@@ -659,7 +637,7 @@ describe('DeckReviewStatusCard panes', () => {
     expect(onTabChange).toHaveBeenCalledWith('queue');
   });
 
-  it('update pane reports nothing to export when import text is blank', () => {
+  it('export pane reports nothing to export when import text is blank', () => {
     sessionStorage.setItem('dr-status-expanded', '1');
     vi.spyOn(ArchidektExport, 'deckReviewComplete').mockReturnValue({
       complete: true,
@@ -678,7 +656,7 @@ describe('DeckReviewStatusCard panes', () => {
           currentSuggestionIndex: {},
         }}
         deckPrefs={{}}
-        statusCardTab="update"
+        statusCardTab="export"
         transferSource="upload"
         onTabChange={vi.fn()}
         onRefreshDeck={vi.fn()}

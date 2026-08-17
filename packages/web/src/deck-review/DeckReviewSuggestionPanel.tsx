@@ -213,6 +213,7 @@ export function DeckReviewSuggestionPanel({
               compact
               onDecision={onDecision}
               onProfileUpdate={onProfileUpdate}
+              onError={onError}
               deckPrefs={deckPrefs}
             />
           ))}
@@ -247,6 +248,7 @@ export function DeckReviewSuggestionPanel({
         progressLabel={progressLabel}
         onDecision={onDecision}
         onProfileUpdate={onProfileUpdate}
+        onError={onError}
         deckPrefs={deckPrefs}
       />
     </PanelShell>

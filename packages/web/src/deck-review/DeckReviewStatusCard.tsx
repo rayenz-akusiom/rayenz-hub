@@ -4,15 +4,12 @@ import { ArchidektExport } from '../mtg/archidekt-export';
 import type { ReviewProgress } from '../lib/hub-storage';
 import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
 import {
-  BRIDGE_SCRIPT_URL,
   cutOptionImageSrc,
   deriveSwapQueue,
-  findSnapshotCard,
   formatSwapQueueItem,
   getSuggestionStaleness,
   getSwapQueueReconciliation,
   needsSuggestedCut,
-  archidektApplyOpenUrl,
 } from './data';
 import {
   acceptedForDeck,
@@ -21,7 +18,6 @@ import {
   getDecision,
 } from './decisions';
 import { allVisibleSuggestions } from './review';
-import { bridgeApplyAvailable, bridgeAvailable, stageDeckApply } from './archidekt-bridge';
 import type { DeckPrefs, ReviewDecision, StatusCardTab, TransferSource } from './types';
 
 const STATUS_EXPANDED_KEY = 'dr-status-expanded';
@@ -72,18 +68,6 @@ function statusCounts(
   return { pending, accepted, rejected, skipped };
 }
 
-function archidektDeckLink(deck: DeckEntry, label?: string) {
-  if (!deck.archidekt_url) {
-    return null;
-  }
-  const text = label || 'Open ' + deck.deck_name + ' on Archidekt';
-  return (
-    <a className="dr-deck-archidekt-link" href={deck.archidekt_url} target="_blank" rel="noopener">
-      {text}
-    </a>
-  );
-}
-
 function decisionInThumb(suggestion: Suggestion, decision: ReviewDecision | null): string {
   if (decision?.status === 'accepted' && decision.accepted?.card_in?.scryfall_id) {
     return scryfallImageFromId(decision.accepted.card_in.scryfall_id);
@@ -124,32 +108,24 @@ function decisionOutThumb(deck: DeckEntry, suggestion: Suggestion, decision: Rev
   if (rep.scryfall_id) {
     return scryfallImageFromId(rep.scryfall_id);
   }
+  if (rep.set_code && rep.collector_number) {
+    return scryfallImageFromPrinting(rep.set_code, rep.collector_number);
+  }
   return cutOptionImageSrc(
-    { name: rep.name, set_code: rep.set_code || null, collector_number: rep.collector_number || null },
+    {
+      name: rep.name,
+      set_code: rep.set_code || null,
+      collector_number: rep.collector_number || null,
+    },
     deck,
   );
 }
 
-function queueCardThumb(
-  deck: DeckEntry,
-  card: { name: string; set_code?: string; collector_number?: string },
-): string {
-  if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number);
-  }
-  const snap = findSnapshotCard(deck, card.name, card.set_code, card.collector_number);
-  if (snap?.set_code && snap.collector_number) {
-    return scryfallImageFromPrinting(snap.set_code, snap.collector_number);
-  }
-  return scryfallImageFromName(card.name);
-}
-
 function MiniFace({ src, label }: { src: string; label: string }) {
-  return src ? (
-    <img className="dr-mini-face" src={src} alt="" title={label} />
-  ) : (
-    <span className="dr-mini-face dr-mini-face-empty" title={label || '—'} />
-  );
+  if (!src) {
+    return <span className="dr-decision-face-empty" aria-hidden="true" />;
+  }
+  return <img className="dr-decision-face" src={src} alt="" title={label} />;
 }
 
 function DecisionsPane({
@@ -181,7 +157,7 @@ function DecisionsPane({
           const outSrc = decisionOutThumb(deck, s, decision);
           return (
             <div key={String(s.suggestion_id)} className={'dr-decision-recap-row dr-decision-recap-' + status}>
-                <div className="dr-decision-recap-faces" aria-hidden="true">
+              <div className="dr-decision-recap-faces" aria-hidden="true">
                 <MiniFace src={inSrc} label={recap.inName} />
                 {recap.acceptKind === 'seeking' ? (
                   <span className="dr-decision-recap-arrow">Seeking</span>
@@ -208,11 +184,17 @@ function DecisionsPane({
                   <strong>{recap.inName}</strong>
                   {recap.inSet ? <span className="dr-decision-recap-set"> ({recap.inSet})</span> : null}
                   {recap.acceptKind === 'seeking' ? (
-                    <> → <em>Seeking</em></>
+                    <>
+                      {' '}
+                      → <em>Seeking</em>
+                    </>
                   ) : recap.outName ? (
                     <> → {recap.outName}</>
                   ) : needsSuggestedCut(s) ? (
-                    <> → <em>(pick cut)</em></>
+                    <>
+                      {' '}
+                      → <em>(pick cut)</em>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -221,6 +203,20 @@ function DecisionsPane({
         })}
       </div>
     </>
+  );
+}
+
+function queueCardThumb(
+  deck: DeckEntry,
+  card: { name: string; set_code?: string; collector_number?: string },
+): string {
+  return cutOptionImageSrc(
+    {
+      name: card.name,
+      set_code: card.set_code || null,
+      collector_number: card.collector_number || null,
+    },
+    deck,
   );
 }
 
@@ -234,35 +230,14 @@ function QueuePane({
   onRefreshDeck: () => void;
 }) {
   const queue = deriveSwapQueue(deck);
-  const bridge = bridgeAvailable();
 
   if (!queue && !deck.deck_snapshot) {
-    if (transferSource === 'deck-suggest' || transferSource === 'generate') {
-      return (
-        <>
-          {archidektDeckLink(deck, 'View deck on Archidekt')}
-          <p className="dr-bridge-hint">
-            Snapshot missing from generation — use Refresh or start a new source.
-          </p>
-        </>
-      );
-    }
     return (
       <>
-        {archidektDeckLink(deck, 'View deck on Archidekt')}
         <p className="dr-bridge-hint">
-          No Archidekt snapshot. Re-run <code>enrich_suggestions.ps1</code>
-          {!bridge ? (
-            <>
-              {' '}
-              or install the{' '}
-              <a href={BRIDGE_SCRIPT_URL} target="_blank" rel="noopener">
-                Archidekt Deck Review Bridge
-              </a>{' '}
-              userscript for live refresh
-            </>
-          ) : null}
-          .
+          {transferSource === 'deck-suggest' || transferSource === 'generate'
+            ? 'Snapshot missing from generation — refresh from Hub or start a new source.'
+            : 'No Hub deck snapshot. Refresh from Hub or regenerate suggestions with library decks.'}
         </p>
       </>
     );
@@ -274,10 +249,11 @@ function QueuePane({
 
   const recon = getSwapQueueReconciliation(deck);
   const fetchedAt = queue.fetched_at || 'unknown';
-  const sourceLabel =
-    (transferSource === 'deck-suggest' || transferSource === 'generate') && deck.deck_snapshot
-      ? 'From generation · as of ' + fetchedAt
-      : 'From Archidekt · as of ' + fetchedAt;
+  const fromRules =
+    (transferSource === 'deck-suggest' || transferSource === 'generate') && deck.deck_snapshot;
+  const sourceLabel = fromRules
+    ? 'From generation · as of ' + fetchedAt
+    : 'From Hub · as of ' + fetchedAt;
 
   function renderQueueList(
     cards: Array<{ name: string; set_code?: string; collector_number?: string }>,
@@ -308,13 +284,10 @@ function QueuePane({
   return (
     <>
       <div className="dr-swap-panel-meta">
-        {archidektDeckLink(deck, 'View deck')}
         <span className="dr-swap-source">{sourceLabel}</span>
-        {bridge ? (
-          <button type="button" className="dr-btn dr-btn-ghost dr-swap-refresh" onClick={onRefreshDeck}>
-            Refresh
-          </button>
-        ) : null}
+        <button type="button" className="dr-btn dr-btn-ghost dr-swap-refresh" onClick={onRefreshDeck}>
+          Refresh from Hub
+        </button>
       </div>
       <div className="dr-swap-cols">
         <div>
@@ -344,31 +317,20 @@ function QueuePane({
           ))}
         </div>
       ) : null}
-      {!bridge ? (
-        <p className="dr-bridge-hint">
-          Install the{' '}
-          <a href={BRIDGE_SCRIPT_URL} target="_blank" rel="noopener">
-            Archidekt Deck Review Bridge
-          </a>{' '}
-          userscript for live refresh.
-        </p>
-      ) : null}
     </>
   );
 }
 
-function UpdatePane({
+function ExportPane({
   deck,
   progress,
   deckPrefs,
   onApplyStaged,
-  onError,
 }: {
   deck: DeckEntry;
   progress: ReviewProgress;
   deckPrefs: Record<string, DeckPrefs>;
   onApplyStaged: (message: string) => void;
-  onError: (message: string) => void;
 }) {
   const suggestions = allVisibleSuggestions(deck, deckPrefs);
   const reviewProgress = ArchidektExport.deckReviewComplete(suggestions, (id) => getDecision(progress, id));
@@ -376,29 +338,18 @@ function UpdatePane({
   const accepted = acceptedForDeck(deck, progress);
   const acceptedSwaps = ArchidektExport.buildTargetAcceptedSwaps(accepted);
   const importText = hasSnapshot ? ArchidektExport.buildFullDeckImport(deck, acceptedSwaps) : '';
-  const canApply = reviewProgress.complete && hasSnapshot && importText.trim().length > 0;
+  const canExport = reviewProgress.complete && hasSnapshot && importText.trim().length > 0;
 
   async function handleCopy() {
     const text = ArchidektExport.buildFullDeckImport(deck, ArchidektExport.buildTargetAcceptedSwaps(accepted));
     await ArchidektExport.copyText(text);
-    onApplyStaged('Copied to clipboard.');
-  }
-
-  function handleApply() {
-    const text = ArchidektExport.buildFullDeckImport(deck, ArchidektExport.buildTargetAcceptedSwaps(accepted));
-    const result = stageDeckApply(deck, text);
-    if ('error' in result) {
-      onError(result.error);
-      return;
-    }
-    window.open(archidektApplyOpenUrl(deck.archidekt_url), '_blank', 'noopener');
-    onApplyStaged('Staged — switch to the Archidekt tab and click Apply import on the banner.');
+    onApplyStaged('Copied Archidekt import (mirror) to clipboard.');
   }
 
   return (
     <>
       {!hasSnapshot ? (
-        <p className="dr-update-gate">Refresh or enrich deck snapshot before applying.</p>
+        <p className="dr-update-gate">Refresh from Hub before exporting a mirror import.</p>
       ) : !reviewProgress.complete ? (
         <p className="dr-update-gate">
           Review all suggestions first ({reviewProgress.reviewed}/{reviewProgress.total}).
@@ -406,32 +357,26 @@ function UpdatePane({
       ) : !importText.trim() ? (
         <p className="dr-update-gate">Nothing to export for this deck.</p>
       ) : (
-        <p className="dr-update-ready">All {reviewProgress.total} suggestions reviewed. Ready to update Archidekt.</p>
+        <p className="dr-update-ready">
+          Accepts are saved on Hub. Optional: copy an Archidekt full-deck import to update your mirror.
+        </p>
       )}
       <div className="dr-toolbar dr-update-actions">
-        <button type="button" className="dr-btn dr-btn-primary" disabled={!canApply} onClick={() => void handleCopy()}>
-          Copy full deck import
+        <button type="button" className="dr-btn dr-btn-primary" disabled={!canExport} onClick={() => void handleCopy()}>
+          Copy Archidekt import
         </button>
-        {bridgeApplyAvailable() ? (
-          <button type="button" className="dr-btn dr-btn-primary" disabled={!canApply} onClick={handleApply}>
-            Apply via bridge
-          </button>
-        ) : (
-          <p className="dr-bridge-hint">
-            Install or update the{' '}
-            <a href={BRIDGE_SCRIPT_URL} target="_blank" rel="noopener">
-              Archidekt Deck Review Bridge
-            </a>{' '}
-            userscript (2026-06-21.4+) to apply from desktop.
-          </p>
-        )}
-        {archidektDeckLink(deck, 'Open on Archidekt')}
       </div>
       <p className="dr-import-hint">
-        Desktop: Apply via bridge stages the import in Tampermonkey, then shows a banner on Archidekt. Tablet: Import →{' '}
-        <strong>Replace deck</strong> → paste → Save.
+        Paste into Archidekt via Import → <strong>Replace deck</strong> → Save. Hub remains the system of record.
       </p>
-      <textarea id="dr-full-import-text" className="dr-import-preview" readOnly disabled={!canApply} value={importText} />
+      <textarea
+        id="dr-full-import-text"
+        className="dr-import-preview"
+        readOnly
+        disabled={!canExport}
+        value={importText}
+        aria-label="Archidekt import preview"
+      />
     </>
   );
 }
@@ -445,7 +390,7 @@ export function DeckReviewStatusCard({
   onTabChange,
   onRefreshDeck,
   onApplyStaged,
-  onError,
+  onError: _onError,
 }: DeckReviewStatusCardProps) {
   const [expanded, setExpanded] = useState(readExpandedPreference);
   const suggestions = allVisibleSuggestions(deck, deckPrefs);
@@ -496,10 +441,10 @@ export function DeckReviewStatusCard({
                 Decisions
               </button>
               <button type="button" className={tabClass('queue')} onClick={() => onTabChange('queue')}>
-                Archidekt queue
+                Swap queue
               </button>
-              <button type="button" className={tabClass('update')} onClick={() => onTabChange('update')}>
-                Update
+              <button type="button" className={tabClass('export')} onClick={() => onTabChange('export')}>
+                Export
               </button>
             </div>
           </div>
@@ -509,13 +454,12 @@ export function DeckReviewStatusCard({
           <div className="dr-status-pane" id="dr-status-pane-queue" hidden={statusCardTab !== 'queue'}>
             <QueuePane deck={deck} transferSource={transferSource} onRefreshDeck={onRefreshDeck} />
           </div>
-          <div className="dr-status-pane" id="dr-status-pane-update" hidden={statusCardTab !== 'update'}>
-            <UpdatePane
+          <div className="dr-status-pane" id="dr-status-pane-export" hidden={statusCardTab !== 'export'}>
+            <ExportPane
               deck={deck}
               progress={progress}
               deckPrefs={deckPrefs}
               onApplyStaged={onApplyStaged}
-              onError={onError}
             />
           </div>
         </>

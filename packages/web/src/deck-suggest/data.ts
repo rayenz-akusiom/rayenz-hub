@@ -19,11 +19,6 @@ import {
   normalizeSetCodesKey,
   saveSetPoolCache,
 } from '../lib/hub-storage';
-import {
-  fetchDeckSnapshotFromBridge,
-  fetchFolderFromBridge,
-  parseFolderId,
-} from '../lib/archidekt-bridge';
 import { sleep } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
@@ -330,18 +325,6 @@ export function loadSetScopeFromUpload(json: Record<string, unknown>): SetScope 
   return scope;
 }
 
-export async function loadDeckRegistry(folderUrl: string): Promise<DeckRecord[]> {
-  const folderId = parseFolderId(folderUrl);
-  if (!folderId) {
-    throw new Error('Invalid Archidekt folder URL.');
-  }
-  return (await fetchFolderFromBridge(folderId)) as DeckRecord[];
-}
-
-export async function fetchDeckSnapshot(url: string) {
-  return fetchDeckSnapshotFromBridge(url) as Promise<DeckRecord['deck_snapshot']>;
-}
-
 export async function readProfileForDeck(deckId: string): Promise<DeckProfile | null> {
   try {
     const text = await ProfileSync.readProfileYaml(deckId);
@@ -375,54 +358,6 @@ export function attachProfileLists(deck: DeckRecord) {
     blocked_cards: profile.blocked_cards || [],
   };
   return deck;
-}
-
-function humanizeSlug(slug: string): string {
-  return String(slug || '')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function deckNameFromUrl(url: string): string {
-  const slugMatch = String(url || '').match(/archidekt\.com\/decks\/\d+\/([^/?#]+)/i);
-  if (slugMatch) {
-    return humanizeSlug(slugMatch[1]);
-  }
-  const deckId = ArchidektExport.parseDeckId(url);
-  return deckId ? 'Deck ' + deckId : 'Deck';
-}
-
-export function parseDeckListFromText(text: string): DeckRecord[] {
-  const lines = String(text || '').split(/\r?\n/);
-  const decks: DeckRecord[] = [];
-  const seen: Record<string, boolean> = {};
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.charAt(0) === '#') {
-      return;
-    }
-    let url = trimmed;
-    if (url.indexOf('http') !== 0) {
-      url = 'https://archidekt.com/decks/' + url.replace(/^\/+/, '');
-    }
-    const deckId = ArchidektExport.parseDeckId(url);
-    if (!deckId) {
-      throw new Error('Invalid Archidekt deck URL: ' + trimmed);
-    }
-    if (seen[deckId]) {
-      return;
-    }
-    seen[deckId] = true;
-    decks.push({
-      deck_id: 'deck-' + deckId,
-      deck_name: deckNameFromUrl(url),
-      archidekt_url: url,
-    });
-  });
-  if (!decks.length) {
-    throw new Error('Paste at least one Archidekt deck URL (one per line).');
-  }
-  return decks;
 }
 
 export function buildDeckFromImportText(
@@ -482,6 +417,28 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
       source: 'hub-library',
       cards: snapshotCards,
     },
+  };
+}
+
+/** Reload a single Hub deck and project it into a Suggest/Review deck entry shape. */
+export async function refreshDeckFromHub(deckId: string): Promise<DeckRecord> {
+  const doc = await getDeck(deckId);
+  if (!doc) {
+    throw new Error('Deck not found in Hub library: ' + deckId);
+  }
+  return hubDeckToRecord(doc);
+}
+
+/** Merge Hub library snapshot fields onto an in-memory suggestion deck entry. */
+export function applyHubRecordToEntry<T extends { deck_id?: string; deck_name?: string; archidekt_url?: string; deck_snapshot?: unknown }>(
+  entry: T,
+  record: DeckRecord,
+): T {
+  return {
+    ...entry,
+    deck_name: record.deck_name || entry.deck_name,
+    archidekt_url: record.archidekt_url || entry.archidekt_url,
+    deck_snapshot: record.deck_snapshot,
   };
 }
 

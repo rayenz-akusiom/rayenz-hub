@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
-import { bridgeAvailable, downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
+import { downloadSuggestionsJson, handoffSnapshotSummary } from '../lib/hub-utils';
 import { escapeHtml } from '../lib/string-utils';
 import { isApiConfigured } from '../api/hub-api';
-import { refreshActiveDeckSnapshot, refreshAllDeckSnapshots } from '../deck-review/archidekt-bridge';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
 import { checkProfilesConnected, connectProfilesDir } from '../deck-review/profiles';
@@ -27,7 +26,7 @@ import type {
 } from '../deck-review/types';
 import '../deck-review/deck-review.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
-import { loadHubLibraryDecks } from './data';
+import { applyHubRecordToEntry, loadHubLibraryDecks, refreshDeckFromHub } from './data';
 import { applyDeckList } from './deck-load';
 import { buildExport } from './export';
 import { generateSuggestions } from './generation';
@@ -35,8 +34,6 @@ import { getGenerateReadiness } from './readiness';
 import { proposePageIds, remainingIds } from './paging';
 import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
 import './deck-suggest.css';
-
-const LATEST_URL = 'data/suggestions/latest.json';
 
 function createSuggestState(): DeckSuggestState {
   const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
@@ -101,7 +98,6 @@ export function DeckSuggestApp() {
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const bridgeOk = bridgeAvailable();
   const reviewRef = useRef(review);
   reviewRef.current = review;
 
@@ -196,20 +192,6 @@ export function DeckSuggestApp() {
     [],
   );
 
-  async function handleFetchLatest() {
-    setError('');
-    try {
-      const resp = await fetch(LATEST_URL + '?t=' + Date.now());
-      if (!resp.ok) {
-        throw new Error('Could not fetch ' + LATEST_URL + ' (' + resp.status + ')');
-      }
-      const data = (await resp.json()) as SuggestionsPayload;
-      await applyLoaded(data, 'latest');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
   function handleFileUpload(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -274,42 +256,72 @@ export function DeckSuggestApp() {
     if (!review.data) {
       return;
     }
-    await refreshAllDeckSnapshots(
-      review.data.decks,
-      progressRef.current,
-      (updatedDecks) => {
-        setReview((prev) =>
-          prev.data
-            ? {
-                ...prev,
-                data: { ...prev.data, decks: updatedDecks },
-              }
-            : prev,
-        );
-      },
-      (msg) => {
-        if (!bridgeAvailable()) {
-          setReview((prev) => ({
-            ...prev,
-            profileStatus: 'Install Archidekt Deck Review Bridge userscript for live refresh.',
-          }));
-        } else {
-          setError(msg);
+    const decks = review.data.decks;
+    progressRef.current?.start({ label: 'Refreshing decks from Hub…' });
+    try {
+      const updated = [];
+      for (let i = 0; i < decks.length; i++) {
+        const deck = decks[i];
+        progressRef.current?.update({
+          label:
+            'Refreshing Hub (' + (i + 1) + '/' + decks.length + '): ' + (deck.deck_name || deck.deck_id) + '…',
+        });
+        if (!deck.deck_id) {
+          updated.push(deck);
+          continue;
         }
-      },
-    );
+        try {
+          const record = await refreshDeckFromHub(deck.deck_id);
+          updated.push(applyHubRecordToEntry(deck, record));
+        } catch {
+          updated.push(deck);
+        }
+      }
+      setReview((prev) =>
+        prev.data
+          ? {
+              ...prev,
+              data: { ...prev.data, decks: updated },
+              profileStatus: 'Refreshed ' + updated.length + ' decks from Hub.',
+            }
+          : prev,
+      );
+      progressRef.current?.finish({ label: 'Refreshed ' + updated.length + ' decks from Hub.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      progressRef.current?.finish({ label: msg, variant: 'error' });
+    }
   }
 
   async function handleRefreshDeck() {
     const deck = getDeckById(review.data, review.activeDeckId);
-    if (!deck) {
+    if (!deck?.deck_id) {
       return;
     }
+    progressRef.current?.start({ label: 'Refreshing ' + deck.deck_name + ' from Hub…' });
     try {
-      await refreshActiveDeckSnapshot(deck, progressRef.current);
-      setReview((prev) => ({ ...prev }));
-    } catch {
-      /* error shown via progress */
+      const record = await refreshDeckFromHub(deck.deck_id);
+      setReview((prev) => {
+        if (!prev.data) {
+          return prev;
+        }
+        return {
+          ...prev,
+          data: {
+            ...prev.data,
+            decks: prev.data.decks.map((d) =>
+              d.deck_id === deck.deck_id ? applyHubRecordToEntry(d, record) : d,
+            ),
+          },
+          profileStatus: 'Refreshed ' + deck.deck_name + ' from Hub.',
+        };
+      });
+      progressRef.current?.finish({ label: 'Refreshed ' + deck.deck_name + ' from Hub.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      progressRef.current?.finish({ label: msg, variant: 'error' });
     }
   }
 
@@ -404,16 +416,6 @@ export function DeckSuggestApp() {
               <div className="hub-progress-host dr-chrome-progress" id="ds-progress-host" ref={progressHostRef} />
               {loaded ? (
                 <div className="dr-chrome-actions">
-                  {activeDeck?.archidekt_url ? (
-                    <a
-                      className="dr-deck-archidekt-link dr-chrome-archidekt"
-                      href={activeDeck.archidekt_url}
-                      target="_blank"
-                      rel="noopener"
-                    >
-                      Archidekt
-                    </a>
-                  ) : null}
                   <button
                     type="button"
                     className="dr-btn dr-btn-ghost"
@@ -456,7 +458,7 @@ export function DeckSuggestApp() {
               <div className="ds-setup-phase">
                 <p className="ds-meta ds-results-placeholder" id="ds-results-placeholder">
                   {isApiConfigured()
-                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON / refresh latest from the sidebar.'
+                    ? 'Configure a set release, select decks, then Generate — or upload a suggestions JSON from the sidebar.'
                     : 'Configure API URL and key in Settings to generate, or upload a suggestions JSON from the sidebar.'}
                 </p>
                 {remaining.length && processedIds.length ? (
@@ -524,9 +526,7 @@ export function DeckSuggestApp() {
         <DeckReviewSidebar
           state={review}
           navOpen={navOpen}
-          bridgeOk={bridgeOk}
           onCloseNav={() => setNavOpen(false)}
-          onFetchLatest={() => void handleFetchLatest()}
           onUploadClick={() => fileInputRef.current?.click()}
           onFileChange={handleFileUpload}
           onDownloadJson={() => {

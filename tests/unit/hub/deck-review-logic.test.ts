@@ -652,7 +652,7 @@ describe('deck-review review helpers', () => {
     expect(showDownloadJson('upload')).toBe(true);
     expect(showDownloadJson(null)).toBe(false);
     expect(refreshAllDecksLabel('deck-suggest')).toContain('optional');
-    expect(refreshAllDecksLabel('upload')).toBe('Refresh all decks');
+    expect(refreshAllDecksLabel('upload')).toBe('Refresh all decks from Hub');
   });
 
   it('recordDecision without advance leaves suggestion index unchanged', () => {
@@ -800,9 +800,9 @@ describe('deck-review review helpers', () => {
     expect(unchanged.suggestionIndex).toBe(0);
   });
 
-  it('refreshAllDecksTitle varies by transfer source and bridge availability', () => {
+  it('refreshAllDecksTitle varies by transfer source', () => {
     expect(refreshAllDecksTitle(true, 'deck-suggest')).toContain('generation');
-    expect(refreshAllDecksTitle(false, 'upload')).toContain('Bridge');
+    expect(refreshAllDecksTitle(false, 'upload')).toContain('Hub library');
   });
 });
 

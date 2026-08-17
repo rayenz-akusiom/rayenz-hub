@@ -40,7 +40,7 @@ Unit tests import TypeScript modules from `packages/web` and `packages/shared` d
 
 ## MSH suggestion fixtures
 
-Completed set-update JSON is archived under `tests/fixtures/suggestions/` (currently `msh-2026-06-21.json`) instead of shipping a multi-MB `latest.json` in the hub tree. Deck Suggest falls back to file upload when `data/suggestions/latest.json` is absent.
+Completed set-update JSON is archived under `tests/fixtures/suggestions/` (currently `msh-2026-06-21.json`) for regression tests. Deck Suggest loads external suggestion files via **Upload JSON** in the sidebar (Generate is the in-app source).
 
 To slice decks from a source suggestions file for a future set:
 

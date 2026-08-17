@@ -151,14 +151,6 @@ describe('attachProfileLists', () => {
   });
 });
 
-describe('parseDeckListFromText extras', () => {
-  it('accepts bare deck ids and deduplicates lines', () => {
-    const decks = Data.parseDeckListFromText('3533613\n3533613\n');
-    expect(decks).toHaveLength(1);
-    expect(decks[0].deck_id).toBe('deck-3533613');
-  });
-});
-
 describe('readProfileForDeck', () => {
   it('returns null when profile read fails', async () => {
     const { ProfileSync } = await import('../../../packages/web/src/mtg/profile-sync.ts');

@@ -165,7 +165,7 @@ export function handoffStatusMessage(data: SuggestionsPayload, transferSource: T
   }
   const summary = handoffSnapshotSummary(data);
   if (summary.missingSnapshots > 0) {
-    return summary.missingSnapshots + ' deck(s) missing snapshots — use Refresh from Archidekt (optional) or start a new generation.';
+    return summary.missingSnapshots + ' deck(s) missing snapshots — refresh from Hub or start a new generation.';
   }
   if (summary.allReady) {
     return 'Ready to review — deck snapshots included from generation.';
@@ -260,15 +260,13 @@ export function showDownloadJson(transferSource: TransferSource): boolean {
 
 export function refreshAllDecksLabel(transferSource: TransferSource): string {
   return transferSource === 'deck-suggest' || transferSource === 'generate'
-    ? 'Refresh from Archidekt (optional)'
-    : 'Refresh all decks';
+    ? 'Refresh from Hub (optional)'
+    : 'Refresh all decks from Hub';
 }
 
-export function refreshAllDecksTitle(bridgeOk: boolean, transferSource: TransferSource): string {
+export function refreshAllDecksTitle(_bridgeOk: boolean, transferSource: TransferSource): string {
   if (transferSource === 'deck-suggest' || transferSource === 'generate') {
-    return bridgeOk
-      ? 'Snapshots loaded from generation; refresh only if Archidekt changed since.'
-      : 'Requires Archidekt Deck Review Bridge userscript';
+    return 'Snapshots loaded from generation; refresh if Hub decks changed since.';
   }
-  return bridgeOk ? 'Fetch latest deck lists from Archidekt' : 'Requires Archidekt Deck Review Bridge userscript';
+  return 'Reload deck lists from the Hub library';
 }

@@ -3,7 +3,6 @@ import {
   applyDeckList,
   buildDeckFromImportText,
   hubDeckToRecord,
-  parseDeckListFromText,
 } from '../../../packages/web/src/deck-suggest/index.ts';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
 import type { DeckDocument } from '@rayenz-hub/shared';
@@ -15,25 +14,6 @@ beforeEach(() => {
 
 afterEach(() => {
   resetHubModules();
-});
-
-describe('parseDeckListFromText', () => {
-  it('parses Archidekt URLs one per line', () => {
-    const text = 'https://archidekt.com/decks/3533613/baird\n# comment\nhttps://archidekt.com/decks/99999';
-    const decks = parseDeckListFromText(text);
-    expect(decks).toHaveLength(2);
-    expect(decks[0].deck_id).toBe('deck-3533613');
-    expect(decks[0].deck_name).toBe('Baird');
-    expect(decks[1].deck_id).toBe('deck-99999');
-  });
-
-  it('throws on invalid lines', () => {
-    expect(() => parseDeckListFromText('not-a-url')).toThrow(/Invalid Archidekt/);
-  });
-
-  it('throws when empty', () => {
-    expect(() => parseDeckListFromText('  \n# only comments\n')).toThrow(/at least one/);
-  });
 });
 
 describe('buildDeckFromImportText', () => {

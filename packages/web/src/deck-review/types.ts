@@ -1,9 +1,9 @@
 import type { DeckEntry, Suggestion, SuggestionsPayload } from '@rayenz-hub/shared';
 import type { ReviewProgress } from '../lib/hub-storage';
 
-export type TransferSource = 'deck-suggest' | 'generate' | 'upload' | 'latest' | 'handoff' | null;
+export type TransferSource = 'deck-suggest' | 'generate' | 'upload' | 'handoff' | null;
 
-export type StatusCardTab = 'decisions' | 'queue' | 'update';
+export type StatusCardTab = 'decisions' | 'queue' | 'export';
 
 export type DeckPrefs = {
   blocked_cards: string[];

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   aggregateSwapWants,
+  redactDeckForPublicSwaps,
   unifyWantSources,
   type WantSource,
 } from '../../../packages/shared/src/mtg/wants-aggregate.ts';
+import { emptyCardOracle } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
 import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
 
 function card(
@@ -237,5 +239,40 @@ describe('wants-aggregate', () => {
     const sources = aggregateSwapWants([owned, theory]);
     expect(sources.every((s) => s.deckId === 'owned')).toBe(true);
     expect(sources).toHaveLength(2);
+  });
+
+  it('redactDeckForPublicSwaps keeps queue cards and drops the rest', () => {
+    const full = deck({
+      deckId: 'cmd',
+      name: 'Commander Deck',
+      format: 'commander',
+      cards: [
+        card('in1', 'Sol Ring'),
+        card('out1', 'Cut Card'),
+        card('lf1', 'Counterspell'),
+        card('main', 'Island'),
+      ],
+      oracle: {
+        'name:sol ring': emptyCardOracle({ scryfallId: 'sol' }),
+        'name:island': emptyCardOracle({ scryfallId: 'island', colourIdentity: ['U'], typeLine: 'Basic Land' }),
+      },
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: 'in1',
+          outInstanceId: 'out1',
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [{ id: 'lf1', instanceId: 'lf1', sortIndex: 0, notes: null }],
+    });
+    const redacted = redactDeckForPublicSwaps(full);
+    expect(redacted.cards.map((c) => c.instanceId).sort()).toEqual(['in1', 'lf1', 'out1']);
+    expect(redacted.oracle['name:sol ring']?.scryfallId).toBe('sol');
+    expect(redacted.oracle['name:island']).toBeUndefined();
+    expect(redacted.formalSwapEntries).toHaveLength(1);
+    expect(redacted.lookingForEntries).toHaveLength(1);
   });
 });

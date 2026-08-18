@@ -39,4 +39,10 @@ describe('HubNav Swap Queue entry', () => {
     render(<HubNav path="/wishlist" open={false} onClose={() => {}} />);
     expect(screen.getByRole('link', { name: 'Swap Queue' })).not.toHaveClass('active');
   });
+
+  it('marks Swap Queue active on a nested share path', () => {
+    render(<HubNav path="/swap-queue/rayenz" open={false} onClose={() => {}} />);
+    expect(screen.getByRole('link', { name: 'Swap Queue' })).toHaveClass('active');
+    expect(screen.getByRole('link', { name: 'Deck Suggest' })).not.toHaveClass('active');
+  });
 });

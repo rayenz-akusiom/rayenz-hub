@@ -23,7 +23,12 @@ import {
 import {
   defaultBrowseForSwapQueuePath,
   defaultLayoutForSwapQueuePath,
+  hubUserSlug,
+  parseSwapQueueRoute,
+  swapQueueHash,
+  swapQueueShareUrl,
   type SwapQueueBrowseMode,
+  type SwapQueueEntryPath,
   type SwapQueueLayoutMode,
 } from '../hub/routes';
 import { CardSizePicker } from '../deck-builder/CardSizePicker';
@@ -44,11 +49,11 @@ import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
-import { useIsHubOwner } from '../lib/hub-auth-session';
+import { getHubAuthSession, useIsHubOwner } from '../lib/hub-auth-session';
+import { navigateHub } from '../lib/hub-storage';
 import '../deck-builder/deck-builder.css';
-import { findDeck, loadSwapWantSources } from './aggregate';
+import { findDeck, loadPublicSwapWantSources, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
-import { copyArchidektWants, copyNameQtyWants } from './export-ui';
 import { cadToUsd, fetchFxUsdCad, type FxUsdCad } from './fx-cad';
 import { LookingForEditChrome } from './LookingForEditChrome';
 import {
@@ -61,9 +66,10 @@ import {
 import { QueueTilesView } from './QueueTilesView';
 import { SourceInterstitial } from './SourceInterstitial';
 import { SwapsGlanceDialog } from './SwapsGlanceDialog';
+import { copyArchidektWants, copyNameQtyWants, copyText } from './export-ui';
 import './swap-queue.css';
 
-export type SwapQueueEntryPath = 'swap-queue' | 'wishlist';
+export type { SwapQueueEntryPath } from '../hub/routes';
 
 export type SwapQueueAppProps = {
   entryPath?: SwapQueueEntryPath;
@@ -341,6 +347,10 @@ function DeckFilterMenuControl({
 
 export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const pathKey = entryPath === 'wishlist' ? '/wishlist' : '/swap-queue';
+  const [routeUserSlug, setRouteUserSlug] = useState(
+    () => parseSwapQueueRoute()?.userSlug ?? null,
+  );
+  const [shareUsername, setShareUsername] = useState<string | null>(null);
   const [decks, setDecks] = useState<DeckDocument[]>([]);
   const [sources, setSources] = useState<WantSource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -388,6 +398,22 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   pairOriginDeckIdRef.current = pairOriginDeckId;
   originDeckWorkingRef.current = originDeckWorking;
   decksRef.current = decks;
+  const readOnly = Boolean(routeUserSlug) && routeUserSlug !== hubUserSlug();
+
+  useEffect(() => {
+    function syncRoute() {
+      setRouteUserSlug(parseSwapQueueRoute()?.userSlug ?? null);
+    }
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
+
+  useEffect(() => {
+    const username = getHubAuthSession()?.username?.trim();
+    const slug = username ? hubUserSlug() : '';
+    if (!slug || parseSwapQueueRoute()) return;
+    navigateHub(swapQueueHash(slug, entryPath));
+  }, [entryPath]);
 
   useEffect(() => {
     setBrowse(defaultBrowseForSwapQueuePath(pathKey));
@@ -398,7 +424,27 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setLoading(true);
     setError('');
     setApiWarning('');
+    const userSlug = parseSwapQueueRoute()?.userSlug ?? null;
+    const viewingOther = Boolean(userSlug) && userSlug !== hubUserSlug();
     try {
+      if (viewingOther && userSlug) {
+        const result = await loadPublicSwapWantSources(userSlug);
+        if (!result) {
+          setShareUsername(null);
+          setDecks([]);
+          setSources([]);
+          setError(`Unknown user “${userSlug}”`);
+          return;
+        }
+        setShareUsername(result.username || result.slug);
+        setDecks(result.decks);
+        setSources(result.sources);
+        void enrichWantSourcesUsd(result.sources).then((enriched) => {
+          setSources(enriched);
+        });
+        return;
+      }
+      setShareUsername(null);
       try {
         await pullRemoteLibraryUpdates();
       } catch (e) {
@@ -419,7 +465,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [routeUserSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -576,6 +622,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   }
 
   function openSource(source: WantSource) {
+    if (readOnly) return;
     window.clearTimeout(autosaveTimerRef.current);
     setInterstitial(null);
     const deck = findDeck(decksRef.current, source.deckId);
@@ -882,6 +929,17 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setStatus(ok ? 'Copied name/qty list' : 'Copy failed');
   }
 
+  async function onCopyShareLink() {
+    const sessionSlug = getHubAuthSession()?.username?.trim() ? hubUserSlug() : '';
+    const slug = sessionSlug || routeUserSlug;
+    if (!slug) {
+      setStatus('Sign in to copy a share link');
+      return;
+    }
+    const ok = await copyText(swapQueueShareUrl(slug));
+    setStatus(ok ? 'Copied share link' : 'Copy failed');
+  }
+
   function onCardSizeChange(next: CardSizeKey) {
     setCardSize(next);
   }
@@ -904,12 +962,18 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       data-entry-path={entryPath}
       data-browse={browse}
       data-layout={layout}
+      data-readonly={readOnly ? 'true' : undefined}
       style={shellStyle}
     >
-      <h1>Swap Queue</h1>
+      <h1>{readOnly && (shareUsername || routeUserSlug)
+        ? `${shareUsername || routeUserSlug}'s Swap Queue`
+        : 'Swap Queue'}</h1>
       <p className="hub-muted">
-        Manage your swap queues across all of your decks
-        {entryPath === 'wishlist' ? ' (Wishlist alias)' : ''}.
+        {readOnly
+          ? 'Read-only view of Seeking, Queued In, and Out.'
+          : `Manage your swap queues across all of your decks${
+              entryPath === 'wishlist' ? ' (Wishlist alias)' : ''
+            }.`}
       </p>
 
       <header className="db-header sq-header" role="toolbar" aria-label="Swap Queue controls">
@@ -975,7 +1039,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         >
           <DbMenuItem onSelect={() => void onExportArchidekt()}>Export Archidekt</DbMenuItem>
           <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
-          {isOwner ? (
+          <DbMenuItem onSelect={() => void onCopyShareLink()}>Copy share link</DbMenuItem>
+          {isOwner && !readOnly ? (
             <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
           ) : null}
           <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
@@ -1005,9 +1070,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           decks={decks}
           layout={layout}
           unified={unified}
-          onSelect={openSource}
-          onActivateUnified={activateUnified}
-          onFinalizePair={(deckId, entryId) => void finalizePair(deckId, entryId)}
+          onSelect={readOnly ? undefined : openSource}
+          onActivateUnified={readOnly ? undefined : activateUnified}
+          onFinalizePair={readOnly ? undefined : (deckId, entryId) => void finalizePair(deckId, entryId)}
           showPrices={showPrices}
           formatPrice={(usd) => formatPricePrimary(usd, effectiveCurrency, fxRate)}
           priceTitle={(usd) => priceBadgeTitle(usd, effectiveCurrency, fxRate)}
@@ -1114,6 +1179,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         />
       ) : null}
 
+      {readOnly ? null : (
       <button
         type="button"
         className="db-add-fab"
@@ -1124,13 +1190,16 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       >
         <SwapAddFabIcon />
       </button>
+      )}
 
+      {readOnly ? null : (
       <SwapsGlanceDialog
         open={swapsGlanceOpen}
         sources={visible}
         setCodes={setFilter.active ? setFilter.appliedCodes : []}
         onClose={() => setSwapsGlanceOpen(false)}
       />
+      )}
     </div>
   );
 }

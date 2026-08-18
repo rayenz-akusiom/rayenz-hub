@@ -50,6 +50,12 @@ export type DeckBuilderRoute = {
 
 export type BuilderFormat = 'commander' | 'cube';
 
+export type SwapQueueRoute = {
+  userSlug: string;
+};
+
+export type SwapQueueEntryPath = 'swap-queue' | 'wishlist';
+
 export type SwapQueueBrowseMode = 'default' | 'unified';
 
 export type SwapQueueLayoutMode = 'tiles' | 'stacked' | 'grid';
@@ -66,7 +72,8 @@ export function defaultBrowseForSwapQueuePath(
 export function defaultLayoutForSwapQueuePath(
   path: string | null | undefined,
 ): SwapQueueLayoutMode {
-  if (path === '/wishlist' || path === 'wishlist') return 'grid';
+  const raw = String(path || '');
+  if (raw === '/wishlist' || raw === 'wishlist' || raw.startsWith('/wishlist/')) return 'grid';
   return 'tiles';
 }
 
@@ -170,6 +177,12 @@ export function pathFromHash(hash?: string | null): HubPath {
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;
   }
+  if (path.startsWith('/swap-queue/')) {
+    return '/swap-queue';
+  }
+  if (path.startsWith('/wishlist/')) {
+    return '/wishlist';
+  }
   if (path === '/commander-builder' || path.startsWith('/commander-builder/')) {
     return '/commander-builder';
   }
@@ -264,6 +277,55 @@ export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | 
 /** @deprecated Use builderHash('commander', ...) instead. */
 export function deckBuilderHash(userSlug?: string | null, deckSlug?: string | null): string {
   return builderHash('commander', userSlug, deckSlug);
+}
+
+const SWAP_QUEUE_PREFIXES = ['/swap-queue', '/wishlist'] as const;
+
+function parseSwapQueueRouteFromPrefix(path: string, prefix: string): SwapQueueRoute | null {
+  if (path === prefix) return null;
+  if (!path.startsWith(`${prefix}/`)) return null;
+  const rest = path.slice(prefix.length + 1);
+  const parts = rest.split('/').filter(Boolean);
+  if (parts.length !== 1) return null;
+  const userSlug = parts[0];
+  if (!userSlug) return null;
+  return { userSlug };
+}
+
+/**
+ * Parse `#/swap-queue/:user` and `#/wishlist/:user` share links.
+ * Returns null for the owner library route or malformed nested paths.
+ */
+export function parseSwapQueueRoute(hash?: string | null): SwapQueueRoute | null {
+  const normalized = normalizeHash(
+    hash ?? (typeof window !== 'undefined' ? window.location.hash : ''),
+  );
+  const path = normalized.slice(1);
+  for (const prefix of SWAP_QUEUE_PREFIXES) {
+    const route = parseSwapQueueRouteFromPrefix(path, prefix);
+    if (route) return route;
+  }
+  return null;
+}
+
+/** Build `#/swap-queue`, `#/wishlist`, or the username share hash. */
+export function swapQueueHash(
+  userSlug?: string | null,
+  entryPath: SwapQueueEntryPath = 'swap-queue',
+): string {
+  const base = entryPath === 'wishlist' ? '/wishlist' : '/swap-queue';
+  if (userSlug) {
+    return `#${base}/${userSlug}`;
+  }
+  return `#${base}`;
+}
+
+/** Absolute share URL for a username (always `#/swap-queue/{slug}`). */
+export function swapQueueShareUrl(
+  userSlug: string,
+  loc: Pick<Location, 'origin' | 'pathname'> = window.location,
+): string {
+  return `${loc.origin}${loc.pathname}${swapQueueHash(userSlug)}`;
 }
 
 export function isSettingsPath(path: string): boolean {

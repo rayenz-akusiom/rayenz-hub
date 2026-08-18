@@ -11,6 +11,7 @@ const mockCopyNameQtyWants = vi.fn();
 vi.mock('../../packages/web/src/swap-queue/export-ui', () => ({
   copyArchidektWants: (...args: unknown[]) => mockCopyArchidektWants(...args),
   copyNameQtyWants: (...args: unknown[]) => mockCopyNameQtyWants(...args),
+  copyText: vi.fn(),
 }));
 
 afterEach(() => {

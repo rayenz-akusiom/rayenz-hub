@@ -32,6 +32,30 @@ export async function apiGetPublicDeck(
   return parsed.data;
 }
 
+export type PublicSwapsPayload = {
+  username: string;
+  slug: string;
+  decks: DeckDocument[];
+};
+
+export async function apiGetPublicSwaps(username: string): Promise<PublicSwapsPayload | null> {
+  const data = await publicApiFetch(`/v1/users/${encodeURIComponent(username)}/swaps`);
+  if (!data) return null;
+  const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
+  if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {
+    throw new Error('Public swaps response was not valid');
+  }
+  const decks: DeckDocument[] = [];
+  for (const raw of body.decks) {
+    const parsed = DeckDocumentSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error('Public swaps response was not a valid deck document');
+    }
+    decks.push(parsed.data);
+  }
+  return { username: body.username, slug: body.slug, decks };
+}
+
 export async function apiPutDeck(doc: DeckDocument): Promise<DeckDocument> {
   const body = DeckDocumentSchema.parse(doc);
   const data = await apiFetch<unknown>(`/v1/decks/${encodeURIComponent(body.deckId)}`, {

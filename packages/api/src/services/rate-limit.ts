@@ -9,6 +9,7 @@ export const RATE_LIMITS = {
   register: { limit: 10, windowMs: 15 * 60 * 1000 },
   invite: { limit: 30, windowMs: 24 * 60 * 60 * 1000 },
   publicDeck: { limit: 60, windowMs: 15 * 60 * 1000 },
+  publicSwaps: { limit: 20, windowMs: 15 * 60 * 1000 },
 } as const;
 
 export type RateKind = keyof typeof RATE_LIMITS;

@@ -33,8 +33,12 @@ function AppOutlet({ path }: { path: string }) {
   if (path === '/deck-builder') return <LegacyDeckBuilderRedirect />;
   if (path === '/deck-suggest' || path === '/deck-review') return <DeckSuggestApp />;
   if (path === '/order-reconcile') return <OrderReconcileApp />;
-  if (path === '/swap-queue') return <SwapQueueApp entryPath="swap-queue" />;
-  if (path === '/wishlist') return <SwapQueueApp entryPath="wishlist" />;
+  if (path === '/swap-queue' || path.startsWith('/swap-queue/')) {
+    return <SwapQueueApp entryPath="swap-queue" />;
+  }
+  if (path === '/wishlist' || path.startsWith('/wishlist/')) {
+    return <SwapQueueApp entryPath="wishlist" />;
+  }
   if (path === '/invite') return <InviteRedeemPage />;
   if (isSettingsPath(path)) {
     return <SettingsShell tab={settingsTabFromPath(path)} />;

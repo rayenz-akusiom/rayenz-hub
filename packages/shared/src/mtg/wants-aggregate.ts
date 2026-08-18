@@ -1,5 +1,5 @@
-import { isTheoryDeck, type CardInstance, type DeckDocument } from '../schemas/deck-builder.js';
-import { cardDisplayName, getOracle, resolveCardView } from '../deck-builder/card-oracle.js';
+import { isTheoryDeck, type CardInstance, type CardOracle, type DeckDocument } from '../schemas/deck-builder.js';
+import { cardDisplayName, getOracle, oracleKey, resolveCardView } from '../deck-builder/card-oracle.js';
 
 export type WantSourceKind = 'seeking' | 'queued_in' | 'queued_out';
 
@@ -279,4 +279,33 @@ export function unifyDeckCardInstances(deck: DeckDocument): UnifiedCardRow[] {
 
   rows.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.key.localeCompare(b.key));
   return rows;
+}
+
+function queueInstanceIds(deck: DeckDocument): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of deck.formalSwapEntries || []) {
+    if (entry.inInstanceId) ids.add(entry.inInstanceId);
+    if (entry.outInstanceId) ids.add(entry.outInstanceId);
+  }
+  for (const entry of deck.lookingForEntries || []) {
+    if (entry.instanceId) ids.add(entry.instanceId);
+  }
+  return ids;
+}
+
+/** Strip a deck down to swap-queue cards and matching oracles for public share payloads. */
+export function redactDeckForPublicSwaps(deck: DeckDocument): DeckDocument {
+  const keepIds = queueInstanceIds(deck);
+  const cards = (deck.cards || []).filter((c) => keepIds.has(c.instanceId));
+  const oracle: Record<string, CardOracle> = {};
+  for (const card of cards) {
+    const key = oracleKey(card);
+    const entry = deck.oracle?.[key];
+    if (entry) oracle[key] = entry;
+  }
+  return {
+    ...deck,
+    cards,
+    oracle,
+  };
 }

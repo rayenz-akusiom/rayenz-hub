@@ -3,6 +3,7 @@ import type { DeckDocument, WantSource } from '@rayenz-hub/shared';
 import { cardInstance, leanDeck } from '../../unit/helpers/deck-fixtures';
 
 export const mockLoadSwapWantSources = vi.fn();
+export const mockLoadPublicSwapWantSources = vi.fn();
 export const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
 export const mockPullRemoteLibraryUpdates = vi.fn(async () => []);
 export const mockApiPutDeck = vi.fn(async (doc: DeckDocument) => doc);

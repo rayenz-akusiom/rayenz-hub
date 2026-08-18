@@ -42,6 +42,7 @@ vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) =>
 vi.mock('../../packages/web/src/swap-queue/export-ui', () => ({
   copyArchidektWants: vi.fn(async () => true),
   copyNameQtyWants: vi.fn(async () => true),
+  copyText: vi.fn(async () => true),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({
@@ -70,10 +71,12 @@ afterEach(() => {
   apiConfigured.value = true;
   vi.clearAllMocks();
   clearHubAuthSession();
+  window.location.hash = '';
 });
 
 describe('Swaps at a glance dialog', () => {
   beforeEach(() => {
+    window.location.hash = '';
     setHubAuthSession({ accessToken: 't', username: 'Rayenz', isOwner: true });
     const deck = buildGlanceSwapCommanderDeck({
       deckId: 'sq-glance',
@@ -199,6 +202,7 @@ describe('Swaps at a glance dialog', () => {
   });
 
   it('omits Swaps at a glance for a non-owner session', async () => {
+    window.location.hash = '';
     setHubAuthSession({ accessToken: 't', username: 'friend', isOwner: false });
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => expect(screen.getByText(/Swap In Spell/)).toBeInTheDocument());

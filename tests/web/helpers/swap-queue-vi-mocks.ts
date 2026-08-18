@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import {
   mockLoadSwapWantSources,
+  mockLoadPublicSwapWantSources,
   mockPullRemoteLibraryUpdates,
   mockSaveDeck,
 } from './swap-queue-harness';
@@ -16,6 +17,7 @@ vi.mock('../../../packages/web/src/swap-queue/aggregate', async (importOriginal)
   return {
     ...actual,
     loadSwapWantSources: () => mockLoadSwapWantSources(),
+    loadPublicSwapWantSources: (...args: unknown[]) => mockLoadPublicSwapWantSources(...args),
   };
 });
 

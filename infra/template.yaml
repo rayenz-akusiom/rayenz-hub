@@ -5,7 +5,7 @@ Description: Rayenz Hub API — local-first serverless backend
 Globals:
   Function:
     Timeout: 60
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     MemorySize: 2048
     Architectures:
       - x86_64

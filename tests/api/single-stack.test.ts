@@ -23,6 +23,7 @@ describe('production stack inventory', () => {
     const buckets = template.match(/Type: AWS::S3::Bucket/g) || [];
     expect(tables).toHaveLength(1);
     expect(buckets).toHaveLength(1);
+    expect(template).toMatch(/Runtime: nodejs24\.x/);
     expect(template).not.toMatch(/StagingHubTable|HubTableStaging|dev-cloud/i);
     const samconfig = readFileSync(path.join(root, 'infra/samconfig.toml'), 'utf8');
     expect(samconfig).toMatch(/stack_name = "rayenz-hub-api"/);

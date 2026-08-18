@@ -5,6 +5,15 @@ const USERNAME_KEY = 'rayenz-hub-username';
 const SUB_KEY = 'rayenz-hub-sub';
 
 export const HUB_AUTH_REQUIRED_EVENT = 'hub-auth-required';
+export const HUB_AUTH_CHANGED_EVENT = 'hub-auth-changed';
+
+function dispatchAuthChanged(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(HUB_AUTH_CHANGED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
 
 export type HubAuthSession = {
   accessToken: string;
@@ -53,6 +62,7 @@ export function setHubAuthSession(session: HubAuthSession): void {
   storageSet(REFRESH_KEY, session.refreshToken || '');
   storageSet(USERNAME_KEY, session.username || '');
   storageSet(SUB_KEY, session.sub || '');
+  dispatchAuthChanged();
 }
 
 export function clearHubAuthSession(): void {
@@ -68,6 +78,7 @@ export function clearHubAuthSession(): void {
   } catch {
     /* ignore */
   }
+  dispatchAuthChanged();
 }
 
 export function notifyAuthRequired(): void {

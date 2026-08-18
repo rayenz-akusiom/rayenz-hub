@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
+import { HubNavAuth } from './HubNavAuth';
 import type { HubPath } from './routes';
 
 type NavItem = {
@@ -145,7 +146,7 @@ export function HubNav({
     <nav id="hub-nav" className={`hub-nav${open ? ' open' : ''}`} aria-label="Apps">
       <div className="hub-nav-header">
         <h1>Rayenz Hub</h1>
-        <p>Personal apps</p>
+        <HubNavAuth />
       </div>
       <div className="hub-nav-group">
         <p className="hub-nav-group-title">Neopets</p>

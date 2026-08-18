@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HubApiSettingsPage, signInErrorFromResponse } from '../../packages/web/src/pages/HubApiSettingsPage';
-import { setHubAuthSession } from '../../packages/web/src/lib/hub-auth-session';
+import { HubApiSettingsPage } from '../../packages/web/src/pages/HubApiSettingsPage';
+import { notifyAuthRequired, setHubAuthSession } from '../../packages/web/src/lib/hub-auth-session';
 
 afterEach(() => {
   cleanup();
@@ -21,8 +21,9 @@ describe('HubApiSettingsPage', () => {
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
     render(<HubApiSettingsPage />);
     expect(screen.getByText('http://127.0.0.1:3000')).toBeInTheDocument();
-    expect(screen.getByText(/Sign in to enable API mode/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in from the nav to enable API mode/i)).toBeInTheDocument();
     expect(screen.queryByLabelText('API base URL')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument();
   });
 
   it('tests health without a session', async () => {
@@ -68,23 +69,74 @@ describe('HubApiSettingsPage', () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it('shows the API error body when sign-in fails', async () => {
+  it('treats a missing auth me endpoint as OK', async () => {
     const user = userEvent.setup();
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-    const fetchMock = vi.fn(async () => ({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ error: 'Cognito is not configured on this API', code: 'BAD_REQUEST' }),
-    }));
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/v1/health')) {
+        return { ok: true, status: 200, text: async () => '{"ok":true}' };
+      }
+      return { ok: false, status: 404, text: async () => '' };
+    });
     vi.stubGlobal('fetch', fetchMock);
-
     render(<HubApiSettingsPage />);
-    await user.type(screen.getByLabelText('Username'), 'Rayenz');
-    await user.type(screen.getByLabelText('Password'), 'secret');
-    await user.click(screen.getByRole('button', { name: 'Sign in' }));
-
+    await user.click(screen.getByRole('button', { name: 'Test connection' }));
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Cognito is not configured on this API');
+      expect(screen.getByText(/Connection OK/i)).toBeInTheDocument();
+    });
+  });
+
+  it('reports a failed health check', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 503, text: async () => '' })),
+    );
+    render(<HubApiSettingsPage />);
+    await user.click(screen.getByRole('button', { name: 'Test connection' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Health check failed (503).');
+    });
+  });
+
+  it('reports unauthorized when testing a session', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/v1/health')) {
+        return { ok: true, status: 200, text: async () => '{"ok":true}' };
+      }
+      return { ok: false, status: 401, text: async () => '' };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<HubApiSettingsPage />);
+    await user.click(screen.getByRole('button', { name: 'Test connection' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Unauthorized — sign in again.');
+    });
+  });
+
+  it('reports a failed API check', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/v1/health')) {
+        return { ok: true, status: 200, text: async () => '{"ok":true}' };
+      }
+      return { ok: false, status: 500, text: async () => '' };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<HubApiSettingsPage />);
+    await user.click(screen.getByRole('button', { name: 'Test connection' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('API check failed (500).');
     });
   });
 
@@ -98,61 +150,30 @@ describe('HubApiSettingsPage', () => {
     });
   });
 
-  it('rejects sign-in when this build has no API URL', async () => {
-    const user = userEvent.setup();
-    render(<HubApiSettingsPage />);
-    await user.type(screen.getByLabelText('Username'), 'Rayenz');
-    await user.type(screen.getByLabelText('Password'), 'secret');
-    await user.click(screen.getByRole('button', { name: 'Sign in' }));
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('This build has no Hub API URL.');
-    });
-  });
-
   it('shows a signed-in status when the session exists without an API URL', () => {
     setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
     render(<HubApiSettingsPage />);
     expect(screen.getByText(/this build has no Hub API URL/i)).toBeInTheDocument();
   });
 
-  it('falls back to status when sign-in body is not JSON', () => {
-    expect(signInErrorFromResponse(401, '<html>nope</html>').message).toBe('Sign-in failed (401).');
-  });
-
-  it('signs in and signs out against the resolved URL', async () => {
-    const user = userEvent.setup();
+  it('refreshes status when the nav session changes', async () => {
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith('/v1/auth/sign-in')) {
-        return {
-          ok: true,
-          status: 200,
-          text: async () =>
-            JSON.stringify({
-              accessToken: 'access',
-              username: 'Rayenz',
-              sub: 'rayenz-sub',
-            }),
-        };
-      }
-      if (url.endsWith('/v1/auth/sign-out')) {
-        return { ok: true, status: 204, text: async () => '' };
-      }
-      return { ok: false, status: 404, text: async () => '' };
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
     render(<HubApiSettingsPage />);
-    await user.type(screen.getByLabelText('Username'), 'Rayenz');
-    await user.type(screen.getByLabelText('Password'), 'secret');
-    await user.click(screen.getByRole('button', { name: 'Sign in' }));
-
+    expect(screen.getByText(/Sign in from the nav to enable API mode/i)).toBeInTheDocument();
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
     await waitFor(() => {
       expect(screen.getByText(/Signed in as Rayenz — API mode on/i)).toBeInTheDocument();
     });
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Sign out' }));
-    expect(screen.getByText(/Signed out/i)).toBeInTheDocument();
+  it('shows session expired when auth is required', async () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    render(<HubApiSettingsPage />);
+    notifyAuthRequired();
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Session expired — sign in again.');
+      expect(screen.getByText(/Sign in from the nav to enable API mode/i)).toBeInTheDocument();
+    });
   });
 });

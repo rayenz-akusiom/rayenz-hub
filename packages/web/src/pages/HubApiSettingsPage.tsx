@@ -1,24 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api';
 import {
+  HUB_AUTH_CHANGED_EVENT,
   HUB_AUTH_REQUIRED_EVENT,
-  clearHubAuthSession,
   getAccessToken,
   getHubAuthSession,
-  setHubAuthSession,
 } from '../lib/hub-auth-session';
-
-export function signInErrorFromResponse(status: number, text: string): Error {
-  try {
-    const body = JSON.parse(text) as { error?: unknown };
-    if (typeof body.error === 'string' && body.error.trim()) {
-      return new Error(body.error);
-    }
-  } catch {
-    /* ignore non-JSON */
-  }
-  return new Error(`Sign-in failed (${status}).`);
-}
 
 function statusFromConfig(): string {
   const cfg = getHubApiConfig();
@@ -27,7 +14,7 @@ function statusFromConfig(): string {
     return `Signed in as ${session.username || 'user'} — API mode on (${cfg.url}).`;
   }
   if (cfg.url && !session) {
-    return 'Sign in to enable API mode.';
+    return 'Sign in from the nav to enable API mode.';
   }
   if (session && !cfg.url) {
     return 'Signed in — this build has no Hub API URL.';
@@ -39,82 +26,28 @@ export function HubApiSettingsPage() {
   const [status, setStatus] = useState<string | null>(() => statusFromConfig());
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [signingIn, setSigningIn] = useState(false);
-  const [sessionLabel, setSessionLabel] = useState(() => getHubAuthSession()?.username || '');
   const url = getHubApiConfig().url;
 
   function refreshStatusMessage() {
-    setSessionLabel(getHubAuthSession()?.username || '');
     setStatus(statusFromConfig());
   }
 
   useEffect(() => {
     refreshStatusMessage();
+    const onAuthChanged = () => {
+      refreshStatusMessage();
+    };
     const onAuthRequired = () => {
       setError('Session expired — sign in again.');
       refreshStatusMessage();
     };
+    window.addEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
     window.addEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthRequired);
-    return () => window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => {
+      window.removeEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
+      window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthRequired);
+    };
   }, []);
-
-  async function handleSignIn(event: FormEvent) {
-    event.preventDefault();
-    setSigningIn(true);
-    setError(null);
-    try {
-      const nextUrl = getHubApiConfig().url;
-      if (!nextUrl) {
-        throw new Error('This build has no Hub API URL.');
-      }
-      assertApiNotPageOrigin(nextUrl);
-      const res = await fetch(`${nextUrl}/v1/auth/sign-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        throw signInErrorFromResponse(res.status, text);
-      }
-      const body = JSON.parse(text) as {
-        accessToken: string;
-        idToken?: string;
-        refreshToken?: string;
-        username?: string;
-        sub?: string;
-      };
-      setHubAuthSession({
-        accessToken: body.accessToken,
-        idToken: body.idToken,
-        refreshToken: body.refreshToken,
-        username: body.username || username.trim(),
-        sub: body.sub,
-      });
-      setPassword('');
-      refreshStatusMessage();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSigningIn(false);
-    }
-  }
-
-  function handleSignOut() {
-    const nextUrl = getHubApiConfig().url;
-    const session = getHubAuthSession();
-    if (nextUrl && session?.accessToken) {
-      void fetch(`${nextUrl}/v1/auth/sign-out`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-      });
-    }
-    clearHubAuthSession();
-    setSessionLabel('');
-    setStatus('Signed out.');
-  }
 
   async function handleTest() {
     setTesting(true);
@@ -156,7 +89,7 @@ export function HubApiSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Hub API</h2>
       <p className="hub-web-hint">
-        Optional sync backend. Sign in as Rayenz (local SAM uses the live Cognito pool).
+        Optional sync backend. Sign in as Rayenz from the left nav (local SAM uses the live Cognito pool).
         {url ? (
           <>
             {' '}
@@ -179,54 +112,16 @@ export function HubApiSettingsPage() {
         </div>
       )}
 
-      <form className="hub-web-form" onSubmit={(e) => void handleSignIn(e)}>
-        <fieldset>
-          <legend>Sign in</legend>
-          {sessionLabel ? (
-            <p className="hub-web-hint">
-              Signed in as <strong>{sessionLabel}</strong>.
-            </p>
-          ) : (
-            <p className="hub-web-hint">Required for API mode. Client-only mode needs no login.</p>
-          )}
-          <label className="hub-web-field">
-            Username
-            <input
-              type="text"
-              name="hub-username"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-          <label className="hub-web-field">
-            Password
-            <input
-              type="password"
-              name="hub-password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-        </fieldset>
-        <div className="hub-web-form-actions">
-          <button type="submit" className="hub-web-button" disabled={signingIn || !username.trim() || !password}>
-            {signingIn ? 'Signing in…' : 'Sign in'}
-          </button>
-          <button type="button" className="hub-web-button hub-web-button--secondary" onClick={handleSignOut}>
-            Sign out
-          </button>
-          <button
-            type="button"
-            className="hub-web-button hub-web-button--secondary"
-            disabled={testing}
-            onClick={() => void handleTest()}
-          >
-            {testing ? 'Testing…' : 'Test connection'}
-          </button>
-        </div>
-      </form>
+      <div className="hub-web-form-actions">
+        <button
+          type="button"
+          className="hub-web-button hub-web-button--secondary"
+          disabled={testing}
+          onClick={() => void handleTest()}
+        >
+          {testing ? 'Testing…' : 'Test connection'}
+        </button>
+      </div>
     </div>
   );
 }

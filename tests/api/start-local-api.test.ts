@@ -24,4 +24,9 @@ describe('sam local start-api launcher', () => {
     expect(pkg.scripts['start:api']).toMatch(/node scripts\/start-local-api\.mjs/);
     expect(pkg.scripts['start:api']).not.toMatch(/--config-file infra\/samconfig\.toml/);
   });
+
+  it('starts SAM without --warm-containers so each request remounts the rebuilt handler', () => {
+    const command = samLocalStartApiCommand(root);
+    expect(command).not.toMatch(/--warm-containers/);
+  });
 });

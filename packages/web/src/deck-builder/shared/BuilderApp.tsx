@@ -11,8 +11,10 @@ import {
   parseBuilderRoute,
   RETIRED_OWNER_SLUG,
   RETIRED_USER_SLUG,
+  SANDBOX_USER_SLUG,
   type BuilderFormat,
 } from '../../hub/routes';
+import { getHubAuthSession } from '../../lib/hub-auth-session';
 import { navigateHub } from '../../lib/hub-storage';
 import { toKebabCase } from '../../lib/string-utils';
 import { BrowseShell } from '../browse/BrowseShell';
@@ -20,7 +22,12 @@ import { FormatFilteredLibrary } from './library/FormatFilteredLibrary';
 import * as store from '../store/deck-store';
 import * as deckApi from '../store/deck-api';
 import { deleteDualMode, saveDualMode } from '../store/deck-dual-mode';
-import { pullRemoteLibraryUpdates } from '../store/library-sync';
+import { getLocalLibraryScope, peekLocalLibraryScope } from '../store/local-library-scope';
+import {
+  listFallbackLibrary,
+  pullRemoteLibraryUpdates,
+  resolveLibraryDocument,
+} from '../store/library-sync';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import {
   SAMPLE_COMMANDER_DECK_NAME,
@@ -48,11 +55,20 @@ function hashUsesOtherBuilder(hash: string, builderFormat: BuilderFormat): boole
   return normalized === otherBase || normalized.startsWith(`${otherBase}/`);
 }
 
+function indexMatchesRouteScope(deckId: string, userSlug: string): boolean {
+  if (isSampleDeckId(deckId)) return userSlug === SANDBOX_USER_SLUG;
+  const scope = getLocalLibraryScope(deckId);
+  if (userSlug === SANDBOX_USER_SLUG) return scope === 'sandbox';
+  return scope === 'account';
+}
+
 /** Sync index hit for the current builder deep-link hash, if any. */
 function deepLinkIndexMatch(builderFormat: BuilderFormat): DeckSummary | null {
   const route = parseBuilderRoute(window.location.hash, builderFormat);
   if (!route || !isLocalLibrarySlug(route.userSlug)) return null;
-  const match = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
+  const match = store.readLibraryIndex().find(
+    (d) => toKebabCase(d.name) === route.deckSlug && indexMatchesRouteScope(d.deckId, route.userSlug),
+  );
   if (match && match.format === builderFormat) {
     if (isSampleDeckId(match.deckId) && isSampleDismissed()) return null;
     return match;
@@ -111,8 +127,11 @@ export function BuilderApp({
 
   const syncDeckHash = useCallback(
     (doc: DeckDocument | null) => {
+      const route = parseBuilderRoute(window.location.hash, builderFormat);
+      const userSlug =
+        route?.userSlug === SANDBOX_USER_SLUG ? SANDBOX_USER_SLUG : hubUserSlug();
       const next = doc
-        ? builderHash(builderFormat, hubUserSlug(), toKebabCase(doc.name))
+        ? builderHash(builderFormat, userSlug, toKebabCase(doc.name))
         : builderHash(builderFormat);
       if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
         navigateHub(next);
@@ -131,17 +150,22 @@ export function BuilderApp({
   const openDeck = useCallback(
     async (deckId: string, opts?: { syncHash?: boolean }) => {
       setError(null);
-      let doc = await store.getDeck(deckId);
+      const route = parseBuilderRoute(window.location.hash, builderFormat);
+      const sandboxOpen =
+        !getHubAuthSession() || route?.userSlug === SANDBOX_USER_SLUG || isSampleDeckId(deckId);
+
+      let doc = sandboxOpen
+        ? await store.getDeck(deckId)
+        : await resolveLibraryDocument(deckId);
       if (!doc && isSampleDeckId(deckId) && !isSampleDismissed()) {
         doc = await ensureSampleDeck();
       }
       if (!doc) {
-        setError('Deck not found in local store');
+        setError(sandboxOpen ? 'Deck not found in local store' : 'Deck not found');
         return;
       }
       if (redirectToCorrectBuilder(doc)) return;
 
-      // Local-first: paint BrowseShell before optional API sync.
       setReadOnly(false);
       readOnlyRef.current = false;
       setActive(doc);
@@ -155,8 +179,8 @@ export function BuilderApp({
         }
       }
 
-      if (isSampleDeckId(deckId)) {
-        setSyncStatus(isApiConfigured() ? 'local' : null);
+      if (isSampleDeckId(deckId) || sandboxOpen) {
+        setSyncStatus(isSampleDeckId(deckId) && isApiConfigured() ? 'local' : null);
         return;
       }
 
@@ -191,7 +215,7 @@ export function BuilderApp({
         setSyncStatus('error');
       }
     },
-    [redirectToCorrectBuilder, syncDeckHash],
+    [builderFormat, redirectToCorrectBuilder, syncDeckHash],
   );
 
   function invalidatePersist() {
@@ -259,7 +283,11 @@ export function BuilderApp({
       }
       setReadOnly(false);
       readOnlyRef.current = false;
-      const match = list.find((d) => toKebabCase(d.name) === route.deckSlug);
+      const matchList =
+        route.userSlug === SANDBOX_USER_SLUG
+          ? store.readLibraryIndex().filter((d) => indexMatchesRouteScope(d.deckId, SANDBOX_USER_SLUG))
+          : list;
+      const match = matchList.find((d) => toKebabCase(d.name) === route.deckSlug);
       if (!match) {
         if (activeRef.current && toKebabCase(activeRef.current.name) === route.deckSlug) {
           setError(null);
@@ -306,7 +334,7 @@ export function BuilderApp({
           list = await pullRemoteLibraryUpdates();
         } catch (e) {
           setApiWarning(e instanceof Error ? e.message : String(e));
-          list = await store.listDecks();
+          list = await listFallbackLibrary();
         }
 
         const realList = list.filter((d) => !isSampleDeckId(d.deckId));
@@ -344,7 +372,11 @@ export function BuilderApp({
         return;
       }
       if (route && isLocalLibrarySlug(route.userSlug)) {
-        const other = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
+        const other = store.readLibraryIndex().find(
+          (d) =>
+            toKebabCase(d.name) === route.deckSlug &&
+            indexMatchesRouteScope(d.deckId, route.userSlug),
+        );
         if (other && other.format !== builderFormat) {
           navigateHub(
             builderHash(
@@ -386,15 +418,22 @@ export function BuilderApp({
     }
     setApiWarning(null);
     const sample = isSampleDeckId(next.deckId);
-    if (isApiConfigured() && !sample) setSyncStatus('syncing');
-    const { saved, apiError } = await saveDualMode(next);
+    if (
+      isApiConfigured() &&
+      !sample &&
+      getHubAuthSession() &&
+      peekLocalLibraryScope(next.deckId) !== 'sandbox'
+    ) {
+      setSyncStatus('syncing');
+    }
+    const { saved, apiError, uploaded } = await saveDualMode(next);
     if (seq !== persistSeq.current) return;
-    if (sample) {
-      setSyncStatus(isApiConfigured() ? 'local' : null);
+    if (sample || (!uploaded && !apiError)) {
+      setSyncStatus(isApiConfigured() && (sample || Boolean(getHubAuthSession())) ? 'local' : null);
     } else if (apiError) {
       setApiWarning(apiError);
       if (isApiConfigured()) setSyncStatus('error');
-    } else if (isApiConfigured()) {
+    } else if (uploaded) {
       setSyncStatus('synced');
     }
     if (!parseBuilderRoute(window.location.hash, builderFormat)) return;
@@ -428,20 +467,21 @@ export function BuilderApp({
 
   async function setDeckOwnership(deckId: string, ownership: DeckOwnership) {
     setApiWarning(null);
-    const doc = await store.getDeck(deckId);
+    const doc = await resolveLibraryDocument(deckId);
     if (!doc) return;
     const current = doc.ownership === 'theory' ? 'theory' : 'owned';
     if (current === ownership) return;
     // Save without going through persist()'s "must have open-deck route" gate —
     // library ownership changes happen with no deck slug in the hash.
     const sample = isSampleDeckId(doc.deckId);
-    if (isApiConfigured() && !sample) setSyncStatus('syncing');
-    const { saved, apiError } = await saveDualMode({ ...doc, ownership });
+    const { saved, apiError, uploaded } = await saveDualMode({ ...doc, ownership });
     if (apiError) {
       setApiWarning(apiError);
       if (isApiConfigured()) setSyncStatus('error');
-    } else if (isApiConfigured() && !sample) {
+    } else if (uploaded) {
       setSyncStatus('synced');
+    } else if (isApiConfigured() && !sample && getHubAuthSession()) {
+      setSyncStatus('local');
     }
     if (activeRef.current?.deckId === saved.deckId) {
       activeRef.current = saved;
@@ -515,7 +555,10 @@ export function BuilderApp({
           onSave={async (doc) => {
             await persist(doc);
             await refreshLibrary({ applyRoute: false });
-            const saved = await store.getDeck(doc.deckId);
+            const saved =
+              activeRef.current?.deckId === doc.deckId
+                ? activeRef.current
+                : await resolveLibraryDocument(doc.deckId);
             if (saved && redirectToCorrectBuilder(saved)) return;
             activeRef.current = saved;
             setActive(saved);

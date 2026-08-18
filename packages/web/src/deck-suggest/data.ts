@@ -10,6 +10,7 @@ import {
   SET_POOL_FORMAT_VERSION,
   SCRYFALL_SUGGEST_POOL_FILTERS,
   type DeckDocument,
+  type DeckSummary,
   type DeckWithSnapshot,
 } from '@rayenz-hub/shared';
 import { maybeAttachScryfallTags, parseYamlProfile as parseSharedYamlProfile } from '@rayenz-hub/shared';
@@ -24,7 +25,7 @@ import { sleep } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
-import { getDeck, listDecks } from '../deck-builder/store/deck-store';
+import { pullRemoteLibraryUpdates, resolveLibraryDocument, listFallbackLibrary } from '../deck-builder/store/library-sync';
 import { readLibrarySort, sortLibraryDecks } from '../deck-builder/library/library-sort';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
@@ -376,12 +377,18 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
 
 /** Load commander decks from the Hub library for Deck Suggest. */
 export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
-  const summaries = sortLibraryDecks(await listDecks(), readLibrarySort());
+  let summaries: DeckSummary[];
+  try {
+    summaries = await pullRemoteLibraryUpdates();
+  } catch {
+    summaries = await listFallbackLibrary();
+  }
+  summaries = sortLibraryDecks(summaries, readLibrarySort());
   const decks: DeckRecord[] = [];
   for (const s of summaries) {
     if (s.format !== 'commander') continue;
     if (isTheoryDeck(s)) continue;
-    const doc = await getDeck(s.deckId);
+    const doc = await resolveLibraryDocument(s.deckId);
     if (!doc || isTheoryDeck(doc)) continue;
     decks.push(hubDeckToRecord(doc));
   }

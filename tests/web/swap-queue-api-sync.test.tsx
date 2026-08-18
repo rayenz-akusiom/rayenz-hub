@@ -13,6 +13,10 @@ import {
   wantSource,
 } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import {
+  clearHubAuthSession,
+  setHubAuthSession,
+} from '../../packages/web/src/lib/hub-auth-session';
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => mockIsApiConfigured(),
@@ -29,6 +33,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mockIsApiConfigured.mockReturnValue(false);
+  clearHubAuthSession();
 });
 
 describe('SwapQueueApp Hub API sync', () => {
@@ -77,6 +82,7 @@ describe('SwapQueueApp Hub API sync', () => {
 
   it('pushes decks via apiPutDeck when Hub API is configured', async () => {
     mockIsApiConfigured.mockReturnValue(true);
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
     const deck = lookingForDeck();
     mockLoadSwapWantSources.mockResolvedValue({
       decks: [deck],

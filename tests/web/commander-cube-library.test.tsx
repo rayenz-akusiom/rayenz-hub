@@ -56,8 +56,14 @@ vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
   },
 }));
 
-const commanderDoc = commanderFixture as DeckDocument;
-const cubeDoc = cubeFixture as DeckDocument;
+const commanderDoc = {
+  ...(commanderFixture as DeckDocument),
+  updatedAt: new Date().toISOString(),
+};
+const cubeDoc = {
+  ...(cubeFixture as DeckDocument),
+  updatedAt: new Date().toISOString(),
+};
 const commanderSummary = toDeckSummary(commanderDoc);
 const cubeSummary = toDeckSummary(cubeDoc);
 

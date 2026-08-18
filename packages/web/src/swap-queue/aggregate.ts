@@ -1,23 +1,29 @@
 import {
   aggregateSwapWants,
   type DeckDocument,
+  type DeckSummary,
   type WantSource,
 } from '@rayenz-hub/shared';
 import { apiGetPublicSwaps } from '../deck-builder/store/deck-api';
-import { getDeck, listDecks } from '../deck-builder/store/deck-store';
+import { listFallbackLibrary, resolveLibraryDocument } from '../deck-builder/store/library-sync';
 
-/** Load commander + cube decks from the Hub library and aggregate want sources. */
-export async function loadSwapWantSources(): Promise<{
-  decks: DeckDocument[];
-  sources: WantSource[];
-}> {
-  const summaries = await listDecks();
+async function documentsForSummaries(summaries: DeckSummary[]): Promise<DeckDocument[]> {
   const decks: DeckDocument[] = [];
   for (const s of summaries) {
     if (s.format !== 'commander' && s.format !== 'cube') continue;
-    const doc = await getDeck(s.deckId);
+    const doc = await resolveLibraryDocument(s.deckId);
     if (doc) decks.push(doc);
   }
+  return decks;
+}
+
+/** Load commander + cube decks from the Hub library and aggregate want sources. */
+export async function loadSwapWantSources(summaries?: DeckSummary[]): Promise<{
+  decks: DeckDocument[];
+  sources: WantSource[];
+}> {
+  const list = summaries ?? (await listFallbackLibrary());
+  const decks = await documentsForSummaries(list);
   return { decks, sources: aggregateSwapWants(decks) };
 }
 

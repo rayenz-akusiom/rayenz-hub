@@ -445,12 +445,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         return;
       }
       setShareUsername(null);
+      let list: DeckSummary[] | undefined;
       try {
-        await pullRemoteLibraryUpdates();
+        list = await pullRemoteLibraryUpdates();
       } catch (e) {
         setApiWarning(e instanceof Error ? e.message : String(e));
       }
-      const result = await loadSwapWantSources();
+      const result = await loadSwapWantSources(list);
       setDecks(result.decks);
       setSources(result.sources);
       void enrichWantSourcesUsd(result.sources).then((enriched) => {

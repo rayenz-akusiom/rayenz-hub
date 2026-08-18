@@ -1,53 +1,79 @@
 import type { DeckDocument } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
+import { getHubAuthSession } from '../../lib/hub-auth-session';
 import {
   dismissSampleDeck,
   isSampleDeckId,
 } from '../sample/sample-deck';
 import * as deckApi from './deck-api';
+import {
+  getLocalLibraryScope,
+  peekLocalLibraryScope,
+  setLocalLibraryScope,
+  type LocalLibraryScope,
+} from './local-library-scope';
 import * as store from './deck-store';
+
+function isSignedIn(): boolean {
+  return Boolean(getHubAuthSession()?.accessToken);
+}
+
+function resolveSaveScope(deckId: string): LocalLibraryScope {
+  const existing = peekLocalLibraryScope(deckId);
+  if (existing) return existing;
+  const alreadyLocal = store.readLibraryIndex().some((s) => s.deckId === deckId);
+  if (alreadyLocal) return 'sandbox';
+  return isSignedIn() ? 'account' : 'sandbox';
+}
 
 /** Local IndexedDB save, then optional Hub API put when configured. */
 export async function saveDualMode(
   doc: DeckDocument,
-): Promise<{ saved: DeckDocument; apiError?: string }> {
-  const saved = await store.saveDeck(doc);
+): Promise<{ saved: DeckDocument; apiError?: string; uploaded?: boolean }> {
   if (isSampleDeckId(doc.deckId)) {
+    const saved = await store.saveDeck(doc);
     return { saved };
   }
-  if (isApiConfigured()) {
-    try {
-      const remote = await deckApi.apiPutDeck(saved);
-      // Deployed APIs that omit CategoryDef.target / ownership still bump updatedAt;
-      // keep Hub fields and re-save so local clock stays ahead of remote.
-      const reconciled = store.reconcileDeckAfterApiPut(saved, remote);
-      if (
-        reconciled.updatedAt !== saved.updatedAt ||
-        reconciled.ownership !== saved.ownership ||
-        JSON.stringify(reconciled.categories) !== JSON.stringify(saved.categories)
-      ) {
-        return { saved: await store.saveDeck(reconciled) };
-      }
-    } catch (e) {
-      return { saved, apiError: e instanceof Error ? e.message : String(e) };
-    }
+
+  const scope = resolveSaveScope(doc.deckId);
+  setLocalLibraryScope(doc.deckId, scope);
+  const saved = await store.saveDeck(doc);
+
+  if (scope === 'sandbox' || !isSignedIn() || !isApiConfigured()) {
+    return { saved };
   }
-  return { saved };
+
+  try {
+    const remote = await deckApi.apiPutDeck(saved);
+    const reconciled = store.reconcileDeckAfterApiPut(saved, remote);
+    await store.deleteDeck(saved.deckId);
+    return { saved: reconciled, uploaded: true };
+  } catch (e) {
+    return { saved, apiError: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Local delete, then optional Hub API delete when configured. */
 export async function deleteDualMode(deckId: string): Promise<{ apiError?: string }> {
+  const existedLocally = Boolean(
+    store.readLibraryIndex().some((s) => s.deckId === deckId) || (await store.getDeck(deckId)),
+  );
+  const scope = getLocalLibraryScope(deckId);
   await store.deleteDeck(deckId);
   if (isSampleDeckId(deckId)) {
     dismissSampleDeck();
     return {};
   }
-  if (isApiConfigured()) {
-    try {
-      await deckApi.apiDeleteDeck(deckId);
-    } catch (e) {
-      return { apiError: e instanceof Error ? e.message : String(e) };
-    }
+  if (existedLocally && scope === 'sandbox') {
+    return {};
+  }
+  if (!isSignedIn() || !isApiConfigured()) {
+    return {};
+  }
+  try {
+    await deckApi.apiDeleteDeck(deckId);
+  } catch (e) {
+    return { apiError: e instanceof Error ? e.message : String(e) };
   }
   return {};
 }

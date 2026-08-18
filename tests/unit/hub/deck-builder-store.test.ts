@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+import type { DeckDocument } from '@rayenz-hub/shared';
 
 describe('deck-store local persistence', () => {
   beforeEach(async () => {
@@ -17,7 +18,7 @@ describe('deck-store local persistence', () => {
     const { saveDeck, getDeck, listDecks, deleteDeck } = await import(
       '../../../packages/web/src/deck-builder/store/deck-store.ts'
     );
-    const saved = await saveDeck({ ...commander, deckId: 'store-test' });
+    const saved = await saveDeck({ ...commander, deckId: 'store-test' } as DeckDocument);
     expect(saved.deckId).toBe('store-test');
     const loaded = await getDeck('store-test');
     expect(loaded?.name).toBe(commander.name);
@@ -40,7 +41,7 @@ describe('deck-store local persistence', () => {
     const { saveDeck, listDecks, readLibraryIndex } = await import(
       '../../../packages/web/src/deck-builder/store/deck-store.ts'
     );
-    await saveDeck({ ...commander, deckId: 'cover-test' });
+    await saveDeck({ ...commander, deckId: 'cover-test' } as DeckDocument);
     const stale = readLibraryIndex().map((s) => ({
       ...s,
       coverImageUrl: null,
@@ -53,5 +54,29 @@ describe('deck-store local persistence', () => {
     const list = await listDecks();
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverImageUrl)).toBe(true);
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverCardName)).toBe(true);
+  });
+
+  it('treats untagged local decks as sandbox and purges them after 30 days', async () => {
+    const { __putDeckForTests, getDeck, listDecks } = await import(
+      '../../../packages/web/src/deck-builder/store/deck-store.ts'
+    );
+    const { purgeExpiredSandboxDecks } = await import(
+      '../../../packages/web/src/deck-builder/store/library-sync.ts'
+    );
+    const { getLocalLibraryScope } = await import(
+      '../../../packages/web/src/deck-builder/store/local-library-scope.ts'
+    );
+
+    await __putDeckForTests({
+      ...commander,
+      deckId: 'old-untagged',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      createdAt: '2026-06-01T00:00:00.000Z',
+    } as DeckDocument);
+    expect(getLocalLibraryScope('old-untagged')).toBe('sandbox');
+
+    await purgeExpiredSandboxDecks(Date.parse('2026-08-17T00:00:00.000Z'));
+    expect(await getDeck('old-untagged')).toBeNull();
+    expect((await listDecks()).some((d) => d.deckId === 'old-untagged')).toBe(false);
   });
 });

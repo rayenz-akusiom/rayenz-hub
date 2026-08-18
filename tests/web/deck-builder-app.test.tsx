@@ -17,6 +17,10 @@ import {
   clearHubAuthSession,
   setHubAuthSession,
 } from '../../packages/web/src/lib/hub-auth-session';
+import {
+  setLocalLibraryScope,
+  __resetLocalLibraryScopeForTests,
+} from '../../packages/web/src/deck-builder/store/local-library-scope';
 
 const apiConfigured = vi.hoisted(() => ({ value: false }));
 
@@ -93,8 +97,14 @@ function withLayouts(doc: DeckDocument): DeckDocument {
   };
 }
 
-const commanderDoc = withLayouts(commanderFixture as DeckDocument);
-const cubeDoc = withLayouts(cubeFixture as DeckDocument);
+const commanderDoc = withLayouts({
+  ...(commanderFixture as DeckDocument),
+  updatedAt: new Date().toISOString(),
+});
+const cubeDoc = withLayouts({
+  ...(cubeFixture as DeckDocument),
+  updatedAt: new Date().toISOString(),
+});
 const commanderSummary = toDeckSummary(commanderDoc);
 const cubeSummary = toDeckSummary(cubeDoc);
 const sampleDoc = buildSampleCommanderDocument();
@@ -109,6 +119,13 @@ function deckOpenButton(deckName: string) {
   return within(tile).getByRole('link');
 }
 
+function signInWithAccountBuffers() {
+  apiConfigured.value = true;
+  setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+  setLocalLibraryScope(commanderDoc.deckId, 'account');
+  setLocalLibraryScope(cubeDoc.deckId, 'account');
+}
+
 function defaultMocks() {
   listDecks.mockReset();
   readLibraryIndex.mockReset();
@@ -121,8 +138,15 @@ function defaultMocks() {
   apiDeleteDeck.mockReset();
   apiGetPublicDeck.mockReset();
   mergeDeckDocuments.mockReset();
-  listDecks.mockResolvedValue([commanderSummary, cubeSummary]);
-  readLibraryIndex.mockReturnValue([commanderSummary, cubeSummary]);
+  const nowIso = new Date().toISOString();
+  listDecks.mockResolvedValue([
+    { ...commanderSummary, updatedAt: nowIso },
+    { ...cubeSummary, updatedAt: nowIso },
+  ]);
+  readLibraryIndex.mockReturnValue([
+    { ...commanderSummary, updatedAt: nowIso },
+    { ...cubeSummary, updatedAt: nowIso },
+  ]);
   getDeck.mockImplementation(async (id) => {
     if (id === commanderDoc.deckId) return commanderDoc;
     if (id === cubeDoc.deckId) return cubeDoc;
@@ -155,6 +179,7 @@ afterEach(() => {
   } catch {
     /* ignore */
   }
+  __resetLocalLibraryScopeForTests();
 });
 
 describe('CommanderBuilderApp', () => {
@@ -467,8 +492,9 @@ describe('CommanderBuilderApp', () => {
     expect(saveDeck).not.toHaveBeenCalled();
   });
 
-  it('opens sandbox deep links from local library while signed in', async () => {
+  it('opens sandbox deep links from local library while signed in without uploading', async () => {
     setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+    apiConfigured.value = true;
     window.location.hash = '#/commander-builder/sandbox/fixture-commander';
     render(<CommanderBuilderApp />);
 
@@ -477,7 +503,21 @@ describe('CommanderBuilderApp', () => {
     });
     expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
     expect(apiGetPublicDeck).not.toHaveBeenCalled();
+    expect(apiPutDeck).not.toHaveBeenCalled();
     expect(getDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+  });
+
+  it('does not list sandbox leftovers on the signed-in library', async () => {
+    signInWithAccountBuffers();
+    setLocalLibraryScope(commanderDoc.deckId, 'sandbox');
+    setLocalLibraryScope(cubeDoc.deckId, 'sandbox');
+    apiListDecks.mockResolvedValue([]);
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Fixture Commander', { selector: '.db-library-tile-name' })).not.toBeInTheDocument();
   });
 
   it('uses the signed-in username in library deep-link hrefs', async () => {
@@ -652,9 +692,8 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('keeps local decks and shows API warning after failed remote sync when browsing', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiListDecks.mockRejectedValue(new Error('Remote list failed'));
-    // Remote already present — open must not upload or clear the list-sync warning.
     apiGetDeck.mockResolvedValue(commanderDoc);
     const user = userEvent.setup();
 
@@ -671,8 +710,25 @@ describe('CommanderBuilderApp', () => {
     expect(apiPutDeck).not.toHaveBeenCalled();
   });
 
-  it('uploads local-only deck to API when opening', async () => {
+  it('does not upload sandbox decks when API is configured but unsigned', async () => {
     apiConfigured.value = true;
+    apiGetDeck.mockResolvedValue(null);
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(apiPutDeck).not.toHaveBeenCalled();
+  });
+
+  it('uploads local-only account buffer to API when opening', async () => {
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(null);
     const user = userEvent.setup();
 
@@ -692,7 +748,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('does not upload when opening a deck that already exists remotely', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(commanderDoc);
     const user = userEvent.setup();
 
@@ -726,7 +782,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('opens local deck and shows warning when remote GET fails', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockRejectedValue(new Error('GET failed'));
     const user = userEvent.setup();
 
@@ -744,7 +800,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('opens local deck and shows warning when local-only PUT fails', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(null);
     apiPutDeck.mockRejectedValue(new Error('API sync failed'));
     const user = userEvent.setup();
@@ -781,7 +837,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows synced charm after uploading local-only deck on open', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(null);
     const user = userEvent.setup();
 
@@ -798,7 +854,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows synced charm when opening a deck that already exists remotely', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(commanderDoc);
     const user = userEvent.setup();
 
@@ -816,7 +872,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows local-only charm when open upload fails', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(null);
     apiPutDeck.mockRejectedValue(new Error('API sync failed'));
     const user = userEvent.setup();
@@ -834,7 +890,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows error charm when remote GET fails on open', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockRejectedValue(new Error('GET failed'));
     const user = userEvent.setup();
 
@@ -851,7 +907,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows synced charm after a successful edit persist with API configured', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiGetDeck.mockResolvedValue(commanderDoc);
     const user = userEvent.setup();
 
@@ -896,6 +952,7 @@ describe('CommanderBuilderApp', () => {
 
   it('syncs save to API when configured', async () => {
     apiConfigured.value = true;
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
     listDecks.mockResolvedValue([]);
     saveDeck.mockImplementation(async (doc) => doc);
     getDeck.mockImplementation(async () =>
@@ -920,6 +977,7 @@ describe('CommanderBuilderApp', () => {
 
   it('shows API warning when save succeeds locally but API put fails', async () => {
     apiConfigured.value = true;
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
     listDecks.mockResolvedValue([]);
     apiPutDeck.mockRejectedValue(new Error('API sync failed'));
     getDeck.mockImplementation(async () =>
@@ -968,7 +1026,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('calls API delete when configured', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
 
@@ -986,7 +1044,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('shows API warning when delete succeeds locally but API delete fails', async () => {
-    apiConfigured.value = true;
+    signInWithAccountBuffers();
     apiDeleteDeck.mockRejectedValue(new Error('API delete failed'));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const secondCommander = {
@@ -995,6 +1053,7 @@ describe('CommanderBuilderApp', () => {
       name: 'Second Commander',
     };
     const secondDoc = { ...commanderDoc, deckId: 'cmd-2', name: 'Second Commander' };
+    setLocalLibraryScope('cmd-2', 'account');
     listDecks.mockResolvedValue([commanderSummary, secondCommander]);
     getDeck.mockImplementation(async (id) => {
       if (id === commanderDoc.deckId) return commanderDoc;

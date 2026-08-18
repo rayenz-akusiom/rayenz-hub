@@ -24,6 +24,9 @@ vi.mock('../../../packages/web/src/swap-queue/aggregate', async (importOriginal)
 vi.mock('../../../packages/web/src/deck-builder/store/deck-store', () => ({
   saveDeck: (doc: DeckDocument) => mockSaveDeck(doc),
   reconcileDeckAfterApiPut: (local: DeckDocument) => local,
+  readLibraryIndex: () => [],
+  getDeck: async () => null,
+  deleteDeck: async () => undefined,
 }));
 
 vi.mock('../../../packages/web/src/deck-builder/store/library-sync', () => ({

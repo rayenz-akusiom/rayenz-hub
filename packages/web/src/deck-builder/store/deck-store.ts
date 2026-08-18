@@ -6,6 +6,7 @@ import {
   type DeckDocument,
   type DeckSummary,
 } from '@rayenz-hub/shared';
+import { clearLocalLibraryScope, __resetLocalLibraryScopeForTests } from './local-library-scope';
 
 const DB_NAME = 'rayenz-deck-builder';
 const DB_VERSION = 1;
@@ -144,6 +145,7 @@ export async function deleteDeck(deckId: string): Promise<void> {
   if (!hasIndexedDb()) {
     memoryDecks.delete(deckId);
     writeLibraryIndex(readLibraryIndex().filter((s) => s.deckId !== deckId));
+    clearLocalLibraryScope(deckId);
     return;
   }
   const db = await openDb();
@@ -154,6 +156,7 @@ export async function deleteDeck(deckId: string): Promise<void> {
     db.close();
   }
   writeLibraryIndex(readLibraryIndex().filter((s) => s.deckId !== deckId));
+  clearLocalLibraryScope(deckId);
 }
 
 function categoryTargetCount(categories: CategoryDef[] | undefined): number {
@@ -208,7 +211,30 @@ export function reconcileDeckAfterApiPut(
   return { ...withTargets, ownership };
 }
 
+/**
+ * Persist a document without bumping timestamps (TTL / migration tests).
+ * Not used by production save paths.
+ */
+export async function __putDeckForTests(doc: DeckDocument): Promise<DeckDocument> {
+  const validated = DeckDocumentSchema.parse(doc);
+  if (!hasIndexedDb()) {
+    memoryDecks.set(validated.deckId, validated);
+    upsertSummary(validated);
+    return validated;
+  }
+  const db = await openDb();
+  try {
+    const tx = db.transaction(STORE, 'readwrite');
+    await idbReq(tx.objectStore(STORE).put(validated));
+  } finally {
+    db.close();
+  }
+  upsertSummary(validated);
+  return validated;
+}
+
 /** Test helper */
 export function __resetMemoryStoreForTests(): void {
   memoryDecks.clear();
+  __resetLocalLibraryScopeForTests();
 }

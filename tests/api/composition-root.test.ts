@@ -15,6 +15,7 @@ describe('composition root', () => {
     expect(services.profileRepository).toBeDefined();
     expect(services.reviewProgressRepository).toBeDefined();
     expect(services.setPoolRepository).toBeDefined();
+    expect(services.usernameDirectory).toBeDefined();
   });
 
   it('allows repository overrides without process.env', async () => {

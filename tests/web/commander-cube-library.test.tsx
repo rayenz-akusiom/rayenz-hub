@@ -37,6 +37,7 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
   apiGetDeck: vi.fn(async () => null),
   apiPutDeck: vi.fn(async (doc: DeckDocument) => doc),
   apiDeleteDeck: vi.fn(async () => undefined),
+  apiGetPublicDeck: vi.fn(async () => null),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
@@ -116,7 +117,7 @@ describe('format-filtered libraries', () => {
     const tile = screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' }).closest('li')!;
     expect(within(tile).getByRole('link')).toHaveAttribute(
       'href',
-      '#/commander-builder/default/fixture-commander',
+      '#/commander-builder/sandbox/fixture-commander',
     );
   });
 

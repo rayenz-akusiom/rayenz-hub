@@ -10,4 +10,5 @@ export const TYPES = {
   ReviewProgressRepository: Symbol.for('ReviewProgressRepository'),
   SetPoolRepository: Symbol.for('SetPoolRepository'),
   DeckRepository: Symbol.for('DeckRepository'),
+  UsernameDirectoryService: Symbol.for('UsernameDirectoryService'),
 } as const;

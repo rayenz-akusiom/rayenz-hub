@@ -118,6 +118,31 @@ export function isApiConfigured(): boolean {
   return getHubApiConfig().enabled;
 }
 
+export function getHubApiBaseUrl(): string {
+  return resolveHubApiUrl(currentHubApiUrlSources());
+}
+
+export async function publicApiFetch(path: string): Promise<unknown> {
+  const url = getHubApiBaseUrl();
+  if (!url) {
+    throw new Error('Hub API not configured');
+  }
+  assertApiNotPageOrigin(url);
+  const fullUrl = url + path;
+  const res = await fetch(fullUrl, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+  const peek = await res.text();
+  if (res.status === 404 || res.status === 204) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error('Hub API error ' + res.status + ': ' + peek);
+  }
+  return parseHubApiJsonBody(peek, fullUrl, url);
+}
+
 /** Reject SPA/HTML mistakes before JSON.parse (e.g. API URL set to Vite origin). */
 export function assertApiNotPageOrigin(apiUrl: string): void {
   try {

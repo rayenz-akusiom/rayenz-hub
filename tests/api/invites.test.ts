@@ -115,4 +115,15 @@ describe('invites API', () => {
     const redeem = await handleAuthRegister({}, registerBody(token, 'friend'), services);
     expect(redeem.statusCode).toBe(403);
   });
+
+  it.each(['sandbox', 'default', 'Sandbox'])('rejects reserved username %s without consuming the invite', async (username) => {
+    const { services } = createMemoryStores();
+    const created = await handleInvites('POST', TEST_AUTH_HEADERS, services);
+    const invite = JSON.parse(String(created.body)) as { url: string };
+    const token = decodeURIComponent(invite.url.split('#/invite/')[1]);
+    const registered = await handleAuthRegister({}, registerBody(token, username), services);
+    expect(registered.statusCode).toBe(400);
+    const list = await handleInvites('GET', TEST_AUTH_HEADERS, services);
+    expect(JSON.parse(String(list.body)).invites[0].status).toBe('unused');
+  });
 });

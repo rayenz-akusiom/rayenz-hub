@@ -3,6 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { resolveUserId } from '../../packages/shared/src/user-context.ts';
+import {
+  isReservedUsername,
+  isSandboxUsername,
+  usernameToSlug,
+} from '../../packages/shared/src/usernames.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_SRC = path.resolve(__dirname, '../../packages/api/src');
@@ -49,5 +54,21 @@ describe('api package partition literals', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('username slugs', () => {
+  it('kebabs Rayenz to rayenz', () => {
+    expect(usernameToSlug('Rayenz')).toBe('rayenz');
+  });
+
+  it('treats sandbox and default as reserved', () => {
+    expect(isReservedUsername('sandbox')).toBe(true);
+    expect(isReservedUsername('Sandbox')).toBe(true);
+    expect(isReservedUsername('default')).toBe(true);
+    expect(isReservedUsername('Rayenz')).toBe(false);
+    expect(isSandboxUsername('sandbox')).toBe(true);
+    expect(isSandboxUsername('Sandbox')).toBe(true);
+    expect(isSandboxUsername('Rayenz')).toBe(false);
   });
 });

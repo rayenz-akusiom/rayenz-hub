@@ -5,8 +5,11 @@ import {
   parseBuilderRoute,
   resolveLegacyDeckBuilderHash,
   pathFromHash,
-  HUB_USER_SLUG,
+  hubUserSlug,
+  isLocalLibrarySlug,
+  SANDBOX_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
+import { usernameToSlug } from '../../../packages/shared/src/usernames.ts';
 
 describe('builder routes', () => {
   it('builderBasePath maps formats', () => {
@@ -17,12 +20,15 @@ describe('builder routes', () => {
   it('builderHash builds library and deep links', () => {
     expect(builderHash('commander')).toBe('#/commander-builder');
     expect(builderHash('cube')).toBe('#/cube-builder');
-    expect(builderHash('commander', HUB_USER_SLUG, 'my-deck')).toBe(
-      '#/commander-builder/default/my-deck',
+    expect(builderHash('commander', hubUserSlug(), 'my-deck')).toBe(
+      `#/commander-builder/${SANDBOX_USER_SLUG}/my-deck`,
     );
-    expect(builderHash('cube', HUB_USER_SLUG, 'vintage-cube')).toBe(
-      '#/cube-builder/default/vintage-cube',
+    expect(builderHash('cube', hubUserSlug(), 'vintage-cube')).toBe(
+      `#/cube-builder/${SANDBOX_USER_SLUG}/vintage-cube`,
     );
+    expect(usernameToSlug('Rayenz')).toBe('rayenz');
+    expect(isLocalLibrarySlug(SANDBOX_USER_SLUG)).toBe(true);
+    expect(isLocalLibrarySlug('rayenz')).toBe(false);
   });
 
   it('parseBuilderRoute parses commander, cube, and legacy prefixes', () => {

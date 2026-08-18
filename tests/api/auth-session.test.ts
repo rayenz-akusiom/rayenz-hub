@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { handleAuthMe, handleAuthRegister, handleAuthSignIn, handleAuthSignOut } from '../../packages/api/src/handlers/auth-sign-in.ts';
+import {
+  handleAuthMe,
+  handleAuthRegister,
+  handleAuthRefresh,
+  handleAuthSignIn,
+  handleAuthSignOut,
+} from '../../packages/api/src/handlers/auth-sign-in.ts';
 import { handleSettings } from '../../packages/api/src/handlers/settings.ts';
 import { encodeTestJwt } from '../../packages/api/src/lib/jwt.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS, testApiEnv } from './helpers/test-services.ts';
@@ -80,5 +86,39 @@ describe('auth session API', () => {
       services,
     );
     expect(res.statusCode).toBe(403);
+  });
+
+  it('rejects sandbox sign-in even if that Cognito user exists', async () => {
+    const services = createTestServices({
+      cognitoAuth: new MemoryCognitoAuthPort([
+        { username: 'sandbox', password: 'test-password-1', sub: 'sandbox-sub' },
+      ]),
+    });
+    const res = await handleAuthSignIn(
+      {},
+      JSON.stringify({ username: 'sandbox', password: 'test-password-1' }),
+      services,
+    );
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('rejects Sandbox sign-in case-insensitively', async () => {
+    const { services } = createMemoryStores();
+    const res = await handleAuthSignIn(
+      {},
+      JSON.stringify({ username: 'Sandbox', password: 'test-password-1' }),
+      services,
+    );
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('rejects refresh when username is sandbox', async () => {
+    const { services } = createMemoryStores();
+    const res = await handleAuthRefresh(
+      {},
+      JSON.stringify({ refreshToken: 'anything', username: 'sandbox' }),
+      services,
+    );
+    expect(res.statusCode).toBe(401);
   });
 });

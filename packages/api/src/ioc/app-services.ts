@@ -9,6 +9,7 @@ import type { ReviewProgressRepository } from '../repositories/review-repository
 import type { SetPoolRepository } from '../repositories/set-pool-repository.js';
 import type { DeckRepository } from '../repositories/deck-repository.js';
 import type { SettingsRepository } from '../repositories/settings-repository.js';
+import type { UsernameDirectoryService } from '../services/username-directory-service.js';
 import { TYPES } from './types.js';
 
 export interface AppServices {
@@ -22,6 +23,7 @@ export interface AppServices {
   reviewProgressRepository: ReviewProgressRepository;
   setPoolRepository: SetPoolRepository;
   deckRepository: DeckRepository;
+  usernameDirectory: UsernameDirectoryService;
 }
 
 export function resolveAppServices(container: Container): AppServices {
@@ -36,5 +38,6 @@ export function resolveAppServices(container: Container): AppServices {
     reviewProgressRepository: container.get<ReviewProgressRepository>(TYPES.ReviewProgressRepository),
     setPoolRepository: container.get<SetPoolRepository>(TYPES.SetPoolRepository),
     deckRepository: container.get<DeckRepository>(TYPES.DeckRepository),
+    usernameDirectory: container.get<UsernameDirectoryService>(TYPES.UsernameDirectoryService),
   };
 }

@@ -11,4 +11,5 @@ export const mockApiListDecks = vi.fn(async (): Promise<unknown[]> => []);
 export const mockApiGetDeck = vi.fn(async (): Promise<DeckDocument | null> => null);
 export const mockApiPutDeck = vi.fn(async (doc: DeckDocument) => doc);
 export const mockApiDeleteDeck = vi.fn(async () => undefined);
+export const mockApiGetPublicDeck = vi.fn(async (): Promise<DeckDocument | null> => null);
 export const mockReadProfileForDeck = vi.fn(async () => null);

@@ -10,6 +10,9 @@
  */
 import { AwsCognitoAuthPort } from '../packages/api/src/services/cognito-auth.ts';
 import { readEnv } from '../packages/api/src/lib/auth.ts';
+import { createDocClient } from '../packages/api/src/repositories/settings-repository.ts';
+import { UsernameDirectory } from '../packages/api/src/repositories/username-directory.ts';
+import { UsernameDirectoryService } from '../packages/api/src/services/username-directory-service.ts';
 
 async function main(): Promise<void> {
   const env = readEnv();
@@ -30,12 +33,16 @@ async function main(): Promise<void> {
   }
   const cognito = new AwsCognitoAuthPort(env);
   const existing = await cognito.findUser(username);
+  const owner = existing ?? (await cognito.adminCreateUser(username, password, email));
   if (existing) {
     console.log(`Owner ${username} already exists. sub=${existing.sub}`);
-    return;
+  } else {
+    console.log(`Created owner ${owner.username} sub=${owner.sub}`);
   }
-  const created = await cognito.adminCreateUser(username, password, email);
-  console.log(`Created owner ${created.username} sub=${created.sub}`);
+  const tableName = env.HUB_TABLE_NAME || 'HubTable';
+  const directory = new UsernameDirectoryService(new UsernameDirectory(createDocClient(env), tableName));
+  await directory.upsert(owner.username, owner.sub);
+  console.log(`Username directory: ${owner.username} → ${owner.sub}`);
 }
 
 main().catch((err) => {

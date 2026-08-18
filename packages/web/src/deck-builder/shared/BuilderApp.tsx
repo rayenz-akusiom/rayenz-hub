@@ -5,9 +5,12 @@ import { isApiConfigured } from '../../api/hub-api';
 import {
   builderHash,
   builderBasePath,
-  HUB_USER_SLUG,
+  hubUserSlug,
+  isLocalLibrarySlug,
   normalizeHash,
   parseBuilderRoute,
+  RETIRED_OWNER_SLUG,
+  RETIRED_USER_SLUG,
   type BuilderFormat,
 } from '../../hub/routes';
 import { navigateHub } from '../../lib/hub-storage';
@@ -48,7 +51,7 @@ function hashUsesOtherBuilder(hash: string, builderFormat: BuilderFormat): boole
 /** Sync index hit for the current builder deep-link hash, if any. */
 function deepLinkIndexMatch(builderFormat: BuilderFormat): DeckSummary | null {
   const route = parseBuilderRoute(window.location.hash, builderFormat);
-  if (!route || route.userSlug !== HUB_USER_SLUG) return null;
+  if (!route || !isLocalLibrarySlug(route.userSlug)) return null;
   const match = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
   if (match && match.format === builderFormat) {
     if (isSampleDeckId(match.deckId) && isSampleDismissed()) return null;
@@ -90,6 +93,8 @@ export function BuilderApp({
   const decksRef = useRef<DeckSummary[]>([]);
   const activeRef = useRef<DeckDocument | null>(null);
   const applyingRouteRef = useRef(false);
+  const readOnlyRef = useRef(false);
+  const [readOnly, setReadOnly] = useState(false);
 
   const filteredDecks = useMemo(
     () => filterLibraryByFormat(decks, builderFormat).filter((d) => !isSampleDeckId(d.deckId)),
@@ -107,7 +112,7 @@ export function BuilderApp({
   const syncDeckHash = useCallback(
     (doc: DeckDocument | null) => {
       const next = doc
-        ? builderHash(builderFormat, HUB_USER_SLUG, toKebabCase(doc.name))
+        ? builderHash(builderFormat, hubUserSlug(), toKebabCase(doc.name))
         : builderHash(builderFormat);
       if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
         navigateHub(next);
@@ -119,7 +124,7 @@ export function BuilderApp({
   const redirectToCorrectBuilder = useCallback((doc: DeckDocument) => {
     const targetFormat: BuilderFormat = doc.format === 'cube' ? 'cube' : 'commander';
     if (targetFormat === builderFormat) return false;
-    navigateHub(builderHash(targetFormat, HUB_USER_SLUG, toKebabCase(doc.name)));
+    navigateHub(builderHash(targetFormat, hubUserSlug(), toKebabCase(doc.name)));
     return true;
   }, [builderFormat]);
 
@@ -137,6 +142,8 @@ export function BuilderApp({
       if (redirectToCorrectBuilder(doc)) return;
 
       // Local-first: paint BrowseShell before optional API sync.
+      setReadOnly(false);
+      readOnlyRef.current = false;
       setActive(doc);
       activeRef.current = doc;
       if (opts?.syncHash !== false) {
@@ -205,16 +212,53 @@ export function BuilderApp({
           activeRef.current = null;
           setActive(null);
           setSyncStatus(null);
+          setReadOnly(false);
+          readOnlyRef.current = false;
         }
         return;
       }
-      if (route.userSlug !== HUB_USER_SLUG) {
-        setError(`Unknown user “${route.userSlug}”`);
-        activeRef.current = null;
-        setActive(null);
-        setSyncStatus(null);
+      if (route.userSlug === RETIRED_USER_SLUG) {
+        navigateHub(builderHash(builderFormat, RETIRED_OWNER_SLUG, route.deckSlug));
         return;
       }
+      if (!isLocalLibrarySlug(route.userSlug)) {
+        applyingRouteRef.current = true;
+        try {
+          const doc = await deckApi.apiGetPublicDeck(route.userSlug, route.deckSlug);
+          if (!doc) {
+            setError('Deck not found');
+            activeRef.current = null;
+            setActive(null);
+            setSyncStatus(null);
+            setReadOnly(false);
+            readOnlyRef.current = false;
+            return;
+          }
+          const targetFormat: BuilderFormat = doc.format === 'cube' ? 'cube' : 'commander';
+          if (targetFormat !== builderFormat) {
+            navigateHub(builderHash(targetFormat, route.userSlug, route.deckSlug));
+            return;
+          }
+          setError(null);
+          setReadOnly(true);
+          readOnlyRef.current = true;
+          setActive(doc);
+          activeRef.current = doc;
+          setSyncStatus(null);
+        } catch {
+          setError('Deck not found');
+          activeRef.current = null;
+          setActive(null);
+          setSyncStatus(null);
+          setReadOnly(false);
+          readOnlyRef.current = false;
+        } finally {
+          applyingRouteRef.current = false;
+        }
+        return;
+      }
+      setReadOnly(false);
+      readOnlyRef.current = false;
       const match = list.find((d) => toKebabCase(d.name) === route.deckSlug);
       if (!match) {
         if (activeRef.current && toKebabCase(activeRef.current.name) === route.deckSlug) {
@@ -295,7 +339,11 @@ export function BuilderApp({
     const match = deepLinkIndexMatch(builderFormat);
     if (!match) {
       const route = parseBuilderRoute(window.location.hash, builderFormat);
-      if (route?.userSlug === HUB_USER_SLUG) {
+      if (route?.userSlug === RETIRED_USER_SLUG) {
+        navigateHub(builderHash(builderFormat, RETIRED_OWNER_SLUG, route.deckSlug));
+        return;
+      }
+      if (route && isLocalLibrarySlug(route.userSlug)) {
         const other = store.readLibraryIndex().find((d) => toKebabCase(d.name) === route.deckSlug);
         if (other && other.format !== builderFormat) {
           navigateHub(
@@ -329,6 +377,7 @@ export function BuilderApp({
   }, [applyRouteFromHash]);
 
   async function persist(next: DeckDocument) {
+    if (readOnlyRef.current) return;
     const seq = ++persistSeq.current;
     if (activeRef.current?.deckId === next.deckId) {
       // Keep ref in sync immediately so overlapping persists/reads see latest.
@@ -408,14 +457,18 @@ export function BuilderApp({
         <BrowseShell
           deck={active}
           syncStatus={syncStatus}
+          readOnly={readOnly}
           onBack={() => {
             invalidatePersist();
             setActive(null);
             setSyncStatus(null);
+            setReadOnly(false);
+            readOnlyRef.current = false;
             syncDeckHash(null);
             void refreshLibrary({ applyRoute: false });
           }}
           onChange={(next) => {
+            if (readOnlyRef.current) return;
             void persist(next);
           }}
         />

@@ -13,6 +13,10 @@ import {
 } from '../../packages/web/src/deck-builder/sample/sample-deck';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
+import {
+  clearHubAuthSession,
+  setHubAuthSession,
+} from '../../packages/web/src/lib/hub-auth-session';
 
 const apiConfigured = vi.hoisted(() => ({ value: false }));
 
@@ -29,6 +33,7 @@ const apiListDecks = vi.fn<() => Promise<DeckSummary[]>>();
 const apiGetDeck = vi.fn<(deckId: string) => Promise<DeckDocument | null>>();
 const apiPutDeck = vi.fn<(doc: DeckDocument) => Promise<DeckDocument>>();
 const apiDeleteDeck = vi.fn<(deckId: string) => Promise<void>>();
+const apiGetPublicDeck = vi.fn<(username: string, deckSlug: string) => Promise<DeckDocument | null>>();
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
@@ -54,6 +59,7 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
   apiGetDeck: (deckId: string) => apiGetDeck(deckId),
   apiPutDeck: (doc: DeckDocument) => apiPutDeck(doc),
   apiDeleteDeck: (deckId: string) => apiDeleteDeck(deckId),
+  apiGetPublicDeck: (username: string, deckSlug: string) => apiGetPublicDeck(username, deckSlug),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
@@ -113,6 +119,7 @@ function defaultMocks() {
   apiGetDeck.mockReset();
   apiPutDeck.mockReset();
   apiDeleteDeck.mockReset();
+  apiGetPublicDeck.mockReset();
   mergeDeckDocuments.mockReset();
   listDecks.mockResolvedValue([commanderSummary, cubeSummary]);
   readLibraryIndex.mockReturnValue([commanderSummary, cubeSummary]);
@@ -128,6 +135,7 @@ function defaultMocks() {
   apiGetDeck.mockResolvedValue(null);
   apiPutDeck.mockImplementation(async (doc) => doc);
   apiDeleteDeck.mockResolvedValue(undefined);
+  apiGetPublicDeck.mockResolvedValue(null);
   mergeDeckDocuments.mockImplementation((local, remote) => remote ?? local);
 }
 
@@ -136,6 +144,12 @@ afterEach(() => {
   vi.restoreAllMocks();
   apiConfigured.value = false;
   window.location.hash = '';
+  clearHubAuthSession();
+  try {
+    sessionStorage.clear();
+  } catch {
+    /* ignore */
+  }
   try {
     localStorage.removeItem(SAMPLE_DISMISS_KEY);
   } catch {
@@ -293,7 +307,7 @@ describe('CommanderBuilderApp', () => {
     expect(screen.getByText('Swap queue')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('region', { name: 'Deck profile' })).not.toBeInTheDocument();
-    expect(window.location.hash).toBe('#/commander-builder/default/fixture-commander');
+    expect(window.location.hash).toBe('#/commander-builder/sandbox/fixture-commander');
   });
 
   it('renames the open deck from the title pencil', async () => {
@@ -321,7 +335,7 @@ describe('CommanderBuilderApp', () => {
   });
 
   it('opens a deck from a deep-link hash on load', async () => {
-    window.location.hash = '#/commander-builder/default/fixture-commander';
+    window.location.hash = '#/commander-builder/sandbox/fixture-commander';
     render(<CommanderBuilderApp />);
 
     await waitFor(() => {
@@ -341,7 +355,7 @@ describe('CommanderBuilderApp', () => {
           resolveList = resolve;
         }),
     );
-    window.location.hash = '#/commander-builder/default/fixture-commander';
+    window.location.hash = '#/commander-builder/sandbox/fixture-commander';
 
     render(<CommanderBuilderApp />);
 
@@ -371,7 +385,7 @@ describe('CommanderBuilderApp', () => {
         }),
     );
     readLibraryIndex.mockReturnValue([]);
-    window.location.hash = '#/commander-builder/default/missing-deck';
+    window.location.hash = '#/commander-builder/sandbox/missing-deck';
 
     render(<CommanderBuilderApp />);
 
@@ -388,7 +402,7 @@ describe('CommanderBuilderApp', () => {
 
   it('shows an error for an unknown deck slug deep link', async () => {
     readLibraryIndex.mockReturnValue([]);
-    window.location.hash = '#/commander-builder/default/missing-deck';
+    window.location.hash = '#/commander-builder/sandbox/missing-deck';
     render(<CommanderBuilderApp />);
 
     await waitFor(() => {
@@ -397,13 +411,73 @@ describe('CommanderBuilderApp', () => {
     expect(screen.getByRole('heading', { name: /Commander Builder/ })).toBeInTheDocument();
   });
 
-  it('shows an error for an unknown user slug deep link', async () => {
+  it('shows an error when a public user deck is missing', async () => {
     window.location.hash = '#/commander-builder/other-user/fixture-commander';
     render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText('Unknown user “other-user”')).toBeInTheDocument();
+      expect(screen.getByText('Deck not found')).toBeInTheDocument();
     });
+    expect(apiGetPublicDeck).toHaveBeenCalledWith('other-user', 'fixture-commander');
+    expect(saveDeck).not.toHaveBeenCalled();
+  });
+
+  it('opens another user deck read-only from a public deep link', async () => {
+    apiGetPublicDeck.mockResolvedValue(commanderDoc);
+    window.location.hash = '#/commander-builder/rayenz/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    expect(apiGetPublicDeck).toHaveBeenCalledWith('rayenz', 'fixture-commander');
+    expect(saveDeck).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Add card' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename Fixture Commander' })).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
+  });
+
+  it('rewrites retired default deep links to rayenz', async () => {
+    apiGetPublicDeck.mockResolvedValue(commanderDoc);
+    window.location.hash = '#/commander-builder/default/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(apiGetPublicDeck).toHaveBeenCalledWith('rayenz', 'fixture-commander');
+    expect(saveDeck).not.toHaveBeenCalled();
+  });
+
+  it('opens sandbox deep links from local library while signed in', async () => {
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+    window.location.hash = '#/commander-builder/sandbox/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    expect(apiGetPublicDeck).not.toHaveBeenCalled();
+    expect(getDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+  });
+
+  it('uses the signed-in username in library deep-link hrefs', async () => {
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    expect(deckOpenButton('Fixture Commander')).toHaveAttribute(
+      'href',
+      '#/commander-builder/rayenz/fixture-commander',
+    );
   });
 
   it('library tiles expose copyable deep-link hrefs', async () => {
@@ -415,7 +489,7 @@ describe('CommanderBuilderApp', () => {
 
     expect(deckOpenButton('Fixture Commander')).toHaveAttribute(
       'href',
-      '#/commander-builder/default/fixture-commander',
+      '#/commander-builder/sandbox/fixture-commander',
     );
   });
 
@@ -452,7 +526,7 @@ describe('CommanderBuilderApp', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
     });
-    expect(window.location.hash).toBe('#/commander-builder/default/fixture-commander');
+    expect(window.location.hash).toBe('#/commander-builder/sandbox/fixture-commander');
 
     await user.click(screen.getByRole('button', { name: 'Library' }));
     await waitFor(() => {

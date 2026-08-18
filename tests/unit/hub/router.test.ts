@@ -7,7 +7,9 @@ import {
   redirectLegacyAppsPath,
   parseDeckBuilderRoute,
   deckBuilderHash,
-  HUB_USER_SLUG,
+  hubUserSlug,
+  isLocalLibrarySlug,
+  SANDBOX_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
 
 describe('hub routes', () => {
@@ -47,10 +49,10 @@ describe('hub routes', () => {
 
   it('builds deprecated deck-builder hashes via commander builder', () => {
     expect(deckBuilderHash()).toBe('#/commander-builder');
-    expect(deckBuilderHash(HUB_USER_SLUG, 'fixture-commander')).toBe(
-      '#/commander-builder/default/fixture-commander',
+    expect(deckBuilderHash(hubUserSlug(), 'fixture-commander')).toBe(
+      `#/commander-builder/${SANDBOX_USER_SLUG}/fixture-commander`,
     );
-    expect(HUB_USER_SLUG).toBe('default');
+    expect(hubUserSlug()).toBe(SANDBOX_USER_SLUG);
   });
 
   it('falls back unknown paths to dailies', () => {
@@ -130,14 +132,24 @@ describe('hub hash navigation (DOM)', () => {
   beforeEach(() => {
     window.location.hash = '';
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
     window.location.hash = '';
+    sessionStorage.clear();
   });
 
   it('pathFromHash reads window location hash', () => {
     window.location.hash = '#/order-reconcile';
     expect(pathFromHash()).toBe('/order-reconcile');
+  });
+
+  it('hubUserSlug uses the signed-in username', () => {
+    sessionStorage.setItem('rayenz-hub-access-token', 'token');
+    sessionStorage.setItem('rayenz-hub-username', 'Rayenz');
+    expect(hubUserSlug()).toBe('rayenz');
+    expect(isLocalLibrarySlug('rayenz')).toBe(true);
+    expect(isLocalLibrarySlug(SANDBOX_USER_SLUG)).toBe(true);
   });
 });

@@ -10,6 +10,8 @@ import { ProfileRepository } from '../repositories/profile-repository.js';
 import { ReviewProgressRepository } from '../repositories/review-repository.js';
 import { SetPoolRepository } from '../repositories/set-pool-repository.js';
 import { DeckRepository } from '../repositories/deck-repository.js';
+import { UsernameDirectory } from '../repositories/username-directory.js';
+import { UsernameDirectoryService } from '../services/username-directory-service.js';
 import { createDocClient, SettingsRepository } from '../repositories/settings-repository.js';
 import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
 import { TYPES } from './types.js';
@@ -26,6 +28,7 @@ export interface ContainerOverrides {
   reviewProgressRepository?: ReviewProgressRepository;
   setPoolRepository?: SetPoolRepository;
   deckRepository?: DeckRepository;
+  usernameDirectory?: UsernameDirectoryService;
   docClient?: { send: (command: unknown) => Promise<unknown> };
 }
 
@@ -129,6 +132,13 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   } else {
     const invites = new InviteRepository(doc, env.HUB_TABLE_NAME || 'HubTable');
     container.bind(TYPES.InviteService).toConstantValue(new InviteService(invites, env));
+  }
+
+  if (overrides.usernameDirectory) {
+    container.bind(TYPES.UsernameDirectoryService).toConstantValue(overrides.usernameDirectory);
+  } else {
+    const directory = new UsernameDirectory(doc, env.HUB_TABLE_NAME || 'HubTable');
+    container.bind(TYPES.UsernameDirectoryService).toConstantValue(new UsernameDirectoryService(directory));
   }
 
   return container;

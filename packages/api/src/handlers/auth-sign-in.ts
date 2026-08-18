@@ -6,9 +6,11 @@ import {
   RegisterRequestSchema,
   ResendConfirmationRequestSchema,
   SignInRequestSchema,
+  isReservedUsername,
+  isSandboxUsername,
   resolveUserId,
 } from '@rayenz-hub/shared';
-import { ForbiddenError } from '../lib/auth.js';
+import { AuthError, ForbiddenError } from '../lib/auth.js';
 import { parseJsonBody } from '../lib/keyed-resource-handler.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
@@ -35,7 +37,15 @@ export async function handleAuthSignIn(
     if (!parsed.success) {
       return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
     }
+    if (isSandboxUsername(parsed.data.username)) {
+      throw new AuthError();
+    }
     const tokens = await services.cognitoAuth.initiateAuth(parsed.data.username, parsed.data.password);
+    try {
+      await services.usernameDirectory.upsert(tokens.username || parsed.data.username, tokens.sub);
+    } catch {
+      /* directory backfill must not block sign-in */
+    }
     return jsonResponse(200, tokens);
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);
@@ -56,7 +66,17 @@ export async function handleAuthRefresh(
     if (!parsed.success) {
       return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
     }
+    if (parsed.data.username && isSandboxUsername(parsed.data.username)) {
+      throw new AuthError();
+    }
     const tokens = await services.cognitoAuth.refresh(parsed.data.refreshToken, parsed.data.username);
+    try {
+      if (tokens.username && tokens.sub) {
+        await services.usernameDirectory.upsert(tokens.username, tokens.sub);
+      }
+    } catch {
+      /* directory backfill must not block refresh */
+    }
     return jsonResponse(200, tokens);
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);
@@ -121,6 +141,9 @@ export async function handleAuthRegister(
     if (!parsed.success) {
       return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
     }
+    if (isReservedUsername(parsed.data.username)) {
+      return errorResponse(400, 'Username is reserved', 'BAD_REQUEST');
+    }
     const invite = await services.inviteService.redeem(parsed.data.token);
     const existing = await services.cognitoAuth.findUser(parsed.data.username);
     if (existing) {
@@ -132,6 +155,7 @@ export async function handleAuthRegister(
       parsed.data.email,
     );
     await services.inviteService.markUsed(invite, created.sub);
+    await services.usernameDirectory.upsert(created.username, created.sub);
     return jsonResponse(201, RegisterPendingResponseSchema.parse({ status: 'CONFIRM_EMAIL', username: created.username }));
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);
@@ -158,6 +182,11 @@ export async function handleAuthConfirm(
     }
     await services.cognitoAuth.confirmSignUp(parsed.data.username, parsed.data.code);
     const tokens = await services.cognitoAuth.initiateAuth(parsed.data.username, parsed.data.password);
+    try {
+      await services.usernameDirectory.upsert(tokens.username || parsed.data.username, tokens.sub);
+    } catch {
+      /* directory backfill must not block confirm */
+    }
     return jsonResponse(200, tokens);
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);

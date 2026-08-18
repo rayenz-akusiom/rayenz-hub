@@ -5,7 +5,7 @@ import {
   ownershipLabel,
   partitionLibraryByOwnership,
 } from '@rayenz-hub/shared';
-import { builderHash, HUB_USER_SLUG, type BuilderFormat } from '../../../hub/routes';
+import { builderHash, hubUserSlug, type BuilderFormat } from '../../../hub/routes';
 import { toKebabCase } from '../../../lib/string-utils';
 import { CARD_SIZE_PX } from '../../card-size';
 import { LibraryCoverArt } from '../../library/LibraryCoverArt';
@@ -69,7 +69,7 @@ function LibraryGrid({
             const isTheory = deckOwnership(d) === 'theory';
             const updated = `Updated ${new Date(d.updatedAt).toLocaleString()}`;
             const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
-            const href = builderHash(builderFormat, HUB_USER_SLUG, toKebabCase(d.name));
+            const href = builderHash(builderFormat, hubUserSlug(), toKebabCase(d.name));
             const openLabel = isSample ? `${d.name} (Sample)` : d.name;
             return (
               <li

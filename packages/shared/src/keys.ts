@@ -11,6 +11,10 @@ export function userPk(userId: string): string {
   return `USER::${userId}`;
 }
 
+export function usernamePk(slug: string): string {
+  return `USERNAME::${slug}`;
+}
+
 export function settingsSk(domain: SettingsDomain): string {
   return `SETTINGS::${domain}`;
 }

@@ -150,11 +150,13 @@ export function BrowseShell({
   onChange,
   onBack,
   syncStatus = null,
+  readOnly = false,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   onBack: () => void;
   syncStatus?: DeckSyncStatus | null;
+  readOnly?: boolean;
 }) {
   const [view, setView] = useState<BrowseView>(
     deck.browseViewDefault || defaultBrowseView(deck.format),
@@ -247,7 +249,7 @@ export function BrowseShell({
 
   const incomplete = incompleteEntryCount(deck.formalSwapEntries);
   const size = deckSize(deck);
-  const queuesReadOnly = isTheoryDeck(deck);
+  const queuesReadOnly = isTheoryDeck(deck) || readOnly;
 
   const deckRef = useRef(deck);
   const draftRef = useRef(draft);
@@ -262,13 +264,14 @@ export function BrowseShell({
   /** Apply a full document; keeps deckRef ahead of React props so rapid edits don't clobber each other. */
   const commit = useCallback(
     (next: DeckDocument, opts?: CommitOpts) => {
+      if (readOnly) return;
       if (opts?.recordHistory !== false) {
         editHistory.recordBefore(deckRef.current);
       }
       deckRef.current = next;
       onChange(next);
     },
-    [onChange, editHistory],
+    [onChange, editHistory, readOnly],
   );
 
   /** Merge a patch onto the latest known deck (avoids stale prop spreads). */
@@ -829,33 +832,35 @@ export function BrowseShell({
           onCardSortChange={setCardSortAndPersist}
           cardSize={cardSize}
           onCardSizeChange={setCardSize}
-          onOpenCategories={() => setCategoriesOpen(true)}
-          onOpenBasics={() => setBasicsOpen(true)}
+          onOpenCategories={readOnly ? undefined : () => setCategoriesOpen(true)}
+          onOpenBasics={readOnly ? undefined : () => setBasicsOpen(true)}
           setFilter={setFilter}
           proxyFilter={proxyFilter}
           onProxyFilterChange={setProxyFilter}
           foilFilter={foilFilter}
           onFoilFilterChange={setFoilFilter}
         />
-        <DeckActionsMenu
-          deck={deck}
-          onDeckChange={(next) => {
-            // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
-            if (next.cards !== deck.cards || next.categories !== deck.categories) {
-              commit(next);
-            } else {
-              commitPatch({
-                lastArchidektSyncAt: next.lastArchidektSyncAt,
-              });
-            }
-          }}
-        />
-        {deck.format === 'commander' ? <GlanceGenerateButton deck={deck} /> : null}
+        {readOnly ? null : (
+          <DeckActionsMenu
+            deck={deck}
+            onDeckChange={(next) => {
+              // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
+              if (next.cards !== deck.cards || next.categories !== deck.categories) {
+                commit(next);
+              } else {
+                commitPatch({
+                  lastArchidektSyncAt: next.lastArchidektSyncAt,
+                });
+              }
+            }}
+          />
+        )}
+        {deck.format === 'commander' && !readOnly ? <GlanceGenerateButton deck={deck} /> : null}
       </header>
 
       <div className="db-body">
         <main className="db-main">
-          {selectionCount ? (
+          {selectionCount && !readOnly ? (
             <div className="db-selection-bar">
               <span className="db-selection-bar-count" aria-live="polite">
                 {selectionCount === 1 ? '1 selected' : `${selectionCount} selected`}
@@ -939,11 +944,11 @@ export function BrowseShell({
               layout={layout}
               cardSort={cardSort}
               separateLands={view === 'colour_identity_spells'}
-              onDropCard={onDropCard}
-              onCardContextMenu={onCardContextMenu}
+              onDropCard={readOnly ? () => {} : onDropCard}
+              onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
-              onSetOwnership={onSetOwnership}
-              onRename={(name) => commitPatch({ name })}
+              onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -955,16 +960,16 @@ export function BrowseShell({
               onSelectCard={onSelectCard}
               layout={layout}
               cardSort={cardSort}
-              onDropCard={onDropCard}
-              onCardContextMenu={onCardContextMenu}
+              onDropCard={readOnly ? () => {} : onDropCard}
+              onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
-              onSetOwnership={onSetOwnership}
-              onRename={(name) => commitPatch({ name })}
+              onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
               browseView={isCategoryBrowseView(view) ? view : 'category'}
-              onEditCategory={(cat) => setEditingCategory(cat)}
+              onEditCategory={readOnly ? undefined : (cat) => setEditingCategory(cat)}
             />
           )}
         </main>
@@ -1133,7 +1138,7 @@ export function BrowseShell({
         />
       ) : null}
 
-      {contextMenu && contextCard ? (
+      {contextMenu && contextCard && !readOnly ? (
         <CardContextMenu
           state={contextMenu}
           selectionCount={selectionCount}
@@ -1204,18 +1209,20 @@ export function BrowseShell({
         />
       ) : null}
 
-      <AddCardFab
-        onAddClick={() => setAddOpen(true)}
-        onDropDefault={(ids) => {
-          commit(moveCardsToDefaultCategories(deckRef.current, ids));
-        }}
-        onDropNewCategory={(ids) => {
-          setSelectedIds(new Set(ids));
-          setSelectionAnchorId(ids[0] ?? null);
-          setMoveCreatingNew(true);
-          setMoveOpen(true);
-        }}
-      />
+      {readOnly ? null : (
+        <AddCardFab
+          onAddClick={() => setAddOpen(true)}
+          onDropDefault={(ids) => {
+            commit(moveCardsToDefaultCategories(deckRef.current, ids));
+          }}
+          onDropNewCategory={(ids) => {
+            setSelectedIds(new Set(ids));
+            setSelectionAnchorId(ids[0] ?? null);
+            setMoveCreatingNew(true);
+            setMoveOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }

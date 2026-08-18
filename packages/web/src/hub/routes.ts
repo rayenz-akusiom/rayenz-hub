@@ -1,3 +1,6 @@
+import { SANDBOX_USERNAME, usernameToSlug } from '@rayenz-hub/shared';
+import { getHubAuthSession } from '../lib/hub-auth-session';
+
 export type HubPath =
   | '/dailies'
   | '/neopets-more'
@@ -21,8 +24,24 @@ export type HubPath =
 
 export const DEFAULT_PATH: HubPath = '/dailies';
 
+/** Unsigned / sample-deck URL slug. Not a Cognito user. */
+export {
+  SANDBOX_USERNAME as SANDBOX_USER_SLUG,
+  RETIRED_OWNER_SLUG,
+  RETIRED_USER_SLUG,
+} from '@rayenz-hub/shared';
+
 /** Hub user segment in deck deep links (`#/{builder}/{user}/{deck}`). */
-export const HUB_USER_SLUG = 'default';
+export function hubUserSlug(): string {
+  const username = getHubAuthSession()?.username?.trim();
+  if (!username) return SANDBOX_USERNAME;
+  return usernameToSlug(username) || SANDBOX_USERNAME;
+}
+
+/** Local IndexedDB library: signed-in owner slug, or always-local sandbox. */
+export function isLocalLibrarySlug(slug: string): boolean {
+  return slug === hubUserSlug() || slug === SANDBOX_USERNAME;
+}
 
 export type DeckBuilderRoute = {
   userSlug: string;

@@ -17,6 +17,8 @@ import {
   setHubApiConfig,
   clearHubApiConfig,
   isApiConfigured,
+  getHubApiBaseUrl,
+  publicApiFetch,
   HubApiClient,
   clientApiFetch,
   pushSettingsDomain,
@@ -28,6 +30,8 @@ export {
   setHubApiConfig,
   clearHubApiConfig,
   isApiConfigured,
+  getHubApiBaseUrl,
+  publicApiFetch,
   assertApiNotPageOrigin,
   HubApiClient,
 };

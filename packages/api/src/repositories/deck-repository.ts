@@ -7,6 +7,7 @@ import {
   pickCoverPartnerStatus,
   deckSk,
   resolveUserId,
+  toKebabCase,
   userPk,
   userDeckS3Key,
   type AuthContext,
@@ -27,7 +28,10 @@ export class DeckRepository {
   ) {}
 
   async list(auth: AuthContext, env: ApiEnv): Promise<DeckSummary[]> {
-    const userId = resolveUserId(auth, env);
+    return this.listByUserId(resolveUserId(auth, env));
+  }
+
+  async listByUserId(userId: string): Promise<DeckSummary[]> {
     const result = await this.doc.send(
       new QueryCommand({
         TableName: this.tableName,
@@ -56,7 +60,10 @@ export class DeckRepository {
   }
 
   async get(auth: AuthContext, env: ApiEnv, deckId: string): Promise<DeckDocument | null> {
-    const userId = resolveUserId(auth, env);
+    return this.getByUserId(resolveUserId(auth, env), deckId);
+  }
+
+  async getByUserId(userId: string, deckId: string): Promise<DeckDocument | null> {
     const result = await this.doc.send(
       new GetCommand({
         TableName: this.tableName,
@@ -73,6 +80,15 @@ export class DeckRepository {
     }
     const parsed = DeckDocumentSchema.safeParse(JSON.parse(body));
     return parsed.success ? parsed.data : null;
+  }
+
+  async getByUserIdAndSlug(userId: string, deckSlug: string): Promise<DeckDocument | null> {
+    const summaries = await this.listByUserId(userId);
+    const match = summaries.find((d) => toKebabCase(d.name) === deckSlug);
+    if (!match) {
+      return null;
+    }
+    return this.getByUserId(userId, match.deckId);
   }
 
   async put(auth: AuthContext, env: ApiEnv, deckId: string, input: DeckDocument): Promise<DeckDocument> {

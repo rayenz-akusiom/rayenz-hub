@@ -1,0 +1,36 @@
+---
+description: Deploy means GitHub Pages plus Hub API; Cognito and other AWS mutations stay named
+alwaysApply: true
+---
+
+# Deploy = GitHub Pages + Hub API
+
+Production is two surfaces: the Hub SPA on **GitHub Pages** and the **Hub API** stack on AWS (`rayenz-hub-api`).
+
+## What “deploy” means
+
+When the user says **deploy**, **ship**, or **push to prod** (without narrowing to one surface), run both, **API then Pages**:
+
+1. Hub API: `npm run deploy:api` (`build:api` + `scripts/deploy-api.ts` → `sam deploy --config-file infra/samconfig.toml` with Cognito overrides). `confirm_changeset = true` — do not skip confirmation.
+2. Pages: `npm run publish:hub` (bakes `HubApiUrl` into the SPA), then `npm run deploy:hub` (`git subtree push --prefix=rayenz-hub hub-prod main`).
+
+Narrow phrases:
+
+- “deploy the site / Pages” → Pages only (`publish:hub` then `deploy:hub`)
+- “deploy the API / Lambda / Hub API” → `deploy:api` only
+- “publish” → `npm run publish:hub` (build + bake, no subtree push)
+
+`deploy:hub` is in scope when they asked to deploy. Do **not** `git commit` or `git push` the source repo unless they asked.
+
+## Never run unless named
+
+- `npm run deploy:cognito` (identity stack `rayenz-hub-cognito`, termination protection)
+- `npm run deploy:api:guided` or raw `sam deploy` (use `deploy:api` instead)
+- AWS CLI that creates, updates, or deletes other cloud resources (stacks, DynamoDB, S3, SSM, Cognito, etc.)
+
+## Allowed without extra naming
+
+- Local API: `npm run start:api`, `sam local start-api`, `sam build`, DynamoDB Local, MinIO (not a production deploy)
+- `npm run test:api` / `npm run test:api:deployed` (when the user supplies `HUB_API_URL` / credentials)
+- Docs/code for AWS tooling
+- `git push` to GitHub remotes when the user asked to push (source repo or Pages subtree via `deploy:hub`)

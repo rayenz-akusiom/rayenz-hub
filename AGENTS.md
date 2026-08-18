@@ -4,8 +4,7 @@ This file captures conventions for automated agents working in this repo. Prefer
 
 ## Non-negotiables
 
-- **“Deploy” means GitHub Pages** (`npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`).
-- **Do not deploy to AWS** unless the user **names AWS** or an API script (`deploy to AWS`, `sam deploy`, `npm run deploy:api`, `npm run deploy:cognito`). Bare “deploy” is **not** an AWS override. Local SAM/`start:api` is fine.
+- **“Deploy” means Hub API then GitHub Pages** (`npm run deploy:api`, then `npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`). Narrow to one surface when the user names Pages or API. **Cognito** (`npm run deploy:cognito`) and other AWS mutations stay named. Local SAM/`start:api` is fine.
 - Production Hub **browser** identity is a Cognito session (Settings → Hub API → Sign in). MCP and CLI scripts sign in with `HUB_USERNAME` / `HUB_PASSWORD` (do not commit the password). See `docs/hub-api-production.md`.
 - **Do not commit or push** unless the user explicitly asks.
 - Prefer **Ask mode** for exploration; switch to Agent only when implementing.

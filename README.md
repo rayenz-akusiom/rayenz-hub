@@ -23,12 +23,14 @@ git clone https://github.com/rayenz-akusiom/rayenz-hub.git
 
 **Userscripts** — commit and push to `rayenz-hub` `main`. No GitHub Pages deploy.
 
-**Hub (Dailies / Deck Review / Order Reconcile)** — React SPA. Always rebuild before deploy:
+**Hub (Dailies / Deck Review / Order Reconcile)** — React SPA on GitHub Pages plus Hub API on AWS. Routine deploy is API then Pages:
 
 ```bash
-# 1. Edit packages/web/, then build into rayenz-hub/
-npm run build:web
-# Or: npm run publish:hub  (build + print next steps)
+# 0. Hub API (skip if API/Lambda did not change)
+npm run deploy:api
+
+# 1. Edit packages/web/, then build into rayenz-hub/ (bakes HubApiUrl)
+npm run publish:hub
 
 # 2. Commit the publish tree
 git add rayenz-hub/index.html rayenz-hub/404.html rayenz-hub/.nojekyll rayenz-hub/assets/
@@ -38,7 +40,7 @@ git commit -m "Rebuild Hub SPA bundle for GitHub Pages."
 npm run deploy:hub
 ```
 
-This pushes `rayenz-hub/` to the [rayenz-akusiom](https://github.com/rayenz-akusiom/rayenz-akusiom) repo `main` branch (GitHub Pages).
+This pushes `rayenz-hub/` to the [rayenz-akusiom](https://github.com/rayenz-akusiom/rayenz-akusiom) repo `main` branch (GitHub Pages). Hub API details: [docs/hub-api-production.md](docs/hub-api-production.md).
 
 Canonical URL: [https://rayenz-akusiom.github.io/rayenz-akusiom/](https://rayenz-akusiom.github.io/rayenz-akusiom/) (hash routes like `#/dailies`). Legacy `/apps/...` paths redirect into those hashes via `404.html`.
 

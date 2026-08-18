@@ -1,6 +1,6 @@
 # Hub API production (auth, cost cap, owner sync)
 
-The public Hub **website stays on GitHub Pages**. AWS hosts the API, DynamoDB, S3, Cognito, and cost controls. Bare “deploy” still means Pages (`npm run deploy:hub`). AWS is `npm run deploy:cognito` then `npm run deploy:api`.
+The public Hub **website stays on GitHub Pages**. AWS hosts the API, DynamoDB, S3, Cognito, and cost controls. Routine **deploy** is Hub API then Pages: `npm run deploy:api`, then `npm run publish:hub` / `npm run deploy:hub`. Cognito (`npm run deploy:cognito`) is first-time / identity-stack only.
 
 Browser production identity is a **Cognito session** (username/password). MCP and CLI scripts sign in the same way (`HUB_USERNAME` / `HUB_PASSWORD`). There is no operator API key.
 
@@ -43,7 +43,7 @@ Do **not** put these in git or Pages localStorage. An unused Secrets Manager sec
 PowerShell (this repo’s shell): set env with `$env:NAME = 'value'`, not `NAME=value` prefixes. Runner is `npx tsx` (not `tsk`).
 
 1. `npm run deploy:cognito` (explicit; confirm changeset). Creates stack `rayenz-hub-cognito` and enables CloudFormation **termination protection**. Pool and client also have `DeletionPolicy` / `UpdateReplacePolicy: Retain`.
-2. `npm run deploy:api` (explicit; confirm changeset). Injects pool id, ARN, client id, and client secret from the Cognito stack. Do this **after** Cognito exists.
+2. `npm run deploy:api` (confirm changeset). Injects pool id, ARN, client id, and client secret from the Cognito stack. Do this **after** Cognito exists.
 3. Provision Cognito owner (prints `sub=` — keep that value):
 
 ```powershell

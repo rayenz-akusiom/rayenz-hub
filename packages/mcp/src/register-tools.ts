@@ -142,12 +142,13 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
     'hub_patch_deck',
     {
       description:
-        'Apply a delta patch to an existing Hub deck (prefer over hub_put_deck for list/queue edits). Supports cardOps (add/remove/update), formalSwapOps, lookingForOps, optional metadata, and expectedUpdatedAt for optimistic concurrency.',
+        'Apply a delta patch to an existing Hub deck (prefer over hub_put_deck for list/queue edits). Supports cardOps (add/remove/update), formalSwapOps, lookingForOps, optional metadata (including description), and expectedUpdatedAt for optimistic concurrency.',
       // Local zod 4 schema: shared DeckPatchSchema is zod 3 and MCP SDK 2 cannot convert it.
       inputSchema: z.object({
         deckId: z.string().describe('Hub deck id'),
         expectedUpdatedAt: z.string().optional(),
         name: z.string().min(1).optional(),
+        description: z.string().optional(),
         format: z.string().optional(),
         ownership: z.enum(['owned', 'theory']).optional(),
         visibility: z.enum(['public', 'private']).optional(),

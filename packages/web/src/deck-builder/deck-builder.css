@@ -1030,7 +1030,16 @@ body,
 }
 
 .db-deck-leaders-identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
   margin-bottom: 0.75rem;
+}
+
+.db-deck-leaders-identity-main {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .db-deck-leaders-identity .db-header-title {
@@ -1063,6 +1072,76 @@ body,
 .db-header-slot.is-lieutenants {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.db-header-slot.is-remainder {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.db-header-remainder {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+}
+
+.db-header-slot.is-leaders-content {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.db-header-slot.is-leaders-content .db-header-cat {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: var(--db-card-w);
+}
+
+.db-leaders-tabs {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 18rem;
+  min-width: 10rem;
+}
+
+.db-deck-description {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: calc(var(--db-card-w) * 85 / 61);
+}
+
+.db-deck-description-input,
+.db-deck-description-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: inherit;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--db-leaders-border, #9db4d0);
+  border-radius: var(--db-card-radius, 8px);
+  background: rgba(255, 255, 255, 0.55);
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.db-deck-description-input {
+  resize: none;
+  outline: none;
+}
+
+.db-deck-description-input:focus {
+  border-color: var(--db-accent, #3d6ea8);
+  box-shadow: 0 0 0 2px rgba(61, 110, 168, 0.2);
+}
+
+.db-deck-description-text {
+  overflow: auto;
 }
 
 .db-header-slot.is-lieutenants .db-header-cat {

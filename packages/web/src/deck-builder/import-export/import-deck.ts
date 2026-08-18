@@ -135,6 +135,7 @@ export function emptyDeckDocument(opts: {
     lastArchidektSyncAt: null,
     lastArchidektImportAt: null,
     cubeTargetSize: opts.cubeTargetSize ?? null,
+    description: '',
   };
 }
 
@@ -371,6 +372,7 @@ export function documentFromImportText(
     lastArchidektSyncAt: null,
     lastArchidektImportAt: now,
     cubeTargetSize: null,
+    description: '',
   },
     opts.forcedFormat,
   ));
@@ -599,6 +601,7 @@ export function documentFromArchidektSnapshot(
     lastArchidektImportAt: now,
 
     cubeTargetSize: existing?.cubeTargetSize ?? null,
+    description: existing?.description ?? '',
   },
     opts.forcedFormat,
   ));

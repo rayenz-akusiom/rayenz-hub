@@ -12,6 +12,7 @@ import {
   FormalSwapEntrySchema,
   LookingForEntrySchema,
 } from './deck-builder.js';
+import { DeckDescriptionSchema } from '../deck-builder/deck-description.js';
 
 /** Card payload for add ops — instanceId optional (server mints). */
 export const CardInstanceAddSchema = CardInstanceSchema.omit({ instanceId: true }).extend({
@@ -102,6 +103,7 @@ export const DeckPatchSchema = z.object({
   expectedUpdatedAt: z.string().optional(),
 
   name: z.string().min(1).optional(),
+  description: DeckDescriptionSchema.optional(),
   format: DeckFormatSchema.optional(),
   ownership: DeckOwnershipSchema.optional(),
   visibility: DeckVisibilitySchema.optional(),
@@ -144,6 +146,7 @@ export class DeckPatchApplyError extends Error {
 /** True when the patch object has at least one mutating field (excluding expectedUpdatedAt). */
 export function deckPatchHasMutations(patch: DeckPatch): boolean {
   if (patch.name !== undefined) return true;
+  if (patch.description !== undefined) return true;
   if (patch.format !== undefined) return true;
   if (patch.ownership !== undefined) return true;
   if (patch.visibility !== undefined) return true;

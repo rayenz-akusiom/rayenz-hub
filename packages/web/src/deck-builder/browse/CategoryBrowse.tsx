@@ -36,6 +36,8 @@ import {
   type DeckVisibility,
   type FormalSwapEntry,
   categoryKeySortFor,
+  DECK_DESCRIPTION_SPLIT_MIN_REM,
+  headerRemainderMode,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
@@ -49,8 +51,21 @@ import {
   readDragInstanceIds,
   type SelectCardHandler,
 } from './CardTile';
+import { DeckDescriptionField } from './DeckDescriptionField';
 import { MasonryColumns } from './MasonryColumns';
-import { useDeckBuilderDragging } from './useDeckBuilderDragging';
+import { useDeckBuilderHeaderDragHover } from './useDeckBuilderDragging';
+
+function cssLengthPx(value: string, fallback: number): number {
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  const n = parseFloat(trimmed);
+  if (!Number.isFinite(n)) return fallback;
+  if (trimmed.endsWith('rem')) {
+    const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    return n * root;
+  }
+  return n;
+}
 
 export type DropCardHandler = (
   instanceIds: string[],
@@ -806,6 +821,8 @@ export function DeckHeaderRow({
   visibility,
   onSetVisibility,
   onRename,
+  description = '',
+  onSetDescription,
   deckMeta,
   deckMetaWarn,
   syncStatus,
@@ -829,6 +846,8 @@ export function DeckHeaderRow({
   visibility?: DeckVisibility;
   onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
+  description?: string;
+  onSetDescription?: (description: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -836,10 +855,30 @@ export function DeckHeaderRow({
   coverInstanceId?: string | null;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
+  const [headerTab, setHeaderTab] = useState<'leaders' | 'description'>('leaders');
+  const [leftoverPx, setLeftoverPx] = useState(0);
+  const [cardWidthPx, setCardWidthPx] = useState(213);
+  const [minDescriptionPx, setMinDescriptionPx] = useState(DECK_DESCRIPTION_SPLIT_MIN_REM * 16);
+  const leadersRef = useRef<HTMLDivElement>(null);
+  const remainderRef = useRef<HTMLDivElement>(null);
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
-  const dragging = useDeckBuilderDragging();
-  const showLieutenants = lieutenants.length > 0 || dragging;
+  const headerDragHover = useDeckBuilderHeaderDragHover(leadersRef);
+  const remainderLeaderCount =
+    format === 'commander'
+      ? lieutenants.length
+      : headerKeys.reduce((n, key) => n + (header[key]?.length || 0), 0);
+  const showDescription = Boolean(onSetDescription) || Boolean(description.trim());
+  const showRemainderLeaders = remainderLeaderCount > 0 || headerDragHover;
+  const needsRemainder = showRemainderLeaders || showDescription;
+  const mode = headerRemainderMode({
+    leftoverPx,
+    leaderCardCount: remainderLeaderCount,
+    cardWidthPx,
+    minDescriptionPx,
+  });
+  const useTabs = mode === 'tabs' && remainderLeaderCount > 0 && showDescription;
+  const activeTab: 'leaders' | 'description' = headerDragHover ? 'leaders' : headerTab;
   const badgeFormat: DeckFormat = format === 'commander' || format === 'cube' ? format : 'other';
   const resolvedOwnership = deckOwnership({ ownership });
   const theory = resolvedOwnership === 'theory';
@@ -847,111 +886,182 @@ export function DeckHeaderRow({
   const privateDeck = isPrivateDeck({ visibility: resolvedVisibility });
   const canOpenMenu = Boolean((onSetOwnership || onSetVisibility) && deckId);
 
-  let slots: ReactNode = null;
-  if (format === 'commander') {
-    slots = (
+  useEffect(() => {
+    const el = remainderRef.current;
+    if (!el) return;
+    function measure() {
+      if (!el) return;
+      const styles = getComputedStyle(el);
+      setCardWidthPx(cssLengthPx(styles.getPropertyValue('--db-card-w'), 213));
+      setLeftoverPx(el.clientWidth);
+      const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      setMinDescriptionPx(DECK_DESCRIPTION_SPLIT_MIN_REM * root);
+    }
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [needsRemainder, remainderLeaderCount, useTabs]);
+
+  const dropSection = (category: string, cards: CardView[]) => (
+    <DropSection
+      category={category}
+      cards={cards}
+      layout="grid"
+      selectedId={selectedId}
+      selectedIds={selectedIds}
+      onSelectCard={onSelectCard}
+      onDropCard={onDropCard}
+      onCardContextMenu={onCardContextMenu}
+      onEditCategory={onEditCategory}
+      variant="header"
+      cardSort={cardSort}
+      swapInIds={swapInIds}
+    />
+  );
+
+  const leaderSections = (contentSized: boolean) => {
+    const slotClass = `db-header-slot${contentSized ? ' is-leaders-content' : ' is-lieutenants'}`;
+    if (format === 'commander') {
+      return <div className={slotClass}>{dropSection('Lieutenants', lieutenants)}</div>;
+    }
+    if (!headerKeys.length) return null;
+    return headerKeys.map((cat, idx) => (
+      <div
+        key={cat}
+        className={`${slotClass}${cat === 'Lieutenants' ? ' is-lieutenants' : ''}`}
+      >
+        {idx > 0 ? <div className="db-header-divider" aria-hidden="true" /> : null}
+        {dropSection(cat, header[cat] || [])}
+      </div>
+    ));
+  };
+
+  const descriptionField = showDescription ? (
+    <DeckDescriptionField value={description} onChange={onSetDescription} />
+  ) : null;
+
+  let remainderPane: ReactNode = null;
+  if (useTabs) {
+    remainderPane = activeTab === 'leaders' ? leaderSections(false) : descriptionField;
+  } else if (
+    mode === 'split' &&
+    remainderLeaderCount > 0 &&
+    showDescription &&
+    !headerDragHover
+  ) {
+    remainderPane = (
+      <>
+        {leaderSections(true)}
+        <div className="db-header-divider" aria-hidden="true" />
+        {descriptionField}
+      </>
+    );
+  } else if (showRemainderLeaders) {
+    remainderPane = leaderSections(false);
+  } else {
+    remainderPane = descriptionField;
+  }
+
+  const hasCommander = format === 'commander';
+  const hasOtherLeaders = format !== 'commander' && headerKeys.length > 0;
+  const slots =
+    hasCommander || needsRemainder || hasOtherLeaders ? (
       <div className="db-header-row">
-        <div className="db-header-slot is-commander">
-          <CommanderSlots
-            commanders={commanders}
-            coverInstanceId={coverInstanceId}
-            selectedId={selectedId}
-            selectedIds={selectedIds}
-            onSelectCard={onSelectCard}
-            onDropCard={onDropCard}
-            onCardContextMenu={onCardContextMenu}
-          />
-        </div>
-        {showLieutenants ? (
-          <div className="db-header-slot is-lieutenants">
-            <div className="db-header-divider" aria-hidden="true" />
-            <DropSection
-              category="Lieutenants"
-              cards={lieutenants}
-              layout="grid"
+        {hasCommander ? (
+          <div className="db-header-slot is-commander">
+            <CommanderSlots
+              commanders={commanders}
+              coverInstanceId={coverInstanceId}
               selectedId={selectedId}
               selectedIds={selectedIds}
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
-              onEditCategory={onEditCategory}
-              variant="header"
-              cardSort={cardSort}
-              swapInIds={swapInIds}
             />
           </div>
         ) : null}
-      </div>
-    );
-  } else if (headerKeys.length) {
-    slots = (
-      <div className="db-header-row">
-        {headerKeys.map((cat, idx) => (
-          <div
-            key={cat}
-            className={`db-header-slot${cat === 'Lieutenants' ? ' is-lieutenants' : ' is-commander'}`}
-          >
-            {idx > 0 ? <div className="db-header-divider" aria-hidden="true" /> : null}
-            <DropSection
-              category={cat}
-              cards={header[cat] || []}
-              layout="grid"
-              selectedId={selectedId}
-              selectedIds={selectedIds}
-              onSelectCard={onSelectCard}
-              onDropCard={onDropCard}
-              onCardContextMenu={onCardContextMenu}
-              onEditCategory={onEditCategory}
-              variant="header"
-              cardSort={cardSort}
-              swapInIds={swapInIds}
-            />
+        {needsRemainder ? (
+          <div className="db-header-slot is-remainder" ref={remainderRef}>
+            {hasCommander ? <div className="db-header-divider" aria-hidden="true" /> : null}
+            <div className="db-header-remainder" id="db-leaders-panel">{remainderPane}</div>
           </div>
-        ))}
+        ) : hasOtherLeaders ? (
+          leaderSections(false)
+        ) : null}
       </div>
-    );
-  }
+    ) : null;
 
   if (!deckName && !slots) return null;
 
+  const leadersTabLabel = format === 'commander' ? 'Lieutenants' : 'Leaders';
+
   return (
-    <div className="db-deck-leaders" aria-label="Deck leaders">
+    <div className="db-deck-leaders" ref={leadersRef} aria-label="Deck leaders">
       {deckName ? (
         <div className="db-deck-leaders-identity">
-          <h2
-            className="db-header-title"
-            onContextMenu={(e) => {
-              if (!canOpenMenu || !deckId) return;
-              e.preventDefault();
-              setOwnershipMenu({
-                x: e.clientX,
-                y: e.clientY,
-                deckId,
-                current: resolvedOwnership,
-                visibility: resolvedVisibility,
-              });
-            }}
-            title={canOpenMenu ? 'Right-click to mark Owned, Theory, Public, or Private' : undefined}
-          >
-            <FormatBadge format={badgeFormat} />
-            {theory ? (
-              <span className="db-theory-badge" aria-label="Theory deck">
-                Theory
-              </span>
-            ) : null}
-            {privateDeck ? (
-              <span className="db-private-badge" aria-label="Private deck">
-                Private
-              </span>
-            ) : null}
-            <DeckNameControl name={deckName} onRename={onRename} />
-          </h2>
-          {deckMeta || syncStatus ? (
-            <div className="db-meta-row">
-              {deckMeta ? (
-                <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+          <div className="db-deck-leaders-identity-main">
+            <h2
+              className="db-header-title"
+              onContextMenu={(e) => {
+                if (!canOpenMenu || !deckId) return;
+                e.preventDefault();
+                setOwnershipMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  deckId,
+                  current: resolvedOwnership,
+                  visibility: resolvedVisibility,
+                });
+              }}
+              title={canOpenMenu ? 'Right-click to mark Owned, Theory, Public, or Private' : undefined}
+            >
+              <FormatBadge format={badgeFormat} />
+              {theory ? (
+                <span className="db-theory-badge" aria-label="Theory deck">
+                  Theory
+                </span>
               ) : null}
-              {syncStatus ? <SyncStatusCharm status={syncStatus} /> : null}
+              {privateDeck ? (
+                <span className="db-private-badge" aria-label="Private deck">
+                  Private
+                </span>
+              ) : null}
+              <DeckNameControl name={deckName} onRename={onRename} />
+            </h2>
+            {deckMeta || syncStatus ? (
+              <div className="db-meta-row">
+                {deckMeta ? (
+                  <p className={`db-meta${deckMetaWarn ? ' is-warn' : ''}`}>{deckMeta}</p>
+                ) : null}
+                {syncStatus ? <SyncStatusCharm status={syncStatus} /> : null}
+              </div>
+            ) : null}
+          </div>
+          {useTabs ? (
+            <div className="db-leaders-tabs db-aside-tabs" role="tablist" aria-label="Leaders and description">
+              <button
+                type="button"
+                role="tab"
+                id="db-leaders-tab-leaders"
+                aria-selected={activeTab === 'leaders'}
+                aria-controls="db-leaders-panel"
+                className={`db-aside-tab${activeTab === 'leaders' ? ' is-active' : ''}`}
+                onClick={() => setHeaderTab('leaders')}
+              >
+                {leadersTabLabel}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="db-leaders-tab-description"
+                aria-selected={activeTab === 'description'}
+                aria-controls="db-leaders-panel"
+                className={`db-aside-tab${activeTab === 'description' ? ' is-active' : ''}`}
+                onClick={() => setHeaderTab('description')}
+              >
+                Description
+              </button>
             </div>
           ) : null}
         </div>
@@ -984,6 +1094,7 @@ export function CategoryBrowse({
   onSetOwnership,
   onSetVisibility,
   onRename,
+  onSetDescription,
   queuesReadOnly = false,
   mode = 'main',
   deckMeta,
@@ -1004,6 +1115,7 @@ export function CategoryBrowse({
         | 'visibility'
         | 'formalSwapEntries'
         | 'coverInstanceId'
+        | 'description'
       >
     | {
         cards: CardView[];
@@ -1016,6 +1128,7 @@ export function CategoryBrowse({
         visibility?: DeckVisibility;
         formalSwapEntries?: FormalSwapEntry[];
         coverInstanceId?: string | null;
+        description?: string;
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -1032,6 +1145,7 @@ export function CategoryBrowse({
   onSetOwnership?: (ownership: DeckOwnership) => void;
   onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
+  onSetDescription?: (description: string) => void;
   /** Theory decks: Seeking actions stay visible but disabled. */
   queuesReadOnly?: boolean;
   mode?: 'main' | 'aside';
@@ -1212,6 +1326,8 @@ export function CategoryBrowse({
         visibility={'visibility' in deck ? deck.visibility : undefined}
         onSetVisibility={onSetVisibility}
         onRename={onRename}
+        description={'description' in deck && typeof deck.description === 'string' ? deck.description : ''}
+        onSetDescription={onSetDescription}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CardInstance, DeckDocument } from '@rayenz-hub/shared';
@@ -150,6 +150,16 @@ describe('CardGroup and DropSection', () => {
 });
 
 describe('DeckHeaderRow', () => {
+  beforeEach(() => {
+    if (typeof ResizeObserver === 'undefined') {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as typeof ResizeObserver;
+    }
+  });
+
   function asHeaderCard(
     overrides: Partial<CardInstance> & Pick<CardInstance, 'instanceId' | 'name' | 'primaryCategory'>,
   ) {
@@ -361,6 +371,207 @@ describe('DeckHeaderRow', () => {
     await user.tab();
     expect(onRename).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Rename Untitled Cube' })).toBeInTheDocument();
+  });
+
+  it('fills empty lieutenant space with an editable description', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="Described Deck"
+      />,
+    );
+    expect(screen.getByLabelText('Deck description')).toBeInTheDocument();
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+  });
+
+  it('shows lieutenants when present', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    const lt = asHeaderCard({
+      instanceId: 'lt-1',
+      name: 'Test Lieutenant',
+      primaryCategory: 'Lieutenants',
+    });
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [lt] }}
+        headerKeys={['Commander', 'Lieutenants']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="With Lieutenants"
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Test Lieutenant/i })).toBeInTheDocument();
+  });
+
+  it('reveals the lieutenant drop target when a card drag hovers the header', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="Hover Deck"
+      />,
+    );
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+
+    const tile = screen.getByRole('button', { name: /Solo Commander/i });
+    fireEvent.dragStart(tile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData: vi.fn(),
+        effectAllowed: 'move',
+      },
+    });
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+
+    fireEvent.dragOver(screen.getByLabelText('Deck leaders'), {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    expect(screen.getByText(/Lieutenants/)).toBeInTheDocument();
+
+    fireEvent.dragEnd(tile);
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Deck description')).toBeInTheDocument();
+  });
+
+  it('keeps the lieutenant view after a drop into Lieutenants', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    const lt = asHeaderCard({
+      instanceId: 'lt-1',
+      name: 'Dropped Lieutenant',
+      primaryCategory: 'Lieutenants',
+    });
+    const onDropCard = vi.fn();
+    const { rerender } = render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        onDropCard={onDropCard}
+        onSetDescription={vi.fn()}
+        deckName="Drop Deck"
+      />,
+    );
+
+    const tile = screen.getByRole('button', { name: /Solo Commander/i });
+    fireEvent.dragStart(tile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData: vi.fn(),
+        effectAllowed: 'move',
+      },
+    });
+    fireEvent.dragOver(screen.getByLabelText('Deck leaders'), {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    const ltSection = screen.getByText(/Lieutenants/).closest('section')!;
+    fireEvent.drop(ltSection, {
+      dataTransfer: {
+        getData: (type: string) => (type === DRAG_MIME || type === 'text/plain' ? 'cmd-1' : ''),
+      },
+    });
+    expect(onDropCard).toHaveBeenCalledWith(['cmd-1'], 'Lieutenants');
+
+    rerender(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [lt] }}
+        headerKeys={['Commander', 'Lieutenants']}
+        onDropCard={onDropCard}
+        onSetDescription={vi.fn()}
+        deckName="Drop Deck"
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Dropped Lieutenant/i })).toBeInTheDocument();
+  });
+
+  it('renders a read-only description as text, and omits an empty one', () => {
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    const { rerender } = render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        description="A tale of two commanders"
+        deckName="Public Deck"
+      />,
+    );
+    expect(screen.getByText('A tale of two commanders')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Deck description')).not.toBeInTheDocument();
+
+    rerender(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        description=""
+        deckName="Public Deck"
+      />,
+    );
+    expect(screen.queryByText('A tale of two commanders')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Deck description')).not.toBeInTheDocument();
+  });
+
+  it('persists description on blur', async () => {
+    const onSetDescription = vi.fn();
+    const user = userEvent.setup();
+    const commander = asHeaderCard({
+      instanceId: 'cmd-1',
+      name: 'Solo Commander',
+      primaryCategory: 'Commander',
+    });
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{ Commander: [commander], Lieutenants: [] }}
+        headerKeys={['Commander']}
+        onSetDescription={onSetDescription}
+        deckName="Edit Deck"
+      />,
+    );
+    const field = screen.getByLabelText('Deck description');
+    await user.type(field, 'Hello blurb');
+    await user.tab();
+    expect(onSetDescription).toHaveBeenCalledWith('Hello blurb');
   });
 });
 

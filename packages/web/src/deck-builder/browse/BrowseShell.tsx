@@ -961,6 +961,9 @@ export function BrowseShell({
               onSetOwnership={readOnly ? undefined : onSetOwnership}
               onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
+              onSetDescription={
+                readOnly ? undefined : (description) => commitPatch({ description })
+              }
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
@@ -978,6 +981,9 @@ export function BrowseShell({
               onSetOwnership={readOnly ? undefined : onSetOwnership}
               onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
+              onSetDescription={
+                readOnly ? undefined : (description) => commitPatch({ description })
+              }
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}

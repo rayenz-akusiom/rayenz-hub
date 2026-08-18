@@ -206,4 +206,11 @@ describe('applyDeckPatch', () => {
     const next = applyDeckPatch(deck, { visibility: 'private' });
     expect(next.visibility).toBe('private');
   });
+
+  it('applies and sanitizes description', () => {
+    const deck = baseDeck();
+    expect(deck.description).toBe('');
+    const next = applyDeckPatch(deck, { description: 'A\x00 tale of two\x07 commanders' });
+    expect(next.description).toBe('A tale of two commanders');
+  });
 });

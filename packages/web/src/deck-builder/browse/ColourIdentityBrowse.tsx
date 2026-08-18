@@ -46,6 +46,7 @@ export function ColourIdentityBrowse({
   onSetOwnership,
   onSetVisibility,
   onRename,
+  onSetDescription,
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
@@ -63,6 +64,7 @@ export function ColourIdentityBrowse({
         | 'visibility'
         | 'formalSwapEntries'
         | 'coverInstanceId'
+        | 'description'
       >
     | {
         cards: CardView[];
@@ -75,6 +77,7 @@ export function ColourIdentityBrowse({
         visibility?: DeckVisibility;
         formalSwapEntries?: FormalSwapEntry[];
         coverInstanceId?: string | null;
+        description?: string;
       };
   onSelectCard?: SelectCardHandler;
   selectedId?: string | null;
@@ -88,6 +91,7 @@ export function ColourIdentityBrowse({
   onSetOwnership?: (ownership: DeckOwnership) => void;
   onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
+  onSetDescription?: (description: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -211,6 +215,12 @@ export function ColourIdentityBrowse({
         visibility={'visibility' in resolvedDeck ? resolvedDeck.visibility : undefined}
         onSetVisibility={onSetVisibility}
         onRename={onRename}
+        description={
+          'description' in resolvedDeck && typeof resolvedDeck.description === 'string'
+            ? resolvedDeck.description
+            : ''
+        }
+        onSetDescription={onSetDescription}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}
         syncStatus={syncStatus}

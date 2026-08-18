@@ -447,6 +447,7 @@ describe('import', () => {
       deckId: 'keep-id',
       cardLayoutDefault: 'grid' as const,
       browseViewDefault: 'colour' as const,
+      description: 'Keep this blurb',
     };
     const fromSettings = documentFromArchidektSnapshot({
       deck_id: 1,
@@ -464,6 +465,7 @@ describe('import', () => {
     expect(inherited.deckId).toBe('keep-id');
     expect(inherited.cardLayoutDefault).toBe('grid');
     expect(inherited.browseViewDefault).toBe('colour');
+    expect(inherited.description).toBe('Keep this blurb');
 
     const fromUrl = documentFromArchidektSnapshot({ url: 'https://archidekt.com/decks/2/my_deck' }, existing);
     expect(fromUrl.name).toBe('My Deck');

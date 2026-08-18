@@ -6,6 +6,7 @@ import {
   pickCoverPartnerStatus,
   pickDeckCoverCard,
 } from '../deck-builder/deck-cover.js';
+import { DeckDescriptionSchema } from '../deck-builder/deck-description.js';
 
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
@@ -117,6 +118,8 @@ const DeckDocumentObjectSchema = z.object({
   schemaVersion: z.literal(1).or(z.number().int().positive()),
   deckId: z.string().min(1),
   name: z.string().min(1),
+  /** Plain-text blurb; UTF-8 byte-capped so it could fit in a Dynamo item. */
+  description: DeckDescriptionSchema.optional().default(''),
   format: DeckFormatSchema,
   /** Owned = physical; Theory = speculative (default owned for legacy docs). */
   ownership: DeckOwnershipSchema.optional().default('owned'),

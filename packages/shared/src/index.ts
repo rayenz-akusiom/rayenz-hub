@@ -29,6 +29,7 @@ export * from './deck-builder/color-identity-map';
 export * from './deck-builder/scryfall-api';
 export * from './deck-builder/card-edits';
 export * from './deck-builder/apply-deck-patch';
+export * from './deck-builder/deck-description';
 export * from './deck-builder/card-oracle';
 export * from './deck-builder/card-sort';
 export * from './deck-builder/card-types';

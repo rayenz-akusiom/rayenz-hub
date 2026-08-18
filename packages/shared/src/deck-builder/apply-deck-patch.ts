@@ -14,6 +14,7 @@ import { normalizeCardQuantities } from './quantities.js';
 import { normalizeFormalEntries, removeFormalSwapEntries } from './formal-swaps.js';
 import { syncCardsWithLookingFor } from './looking-for.js';
 import { upsertOracle } from './card-oracle.js';
+import { sanitizeDeckDescription } from './deck-description.js';
 
 function mintId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -241,6 +242,9 @@ export function applyDeckPatch(deck: DeckDocument, patch: DeckPatch): DeckDocume
   let next: DeckDocument = { ...deck };
 
   if (patch.name !== undefined) next = { ...next, name: patch.name };
+  if (patch.description !== undefined) {
+    next = { ...next, description: sanitizeDeckDescription(patch.description) };
+  }
   if (patch.format !== undefined) next = { ...next, format: patch.format };
   if (patch.ownership !== undefined) next = { ...next, ownership: patch.ownership };
   if (patch.visibility !== undefined) next = { ...next, visibility: patch.visibility };

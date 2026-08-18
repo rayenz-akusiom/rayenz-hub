@@ -502,6 +502,31 @@ describe('CommanderBuilderApp', () => {
     expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
   });
 
+  it('switches a public self-link to edit mode after sign-in', async () => {
+    apiGetPublicDeck.mockResolvedValue(commanderDoc);
+    window.location.hash = '#/commander-builder/rayenz/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Add card' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename Fixture Commander' })).not.toBeInTheDocument();
+
+    apiConfigured.value = true;
+    apiListDecks.mockResolvedValue([toDeckSummary(commanderDoc)]);
+    apiGetDeck.mockResolvedValue(commanderDoc);
+    setLocalLibraryScope(commanderDoc.deckId, 'account');
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add card' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Rename Fixture Commander' })).toBeInTheDocument();
+    expect(apiGetDeck).toHaveBeenCalledWith(commanderDoc.deckId);
+    expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
+  });
+
   it('rewrites retired default deep links to rayenz', async () => {
     apiGetPublicDeck.mockResolvedValue(commanderDoc);
     window.location.hash = '#/commander-builder/default/fixture-commander';
@@ -737,6 +762,7 @@ describe('CommanderBuilderApp', () => {
 
   it('does not upload sandbox decks when API is configured but unsigned', async () => {
     apiConfigured.value = true;
+    apiListDecks.mockRejectedValue(new Error('Hub API unauthorized'));
     apiGetDeck.mockResolvedValue(null);
     const user = userEvent.setup();
 

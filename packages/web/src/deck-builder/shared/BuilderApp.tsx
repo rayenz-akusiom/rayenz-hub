@@ -13,7 +13,11 @@ import {
   SANDBOX_USER_SLUG,
   type BuilderFormat,
 } from '../../hub/routes';
-import { getHubAuthSession } from '../../lib/hub-auth-session';
+import {
+  HUB_AUTH_CHANGED_EVENT,
+  HUB_AUTH_REQUIRED_EVENT,
+  getHubAuthSession,
+} from '../../lib/hub-auth-session';
 import { navigateHub } from '../../lib/hub-storage';
 import { toKebabCase } from '../../lib/string-utils';
 import { BrowseShell } from '../browse/BrowseShell';
@@ -105,6 +109,7 @@ export function BuilderApp({
   const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
   const persistSeq = useRef(0);
   const openSeq = useRef(0);
+  const routeSeq = useRef(0);
   const decksRef = useRef<DeckSummary[]>([]);
   const activeRef = useRef<DeckDocument | null>(null);
   const applyingRouteRef = useRef(false);
@@ -223,6 +228,8 @@ export function BuilderApp({
 
   const applyRouteFromHash = useCallback(
     async (list: DeckSummary[]) => {
+      const gen = ++routeSeq.current;
+      const stillCurrent = () => gen === routeSeq.current;
       const hash = window.location.hash;
       if (hashUsesOtherBuilder(hash, builderFormat)) {
         return;
@@ -248,6 +255,7 @@ export function BuilderApp({
         applyingRouteRef.current = true;
         try {
           const doc = await deckApi.apiGetPublicDeck(route.userSlug, route.deckSlug);
+          if (!stillCurrent()) return;
           if (!doc) {
             setError('Deck not found');
             activeRef.current = null;
@@ -269,6 +277,7 @@ export function BuilderApp({
           activeRef.current = doc;
           setSyncStatus(null);
         } catch (e) {
+          if (!stillCurrent()) return;
           setError(e instanceof Error && e.message ? e.message : 'Deck not found');
           activeRef.current = null;
           setActive(null);
@@ -276,12 +285,12 @@ export function BuilderApp({
           setReadOnly(false);
           readOnlyRef.current = false;
         } finally {
-          applyingRouteRef.current = false;
+          if (stillCurrent()) applyingRouteRef.current = false;
         }
         return;
       }
-      setReadOnly(false);
-      readOnlyRef.current = false;
+      // Drop a stale public-fetch lock so hash changes are not ignored after login.
+      applyingRouteRef.current = false;
       const matchList =
         route.userSlug === SANDBOX_USER_SLUG
           ? store.readLibraryIndex().filter((d) => indexMatchesRouteScope(d.deckId, SANDBOX_USER_SLUG))
@@ -289,6 +298,15 @@ export function BuilderApp({
       const match = matchList.find((d) => toKebabCase(d.name) === route.deckSlug);
       if (!match) {
         if (activeRef.current && toKebabCase(activeRef.current.name) === route.deckSlug) {
+          if (readOnlyRef.current) {
+            applyingRouteRef.current = true;
+            try {
+              await openDeck(activeRef.current.deckId, { syncHash: false });
+            } finally {
+              if (stillCurrent()) applyingRouteRef.current = false;
+            }
+            return;
+          }
           setError(null);
           return;
         }
@@ -296,6 +314,8 @@ export function BuilderApp({
         activeRef.current = null;
         setActive(null);
         setSyncStatus(null);
+        setReadOnly(false);
+        readOnlyRef.current = false;
         return;
       }
       if (match.format !== builderFormat) {
@@ -308,7 +328,7 @@ export function BuilderApp({
         );
         return;
       }
-      if (activeRef.current?.deckId === match.deckId) {
+      if (activeRef.current?.deckId === match.deckId && !readOnlyRef.current) {
         setError(null);
         return;
       }
@@ -316,7 +336,7 @@ export function BuilderApp({
       try {
         await openDeck(match.deckId, { syncHash: false });
       } finally {
-        applyingRouteRef.current = false;
+        if (stillCurrent()) applyingRouteRef.current = false;
       }
     },
     [builderFormat, openDeck],
@@ -396,6 +416,18 @@ export function BuilderApp({
 
   useEffect(() => {
     void refreshLibrary();
+  }, [refreshLibrary]);
+
+  useEffect(() => {
+    function onAuthChanged() {
+      void refreshLibrary();
+    }
+    window.addEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
+    window.addEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthChanged);
+    return () => {
+      window.removeEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
+      window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthChanged);
+    };
   }, [refreshLibrary]);
 
   useEffect(() => {

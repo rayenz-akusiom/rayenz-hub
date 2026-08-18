@@ -881,6 +881,68 @@ describe('SwapQueuePanel', () => {
     );
   });
 
+  it('hides the theory notice for a read-only owned deck', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      ownership: 'owned',
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={null}
+        {...panelProps}
+        readOnly
+      />,
+    );
+
+    expect(screen.queryByText(/Theory deck — swap queue is view-only/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
+    expect(screen.getByTitle('View only')).toBeDisabled();
+  });
+
+  it('shows the theory notice for a read-only theory deck', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      ownership: 'theory',
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={null}
+        {...panelProps}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByText(/Theory deck — swap queue is view-only/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
+    expect(screen.getByTitle('Theory deck — view only')).toBeDisabled();
+  });
+
   it('opens edit chrome for an existing entry', async () => {
     const deck: DeckDocument = {
       ...commanderDoc,

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   formalSwapMatchesSetMembership,
   incompleteEntryCount,
+  isTheoryDeck,
   newFormalSwapEntry,
   resolveDeckCards,
   removeFormalSwapEntries,
@@ -43,6 +44,7 @@ function SwapPairButton({
   isEditing,
   onStartEdit,
   readOnly = false,
+  theoryDeck = false,
 }: {
   entry: FormalSwapEntry;
   outCard: CardView | null;
@@ -51,6 +53,7 @@ function SwapPairButton({
   isEditing: boolean;
   onStartEdit: (entry: FormalSwapEntry) => void;
   readOnly?: boolean;
+  theoryDeck?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
@@ -107,7 +110,13 @@ function SwapPairButton({
           if (popoutEligible) setHover(true);
         }}
         onBlur={() => setHover(false)}
-        title={readOnly ? 'Theory deck — view only' : 'Click to edit swap'}
+        title={
+          readOnly
+            ? theoryDeck
+              ? 'Theory deck — view only'
+              : 'View only'
+            : 'Click to edit swap'
+        }
       >
         <SwapPairFaces outCard={outCard} inCard={inCard} variant="preview" />
         {entry.inTargetCategory ? (
@@ -158,7 +167,7 @@ export function SwapQueuePanel({
   onFinalizeEdit?: () => void;
   /** Scryfall set membership (`in:`/`set:`); pairs show when either side matches. */
   setMembership?: ReadonlySet<string> | null;
-  /** Theory decks: queue visible but not editable. */
+  /** Guest or theory: queue visible but not editable. */
   readOnly?: boolean;
 }) {
   const allEntries = [...deck.formalSwapEntries].sort((a, b) => a.sortIndex - b.sortIndex);
@@ -175,6 +184,7 @@ export function SwapQueuePanel({
   );
   const incomplete = incompleteEntryCount(allEntries);
   const filteredOut = allEntries.length > 0 && entries.length === 0;
+  const theoryDeck = isTheoryDeck(deck);
 
   function updateEntries(next: FormalSwapEntry[]) {
     if (readOnly) return;
@@ -202,7 +212,7 @@ export function SwapQueuePanel({
           </button>
         ) : null}
       </div>
-      {readOnly ? (
+      {readOnly && theoryDeck ? (
         <p className="db-theory-queue-notice" role="status">
           Theory deck — swap queue is view-only (no acquire or trade pipeline).
         </p>
@@ -224,6 +234,7 @@ export function SwapQueuePanel({
                 isEditing={isEditing}
                 onStartEdit={readOnly ? () => {} : onStartEdit}
                 readOnly={readOnly}
+                theoryDeck={theoryDeck}
               />
             </li>
           );

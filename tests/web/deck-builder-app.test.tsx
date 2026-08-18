@@ -498,6 +498,7 @@ describe('CommanderBuilderApp', () => {
     expect(saveDeck).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Add card' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Rename Fixture Commander' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Theory deck — swap queue is view-only/i)).not.toBeInTheDocument();
     expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
   });
 

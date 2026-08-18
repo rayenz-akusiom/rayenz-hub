@@ -23,6 +23,8 @@ describe('hub routes', () => {
     expect(pathFromHash('#/deck-review')).toBe('/deck-suggest');
     expect(pathFromHash('#/deck-suggest')).toBe('/deck-suggest');
     expect(pathFromHash('#/settings/dailies')).toBe('/settings/dailies');
+    expect(pathFromHash('#/settings/profile')).toBe('/settings/profile');
+    expect(pathFromHash('#/settings/mtg')).toBe('/settings/mtg');
     expect(pathFromHash('#/settings/hub-api')).toBe('/settings/hub-api');
     expect(pathFromHash('#/deck-builder')).toBe('/deck-builder');
   });
@@ -72,6 +74,8 @@ describe('hub routes', () => {
   it('detects settings paths', () => {
     expect(isSettingsPath('/settings')).toBe(true);
     expect(isSettingsPath('/settings/dailies')).toBe(true);
+    expect(isSettingsPath('/settings/profile')).toBe(true);
+    expect(isSettingsPath('/settings/mtg')).toBe(true);
     expect(isSettingsPath('/settings/hub-api')).toBe(true);
     expect(isSettingsPath('/dailies')).toBe(false);
     expect(isLegacyPath('/deck-review')).toBe(false);

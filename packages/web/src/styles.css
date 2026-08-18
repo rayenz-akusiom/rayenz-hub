@@ -43,6 +43,23 @@
   padding: 0.5rem 0 0;
 }
 
+.hub-web-swimlanes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.hub-web-swimlane {
+  padding: 1rem 1.1rem 1.15rem;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.hub-web-swimlane .hub-web-page--tab {
+  padding: 0;
+}
+
 .hub-web-header h1 {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;

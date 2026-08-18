@@ -150,17 +150,17 @@ export function HubNav({
         <HubNavAuth />
       </div>
       <div className="hub-nav-group">
-        <p className="hub-nav-group-title">Neopets</p>
+        <p className="hub-nav-group-title">MTG</p>
         <ul className="hub-nav-list">
-          {NEOPETS.map((item) => (
+          {MTG.map((item) => (
             <NavLink key={item.path} item={item} path={path} onNavigate={onClose} />
           ))}
         </ul>
       </div>
       <div className="hub-nav-group">
-        <p className="hub-nav-group-title">MTG</p>
+        <p className="hub-nav-group-title">Neopets</p>
         <ul className="hub-nav-list">
-          {MTG.map((item) => (
+          {NEOPETS.map((item) => (
             <NavLink key={item.path} item={item} path={path} onNavigate={onClose} />
           ))}
         </ul>

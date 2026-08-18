@@ -196,8 +196,7 @@ export function DailiesSettingsPage() {
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Hub API is not configured — saves go to localStorage only.{' '}
-          <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
+          Sign in from the left nav to sync these settings. Saves stay in this browser until then.
         </div>
       )}
 

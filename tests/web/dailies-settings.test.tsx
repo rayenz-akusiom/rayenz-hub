@@ -5,6 +5,10 @@ import { SettingsShell } from '../../packages/web/src/SettingsShell';
 import { DailiesSettingsPage } from '../../packages/web/src/pages/DailiesSettingsPage';
 import { DeckBuilderSettingsPage } from '../../packages/web/src/pages/DeckBuilderSettingsPage';
 import { DeckSuggestSettingsPage } from '../../packages/web/src/pages/DeckSuggestSettingsPage';
+import {
+  clearHubAuthSession,
+  setHubAuthSession,
+} from '../../packages/web/src/lib/hub-auth-session';
 
 const loadDailiesSettings = vi.fn();
 const persistDailiesSettings = vi.fn();
@@ -41,6 +45,8 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
 
 afterEach(() => {
   cleanup();
+  clearHubAuthSession();
+  localStorage.clear();
 });
 
 describe('SettingsShell', () => {
@@ -49,6 +55,7 @@ describe('SettingsShell', () => {
       settings: { faerieQuest: 'jhudora', mainPetName: 'Test_Pet', wishlists: [] },
       source: 'api',
     });
+    loadDeckBuilderSettings.mockResolvedValue({ settings: null, source: 'none' });
     loadDeckSuggestSettings.mockResolvedValue({ settings: null, source: 'none' });
     loadOrderReconcileSettings.mockResolvedValue({ settings: null, source: 'none' });
     persistDailiesSettings.mockResolvedValue('api');
@@ -57,24 +64,60 @@ describe('SettingsShell', () => {
   it('renders settings tabs', async () => {
     render(<SettingsShell />);
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hub API' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dailies' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deck Suggest' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'MTG' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hub API' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Deck Suggest' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Order Reconcile' })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();
     });
   });
 
-  it('opens Hub API tab', async () => {
+  it('opens Profile tab', async () => {
     const user = userEvent.setup();
-    render(<SettingsShell tab="hub-api" />);
-    expect(screen.getByRole('button', { name: 'Hub API' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Test connection' })).toBeInTheDocument();
+    render(<SettingsShell tab="profile" />);
+    expect(screen.getByRole('button', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText(/Sign in from the left nav to manage your profile/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dailies' }));
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();
     });
+  });
+
+  it('gates MTG settings behind sign-in', () => {
+    render(<SettingsShell tab="mtg" />);
+    expect(screen.getByRole('button', { name: 'MTG' })).toHaveAttribute('aria-current', 'page');
+    expect(
+      screen.getByText(/Sign in from the left nav to manage MTG app settings/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Deck builders' })).not.toBeInTheDocument();
+  });
+
+  it('shows MTG swimlanes when signed in', async () => {
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    render(<SettingsShell tab="mtg" />);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Deck builders' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Swap Queue' })).toBeInTheDocument();
+  });
+
+  it('shows Invites when signed in', () => {
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    render(<SettingsShell />);
+    expect(screen.getByRole('button', { name: 'Invites' })).toBeInTheDocument();
+  });
+
+  it('shows a sign-in wall for unsigned invite deep links', () => {
+    render(<SettingsShell tab="invites" />);
+    expect(
+      screen.getByText(/Sign in from the left nav to manage invites/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create invite' })).not.toBeInTheDocument();
   });
 });
 
@@ -167,16 +210,13 @@ describe('DailiesSettingsPage', () => {
     });
   });
 
-  it('warns when Hub API is not configured', async () => {
+  it('warns when not signed in', async () => {
     getHubApiConfig.mockReturnValue({ url: '', enabled: false });
     render(<DailiesSettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText(/Hub API is not configured/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sign in from the left nav to sync these settings/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: /Configure Hub API in Settings/i })).toHaveAttribute(
-      'href',
-      '#/settings/hub-api',
-    );
+    expect(screen.queryByRole('link', { name: /Configure Hub API/i })).not.toBeInTheDocument();
   });
 
   it('requires a main pet name before saving', async () => {

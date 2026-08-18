@@ -18,11 +18,18 @@ import { isSettingsPath } from './routes';
 import { useHubRoute } from './useHubRoute';
 
 function settingsTabFromPath(path: string): SettingsTab {
-  if (path.startsWith('/settings/hub-api')) return 'hub-api';
-  if (path.startsWith('/settings/deck-builder')) return 'deck-builder';
-  if (path.startsWith('/settings/deck-suggest')) return 'deck-suggest';
-  if (path.startsWith('/settings/order-reconcile')) return 'dailies';
-  if (path.startsWith('/settings/swap-queue')) return 'swap-queue';
+  if (path.startsWith('/settings/profile') || path.startsWith('/settings/hub-api')) {
+    return 'profile';
+  }
+  if (
+    path.startsWith('/settings/mtg') ||
+    path.startsWith('/settings/deck-builder') ||
+    path.startsWith('/settings/deck-suggest') ||
+    path.startsWith('/settings/swap-queue') ||
+    path.startsWith('/settings/order-reconcile')
+  ) {
+    return 'mtg';
+  }
   if (path.startsWith('/settings/invites')) return 'invites';
   return 'dailies';
 }

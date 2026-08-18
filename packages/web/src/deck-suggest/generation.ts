@@ -13,7 +13,7 @@ export async function generateSuggestions(
   cap = 20,
 ): Promise<GenerationRun> {
   if (!isApiConfigured()) {
-    throw new Error('Sign in to the Hub API in Settings to generate suggestions.');
+    throw new Error('Sign in from the left nav to generate suggestions.');
   }
   if (!isHubOwner()) {
     throw new Error(`${OWNER_ONLY_EXPENSIVE_MESSAGE}.`);

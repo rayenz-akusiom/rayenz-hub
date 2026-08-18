@@ -158,7 +158,7 @@ export function GlanceGenerateButton({ deck }: Props) {
     if (!apiReady || !ownerReady) {
       setError(
         ownerReady
-          ? 'Hub API is required to generate a glance image. Sign in to the Hub API in Settings.'
+          ? 'Hub API is required to generate a glance image. Sign in from the left nav.'
           : `${OWNER_ONLY_EXPENSIVE_MESSAGE}.`,
       );
       setOpen(true);
@@ -241,7 +241,7 @@ export function GlanceGenerateButton({ deck }: Props) {
         disabled={!enabled}
         title={
           !apiReady
-            ? 'Configure Hub API to generate glance images'
+            ? 'Sign in from the left nav to generate glance images'
             : !ownerReady
               ? OWNER_ONLY_EXPENSIVE_MESSAGE
               : !hasDeckId

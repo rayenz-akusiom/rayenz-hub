@@ -24,9 +24,9 @@ describe('Deck builders settings label', () => {
     window.location.hash = '#/settings/deck-builder';
   });
 
-  it('SettingsShell tab is labeled Deck builders', async () => {
-    render(<SettingsShell tab="deck-builder" />);
-    expect(screen.getByRole('button', { name: 'Deck builders' })).toBeInTheDocument();
+  it('SettingsShell tab is labeled MTG', async () => {
+    render(<SettingsShell tab="mtg" />);
+    expect(screen.getByRole('button', { name: 'MTG' })).toBeInTheDocument();
   });
 
   it('DeckBuilderSettingsPage heading says Deck builders', async () => {

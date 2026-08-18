@@ -82,11 +82,15 @@ describe('HubShell AppOutlet', () => {
     ['/wishlist', 'swap-queue', undefined],
     ['/wishlist/rayenz', 'swap-queue', undefined],
     ['/settings', 'settings', 'dailies'],
-    ['/settings/hub-api', 'settings', 'hub-api'],
+    ['/settings/profile', 'settings', 'profile'],
+    ['/settings/hub-api', 'settings', 'profile'],
     ['/settings/dailies', 'settings', 'dailies'],
-    ['/settings/deck-builder', 'settings', 'deck-builder'],
-    ['/settings/deck-suggest', 'settings', 'deck-suggest'],
-    ['/settings/order-reconcile', 'settings', 'dailies'],
+    ['/settings/mtg', 'settings', 'mtg'],
+    ['/settings/deck-builder', 'settings', 'mtg'],
+    ['/settings/deck-suggest', 'settings', 'mtg'],
+    ['/settings/swap-queue', 'settings', 'mtg'],
+    ['/settings/order-reconcile', 'settings', 'mtg'],
+    ['/settings/invites', 'settings', 'invites'],
   ] as const)('renders %s outlet', (path, testId, settingsTab) => {
     setHash(path);
     render(<HubShell />);
@@ -202,6 +206,9 @@ describe('HubNav active links', () => {
     expect(within(nav).getByText('MTG')).toBeInTheDocument();
     expect(navLink('Dailies')).toHaveAttribute('href', '#/dailies');
     expect(navLink('Settings')).toHaveAttribute('href', '#/settings');
+    const commander = navLink('Commander Builder');
+    const dailies = navLink('Dailies');
+    expect(commander.compareDocumentPosition(dailies) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

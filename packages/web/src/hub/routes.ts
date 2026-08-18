@@ -18,8 +18,10 @@ export type HubPath =
   | '/swap-queue'
   | '/wishlist'
   | '/settings'
+  | '/settings/profile'
   | '/settings/hub-api'
   | '/settings/dailies'
+  | '/settings/mtg'
   | '/settings/deck-builder'
   | '/settings/deck-suggest'
   | '/settings/order-reconcile'
@@ -108,8 +110,10 @@ export const KNOWN_PATHS = new Set<string>([
   '/swap-queue',
   '/wishlist',
   '/settings',
+  '/settings/profile',
   '/settings/hub-api',
   '/settings/dailies',
+  '/settings/mtg',
   '/settings/deck-builder',
   '/settings/deck-suggest',
   '/settings/order-reconcile',

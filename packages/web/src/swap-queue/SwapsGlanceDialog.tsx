@@ -60,7 +60,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     if (!apiReady || !ownerReady) {
       setError(
         ownerReady
-          ? 'Hub API is required to generate a swaps glance image. Sign in to the Hub API in Settings.'
+          ? 'Hub API is required to generate a swaps glance image. Sign in from the left nav.'
           : `${OWNER_ONLY_EXPENSIVE_MESSAGE}.`,
       );
       return;
@@ -195,7 +195,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
               disabled={loading || itemCount === 0 || !apiReady || !ownerReady}
               title={
                 !apiReady
-                  ? 'Configure Hub API to generate glance images'
+                  ? 'Sign in from the left nav to generate glance images'
                   : !ownerReady
                     ? OWNER_ONLY_EXPENSIVE_MESSAGE
                     : undefined

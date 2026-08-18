@@ -67,12 +67,6 @@ export function DeckBuilderSettingsPage() {
         three-colour names change.
       </p>
 
-      {!apiConfig.enabled && (
-        <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Hub API is required to load or save these settings.{' '}
-          <a href="#/settings/hub-api">Configure Hub API in Settings</a>.
-        </div>
-      )}
       {error && (
         <div className="hub-web-banner hub-web-banner--error" role="alert">
           {error}

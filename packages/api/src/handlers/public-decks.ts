@@ -1,8 +1,8 @@
-import { isReservedUsername, type DeckDocument } from '@rayenz-hub/shared';
-import { profileLookupKeys } from '../lib/profile-keys.js';
+import { profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { clientIp } from '../services/rate-limit.js';
+import { resolvePublicUsername } from '../services/username-directory-service.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 
 async function resolvePublicUserDeck(
@@ -10,14 +10,7 @@ async function resolvePublicUserDeck(
   deckSlug: string,
   services: AppServices,
 ): Promise<{ sub: string; doc: DeckDocument } | null> {
-  if (isReservedUsername(username)) {
-    return null;
-  }
-  const record = await services.usernameDirectory.resolve(
-    username,
-    services.cognitoAuth,
-    services.authService.ownerUsername(),
-  );
+  const record = await resolvePublicUsername(services, username);
   if (!record) {
     return null;
   }

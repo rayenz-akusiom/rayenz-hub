@@ -20,7 +20,7 @@ function statusFromConfig(): string {
   if (session && !cfg.url) {
     return 'Signed in — this build has no Hub API URL.';
   }
-  return 'Not configured — apps use localStorage only.';
+  return 'Not configured — this build has no Hub API URL.';
 }
 
 export function HubApiSettingsPage() {

@@ -8,9 +8,13 @@ vi.mock('../../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: vi.fn(() => true),
 }));
 
-vi.mock('../../../packages/web/src/lib/hub-auth-session', () => ({
-  isHubOwner: vi.fn(() => true),
-}));
+vi.mock('../../../packages/web/src/lib/hub-auth-session', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../packages/web/src/lib/hub-auth-session')>();
+  return {
+    ...actual,
+    isHubOwner: vi.fn(() => true),
+  };
+});
 
 function readyState(overrides: Record<string, unknown> = {}) {
   const base = {

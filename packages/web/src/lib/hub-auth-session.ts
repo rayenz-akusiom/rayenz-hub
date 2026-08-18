@@ -9,6 +9,8 @@ const OWNER_KEY = 'rayenz-hub-is-owner';
 
 export const HUB_AUTH_REQUIRED_EVENT = 'hub-auth-required';
 export const HUB_AUTH_CHANGED_EVENT = 'hub-auth-changed';
+export const OWNER_ONLY_EXPENSIVE_MESSAGE =
+  'Owner-only — glance and Suggest generate are disabled for this account';
 
 function dispatchAuthChanged(): void {
   try {
@@ -65,6 +67,10 @@ export function isHubOwner(): boolean {
 
 export function getAccessToken(): string {
   return storageGet(ACCESS_KEY);
+}
+
+export function isSignedIn(): boolean {
+  return Boolean(getHubAuthSession()?.accessToken);
 }
 
 export function setHubAuthSession(session: HubAuthSession): void {

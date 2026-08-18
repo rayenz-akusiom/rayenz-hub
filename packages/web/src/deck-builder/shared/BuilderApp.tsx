@@ -9,8 +9,7 @@ import {
   isLocalLibrarySlug,
   normalizeHash,
   parseBuilderRoute,
-  RETIRED_OWNER_SLUG,
-  RETIRED_USER_SLUG,
+  rewriteRetiredUserSlug,
   SANDBOX_USER_SLUG,
   type BuilderFormat,
 } from '../../hub/routes';
@@ -241,8 +240,8 @@ export function BuilderApp({
         }
         return;
       }
-      if (route.userSlug === RETIRED_USER_SLUG) {
-        navigateHub(builderHash(builderFormat, RETIRED_OWNER_SLUG, route.deckSlug));
+      if (rewriteRetiredUserSlug(route.userSlug) !== route.userSlug) {
+        navigateHub(builderHash(builderFormat, rewriteRetiredUserSlug(route.userSlug), route.deckSlug));
         return;
       }
       if (!isLocalLibrarySlug(route.userSlug)) {
@@ -367,8 +366,8 @@ export function BuilderApp({
     const match = deepLinkIndexMatch(builderFormat);
     if (!match) {
       const route = parseBuilderRoute(window.location.hash, builderFormat);
-      if (route?.userSlug === RETIRED_USER_SLUG) {
-        navigateHub(builderHash(builderFormat, RETIRED_OWNER_SLUG, route.deckSlug));
+      if (route && rewriteRetiredUserSlug(route.userSlug) !== route.userSlug) {
+        navigateHub(builderHash(builderFormat, rewriteRetiredUserSlug(route.userSlug), route.deckSlug));
         return;
       }
       if (route && isLocalLibrarySlug(route.userSlug)) {

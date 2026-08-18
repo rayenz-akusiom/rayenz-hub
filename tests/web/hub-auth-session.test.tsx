@@ -14,7 +14,7 @@ afterEach(() => {
 describe('Hub auth session UI', () => {
   it('client-only (no API URL) does not require sign-in', () => {
     render(<HubApiSettingsPage />);
-    expect(screen.getByText(/localStorage only/i)).toBeInTheDocument();
+    expect(screen.getByText(/this build has no Hub API URL/i)).toBeInTheDocument();
     expect(getHubApiConfig().enabled).toBe(false);
   });
 });

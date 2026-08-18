@@ -93,6 +93,38 @@ describe('CategoryBrowse aside Seeking section', () => {
     expect(onMarkMainDeckSeeking).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the Theory tooltip only for theory decks', () => {
+    const onMarkMainDeckSeeking = vi.fn();
+    const { rerender } = render(
+      <CategoryBrowse
+        deck={baseDeck({ ownership: 'owned' })}
+        mode="aside"
+        layout="stacked"
+        queuesReadOnly
+        onDropCard={vi.fn()}
+        onMarkMainDeckSeeking={onMarkMainDeckSeeking}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Mark main deck Seeking' })).not.toHaveAttribute(
+      'title',
+    );
+
+    rerender(
+      <CategoryBrowse
+        deck={baseDeck({ ownership: 'theory' })}
+        mode="aside"
+        layout="stacked"
+        queuesReadOnly
+        onDropCard={vi.fn()}
+        onMarkMainDeckSeeking={onMarkMainDeckSeeking}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Mark main deck Seeking' })).toHaveAttribute(
+      'title',
+      'Theory decks do not use Seeking queues',
+    );
+  });
+
   it('does not treat Maybeboard cards as Seeking', () => {
     const deck = baseDeck({
       cards: [

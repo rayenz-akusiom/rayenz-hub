@@ -3,6 +3,9 @@ import { handleSuggestGenerate } from '../../packages/api/src/handlers/suggest-g
 import { handleAuthConfirm, handleAuthRegister, handleAuthSignIn } from '../../packages/api/src/handlers/auth-sign-in.ts';
 import { handleSettings } from '../../packages/api/src/handlers/settings.ts';
 import { handleHealth } from '../../packages/api/src/handlers/health.ts';
+import { handleInvites } from '../../packages/api/src/handlers/invites.ts';
+import { requireOwnerAndSpendUnlocked } from '../../packages/api/src/lib/route-policy.ts';
+import { encodeTestJwt } from '../../packages/api/src/lib/jwt.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 
 describe('spend lock', () => {
@@ -79,5 +82,31 @@ describe('spend lock', () => {
       services,
     );
     expect(generate.statusCode).toBe(401);
+  });
+
+  it('blocks invite create under lock but still lists invites', async () => {
+    const { services } = createMemoryStores();
+    const created = await handleInvites('POST', TEST_AUTH_HEADERS, services);
+    expect(created.statusCode).toBe(200);
+
+    await services.spendLock.setActive(true, 'budget_95');
+    const blocked = await handleInvites('POST', TEST_AUTH_HEADERS, services);
+    expect(blocked.statusCode).toBe(403);
+    expect(JSON.parse(String(blocked.body)).code).toBe('SPEND_LOCK');
+
+    const list = await handleInvites('GET', TEST_AUTH_HEADERS, services);
+    expect(list.statusCode).toBe(200);
+    expect(JSON.parse(String(list.body)).invites).toHaveLength(1);
+  });
+
+  it('requireOwnerAndSpendUnlocked rejects invitees before spend lock', async () => {
+    const { services } = createMemoryStores();
+    await services.spendLock.setActive(true, 'budget_95');
+    const { auth } = await services.authService.authenticate({
+      authorization: `Bearer ${encodeTestJwt({ sub: 'friend-sub', username: 'friend' })}`,
+    });
+    await expect(
+      requireOwnerAndSpendUnlocked(auth, services.authService, services.spendLock),
+    ).rejects.toMatchObject({ code: 'OWNER_REQUIRED' });
   });
 });

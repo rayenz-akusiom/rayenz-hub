@@ -30,7 +30,7 @@ The **Device access (LAN)** panel lists:
 - Hub Web URL (`http://<PC-LAN-IP>:5173`) — open this on the phone/iPad
 - Hub API base URL (`http://<PC-LAN-IP>:3000`)
 
-On the phone, open Hub → **Settings → Hub API** and **Sign in** as Rayenz. The API URL is derived from the page hostname (`http://<PC-LAN-IP>:3000`).
+On the phone, open Hub → **sign in from the left nav** as Rayenz. The API URL is derived from the page hostname (`http://<PC-LAN-IP>:3000`).
 
 The control panel stays on localhost; only Hub Web and Hub API are meant for devices.
 
@@ -70,8 +70,7 @@ npm run start:api
 On the phone/iPad Hub:
 
 1. Open Hub Web via the LAN Vite URL (not `127.0.0.1` — that is the phone itself)
-2. Open **Settings → Hub API** (`#/settings/hub-api`)
-3. Sign in as Rayenz (optional: Test connection)
+2. **Sign in from the left nav** as Rayenz (optional: Settings → Hub API → Test connection)
 
 Vite dev uses `http://<PC-LAN-IP>:3000` as the API base. CORS allows `*` in `infra/template.yaml`, so cross-origin from the Vite origin is fine.
 
@@ -83,7 +82,7 @@ Vite dev uses `http://<PC-LAN-IP>:3000` as the API base. CORS allows `*` in `inf
 2. `npm run dev:dashboard` (or `npm run dev:web` / `npm run start:api`)  
 3. Firewall allows 5173 (and 3000 if needed)  
 4. Phone → Hub Web URL from Device access (or Vite Network URL)  
-5. If API: Settings → Hub API on the device → Sign in
+5. If API: sign in from the left nav on the device
 
 ---
 

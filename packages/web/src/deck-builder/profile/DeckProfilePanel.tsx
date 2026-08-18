@@ -1,24 +1,9 @@
 import { useEffect, useState } from 'react';
-import { parseYamlProfile, type DeckDocument } from '@rayenz-hub/shared';
+import { parseYamlProfile, profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
 import { pullPublicProfileYaml } from '../../api/hub-api-client';
 import { readProfileForDeck } from '../../deck-suggest/data';
 import type { DeckProfile } from '../../deck-suggest/types';
 import { isLocalLibrarySlug, parseBuilderRoute } from '../../hub/routes';
-
-/** Candidate profile ids for a Hub deck (builder vs Suggest naming). */
-export function profileLookupKeys(deck: Pick<DeckDocument, 'deckId' | 'archidektId'>): string[] {
-  const keys: string[] = [];
-  const push = (k: string | null | undefined) => {
-    const s = String(k || '').trim();
-    if (s && !keys.includes(s)) keys.push(s);
-  };
-  push(deck.deckId);
-  if (deck.archidektId != null) {
-    push(String(deck.archidektId));
-    push(`deck-${deck.archidektId}`);
-  }
-  return keys;
-}
 
 export async function loadDeckProfile(
   deck: Pick<DeckDocument, 'deckId' | 'archidektId'>,

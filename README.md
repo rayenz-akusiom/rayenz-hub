@@ -1,6 +1,6 @@
 # Rayenz Hub
 
-Monorepo for [Rayenz Hub](https://rayenz-akusiom.github.io/rayenz-akusiom/) (Dailies, Deck Review, Order Reconcile), Neopets Tampermonkey userscripts, and the hub test harness.
+Monorepo for [Rayenz Hub](https://rayenz-akusiom.github.io/rayenz-akusiom/) (Dailies, Deck Suggest, Order Reconcile), Neopets Tampermonkey userscripts, and the hub test harness.
 
 ## Layout
 
@@ -23,7 +23,7 @@ git clone https://github.com/rayenz-akusiom/rayenz-hub.git
 
 **Userscripts** — commit and push to `rayenz-hub` `main`. No GitHub Pages deploy.
 
-**Hub (Dailies / Deck Review / Order Reconcile)** — React SPA on GitHub Pages plus Hub API on AWS. Routine deploy is API then Pages:
+**Hub (Dailies / Deck Suggest / Order Reconcile)** — React SPA on GitHub Pages plus Hub API on AWS. Routine deploy is API then Pages:
 
 ```bash
 # 0. Hub API (skip if API/Lambda did not change)
@@ -50,4 +50,4 @@ To pull rare upstream edits from production into dev:
 git subtree pull --prefix=rayenz-hub hub-prod main --squash
 ```
 
-See [rayenz-hub/README.md](rayenz-hub/README.md) for Deck Review enrich workflow (paths inside that doc still refer to the production repo layout).
+See [rayenz-hub/README.md](rayenz-hub/README.md) for Deck Suggest review/export workflow (paths inside that doc still refer to the production repo layout).

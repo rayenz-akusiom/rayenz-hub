@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
 import { listSwapsResolved, summarizeDeck } from '../../../packages/mcp/src/lib/summarize-deck.ts';
-import { profileLookupKeys } from '../../../packages/mcp/src/lib/profile-keys.ts';
+import { profileLookupKeys } from '../../../packages/shared/src/keys.ts';
 import { parseSetCodesFromText, slugifySetName } from '../../../packages/mcp/src/lib/scryfall.ts';
 import { HUB_MCP_TOOL_NAMES } from '../../../packages/mcp/src/register-tools.ts';
 

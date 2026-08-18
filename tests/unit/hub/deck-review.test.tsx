@@ -1,12 +1,10 @@
-import { render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { handoffSnapshotSummary } from '../../../packages/web/src/lib/hub-utils.ts';
 import {
   createInitialReviewState,
   loadSuggestionsData,
   validateSuggestions,
 } from '../../../packages/web/src/deck-review/index.ts';
-import { DeckReviewApp } from '../../../packages/web/src/deck-review/DeckReviewApp.tsx';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
 beforeEach(() => {
@@ -90,15 +88,5 @@ describe('DeckReview handoff and transferSource', () => {
     const next = await loadSuggestionsData(createInitialReviewState(), dataWithSnapshot);
     expect(next.data!.decks[0].deck_snapshot!.cards).toHaveLength(1);
     expect(next.data!.decks[0].deck_snapshot!.fetched_at).toBe('2026-06-22');
-  });
-
-  it('DeckReviewApp redirects to Deck Suggest', async () => {
-    const hubStorage = await import('../../../packages/web/src/lib/hub-storage.ts');
-    const navigate = vi.spyOn(hubStorage, 'navigateHub').mockImplementation(() => {});
-    render(<DeckReviewApp />);
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith('#/deck-suggest');
-    });
-    navigate.mockRestore();
   });
 });

@@ -34,6 +34,8 @@ vi.mock('../../packages/web/src/api/hub-api', async (importOriginal) => {
   return {
     ...actual,
     isApiConfigured: () => true,
+    loadDeckSuggestSettings: vi.fn(async () => ({ settings: null, source: 'none' })),
+    persistDeckSuggestSettings: vi.fn(async () => 'api'),
   };
 });
 

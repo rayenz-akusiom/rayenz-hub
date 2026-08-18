@@ -26,6 +26,7 @@ import { ArchidektExport } from '../mtg/archidekt-export';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
 import { pullRemoteLibraryUpdates, resolveLibraryDocument, listFallbackLibrary } from '../deck-builder/store/library-sync';
+import { isApiConfigured } from '../api/hub-api';
 import { readLibrarySort, sortLibraryDecks } from '../deck-builder/library/library-sort';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
@@ -380,7 +381,10 @@ export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
   let summaries: DeckSummary[];
   try {
     summaries = await pullRemoteLibraryUpdates();
-  } catch {
+  } catch (err) {
+    if (isApiConfigured()) {
+      throw err instanceof Error ? err : new Error('Could not load library from Hub API.');
+    }
     summaries = await listFallbackLibrary();
   }
   summaries = sortLibraryDecks(summaries, readLibrarySort());

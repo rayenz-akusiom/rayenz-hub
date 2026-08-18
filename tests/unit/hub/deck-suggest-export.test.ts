@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('deck-suggest export', () => {
-  it('builds schema 1.1 JSON that Deck Review accepts', () => {
+  it('builds schema 1.1 JSON that Suggest review accepts', () => {
     const setScope = loadFixture('set-msh-slice.json');
     const deck = loadFixture('baird-snapshot.json');
     const output = runRulesForDeck(deck, setScope, {});

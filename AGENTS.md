@@ -5,7 +5,7 @@ This file captures conventions for automated agents working in this repo. Prefer
 ## Non-negotiables
 
 - **“Deploy” means Hub API then GitHub Pages** (`npm run deploy:api`, then `npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`). Narrow to one surface when the user names Pages or API. **Cognito** (`npm run deploy:cognito`) and other AWS mutations stay named. Local SAM/`start:api` is fine.
-- Production Hub **browser** identity is a Cognito session (Settings → Hub API → Sign in). MCP and CLI scripts sign in with `HUB_USERNAME` / `HUB_PASSWORD` (do not commit the password). See `docs/hub-api-production.md`.
+- Production Hub **browser** identity is a Cognito session (sign in from the left nav). MCP and CLI scripts sign in with `HUB_USERNAME` / `HUB_PASSWORD` (do not commit the password). See `docs/hub-api-production.md`.
 - **Do not commit or push** unless the user explicitly asks.
 - Prefer **Ask mode** for exploration; switch to Agent only when implementing.
 - Keep diffs focused: no drive-by refactors, no unsolicited markdown docs beyond what was requested.
@@ -112,7 +112,7 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 
 - **MTG settings / review progress / set pools:** Hub API (DynamoDB) is required to persist; in-memory only within the tab when API is off (no durable localStorage). Order-reconcile session progress is memory-only (no API endpoint yet).
 - **Dailies (Neopets):** still localStorage-first with optional Hub API sync when the user is signed in (and the API URL is present).
-- **Decks / swap queues:** IndexedDB local store with optional Hub API sync (`saveDualMode`) — unchanged.
+- **Decks / swap queues:** Hub API is the signed-in system of record. IndexedDB holds the unsigned sandbox library (30-day TTL) plus short-lived account crash buffers that drop after a successful sync (`saveDualMode`).
 - The Hub API URL is baked at Pages publish (`VITE_HUB_API_URL`); Vite dev uses `http://<page-hostname>:3000`. UI prefs (route, card size, etc.) stay in localStorage. Session tokens stay in sessionStorage.
 - Tests should cover API-off and API-on paths for persistence helpers.
 - After changing `hub-api-client.ts` response handling, update **all** fetch mocks (`.text()`).

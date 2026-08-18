@@ -5,8 +5,8 @@ import {
   isSettingsPath,
   isLegacyPath,
   redirectLegacyAppsPath,
-  parseDeckBuilderRoute,
-  deckBuilderHash,
+  parseBuilderRoute,
+  builderHash,
   hubUserSlug,
   isLocalLibrarySlug,
   SANDBOX_USER_SLUG,
@@ -33,23 +33,23 @@ describe('hub routes', () => {
   });
 
   it('parses deck-builder user/deck slug routes', () => {
-    expect(parseDeckBuilderRoute('#/deck-builder')).toBeNull();
-    expect(parseDeckBuilderRoute('#/deck-builder/')).toBeNull();
-    expect(parseDeckBuilderRoute('#/deck-builder/default')).toBeNull();
-    expect(parseDeckBuilderRoute('#/deck-builder/default/fixture-commander')).toEqual({
+    expect(parseBuilderRoute('#/deck-builder')).toBeNull();
+    expect(parseBuilderRoute('#/deck-builder/')).toBeNull();
+    expect(parseBuilderRoute('#/deck-builder/default')).toBeNull();
+    expect(parseBuilderRoute('#/deck-builder/default/fixture-commander')).toEqual({
       userSlug: 'default',
       deckSlug: 'fixture-commander',
     });
-    expect(parseDeckBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
-    expect(parseDeckBuilderRoute('#/commander-builder/default/fixture-commander')).toEqual({
+    expect(parseBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
+    expect(parseBuilderRoute('#/commander-builder/default/fixture-commander')).toEqual({
       userSlug: 'default',
       deckSlug: 'fixture-commander',
     });
   });
 
-  it('builds deprecated deck-builder hashes via commander builder', () => {
-    expect(deckBuilderHash()).toBe('#/commander-builder');
-    expect(deckBuilderHash(hubUserSlug(), 'fixture-commander')).toBe(
+  it('builds commander builder hashes', () => {
+    expect(builderHash('commander')).toBe('#/commander-builder');
+    expect(builderHash('commander', hubUserSlug(), 'fixture-commander')).toBe(
       `#/commander-builder/${SANDBOX_USER_SLUG}/fixture-commander`,
     );
     expect(hubUserSlug()).toBe(SANDBOX_USER_SLUG);

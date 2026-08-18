@@ -24,7 +24,9 @@ import {
   defaultBrowseForSwapQueuePath,
   defaultLayoutForSwapQueuePath,
   hubUserSlug,
+  isForeignUserSlug,
   parseSwapQueueRoute,
+  rewriteRetiredUserSlug,
   swapQueueHash,
   swapQueueShareUrl,
   type SwapQueueBrowseMode,
@@ -45,7 +47,7 @@ import {
   removeLookingForEntry,
 } from '../deck-builder/swaps/useSwapQueue';
 import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
-import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
+import { listFallbackLibrary, pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
@@ -398,15 +400,25 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   pairOriginDeckIdRef.current = pairOriginDeckId;
   originDeckWorkingRef.current = originDeckWorking;
   decksRef.current = decks;
-  const readOnly = Boolean(routeUserSlug) && routeUserSlug !== hubUserSlug();
+  const readOnly = isForeignUserSlug(routeUserSlug);
 
   useEffect(() => {
     function syncRoute() {
-      setRouteUserSlug(parseSwapQueueRoute()?.userSlug ?? null);
+      const parsed = parseSwapQueueRoute();
+      if (!parsed) {
+        setRouteUserSlug(null);
+        return;
+      }
+      const rewritten = rewriteRetiredUserSlug(parsed.userSlug);
+      if (rewritten !== parsed.userSlug) {
+        navigateHub(swapQueueHash(rewritten, entryPath));
+      }
+      setRouteUserSlug(rewritten);
     }
+    syncRoute();
     window.addEventListener('hashchange', syncRoute);
     return () => window.removeEventListener('hashchange', syncRoute);
-  }, []);
+  }, [entryPath]);
 
   useEffect(() => {
     const username = getHubAuthSession()?.username?.trim();
@@ -424,8 +436,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setLoading(true);
     setError('');
     setApiWarning('');
-    const userSlug = parseSwapQueueRoute()?.userSlug ?? null;
-    const viewingOther = Boolean(userSlug) && userSlug !== hubUserSlug();
+    const parsedSlug = parseSwapQueueRoute()?.userSlug ?? null;
+    const userSlug = parsedSlug ? rewriteRetiredUserSlug(parsedSlug) : null;
+    const viewingOther = isForeignUserSlug(userSlug);
     try {
       if (viewingOther && userSlug) {
         const result = await loadPublicSwapWantSources(userSlug);
@@ -450,6 +463,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         list = await pullRemoteLibraryUpdates();
       } catch (e) {
         setApiWarning(e instanceof Error ? e.message : String(e));
+        if (getHubAuthSession()?.accessToken) {
+          setError('Could not load library from Hub API.');
+          setDecks([]);
+          setSources([]);
+          return;
+        }
+        list = await listFallbackLibrary();
       }
       const result = await loadSwapWantSources(list);
       setDecks(result.decks);
@@ -931,8 +951,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   }
 
   async function onCopyShareLink() {
-    const sessionSlug = getHubAuthSession()?.username?.trim() ? hubUserSlug() : '';
-    const slug = sessionSlug || routeUserSlug;
+    const slug = routeUserSlug || (getHubAuthSession()?.username?.trim() ? hubUserSlug() : '');
     if (!slug) {
       setStatus('Sign in to copy a share link');
       return;
@@ -1059,7 +1078,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         <p className="hub-muted" data-testid="swap-queue-empty">
           {hasUnfiltered && filtersActive
             ? 'No queue items match the current filters.'
-            : 'No Queued In, Out, or Seeking cards in your library yet.'}
+            : readOnly
+              ? 'No Queued In, Out, or Seeking cards in this library yet.'
+              : 'No Queued In, Out, or Seeking cards in your library yet.'}
         </p>
       ) : null}
 

@@ -13,10 +13,7 @@ import {
 } from '../api/hub-api-client';
 
 const ROUTE_KEY = 'rayenz-hub-route';
-const REVIEW_HANDOFF_KEY = 'rayenz-deck-suggest-review-handoff';
 const DAILIES_SETTINGS_KEY = 'rayenz-dailies-settings';
-
-type HubWindow = Window & { __hubReviewHandoff?: unknown };
 
 function getItem(key: string): string | null {
   try {
@@ -129,9 +126,6 @@ export function loadOrderReconcileSettings(): Record<string, unknown> {
 
 export function saveOrderReconcileSettings(settings: Record<string, unknown>): void {
   orderReconcileSettingsMemory = { ...(settings || {}) };
-  if (getHubApiConfig().enabled) {
-    void pushSettingsDomain('order-reconcile', settings || {}).catch(() => {});
-  }
 }
 
 const EMPTY_ORDER_RECONCILE_PROGRESS: Record<string, unknown> = {
@@ -191,9 +185,6 @@ export function loadDeckSuggestSettings(): Record<string, unknown> {
 
 export function saveDeckSuggestSettings(settings: Record<string, unknown>): void {
   deckSuggestSettingsMemory = { ...(settings || {}) };
-  if (getHubApiConfig().enabled) {
-    void pushSettingsDomain('deck-suggest', settings || {}).catch(() => {});
-  }
 }
 
 const DEFAULT_DECK_BUILDER_SETTINGS = {
@@ -212,9 +203,6 @@ export function loadDeckBuilderSettings(): Record<string, unknown> {
 
 export function saveDeckBuilderSettings(settings: Record<string, unknown>): void {
   deckBuilderSettingsMemory = { ...(settings || {}) };
-  if (getHubApiConfig().enabled) {
-    void pushSettingsDomain('deck-builder', settings || {}).catch(() => {});
-  }
 }
 
 export function normalizeSetCodesKey(codes: string[] | null | undefined): string {
@@ -299,54 +287,6 @@ export function clearSetPoolCache(codesKey: string): void {
     return;
   }
   setPoolMemory.delete(codesKey);
-}
-
-function saveMemoryReviewHandoff(payload: unknown): boolean {
-  try {
-    (window as HubWindow).__hubReviewHandoff = payload;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function consumeMemoryReviewHandoff(): unknown {
-  const w = window as HubWindow;
-  const payload = w.__hubReviewHandoff;
-  delete w.__hubReviewHandoff;
-  return payload || null;
-}
-
-export function saveReviewHandoff(payload: unknown): boolean {
-  const memoryOk = saveMemoryReviewHandoff(payload);
-  try {
-    sessionStorage.setItem(REVIEW_HANDOFF_KEY, JSON.stringify(payload || {}));
-    return true;
-  } catch {
-    return memoryOk;
-  }
-}
-
-export function consumeReviewHandoff(): unknown {
-  const memory = consumeMemoryReviewHandoff();
-  if (memory) {
-    try {
-      sessionStorage.removeItem(REVIEW_HANDOFF_KEY);
-    } catch {
-      /* ignore */
-    }
-    return memory;
-  }
-  try {
-    const raw = sessionStorage.getItem(REVIEW_HANDOFF_KEY);
-    if (!raw) {
-      return null;
-    }
-    sessionStorage.removeItem(REVIEW_HANDOFF_KEY);
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 const DEFAULT_DAILIES_SETTINGS = {
@@ -437,9 +377,6 @@ export const HubStorage = {
   loadSetPoolCache,
   hydrateSetPoolFromApi,
   clearSetPoolCache,
-  saveReviewHandoff,
-  consumeReviewHandoff,
-  consumeMemoryReviewHandoff,
   loadDailiesSettings,
   saveDailiesSettings,
 };

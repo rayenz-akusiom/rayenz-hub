@@ -42,7 +42,6 @@ import {
 } from '../../../packages/web/src/deck-review/pickers.ts';
 import {
   addRuntimePreference as addPref,
-  canConnectProfilesFolder,
   canWriteProfiles,
   checkProfilesConnected,
   getDeckPreferences,
@@ -609,7 +608,6 @@ describe('deck-review profiles', () => {
 
   it('checkProfilesConnected and write guards delegate to ProfileSync', async () => {
     expect(typeof canWriteProfiles()).toBe('boolean');
-    expect(typeof canConnectProfilesFolder()).toBe('boolean');
     vi.stubGlobal('indexedDB', {});
     vi.spyOn(ProfileSync, 'isConnected').mockResolvedValue(true);
     await expect(checkProfilesConnected()).resolves.toBe(true);

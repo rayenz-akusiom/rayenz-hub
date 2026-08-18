@@ -1,8 +1,7 @@
 import { normalizeUsername } from '@rayenz-hub/shared';
 import { useMemo, useState, type FormEvent } from 'react';
 import { getHubApiConfig } from '../api/hub-api-client';
-import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
-import { setHubAuthSession } from '../lib/hub-auth-session';
+import { applyAuthTokensResponse, type AuthTokensResponse } from '../lib/hub-auth-client';
 
 function tokenFromHash(): string {
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
@@ -82,21 +81,8 @@ export function InviteRedeemPage() {
       if (!res.ok) {
         throw new Error('Confirmation failed.');
       }
-      const body = JSON.parse(text) as {
-        accessToken: string;
-        idToken?: string;
-        refreshToken?: string;
-        username?: string;
-        sub?: string;
-      };
-      setHubAuthSession({
-        accessToken: body.accessToken,
-        idToken: body.idToken,
-        refreshToken: body.refreshToken,
-        username: body.username || normalizeUsername(username),
-        sub: body.sub,
-      });
-      await hydrateHubOwnerFlag({ force: true });
+      const body = JSON.parse(text) as AuthTokensResponse;
+      await applyAuthTokensResponse(body, username);
       setStatus('Account created. You are signed in to an empty Hub.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

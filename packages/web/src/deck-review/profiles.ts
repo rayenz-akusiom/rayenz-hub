@@ -67,14 +67,6 @@ export function canWriteProfiles(): boolean {
   return ProfileSync.canWriteProfiles();
 }
 
-export function canConnectProfilesFolder(): boolean {
-  return ProfileSync.canWriteProfilesViaDirectory();
-}
-
-export async function connectProfilesDir(): Promise<void> {
-  await ProfileSync.connectProfilesDir();
-}
-
 export async function checkProfilesConnected(): Promise<boolean> {
   if (typeof indexedDB === 'undefined') {
     return false;

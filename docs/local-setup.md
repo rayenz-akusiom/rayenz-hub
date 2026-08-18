@@ -81,7 +81,7 @@ cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run dev:dashboard
 ```
 
-Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The **Device access (LAN)** panel shows Hub Web / Hub API URLs (with copy). On the device, open Hub Web then **Settings → Hub API** and sign in — Vite uses `http://<LAN-IP>:3000` automatically. The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
+Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The **Device access (LAN)** panel shows Hub Web / Hub API URLs (with copy). On the device, open Hub Web then **sign in from the left nav** — Vite uses `http://<LAN-IP>:3000` automatically. The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
 
 CLI equivalents (same named Docker containers the dashboard uses):
 
@@ -310,7 +310,7 @@ Serve `rayenz-hub/rayenz-hub/` over **HTTP** (not `file://`). Options:
 - `npx serve rayenz-hub/rayenz-hub`
 - Playwright static server (used by `npm run test:e2e`)
 
-Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): Vite dev uses `http://127.0.0.1:3000` (or `http://<LAN-IP>:3000` on a phone), **Sign in as Rayenz** (live Cognito).
+Configure the client in the Hub SPA: Vite dev uses `http://127.0.0.1:3000` (or `http://<LAN-IP>:3000` on a phone). **Sign in as Rayenz** from the left nav (live Cognito). Settings → Hub API is status + Test connection.
 
 Try:
 

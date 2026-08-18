@@ -11,7 +11,7 @@ import {
 } from '@rayenz-hub/shared';
 import { binaryResponse, errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
-import { spendLockResponse } from '../lib/route-policy.js';
+import { requireOwnerAndSpendUnlocked } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import { swapGlanceCacheKey } from '../repositories/glance-cache.js';
 import { renderSwapGlancePng } from '../services/glance-render.js';
@@ -117,10 +117,8 @@ export async function handleSwapsGlance(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
-    services.authService.requireOwner(auth);
-    if (await services.spendLock.isActive()) {
-      return spendLockResponse();
-    }
+    const locked = await requireOwnerAndSpendUnlocked(auth, services.authService, services.spendLock);
+    if (locked) return locked;
     const request = parseSwapsGlanceRequest(body);
     if (!request.ok) {
       return errorResponse(400, request.message, 'BAD_REQUEST');

@@ -1,7 +1,8 @@
-import { isReservedUsername, isTheoryDeck, redactDeckForPublicSwaps } from '@rayenz-hub/shared';
+import { isTheoryDeck, redactDeckForPublicSwaps } from '@rayenz-hub/shared';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { clientIp } from '../services/rate-limit.js';
+import { resolvePublicUsername } from '../services/username-directory-service.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 
 export async function handlePublicUserSwaps(
@@ -11,14 +12,7 @@ export async function handlePublicUserSwaps(
 ) {
   try {
     await services.rateLimit.consume('publicSwaps', clientIp(headers));
-    if (isReservedUsername(username)) {
-      return errorResponse(404, 'Not found', 'NOT_FOUND');
-    }
-    const record = await services.usernameDirectory.resolve(
-      username,
-      services.cognitoAuth,
-      services.authService.ownerUsername(),
-    );
+    const record = await resolvePublicUsername(services, username);
     if (!record) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }

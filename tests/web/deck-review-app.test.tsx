@@ -17,7 +17,6 @@ vi.mock('../../packages/web/src/deck-review/profiles', async (importOriginal) =>
   return {
     ...actual,
     checkProfilesConnected: vi.fn(() => Promise.resolve(false)),
-    connectProfilesDir: vi.fn(() => Promise.resolve()),
   };
 });
 

@@ -11,13 +11,13 @@ import {
   buildNameQtyWantsText,
   filterAcquireSources,
   filterWantSources,
+  profileLookupKeys,
   type DeckDocument,
   type WantsPriceFilter,
 } from '@rayenz-hub/shared';
 import * as z from 'zod';
 import type { HubClient } from './hub-client.js';
 import { HubApiError } from './hub-client.js';
-import { profileLookupKeys } from './lib/profile-keys.js';
 import { fetchSetCards, resolveSets } from './lib/scryfall.js';
 import { listSwapsResolved, summarizeDeck } from './lib/summarize-deck.js';
 import { errorResult, jsonResult, textResult } from './lib/text-result.js';
@@ -470,7 +470,7 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
   server.registerTool(
     'hub_get_review_progress',
     {
-      description: 'Get Deck Review progress for a suggestions fileId.',
+      description: 'Get Suggest review progress for a suggestions fileId.',
       inputSchema: z.object({ fileId: z.string() }),
     },
     async ({ fileId }) => {
@@ -487,7 +487,7 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
   server.registerTool(
     'hub_put_review_progress',
     {
-      description: 'Upsert Deck Review progress (accept/reject/skip decisions).',
+      description: 'Upsert Suggest review progress (accept/reject/skip decisions).',
       inputSchema: z.object({
         fileId: z.string(),
         decisions: z.record(z.enum(['accept', 'reject', 'skip'])),

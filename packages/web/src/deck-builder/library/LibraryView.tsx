@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
-import { deckBuilderHash, hubUserSlug } from '../../hub/routes';
+import { builderHash, hubUserSlug } from '../../hub/routes';
 import { toKebabCase } from '../../lib/string-utils';
 import { CARD_SIZE_PX } from '../card-size';
 import { FormatBadge } from '../ui/FormatBadge';
@@ -44,7 +44,11 @@ function LibrarySection({
         {decks.map((d) => {
           const updated = `Updated ${new Date(d.updatedAt).toLocaleString()}`;
           const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
-          const href = deckBuilderHash(hubUserSlug(), toKebabCase(d.name));
+          const href = builderHash(
+            format === 'cube' ? 'cube' : 'commander',
+            hubUserSlug(),
+            toKebabCase(d.name),
+          );
           return (
             <li
               key={d.deckId}

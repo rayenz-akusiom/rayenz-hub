@@ -33,12 +33,12 @@ export function normalizeUsername(name: string): string {
 }
 
 export function isReservedUsername(name: string): boolean {
-  const lower = name.trim().toLowerCase();
+  const lower = normalizeUsername(name);
   const slug = usernameToSlug(name);
   return RESERVED_USERNAMES.some((reserved) => reserved === lower || reserved === slug);
 }
 
 export function isSandboxUsername(name: string): boolean {
-  const lower = name.trim().toLowerCase();
+  const lower = normalizeUsername(name);
   return lower === SANDBOX_USERNAME || usernameToSlug(name) === SANDBOX_USERNAME;
 }

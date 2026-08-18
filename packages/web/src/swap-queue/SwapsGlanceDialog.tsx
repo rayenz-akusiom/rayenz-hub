@@ -6,7 +6,7 @@ import {
   type WantSource,
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
-import { useIsHubOwner } from '../lib/hub-auth-session';
+import { OWNER_ONLY_EXPENSIVE_MESSAGE, useIsHubOwner } from '../lib/hub-auth-session';
 import { copyPngBlob, downloadPngBlob } from '../lib/glance-png';
 import {
   formatGlanceStatusLine,
@@ -61,7 +61,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
       setError(
         ownerReady
           ? 'Hub API is required to generate a swaps glance image. Sign in to the Hub API in Settings.'
-          : 'Owner-only — glance is disabled for this account.',
+          : `${OWNER_ONLY_EXPENSIVE_MESSAGE}.`,
       );
       return;
     }
@@ -197,7 +197,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
                 !apiReady
                   ? 'Configure Hub API to generate glance images'
                   : !ownerReady
-                    ? 'Owner-only — glance is disabled for this account'
+                    ? OWNER_ONLY_EXPENSIVE_MESSAGE
                     : undefined
               }
               onClick={() => void generate()}

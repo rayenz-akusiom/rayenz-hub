@@ -3,7 +3,7 @@ import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/sha
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
-import { useIsHubOwner } from '../../lib/hub-auth-session';
+import { OWNER_ONLY_EXPENSIVE_MESSAGE, useIsHubOwner } from '../../lib/hub-auth-session';
 import { apiPostDeckGlance } from '../store/deck-glance-api';
 import { copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
 import {
@@ -159,7 +159,7 @@ export function GlanceGenerateButton({ deck }: Props) {
       setError(
         ownerReady
           ? 'Hub API is required to generate a glance image. Sign in to the Hub API in Settings.'
-          : 'Owner-only — glance is disabled for this account.',
+          : `${OWNER_ONLY_EXPENSIVE_MESSAGE}.`,
       );
       setOpen(true);
       setPhase('options');
@@ -243,7 +243,7 @@ export function GlanceGenerateButton({ deck }: Props) {
           !apiReady
             ? 'Configure Hub API to generate glance images'
             : !ownerReady
-              ? 'Owner-only — glance is disabled for this account'
+              ? OWNER_ONLY_EXPENSIVE_MESSAGE
               : !hasDeckId
                 ? 'Save deck to Hub API first'
                 : 'Generate deck glance image'

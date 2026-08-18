@@ -25,7 +25,7 @@ Narrow phrases:
 ## Never run unless named
 
 - `npm run deploy:cognito` (identity stack `rayenz-hub-cognito`, termination protection)
-- `npm run deploy:api:guided` or raw `sam deploy` (use `deploy:api` instead)
+- raw `sam deploy` (use `deploy:api` instead)
 - AWS CLI that creates, updates, or deletes other cloud resources (stacks, DynamoDB, S3, SSM, Cognito, etc.)
 
 ## Allowed without extra naming

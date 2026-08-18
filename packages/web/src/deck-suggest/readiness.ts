@@ -1,5 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
-import { isHubOwner } from '../lib/hub-auth-session';
+import { OWNER_ONLY_EXPENSIVE_MESSAGE, isHubOwner } from '../lib/hub-auth-session';
 import { MANUAL_SET_CODES_MAX } from '@rayenz-hub/shared';
 import type { DeckSuggestState, ReadinessResult } from './types';
 import { pageIsOverCap } from './paging';
@@ -91,7 +91,7 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
     items.push({
       id: 'owner',
       ok: false,
-      label: 'Owner-only — glance and Suggest generate are disabled for this account',
+      label: OWNER_ONLY_EXPENSIVE_MESSAGE,
     });
   }
 

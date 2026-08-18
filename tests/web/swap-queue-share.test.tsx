@@ -82,6 +82,36 @@ describe('SwapQueueApp username share links', () => {
     });
   });
 
+  it('copies the viewed queue share link for a signed-in invitee', async () => {
+    sessionStorage.setItem('rayenz-hub-access-token', 'token');
+    sessionStorage.setItem('rayenz-hub-username', 'Friend');
+    const deck = pairDeck();
+    mockLoadPublicSwapWantSources.mockResolvedValue({
+      username: 'Rayenz',
+      slug: 'rayenz',
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    window.location.hash = '#/swap-queue/rayenz';
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: "Rayenz's Swap Queue" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Copy share link' }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}${window.location.pathname}#/swap-queue/rayenz`,
+    );
+  });
+
   it('asks the user to sign in when there is no username to share', async () => {
     const user = userEvent.setup();
     render(<SwapQueueApp entryPath="swap-queue" />);

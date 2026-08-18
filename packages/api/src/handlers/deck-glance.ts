@@ -8,7 +8,7 @@ import {
 } from '@rayenz-hub/shared';
 import { binaryResponse, errorResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
-import { spendLockResponse } from '../lib/route-policy.js';
+import { requireOwnerAndSpendUnlocked } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import { renderGlancePng } from '../services/glance-render.js';
 import { createGlanceCacheFromOptions, glancePresignedDeliveryResponse, renderPlanThroughCache, type GlanceHandlerOptions } from './glance-pipeline.js';
@@ -72,10 +72,8 @@ export async function handleDeckGlance(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
-    services.authService.requireOwner(auth);
-    if (await services.spendLock.isActive()) {
-      return spendLockResponse();
-    }
+    const locked = await requireOwnerAndSpendUnlocked(auth, services.authService, services.spendLock);
+    if (locked) return locked;
     const record = await services.deckRepository.get(auth, env, deckId);
     if (!record) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');

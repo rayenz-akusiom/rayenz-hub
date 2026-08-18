@@ -4,8 +4,8 @@ import type { DeckDocument } from '@rayenz-hub/shared';
 import {
   DeckProfilePanel,
   loadDeckProfile,
-  profileLookupKeys,
 } from '../../packages/web/src/deck-builder/profile/DeckProfilePanel';
+import { profileLookupKeys } from '@rayenz-hub/shared';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 vi.mock('../../packages/web/src/deck-suggest/data', () => ({

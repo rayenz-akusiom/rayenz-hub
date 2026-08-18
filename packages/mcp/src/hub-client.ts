@@ -1,8 +1,4 @@
-/**
- * Thin Hub API client for the MCP server.
- * Signs in with HUB_USERNAME / HUB_PASSWORD against local SAM (live Cognito pool)
- * and sends the access JWT. Do not commit the password.
- */
+import { normalizeUsername } from '@rayenz-hub/shared';
 
 export type HubClientConfig = {
   url: string;
@@ -34,7 +30,7 @@ export function loadHubConfigFromEnv(
   const url = String(env.HUB_API_URL || '')
     .trim()
     .replace(/\/$/, '');
-  const username = String(env.HUB_USERNAME || '').trim();
+  const username = normalizeUsername(String(env.HUB_USERNAME || ''));
   const password = String(env.HUB_PASSWORD || '').trim();
   if (!url) {
     throw new Error('HUB_API_URL is required (e.g. http://127.0.0.1:3000)');

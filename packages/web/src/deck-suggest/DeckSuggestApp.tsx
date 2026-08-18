@@ -3,6 +3,11 @@ import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { useIsHubOwner } from '../lib/hub-auth-session';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
+import {
+  getHubApiConfig,
+  loadDeckSuggestSettings as loadDeckSuggestSettingsApi,
+  persistDeckSuggestSettings,
+} from '../api/hub-api';
 import { acceptAllPendingAsSeeking } from '../deck-review/bulk-seeking';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
 import { DeckReviewSuggestionPanel } from '../deck-review/DeckReviewSuggestionPanel';
@@ -90,16 +95,31 @@ export function DeckSuggestApp() {
 
   useEffect(() => {
     const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
-    const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
-    setSuggest((prev) => ({
-      ...prev,
-      settings,
-      ui: {
-        setCodesInput: settings.setCodes || '',
-        releaseId: settings.releaseId || '',
-        setInputMode: mode,
-      },
-    }));
+    const apply = (next: DeckSuggestSettings) => {
+      const mode: SetInputMode = next.setInputMode === 'codes' ? 'codes' : 'release';
+      setSuggest((prev) => ({
+        ...prev,
+        settings: next,
+        ui: {
+          setCodesInput: next.setCodes || '',
+          releaseId: next.releaseId || '',
+          setInputMode: mode,
+        },
+      }));
+    };
+    apply(settings);
+    let cancelled = false;
+    void loadDeckSuggestSettingsApi()
+      .then(({ settings: remote }) => {
+        if (cancelled || !remote) return;
+        apply({ ...settings, ...remote });
+      })
+      .catch(() => {
+        /* keep memory defaults */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -150,6 +170,9 @@ export function DeckSuggestApp() {
   const persistSettings = useCallback((settings: DeckSuggestSettings) => {
     saveDeckSuggestSettings(settings);
     setSuggest((prev) => ({ ...prev, settings }));
+    if (getHubApiConfig().enabled) {
+      void persistDeckSuggestSettings(settings).catch(() => {});
+    }
   }, []);
 
   const applyLoaded = useCallback(

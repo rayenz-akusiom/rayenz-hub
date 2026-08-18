@@ -1,6 +1,6 @@
 import type { DeckDocument } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
-import { getHubAuthSession } from '../../lib/hub-auth-session';
+import { isSignedIn } from '../../lib/hub-auth-session';
 import {
   dismissSampleDeck,
   isSampleDeckId,
@@ -13,10 +13,6 @@ import {
   type LocalLibraryScope,
 } from './local-library-scope';
 import * as store from './deck-store';
-
-function isSignedIn(): boolean {
-  return Boolean(getHubAuthSession()?.accessToken);
-}
 
 function resolveSaveScope(deckId: string): LocalLibraryScope {
   const existing = peekLocalLibraryScope(deckId);
@@ -39,7 +35,7 @@ export async function saveDualMode(
   setLocalLibraryScope(doc.deckId, scope);
   const saved = await store.saveDeck(doc);
 
-  if (scope === 'sandbox' || !isSignedIn() || !isApiConfigured()) {
+  if (scope === 'sandbox' || !isApiConfigured()) {
     return { saved };
   }
 
@@ -67,7 +63,7 @@ export async function deleteDualMode(deckId: string): Promise<{ apiError?: strin
   if (existedLocally && scope === 'sandbox') {
     return {};
   }
-  if (!isSignedIn() || !isApiConfigured()) {
+  if (!isApiConfigured()) {
     return {};
   }
   try {

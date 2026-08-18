@@ -49,3 +49,18 @@ export class UsernameDirectoryService {
     return null;
   }
 }
+
+export async function resolvePublicUsername(
+  services: {
+    usernameDirectory: UsernameDirectoryService;
+    cognitoAuth: CognitoAuthPort;
+    authService: { ownerUsername(): string };
+  },
+  username: string,
+): Promise<UsernameRecord | null> {
+  return services.usernameDirectory.resolve(
+    username,
+    services.cognitoAuth,
+    services.authService.ownerUsername(),
+  );
+}

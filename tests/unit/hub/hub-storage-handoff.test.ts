@@ -61,63 +61,6 @@ describe('HubStorage API hydration', () => {
   });
 });
 
-describe('HubStorage review handoff', () => {
-  it('roundtrips save and consume', () => {
-    const payload = {
-      data: { meta: { set_code: 'MSH', generated_at: '2026-06-30' }, decks: [] },
-      source: 'deck-suggest',
-      savedAt: '2026-06-30T12:00:00.000Z',
-    };
-    expect(HubStorage.saveReviewHandoff(payload)).toBe(true);
-    const consumed = HubStorage.consumeReviewHandoff();
-    expect(consumed).toEqual(payload);
-  });
-
-  it('returns null on second consume', () => {
-    HubStorage.saveReviewHandoff({ data: { decks: [] }, source: 'deck-suggest' });
-    HubStorage.consumeReviewHandoff();
-    expect(HubStorage.consumeReviewHandoff()).toBe(null);
-  });
-
-  it('prefers in-memory handoff over sessionStorage', () => {
-    const memoryPayload = {
-      data: { meta: { set_code: 'MSH' }, decks: [{ deck_id: 'mem' }] },
-      source: 'deck-suggest',
-    };
-    const sessionPayload = {
-      data: { meta: { set_code: 'OLD' }, decks: [] },
-      source: 'deck-suggest',
-    };
-    (window as Window & { __hubReviewHandoff?: unknown }).__hubReviewHandoff = memoryPayload;
-    sessionStorage.setItem('rayenz-deck-suggest-review-handoff', JSON.stringify(sessionPayload));
-    const consumed = HubStorage.consumeReviewHandoff();
-    expect(consumed).toEqual(memoryPayload);
-    expect((window as Window & { __hubReviewHandoff?: unknown }).__hubReviewHandoff).toBeUndefined();
-    expect(sessionStorage.getItem('rayenz-deck-suggest-review-handoff')).toBe(null);
-  });
-
-  it('falls back to sessionStorage when memory handoff is absent', () => {
-    const sessionPayload = {
-      data: { meta: { set_code: 'MSH' }, decks: [] },
-      source: 'deck-suggest',
-    };
-    sessionStorage.setItem('rayenz-deck-suggest-review-handoff', JSON.stringify(sessionPayload));
-    expect(HubStorage.consumeReviewHandoff()).toEqual(sessionPayload);
-  });
-
-  it('returns null for malformed sessionStorage JSON', () => {
-    sessionStorage.setItem('rayenz-deck-suggest-review-handoff', '{not json');
-    expect(HubStorage.consumeReviewHandoff()).toBe(null);
-  });
-
-  it('consumeMemoryReviewHandoff clears in-memory payload', () => {
-    const payload = { data: { decks: [] }, source: 'deck-suggest' };
-    (window as Window & { __hubReviewHandoff?: unknown }).__hubReviewHandoff = payload;
-    expect(HubStorage.consumeMemoryReviewHandoff()).toEqual(payload);
-    expect(HubStorage.consumeMemoryReviewHandoff()).toBe(null);
-  });
-});
-
 describe('HubStorage set pool cache', () => {
   it('saves and loads complete scopes only', () => {
     const scope = {
@@ -246,34 +189,34 @@ describe('HubStorage settings loaders', () => {
   });
 });
 
-describe('HubStorage MTG settings API push', () => {
-  it('saveOrderReconcileSettings pushes when API configured and does not write localStorage', async () => {
+describe('HubStorage MTG settings memory vs API', () => {
+  it('saveOrderReconcileSettings writes memory only (settings domains own API push)', () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveOrderReconcileSettings({ folderUrl: 'https://archidekt.com' });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/order-reconcile');
+    expect(HubStorage.loadOrderReconcileSettings().folderUrl).toBe('https://archidekt.com');
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(localStorage.getItem('rayenz-order-reconcile-settings')).toBe(null);
   });
 
-  it('saveDeckSuggestSettings pushes when API configured', async () => {
+  it('saveDeckSuggestSettings writes memory only (settings domains own API push)', () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDeckSuggestSettings({ setCodes: 'MSH' });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/deck-suggest');
+    expect(HubStorage.loadDeckSuggestSettings().setCodes).toBe('MSH');
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(localStorage.getItem('rayenz-deck-suggest-settings')).toBe(null);
   });
 
-  it('saveDeckBuilderSettings pushes when API configured', async () => {
+  it('saveDeckBuilderSettings writes memory only (settings domains own API push)', () => {
     enableHubApi();
     const fetchMock = vi.fn(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
     HubStorage.saveDeckBuilderSettings({ allyThreeColourNames: 'custom' });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toContain('/v1/settings/deck-builder');
+    expect(HubStorage.loadDeckBuilderSettings().allyThreeColourNames).toBe('custom');
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(localStorage.getItem('rayenz-deck-builder-settings')).toBe(null);
   });
 

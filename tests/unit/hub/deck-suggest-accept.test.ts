@@ -6,16 +6,11 @@ import {
 } from '../../../packages/web/src/deck-suggest/accept.ts';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
-const mockGetDeck = vi.fn();
-const mockApiGetDeck = vi.fn();
+const mockResolveLibraryDocument = vi.fn();
 const mockSaveDualMode = vi.fn();
 
-vi.mock('../../../packages/web/src/deck-builder/store/deck-store', () => ({
-  getDeck: (...args: unknown[]) => mockGetDeck(...args),
-}));
-
-vi.mock('../../../packages/web/src/deck-builder/store/deck-api', () => ({
-  apiGetDeck: (...args: unknown[]) => mockApiGetDeck(...args),
+vi.mock('../../../packages/web/src/deck-builder/store/library-sync', () => ({
+  resolveLibraryDocument: (...args: unknown[]) => mockResolveLibraryDocument(...args),
 }));
 
 vi.mock('../../../packages/web/src/deck-builder/store/deck-dual-mode', () => ({
@@ -60,8 +55,7 @@ function baseDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
 beforeEach(() => {
   resetHubModules();
   vi.clearAllMocks();
-  mockGetDeck.mockResolvedValue(null);
-  mockApiGetDeck.mockResolvedValue(null);
+  mockResolveLibraryDocument.mockResolvedValue(null);
   mockSaveDualMode.mockResolvedValue({ saved: baseDeck(), apiError: null });
 });
 
@@ -84,7 +78,7 @@ describe('resolveOutInstanceId', () => {
 describe('persistAcceptedSuggestion', () => {
   it('persists a seeking accept to Hub', async () => {
     const deck = baseDeck();
-    mockGetDeck.mockResolvedValue(deck);
+    mockResolveLibraryDocument.mockResolvedValue(deck);
     mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
 
     const saved = await persistAcceptedSuggestion(
@@ -114,7 +108,7 @@ describe('persistAcceptedSuggestion', () => {
 
   it('persists a swap accept to Hub', async () => {
     const deck = baseDeck();
-    mockGetDeck.mockResolvedValue(deck);
+    mockResolveLibraryDocument.mockResolvedValue(deck);
     mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
 
     const saved = await persistAcceptedSuggestion(

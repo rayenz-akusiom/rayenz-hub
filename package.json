@@ -34,7 +34,6 @@
     "start:api": "npm run build:api && node scripts/merge-local-env.mjs && node scripts/start-local-api.mjs",
     "deploy:cognito": "tsx scripts/deploy-cognito.ts",
     "deploy:api": "npm run build:api && tsx scripts/deploy-api.ts",
-    "deploy:api:guided": "npm run build:api && sam deploy --guided --config-file infra/samconfig.toml",
     "test:api:deployed": "vitest run tests/api/deployed.contract.test.ts",
     "migrate:user-partition": "tsx scripts/migrate-user-partition.ts",
     "provision:owner": "tsx scripts/provision-owner-rayenz.ts",

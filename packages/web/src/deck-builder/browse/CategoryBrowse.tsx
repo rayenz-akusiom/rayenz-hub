@@ -21,6 +21,7 @@ import {
   categoryTarget,
   formalSwapInIds,
   isSeekingCategory,
+  isTheoryDeck,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
   type BrowseView,
@@ -213,6 +214,7 @@ export function DropSection({
     onClick: () => void;
     ariaLabel?: string;
     disabled?: boolean;
+    title?: string;
   };
   variant?: 'section' | 'header' | 'column';
   cardSort?: CardSortMode;
@@ -287,11 +289,7 @@ export function DropSection({
             onClick={sectionAction.onClick}
             aria-label={sectionAction.ariaLabel || sectionAction.label}
             disabled={sectionAction.disabled}
-            title={
-              sectionAction.disabled
-                ? 'Theory decks do not use Seeking queues'
-                : undefined
-            }
+            title={sectionAction.title}
           >
             {sectionAction.label}
           </button>
@@ -1132,6 +1130,10 @@ export function CategoryBrowse({
                     ariaLabel: 'Mark main deck Seeking',
                     onClick: queuesReadOnly ? () => {} : onMarkMainDeckSeeking,
                     disabled: queuesReadOnly,
+                    title:
+                      queuesReadOnly && isTheoryDeck(deck)
+                        ? 'Theory decks do not use Seeking queues'
+                        : undefined,
                   }
                 : undefined
             }

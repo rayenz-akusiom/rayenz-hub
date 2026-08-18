@@ -1,4 +1,9 @@
-import { SANDBOX_USERNAME, usernameToSlug } from '@rayenz-hub/shared';
+import {
+  RETIRED_OWNER_SLUG,
+  RETIRED_USER_SLUG,
+  SANDBOX_USERNAME,
+  usernameToSlug,
+} from '@rayenz-hub/shared';
 import { getHubAuthSession } from '../lib/hub-auth-session';
 
 export type HubPath =
@@ -25,11 +30,12 @@ export type HubPath =
 export const DEFAULT_PATH: HubPath = '/dailies';
 
 /** Unsigned / sample-deck URL slug. Not a Cognito user. */
-export {
-  SANDBOX_USERNAME as SANDBOX_USER_SLUG,
-  RETIRED_OWNER_SLUG,
-  RETIRED_USER_SLUG,
-} from '@rayenz-hub/shared';
+export { SANDBOX_USERNAME as SANDBOX_USER_SLUG, RETIRED_OWNER_SLUG, RETIRED_USER_SLUG };
+
+/** Map the retired bootstrap slug onto the owner library. */
+export function rewriteRetiredUserSlug(slug: string): string {
+  return slug === RETIRED_USER_SLUG ? RETIRED_OWNER_SLUG : slug;
+}
 
 /** Hub user segment in deck deep links (`#/{builder}/{user}/{deck}`). */
 export function hubUserSlug(): string {
@@ -41,6 +47,11 @@ export function hubUserSlug(): string {
 /** Local IndexedDB library: signed-in owner slug, or always-local sandbox. */
 export function isLocalLibrarySlug(slug: string): boolean {
   return slug === hubUserSlug() || slug === SANDBOX_USERNAME;
+}
+
+/** Someone else's public library (not self, not unsigned sandbox). */
+export function isForeignUserSlug(slug: string | null | undefined): boolean {
+  return Boolean(slug) && !isLocalLibrarySlug(slug as string);
 }
 
 export type DeckBuilderRoute = {
@@ -60,9 +71,6 @@ export type SwapQueueBrowseMode = 'default' | 'unified';
 
 export type SwapQueueLayoutMode = 'tiles' | 'stacked' | 'grid';
 
-/** @deprecated Use SwapQueueLayoutMode — kept for older imports during rename. */
-export type SwapQueueViewMode = 'queue_tiles' | 'queued_in';
-
 export function defaultBrowseForSwapQueuePath(
   _path: string | null | undefined,
 ): SwapQueueBrowseMode {
@@ -75,13 +83,6 @@ export function defaultLayoutForSwapQueuePath(
   const raw = String(path || '');
   if (raw === '/wishlist' || raw === 'wishlist' || raw.startsWith('/wishlist/')) return 'grid';
   return 'tiles';
-}
-
-/** @deprecated Use defaultLayoutForSwapQueuePath. */
-export function defaultViewForSwapQueuePath(
-  path: string | null | undefined,
-): SwapQueueViewMode {
-  return defaultLayoutForSwapQueuePath(path) === 'tiles' ? 'queue_tiles' : 'queued_in';
 }
 
 const BUILDER_PREFIX: Record<BuilderFormat, '/commander-builder' | '/cube-builder'> = {
@@ -264,19 +265,6 @@ export function resolveLegacyDeckBuilderHash(
     return builderHash('cube', route.userSlug, route.deckSlug);
   }
   return builderHash('commander', route.userSlug, route.deckSlug);
-}
-
-/**
- * Parse `#/deck-builder/:user/:deck` and split-builder deep links (deprecated wrapper).
- * @deprecated Use parseBuilderRoute instead.
- */
-export function parseDeckBuilderRoute(hash?: string | null): DeckBuilderRoute | null {
-  return parseBuilderRoute(hash);
-}
-
-/** @deprecated Use builderHash('commander', ...) instead. */
-export function deckBuilderHash(userSlug?: string | null, deckSlug?: string | null): string {
-  return builderHash('commander', userSlug, deckSlug);
 }
 
 const SWAP_QUEUE_PREFIXES = ['/swap-queue', '/wishlist'] as const;

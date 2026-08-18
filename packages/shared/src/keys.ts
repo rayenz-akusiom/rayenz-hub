@@ -67,6 +67,24 @@ export function userProfileS3Key(userId: string, deckId: string): string {
   return `${userS3Prefix(userId)}/profiles/${deckId}.yaml`;
 }
 
+/** Candidate profile ids for a Hub deck (builder vs Suggest naming). */
+export function profileLookupKeys(deck: {
+  deckId: string;
+  archidektId?: number | null;
+}): string[] {
+  const keys: string[] = [];
+  const push = (k: string | null | undefined) => {
+    const s = String(k || '').trim();
+    if (s && !keys.includes(s)) keys.push(s);
+  };
+  push(deck.deckId);
+  if (deck.archidektId != null) {
+    push(String(deck.archidektId));
+    push(`deck-${deck.archidektId}`);
+  }
+  return keys;
+}
+
 export function userSetPoolS3Key(userId: string, codesKey: string): string {
   return `${userS3Prefix(userId)}/set-pools/${codesKey}.json`;
 }

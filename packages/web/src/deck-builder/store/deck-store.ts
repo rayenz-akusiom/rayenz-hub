@@ -188,7 +188,9 @@ export function overlayCategoryTargets(
   return changed ? { ...winner, categories } : winner;
 }
 
-/** Last-write-wins merge by updatedAt (ISO strings), preserving Hub category targets. */
+/** Last-write-wins merge by updatedAt (ISO strings), preserving Hub category targets.
+ * Live signed-in loads use `resolveLibraryDocument`; this helper remains for tests.
+ */
 export function mergeDeckDocuments(
   local: DeckDocument | null,
   remote: DeckDocument | null,

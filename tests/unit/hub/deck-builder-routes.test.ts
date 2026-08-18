@@ -6,6 +6,8 @@ import {
   resolveLegacyDeckBuilderHash,
   pathFromHash,
   hubUserSlug,
+  rewriteRetiredUserSlug,
+  isForeignUserSlug,
   isLocalLibrarySlug,
   SANDBOX_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
@@ -29,6 +31,11 @@ describe('builder routes', () => {
     expect(usernameToSlug('Rayenz')).toBe('rayenz');
     expect(isLocalLibrarySlug(SANDBOX_USER_SLUG)).toBe(true);
     expect(isLocalLibrarySlug('rayenz')).toBe(false);
+    expect(rewriteRetiredUserSlug('default')).toBe('rayenz');
+    expect(rewriteRetiredUserSlug('friend')).toBe('friend');
+    expect(isForeignUserSlug('rayenz')).toBe(true);
+    expect(isForeignUserSlug(SANDBOX_USER_SLUG)).toBe(false);
+    expect(isForeignUserSlug(null)).toBe(false);
   });
 
   it('parseBuilderRoute parses commander, cube, and legacy prefixes', () => {

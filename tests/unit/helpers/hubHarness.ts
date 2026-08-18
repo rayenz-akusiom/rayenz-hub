@@ -49,7 +49,6 @@ export function resetHubModules(): void {
   } catch {
     /* ignore */
   }
-  delete (window as Window & { __hubReviewHandoff?: unknown }).__hubReviewHandoff;
   MODULE_GLOBALS.forEach((name) => {
     delete (window as unknown as Record<string, unknown>)[name];
   });
@@ -74,7 +73,7 @@ export function buildHubDom(): void {
     '<nav id="hub-nav" class="hub-nav" aria-label="Apps">' +
     '<ul class="hub-nav-list">' +
     '<li><a class="hub-nav-link" href="#/dailies">Dailies</a></li>' +
-    '<li><a class="hub-nav-link" href="#/deck-review">Deck Review</a></li>' +
+    '<li><a class="hub-nav-link" href="#/deck-suggest">Deck Suggest</a></li>' +
     '</ul>' +
     '</nav>' +
     '<main class="hub-main">' +

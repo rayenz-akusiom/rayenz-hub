@@ -6,9 +6,8 @@ import {
   type DeckPatch,
   type PrintingFields,
 } from '@rayenz-hub/shared';
-import { getDeck } from '../deck-builder/store/deck-store';
 import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
-import { apiGetDeck } from '../deck-builder/store/deck-api';
+import { resolveLibraryDocument } from '../deck-builder/store/library-sync';
 import { apiFetch } from '../api/hub-api';
 import type { Suggestion } from './types';
 
@@ -161,7 +160,7 @@ export function buildSeekingAcceptPatch(
 }
 
 export async function persistSuggestPatch(deckId: string, patch: DeckPatch): Promise<DeckDocument> {
-  const local = (await getDeck(deckId)) || (await apiGetDeck(deckId));
+  const local = await resolveLibraryDocument(deckId);
   if (!local) {
     throw new Error('Save this deck to Hub before accepting suggestions.');
   }
@@ -256,7 +255,7 @@ export async function persistAcceptedSuggestion(
   if (!deckId) {
     throw new Error('Missing deck id.');
   }
-  const local = (await getDeck(deckId)) || (await apiGetDeck(deckId));
+  const local = await resolveLibraryDocument(deckId);
   if (!local) {
     throw new Error('Save this deck to Hub before accepting suggestions.');
   }

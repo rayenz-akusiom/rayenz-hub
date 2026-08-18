@@ -37,7 +37,7 @@ Row format:
 
 ## Documented overrides
 
-- **Deck Review** — `setProfileStatus` in `dr-profiles.js`, `dr-render.js` — profile connect, short status — long-running work uses `HubProgress` (added: 2026-06-30)
+- **Deck Suggest** — profile status in the review panel — long-running generate uses `HubProgress` (added: 2026-06-30)
 - **Order Reconcile** — `#or-status` / in-panel status — ephemeral feedback (copy applied, Scryfall miss) — Hub library load uses `HubProgress` (added: 2026-06-30)
 
 ## Enforcement

@@ -2,6 +2,28 @@ import { normalizeUsername } from '@rayenz-hub/shared';
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api-client';
 import { clearHubAuthSession, getHubAuthSession, setHubAuthSession } from './hub-auth-session';
 
+export type AuthTokensResponse = {
+  accessToken: string;
+  idToken?: string;
+  refreshToken?: string;
+  username?: string;
+  sub?: string;
+};
+
+export async function applyAuthTokensResponse(
+  body: AuthTokensResponse,
+  usernameFallback?: string,
+): Promise<void> {
+  setHubAuthSession({
+    accessToken: body.accessToken,
+    idToken: body.idToken,
+    refreshToken: body.refreshToken,
+    username: body.username || (usernameFallback ? normalizeUsername(usernameFallback) : ''),
+    sub: body.sub,
+  });
+  await hydrateHubOwnerFlag({ force: true });
+}
+
 export async function hydrateHubOwnerFlag(options: { force?: boolean } = {}): Promise<void> {
   const session = getHubAuthSession();
   const url = getHubApiConfig().url;
@@ -50,21 +72,8 @@ export async function signInWithPassword(username: string, password: string): Pr
   if (!res.ok) {
     throw signInErrorFromResponse(res.status, text);
   }
-  const body = JSON.parse(text) as {
-    accessToken: string;
-    idToken?: string;
-    refreshToken?: string;
-    username?: string;
-    sub?: string;
-  };
-  setHubAuthSession({
-    accessToken: body.accessToken,
-    idToken: body.idToken,
-    refreshToken: body.refreshToken,
-    username: body.username || normalizeUsername(username),
-    sub: body.sub,
-  });
-  await hydrateHubOwnerFlag({ force: true });
+  const body = JSON.parse(text) as AuthTokensResponse;
+  await applyAuthTokensResponse(body, username);
 }
 
 export function signOutHubSession(): void {

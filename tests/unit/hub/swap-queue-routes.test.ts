@@ -6,6 +6,7 @@ import {
   pathFromHash,
   swapQueueHash,
   swapQueueShareUrl,
+  rewriteRetiredUserSlug,
   KNOWN_PATHS,
 } from '../../../packages/web/src/hub/routes.ts';
 
@@ -43,5 +44,10 @@ describe('swap-queue routes', () => {
     expect(
       swapQueueShareUrl('rayenz', { origin: 'https://example.test', pathname: '/hub/' }),
     ).toBe('https://example.test/hub/#/swap-queue/rayenz');
+  });
+
+  it('rewrites retired default slugs onto the owner', () => {
+    expect(rewriteRetiredUserSlug('default')).toBe('rayenz');
+    expect(rewriteRetiredUserSlug('rayenz')).toBe('rayenz');
   });
 });

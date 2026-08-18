@@ -1,7 +1,7 @@
 import { resolveUserId } from '@rayenz-hub/shared';
-import { ForbiddenError } from '../lib/auth.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
+import { spendLockResponse } from '../lib/route-policy.js';
 import { clientIp } from '../services/rate-limit.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 
@@ -12,18 +12,12 @@ export async function handleInvites(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
-    if (!services.authService.isOwner(auth)) {
-      throw new ForbiddenError('Only the owner can manage invites');
-    }
+    services.authService.requireOwner(auth);
     const ownerSub = resolveUserId(auth, env);
     if (method === 'POST') {
       await services.rateLimit.consume('invite', clientIp(headers));
       if (await services.spendLock.isActive()) {
-        /* create optional deny under lock */
-        throw new ForbiddenError(
-          'Cloud spend lock-down is active; try again next billing period.',
-          'SPEND_LOCK',
-        );
+        return spendLockResponse();
       }
       const created = await services.inviteService.create(ownerSub);
       return jsonResponse(200, created);
@@ -47,9 +41,7 @@ export async function handleInviteRevoke(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
-    if (!services.authService.isOwner(auth)) {
-      throw new ForbiddenError('Only the owner can manage invites');
-    }
+    services.authService.requireOwner(auth);
     await services.inviteService.revoke(resolveUserId(auth, env), inviteId);
     return jsonResponse(200, { ok: true });
   } catch (e) {

@@ -16,7 +16,7 @@ import {
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { parseJsonBody } from '../lib/keyed-resource-handler.js';
-import { spendLockResponse } from '../lib/route-policy.js';
+import { requireOwnerAndSpendUnlocked } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import type { SetPoolRecord } from '../repositories/set-pool-repository.js';
 
@@ -99,10 +99,8 @@ export async function handleSuggestGenerate(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
-    services.authService.requireOwner(auth);
-    if (await services.spendLock.isActive()) {
-      return spendLockResponse();
-    }
+    const locked = await requireOwnerAndSpendUnlocked(auth, services.authService, services.spendLock);
+    if (locked) return locked;
     const parsedBody = parseJsonBody(body);
     if (!parsedBody.ok) {
       return parsedBody.response;

@@ -4,7 +4,6 @@ export * from './decisions';
 export * from './pickers';
 export * from './profiles';
 export * from './review';
-export { DeckReviewApp } from './DeckReviewApp';
 
 import { getSwapQueue, sortSuggestions, validatePayload } from '@rayenz-hub/shared';
 import {

@@ -71,7 +71,7 @@ After connecting, agents should `GetMcpTools` on server `rayenz-hub`, then `Call
 | `hub_aggregate_wants` / `hub_export_wants_text` | Buy/acquire lists from formal queues (**skips Theory decks**) |
 | `hub_export_archidekt_import` | Archidekt paste text (mirror only) |
 | `hub_get_set_pool` / `hub_put_set_pool` | Cached set spoilers |
-| `hub_get_review_progress` / `hub_put_review_progress` | Deck Review decisions |
+| `hub_get_review_progress` / `hub_put_review_progress` | Suggest review progress |
 | `scryfall_resolve_sets` / `scryfall_fetch_set_cards` | Set family resolve + card fetch |
 
 Out of scope: Dailies, live Archidekt API, glance PNGs.

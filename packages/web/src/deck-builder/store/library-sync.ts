@@ -1,7 +1,7 @@
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { deckVisibility } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
-import { getHubAuthSession } from '../../lib/hub-auth-session';
+import { isSignedIn } from '../../lib/hub-auth-session';
 import { isSampleDeckId } from '../sample/sample-deck';
 import { apiGetDeck, apiListDecks } from './deck-api';
 import { deleteDeck, getDeck, listDecks } from './deck-store';
@@ -10,10 +10,6 @@ import {
   getLocalLibraryScope,
   setLocalLibraryScope,
 } from './local-library-scope';
-
-function isSignedIn(): boolean {
-  return Boolean(getHubAuthSession()?.accessToken);
-}
 
 function sortSummaries(list: DeckSummary[]): DeckSummary[] {
   return [...list].sort(
@@ -69,7 +65,7 @@ export async function listFallbackLibrary(): Promise<DeckSummary[]> {
 export async function resolveLibraryDocument(deckId: string): Promise<DeckDocument | null> {
   const local = await getDeck(deckId);
   if (isSampleDeckId(deckId)) return local;
-  if (!isSignedIn() || !isApiConfigured()) return local;
+  if (!isApiConfigured()) return local;
   if (local && getLocalLibraryScope(deckId) === 'sandbox') return local;
   try {
     const remote = await apiGetDeck(deckId);
@@ -130,7 +126,7 @@ export async function pullRemoteLibraryUpdates(): Promise<DeckSummary[]> {
   const local = await listDecks();
   const remaining = await purgeExpiredSandboxDecks(Date.now(), local);
 
-  if (!isSignedIn() || !isApiConfigured()) {
+  if (!isApiConfigured()) {
     return remaining.filter((s) => isSandboxScoped(s.deckId));
   }
 

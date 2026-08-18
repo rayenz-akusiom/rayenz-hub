@@ -2,13 +2,8 @@ const root = document.getElementById('services');
 const banner = document.getElementById('banner');
 const deviceAccess = document.getElementById('device-access');
 const deviceRows = document.getElementById('device-rows');
-const deviceSnippet = document.getElementById('device-snippet');
-const deviceSnippetPre = document.getElementById('device-snippet-pre');
 const openLogs = new Set();
 const pending = new Set();
-
-/** @type {{ lanIp: string | null, services: object[] }} */
-let lastPayload = { lanIp: null, services: [] };
 
 function showBanner(message, isError = false) {
   banner.hidden = false;
@@ -60,12 +55,6 @@ function lanOrigin(lanUrl) {
   }
 }
 
-function apiLocalStorageSnippet(lanIp) {
-  return [
-    `localStorage.setItem('rayenz-hub-api-url', 'http://${lanIp}:3000');`,
-  ].join('\n');
-}
-
 function renderDeviceAccess(lanIp, services) {
   if (!lanIp) {
     deviceAccess.hidden = true;
@@ -93,13 +82,6 @@ function renderDeviceAccess(lanIp, services) {
       <button type="button" class="btn ghost" data-copy="${escapeHtml(apiUrl)}">Copy</button>
     </div>
   `;
-
-  if (apiRunning) {
-    deviceSnippet.hidden = false;
-    deviceSnippetPre.textContent = apiLocalStorageSnippet(lanIp);
-  } else {
-    deviceSnippet.hidden = true;
-  }
 }
 
 function renderCard(svc) {
@@ -168,7 +150,6 @@ async function refreshLogs(id) {
 }
 
 function render(payload) {
-  lastPayload = payload;
   const services = payload.services || [];
   renderDeviceAccess(payload.lanIp || null, services);
   root.innerHTML = services.map(renderCard).join('');
@@ -243,12 +224,6 @@ deviceAccess.addEventListener('click', (e) => {
     copyText(copyBtn.dataset.copy);
     return;
   }
-});
-
-document.getElementById('btn-copy-snippet').addEventListener('click', () => {
-  const lanIp = lastPayload.lanIp;
-  if (!lanIp) return;
-  copyText(apiLocalStorageSnippet(lanIp));
 });
 
 document.getElementById('btn-start-all').addEventListener('click', () => runStack('start'));

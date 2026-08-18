@@ -112,9 +112,9 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 ## Dual-mode storage / API client
 
 - **MTG settings / review progress / set pools:** Hub API (DynamoDB) is required to persist; in-memory only within the tab when API is off (no durable localStorage). Order-reconcile session progress is memory-only (no API endpoint yet).
-- **Dailies (Neopets):** still localStorage-first with optional Hub API sync when the API URL is set and the user is signed in.
+- **Dailies (Neopets):** still localStorage-first with optional Hub API sync when the user is signed in (and the API URL is present).
 - **Decks / swap queues:** IndexedDB local store with optional Hub API sync (`saveDualMode`) — unchanged.
-- Device config (API URL) and UI prefs (route, card size, etc.) stay in localStorage. Session tokens stay in sessionStorage.
+- The Hub API URL is baked at Pages publish (`VITE_HUB_API_URL`); Vite dev uses `http://<page-hostname>:3000`. UI prefs (route, card size, etc.) stay in localStorage. Session tokens stay in sessionStorage.
 - Tests should cover API-off and API-on paths for persistence helpers.
 - After changing `hub-api-client.ts` response handling, update **all** fetch mocks (`.text()`).
 

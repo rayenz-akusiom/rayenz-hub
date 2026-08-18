@@ -72,13 +72,13 @@ npx tsx scripts/migrate-user-partition.ts --execute --target-sub <rayenzSub> --d
 Optional: `$env:HUB_MIGRATE_SOURCE_USER_ID = 'rayenz-local'` if local writes already used that id instead of `default`.
 
 5. Set local `HUB_USER_ID` / `infra/env.local.json` to that `sub` (not a permanent bootstrap partition). Then mirror local → prod (`Owner sync` below).
-6. Point Pages Hub at the execute-api URL. Sign in as `Rayenz`. Save/reload one settings or deck (SC-001).
+6. `npm run publish:hub` (bakes `HubApiUrl` into the SPA). Sign in as `Rayenz`. Save/reload one settings or deck (SC-001).
 7. Confirm AWS Budget alerts (50%, 80%, 95%) and that a 95% notification sets `SYSTEM`/`SPEND_LOCK`.
 8. Sign-off SC-001…SC-009.
 
 ## Sign-in on Pages
 
-Settings → Hub API: set API base URL → **Sign in** (username `Rayenz`). Tokens stay in sessionStorage. Sign out clears them. No API URL → client-only, no login.
+Settings → Hub API: **Sign in** (username `Rayenz`). The API URL is baked in at `npm run publish:hub` (from `VITE_HUB_API_URL` / `HUB_API_URL`, or stack output `HubApiUrl`). Tokens stay in sessionStorage. Sign out clears them. No API URL in the build → client-only, no login.
 
 ## Invites
 

@@ -6,7 +6,7 @@ async function getGlanceApiConfig(): Promise<{ url: string; token: string }> {
   const cfg = getHubApiConfig();
   const token = getAccessToken();
   if (!cfg.url || !token) {
-    throw new Error('Hub API not configured. Set the API URL and sign in.');
+    throw new Error('Hub API not configured. Sign in to enable API mode.');
   }
   assertApiNotPageOrigin(cfg.url);
   return { url: cfg.url, token };

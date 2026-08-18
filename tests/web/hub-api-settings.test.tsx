@@ -17,51 +17,17 @@ describe('HubApiSettingsPage', () => {
     sessionStorage.clear();
   });
 
-  it('saves URL without enabling API mode until sign-in', async () => {
-    const user = userEvent.setup();
-    render(<HubApiSettingsPage />);
-
-    await user.clear(screen.getByLabelText('API base URL'));
-    await user.type(screen.getByLabelText('API base URL'), 'http://127.0.0.1:3000/');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/API URL saved — sign in/i)).toBeInTheDocument();
-    });
-    expect(localStorage.getItem('rayenz-hub-api-url')).toBe('http://127.0.0.1:3000');
-    expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
-  });
-
-  it('clears stored credentials', async () => {
-    const user = userEvent.setup();
+  it('shows the resolved URL and asks to sign in', () => {
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-    localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
     render(<HubApiSettingsPage />);
-
-    expect(screen.getByLabelText('API base URL')).toHaveValue('http://127.0.0.1:3000');
-    await user.click(screen.getByRole('button', { name: 'Clear' }));
-
-    expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
-    expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
-    expect(screen.getByText(/Cleared/i)).toBeInTheDocument();
-  });
-
-  it('rejects saving when URL matches page origin', async () => {
-    const user = userEvent.setup();
-    render(<HubApiSettingsPage />);
-    const origin = location.origin.replace(/\/$/, '');
-
-    await user.type(screen.getByLabelText('API base URL'), origin);
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/page's origin/i);
-    });
-    expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
+    expect(screen.getByText('http://127.0.0.1:3000')).toBeInTheDocument();
+    expect(screen.getByText(/Sign in to enable API mode/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('API base URL')).not.toBeInTheDocument();
   });
 
   it('tests health without a session', async () => {
     const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/v1/health')) {
@@ -72,7 +38,6 @@ describe('HubApiSettingsPage', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<HubApiSettingsPage />);
-    await user.type(screen.getByLabelText('API base URL'), 'http://127.0.0.1:3000');
     await user.click(screen.getByRole('button', { name: 'Test connection' }));
 
     await waitFor(() => {
@@ -105,6 +70,7 @@ describe('HubApiSettingsPage', () => {
 
   it('shows the API error body when sign-in fails', async () => {
     const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
     const fetchMock = vi.fn(async () => ({
       ok: false,
       status: 400,
@@ -113,7 +79,6 @@ describe('HubApiSettingsPage', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<HubApiSettingsPage />);
-    await user.type(screen.getByLabelText('API base URL'), 'http://127.0.0.1:3000');
     await user.type(screen.getByLabelText('Username'), 'Rayenz');
     await user.type(screen.getByLabelText('Password'), 'secret');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -123,7 +88,71 @@ describe('HubApiSettingsPage', () => {
     });
   });
 
+  it('rejects test connection when this build has no API URL', async () => {
+    const user = userEvent.setup();
+    render(<HubApiSettingsPage />);
+    expect(screen.getByText(/This build has no API URL/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Test connection' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('This build has no Hub API URL.');
+    });
+  });
+
+  it('rejects sign-in when this build has no API URL', async () => {
+    const user = userEvent.setup();
+    render(<HubApiSettingsPage />);
+    await user.type(screen.getByLabelText('Username'), 'Rayenz');
+    await user.type(screen.getByLabelText('Password'), 'secret');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('This build has no Hub API URL.');
+    });
+  });
+
+  it('shows a signed-in status when the session exists without an API URL', () => {
+    setHubAuthSession({ accessToken: 'test-access-token', username: 'Rayenz' });
+    render(<HubApiSettingsPage />);
+    expect(screen.getByText(/this build has no Hub API URL/i)).toBeInTheDocument();
+  });
+
   it('falls back to status when sign-in body is not JSON', () => {
     expect(signInErrorFromResponse(401, '<html>nope</html>').message).toBe('Sign-in failed (401).');
+  });
+
+  it('signs in and signs out against the resolved URL', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/v1/auth/sign-in')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              accessToken: 'access',
+              username: 'Rayenz',
+              sub: 'rayenz-sub',
+            }),
+        };
+      }
+      if (url.endsWith('/v1/auth/sign-out')) {
+        return { ok: true, status: 204, text: async () => '' };
+      }
+      return { ok: false, status: 404, text: async () => '' };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<HubApiSettingsPage />);
+    await user.type(screen.getByLabelText('Username'), 'Rayenz');
+    await user.type(screen.getByLabelText('Password'), 'secret');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Signed in as Rayenz — API mode on/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(screen.getByText(/Signed out/i)).toBeInTheDocument();
   });
 });

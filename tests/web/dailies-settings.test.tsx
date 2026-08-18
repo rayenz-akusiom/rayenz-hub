@@ -71,7 +71,7 @@ describe('SettingsShell', () => {
     const user = userEvent.setup();
     render(<SettingsShell tab="hub-api" />);
     expect(screen.getByRole('button', { name: 'Hub API' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByLabelText('API base URL')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dailies' }));
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();

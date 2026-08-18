@@ -28,16 +28,10 @@
       <h2>Device access (LAN)</h2>
       <p class="device-note">
         Same Wi‑Fi as this PC. Windows Firewall may need inbound TCP <strong>5173</strong> and
-        <strong>3000</strong>. On the phone use Settings → Hub API (or the snippet below) — not this PC.
+        <strong>3000</strong>. Open Hub Web on the phone, then Settings → Hub API → Sign in. Vite
+        points the API at this PC&apos;s LAN IP automatically.
       </p>
       <div class="device-rows" id="device-rows"></div>
-      <div class="device-snippet" id="device-snippet" hidden>
-        <div class="device-snippet-head">
-          <span>iPad / phone console (API mode)</span>
-          <button type="button" class="btn ghost" id="btn-copy-snippet">Copy</button>
-        </div>
-        <pre id="device-snippet-pre"></pre>
-      </div>
     </section>
 
     <main id="services" class="services" aria-live="polite"></main>

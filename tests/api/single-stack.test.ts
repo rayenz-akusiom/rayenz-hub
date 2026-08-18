@@ -8,6 +8,11 @@ import {
   formatApiParameterOverrides,
   stackOutput,
 } from '../../scripts/cognito-stack.ts';
+import {
+  hubApiUrlFromEnv,
+  hubApiUrlFromStackOutputs,
+  resolvePublishHubApiUrl,
+} from '../../scripts/hub-api-url.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -87,5 +92,39 @@ describe('Cognito API parameter overrides', () => {
   it('reads named stack outputs', () => {
     expect(stackOutput([{ OutputKey: 'HubUserPoolId', OutputValue: ' pool ' }], 'HubUserPoolId')).toBe('pool');
     expect(() => stackOutput([], 'HubUserPoolId')).toThrow(/HubUserPoolId/);
+  });
+});
+
+describe('Hub API URL for Pages publish', () => {
+  it('prefers VITE_HUB_API_URL then HUB_API_URL', () => {
+    expect(hubApiUrlFromEnv({ VITE_HUB_API_URL: 'https://a.example/', HUB_API_URL: 'https://b.example' })).toBe(
+      'https://a.example',
+    );
+    expect(hubApiUrlFromEnv({ HUB_API_URL: 'https://b.example/' })).toBe('https://b.example');
+    expect(hubApiUrlFromEnv({})).toBe('');
+  });
+
+  it('reads HubApiUrl from stack outputs', () => {
+    expect(
+      hubApiUrlFromStackOutputs([
+        { OutputKey: 'HubApiUrl', OutputValue: 'https://abc.execute-api.us-east-1.amazonaws.com/' },
+      ]),
+    ).toBe('https://abc.execute-api.us-east-1.amazonaws.com');
+    expect(() => hubApiUrlFromStackOutputs([])).toThrow(/HubApiUrl/);
+  });
+
+  it('resolvePublishHubApiUrl uses env, then stack, then fails', () => {
+    expect(resolvePublishHubApiUrl({ HUB_API_URL: 'https://from-env.example/' }, () => [])).toBe(
+      'https://from-env.example',
+    );
+    expect(
+      resolvePublishHubApiUrl({}, () => [{ OutputKey: 'HubApiUrl', OutputValue: 'https://from-stack.example' }]),
+    ).toBe('https://from-stack.example');
+    expect(() => resolvePublishHubApiUrl({}, () => null)).toThrow(/publish:hub needs/);
+    expect(() =>
+      resolvePublishHubApiUrl({}, () => {
+        throw new Error('no aws');
+      }),
+    ).toThrow(/publish:hub needs/);
   });
 });

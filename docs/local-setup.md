@@ -33,7 +33,7 @@ For **live HTTP API** testing you also need:
 
 ## Glance image generation
 
-`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, at most 100 cards after swaps; underfull decks pad with dashed “+” placeholders). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` is set and the user is signed in. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
+`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, at most 100 cards after swaps; underfull decks pad with dashed “+” placeholders). The Hub SPA calls it from Commander Builder when the API URL is present and the user is signed in. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
 
 - **Layout strategies**: [glance-layout.md](./glance-layout.md) — deck packing regions, swap pack modes, densify ladder
 - **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.
@@ -81,7 +81,7 @@ cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 npm run dev:dashboard
 ```
 
-Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The **Device access (LAN)** panel shows Hub Web / Hub API URLs (with copy) and an iPad `localStorage` snippet when the API is running. On the device, prefer **Settings → Hub API** in the Hub SPA. The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
+Open [http://127.0.0.1:5050](http://127.0.0.1:5050). The **Device access (LAN)** panel shows Hub Web / Hub API URLs (with copy). On the device, open Hub Web then **Settings → Hub API** and sign in — Vite uses `http://<LAN-IP>:3000` automatically. The tool lives under `tools/dev-dashboard/` (not part of the Hub SPA or SAM deployables).
 
 CLI equivalents (same named Docker containers the dashboard uses):
 
@@ -310,13 +310,7 @@ Serve `rayenz-hub/rayenz-hub/` over **HTTP** (not `file://`). Options:
 - `npx serve rayenz-hub/rayenz-hub`
 - Playwright static server (used by `npm run test:e2e`)
 
-Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): API URL `http://127.0.0.1:3000`, **Sign in as Rayenz** (live Cognito).
-
-DevTools equivalent (URL only):
-
-```javascript
-localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-```
+Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): Vite dev uses `http://127.0.0.1:3000` (or `http://<LAN-IP>:3000` on a phone), **Sign in as Rayenz** (live Cognito).
 
 Try:
 
@@ -325,16 +319,12 @@ Try:
 | -------------------- | ------------------------------------------ |
 | `#/dailies`          | Settings pull/push via `hub-api-client` |
 | `#/settings` | Hub Settings shell (tabs: Hub API, Dailies, Deck Suggest, Order Reconcile) |
-| `#/settings/hub-api` | API base URL and sign-in (device localStorage + session) |
+| `#/settings/hub-api` | Sign-in (sessionStorage). API URL comes from the build / Vite dev. |
 | `#/settings/dailies` | Deep-link to Dailies settings tab |
 | `#/deck-suggest`     | Suggest + review (legacy `#/deck-review` redirects here) |
 
 
-Disable API mode (Hub falls back to `localStorage` only) via **Clear** on the Hub API settings tab, or:
-
-```javascript
-localStorage.removeItem('rayenz-hub-api-url');
-```
+Disable API mode (Hub falls back to `localStorage` only) via **Sign out** on the Hub API settings tab.
 
 ---
 

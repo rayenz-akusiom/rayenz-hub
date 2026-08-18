@@ -18,7 +18,7 @@
     "start:mcp": "npm run start -w @rayenz-hub/mcp",
     "dev:dashboard": "node tools/dev-dashboard/server.mjs",
     "build:web": "npm run build -w @rayenz-hub/web",
-    "publish:hub": "npm run build:web && node scripts/publish-hub-hint.mjs",
+    "publish:hub": "tsx scripts/publish-hub.ts",
     "test:unit:watch": "vitest tests/unit",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",

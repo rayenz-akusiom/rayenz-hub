@@ -2,7 +2,7 @@
 
 Use your PC’s Vite (and optional SAM local API) from a phone or iPad on the same Wi‑Fi — no GitHub Pages or AWS deploy required.
 
-Vite and `npm run start:api` bind on the LAN by default. Prefer the [local development dashboard](./local-setup.md#2b-local-development-dashboard-recommended) for device URLs. Configure the API on the phone via **Settings → Hub API**.
+Vite and `npm run start:api` bind on the LAN by default. Prefer the [local development dashboard](./local-setup.md#2b-local-development-dashboard-recommended) for device URLs. Vite dev points the Hub API at `http://<page-hostname>:3000` automatically.
 
 See also [local-setup.md](./local-setup.md) for day-to-day local workflow.
 
@@ -29,9 +29,8 @@ The **Device access (LAN)** panel lists:
 
 - Hub Web URL (`http://<PC-LAN-IP>:5173`) — open this on the phone/iPad
 - Hub API base URL (`http://<PC-LAN-IP>:3000`)
-- When the API is running, a copyable `localStorage` snippet (fallback)
 
-On the phone, open Hub → **Settings → Hub API**, paste the LAN API URL, and **Sign in** as Rayenz.
+On the phone, open Hub → **Settings → Hub API** and **Sign in** as Rayenz. The API URL is derived from the page hostname (`http://<PC-LAN-IP>:3000`).
 
 The control panel stays on localhost; only Hub Web and Hub API are meant for devices.
 
@@ -70,22 +69,11 @@ npm run start:api
 
 On the phone/iPad Hub:
 
-1. Open **Settings → Hub API** (`#/settings/hub-api`)
-2. API base URL = `http://<PC-LAN-IP>:3000` (from the dashboard Device access panel)
-3. Sign in as Rayenz
-4. Save (optional: Test connection)
+1. Open Hub Web via the LAN Vite URL (not `127.0.0.1` — that is the phone itself)
+2. Open **Settings → Hub API** (`#/settings/hub-api`)
+3. Sign in as Rayenz (optional: Test connection)
 
-Fallback — phone browser console or dashboard snippet:
-
-```javascript
-localStorage.setItem('rayenz-hub-api-url', 'http://192.168.x.x:3000');
-```
-
-Then sign in on the Settings → Hub API tab.
-
-Use the PC’s LAN IP, not `127.0.0.1`. Phone storage is separate from the PC’s — configure it on the device.
-
-CORS allows `*` in `infra/template.yaml`, so cross-origin from the Vite origin is fine.
+Vite dev uses `http://<PC-LAN-IP>:3000` as the API base. CORS allows `*` in `infra/template.yaml`, so cross-origin from the Vite origin is fine.
 
 ---
 
@@ -95,7 +83,7 @@ CORS allows `*` in `infra/template.yaml`, so cross-origin from the Vite origin i
 2. `npm run dev:dashboard` (or `npm run dev:web` / `npm run start:api`)  
 3. Firewall allows 5173 (and 3000 if needed)  
 4. Phone → Hub Web URL from Device access (or Vite Network URL)  
-5. If API: Settings → Hub API on the device (`http://<PC-LAN-IP>:3000` + Sign in)
+5. If API: Settings → Hub API on the device → Sign in
 
 ---
 

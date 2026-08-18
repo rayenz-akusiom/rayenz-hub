@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { getHubApiConfig, setHubApiConfig } from '../api/hub-api-client';
+import { getHubApiConfig } from '../api/hub-api-client';
 import { setHubAuthSession } from '../lib/hub-auth-session';
 
 function tokenFromHash(): string {
@@ -33,7 +33,7 @@ export function InviteRedeemPage() {
       }
       const cfg = getHubApiConfig();
       if (!cfg.url) {
-        throw new Error('Set the Hub API URL in Settings first.');
+        throw new Error('This build has no Hub API URL.');
       }
       const res = await fetch(`${cfg.url}/v1/auth/register`, {
         method: 'POST',
@@ -69,7 +69,7 @@ export function InviteRedeemPage() {
     try {
       const cfg = getHubApiConfig();
       if (!cfg.url) {
-        throw new Error('Set the Hub API URL in Settings first.');
+        throw new Error('This build has no Hub API URL.');
       }
       const res = await fetch(`${cfg.url}/v1/auth/confirm`, {
         method: 'POST',
@@ -87,7 +87,6 @@ export function InviteRedeemPage() {
         username?: string;
         sub?: string;
       };
-      setHubApiConfig({ url: cfg.url });
       setHubAuthSession({
         accessToken: body.accessToken,
         idToken: body.idToken,
@@ -109,7 +108,7 @@ export function InviteRedeemPage() {
     try {
       const cfg = getHubApiConfig();
       if (!cfg.url) {
-        throw new Error('Set the Hub API URL in Settings first.');
+        throw new Error('This build has no Hub API URL.');
       }
       const res = await fetch(`${cfg.url}/v1/auth/resend-confirmation`, {
         method: 'POST',

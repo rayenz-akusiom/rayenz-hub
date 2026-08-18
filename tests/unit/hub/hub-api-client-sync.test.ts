@@ -10,6 +10,7 @@ import {
   pullProfileYaml,
   pullSettings,
   pushSettingsDomain,
+  resolveHubApiUrl,
   setHubApiConfig,
   syncDailiesSettingsFromApi,
 } from '../../../packages/web/src/api/hub-api-client.ts';
@@ -82,10 +83,56 @@ describe('HubApiClient config and parsing', () => {
     expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
   });
 
+  it('resolveHubApiUrl prefers baked env over stored and dev hostname', () => {
+    expect(
+      resolveHubApiUrl({
+        baked: 'https://api.example/',
+        dev: true,
+        mode: 'development',
+        hostname: '192.168.1.5',
+        stored: 'http://127.0.0.1:3000',
+      }),
+    ).toBe('https://api.example');
+  });
+
+  it('resolveHubApiUrl uses hostname:3000 in Vite dev', () => {
+    expect(
+      resolveHubApiUrl({
+        baked: '',
+        dev: true,
+        mode: 'development',
+        hostname: '192.168.1.5',
+        stored: 'http://stale.example',
+      }),
+    ).toBe('http://192.168.1.5:3000');
+  });
+
+  it('resolveHubApiUrl uses localStorage in test mode', () => {
+    expect(
+      resolveHubApiUrl({
+        baked: '',
+        dev: true,
+        mode: 'test',
+        hostname: 'localhost',
+        stored: 'http://127.0.0.1:3000/',
+      }),
+    ).toBe('http://127.0.0.1:3000');
+  });
+
+  it('getHubApiConfig prefers baked VITE_HUB_API_URL over leftover localStorage', () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://stale.example');
+    vi.stubEnv('VITE_HUB_API_URL', 'https://prod.example.execute-api.us-east-1.amazonaws.com/');
+    expect(getHubApiConfig()).toEqual({
+      url: 'https://prod.example.execute-api.us-east-1.amazonaws.com',
+      enabled: false,
+    });
+    vi.unstubAllEnvs();
+  });
+
   it('assertApiNotPageOrigin throws when api url matches page origin', () => {
     const origin = location.origin.replace(/\/$/, '');
     expect(() => assertApiNotPageOrigin('http://127.0.0.1:3000')).not.toThrow();
-    expect(() => assertApiNotPageOrigin(origin)).toThrow(/rayenz-hub-api-url is set to this page's origin/);
+    expect(() => assertApiNotPageOrigin(origin)).toThrow(/Hub API URL is set to this page's origin/);
   });
 
   it('parseHubApiJsonBody rejects HTML, accepts empty, parses JSON', () => {
@@ -140,7 +187,7 @@ describe('clientApiFetch', () => {
     localStorage.setItem('rayenz-hub-api-url', location.origin.replace(/\/$/, ''));
     setHubAuthSession({ accessToken: 'test-access-token' });
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({})));
-    await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow(/rayenz-hub-api-url is set to this page's origin/);
+    await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow(/Hub API URL is set to this page's origin/);
   });
 
   it('refreshes the access token once on 401 then retries', async () => {

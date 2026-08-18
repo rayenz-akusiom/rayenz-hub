@@ -22,6 +22,64 @@ function stripLegacyApiKey(): void {
   }
 }
 
+function normalizeApiUrl(raw: string): string {
+  return raw.trim().replace(/\/$/, '');
+}
+
+/** Resolve the Hub API base URL. Baked env wins; Vite dev uses the page hostname; tests use localStorage. */
+export function resolveHubApiUrl(input: {
+  baked?: string;
+  dev?: boolean;
+  mode?: string;
+  hostname?: string;
+  stored?: string;
+}): string {
+  const baked = normalizeApiUrl(input.baked || '');
+  if (baked) {
+    return baked;
+  }
+  if (input.dev && input.mode !== 'test') {
+    const host = (input.hostname || '').trim();
+    if (host) {
+      return `http://${host}:3000`;
+    }
+  }
+  return normalizeApiUrl(input.stored || '');
+}
+
+function envString(name: string): string {
+  const value = (import.meta.env as Record<string, unknown>)[name];
+  return typeof value === 'string' ? value : '';
+}
+
+function currentHubApiUrlSources(): {
+  baked: string;
+  dev: boolean;
+  mode: string;
+  hostname: string;
+  stored: string;
+} {
+  let hostname = '';
+  try {
+    hostname = typeof location !== 'undefined' ? location.hostname || '' : '';
+  } catch {
+    /* location unavailable */
+  }
+  let stored = '';
+  try {
+    stored = localStorage.getItem(API_URL_KEY) || '';
+  } catch {
+    /* ignore quota / private mode */
+  }
+  return {
+    baked: envString('VITE_HUB_API_URL'),
+    dev: Boolean(import.meta.env.DEV),
+    mode: String(import.meta.env.MODE || ''),
+    hostname,
+    stored,
+  };
+}
+
 export interface HubApiConfig {
   url: string;
   enabled: boolean;
@@ -29,18 +87,13 @@ export interface HubApiConfig {
 
 export function getHubApiConfig(): HubApiConfig {
   stripLegacyApiKey();
-  let url = '';
-  try {
-    url = (localStorage.getItem(API_URL_KEY) || '').replace(/\/$/, '');
-  } catch {
-    /* ignore */
-  }
+  const url = resolveHubApiUrl(currentHubApiUrlSources());
   return { url, enabled: !!(url && getAccessToken()) };
 }
 
-/** Persist Hub API base URL to localStorage (device-local). Empty values remove that key. */
+/** Test helper: persist Hub API base URL to localStorage. Production Pages ignore this when VITE_HUB_API_URL is baked. */
 export function setHubApiConfig(input: { url?: string }): HubApiConfig {
-  const url = (input.url ?? '').trim().replace(/\/$/, '');
+  const url = normalizeApiUrl(input.url ?? '');
   try {
     if (url) localStorage.setItem(API_URL_KEY, url);
     else localStorage.removeItem(API_URL_KEY);
@@ -51,7 +104,7 @@ export function setHubApiConfig(input: { url?: string }): HubApiConfig {
   return getHubApiConfig();
 }
 
-/** Remove Hub API URL from localStorage. */
+/** Test helper: remove Hub API URL from localStorage. */
 export function clearHubApiConfig(): void {
   try {
     localStorage.removeItem(API_URL_KEY);
@@ -70,11 +123,11 @@ export function assertApiNotPageOrigin(apiUrl: string): void {
   try {
     if (typeof location !== 'undefined' && apiUrl === location.origin.replace(/\/$/, '')) {
       throw new Error(
-        `rayenz-hub-api-url is set to this page's origin (${apiUrl}). Set it to the Hub API base (e.g. http://127.0.0.1:3000), not the Vite/web app.`,
+        `Hub API URL is set to this page's origin (${apiUrl}). It must be the Hub API base (e.g. http://127.0.0.1:3000), not the Vite/web app.`,
       );
     }
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith('rayenz-hub-api-url')) {
+    if (err instanceof Error && err.message.startsWith('Hub API URL is set')) {
       throw err;
     }
     /* location unavailable (SSR/tests) */
@@ -85,7 +138,7 @@ export function parseHubApiJsonBody(text: string, fullUrl: string, configuredUrl
   const trimmed = text.trimStart();
   if (trimmed.startsWith('<')) {
     throw new Error(
-      `Hub API returned HTML instead of JSON from ${fullUrl}. rayenz-hub-api-url ("${configuredUrl}") is likely pointing at the web app — set it to the API base (e.g. http://127.0.0.1:3000).`,
+      `Hub API returned HTML instead of JSON from ${fullUrl}. Hub API URL ("${configuredUrl}") is likely pointing at the web app — it must be the API base (e.g. http://127.0.0.1:3000).`,
     );
   }
   if (!trimmed) {

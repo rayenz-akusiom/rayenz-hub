@@ -38,9 +38,18 @@ function apiEvent(overrides: { rawPath: string; method: string }): APIGatewayPro
 
 describe('local SAM CORS', () => {
   it('omits CORS headers when DynamoDB Local is not configured', async () => {
+    vi.stubEnv('AWS_SAM_LOCAL', '');
     vi.stubEnv('DYNAMODB_ENDPOINT', '');
     const result = await handler(apiEvent({ rawPath: '/v1/health', method: 'GET' }));
     expect(result.headers?.['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('adds CORS headers when AWS_SAM_LOCAL is set', async () => {
+    vi.stubEnv('AWS_SAM_LOCAL', 'true');
+    vi.stubEnv('DYNAMODB_ENDPOINT', '');
+    const result = await handler(apiEvent({ rawPath: '/v1/health', method: 'GET' }));
+    expect(result.statusCode).toBe(200);
+    expect(result.headers?.['access-control-allow-origin']).toBe('*');
   });
 
   it('adds CORS headers when DYNAMODB_ENDPOINT is set', async () => {

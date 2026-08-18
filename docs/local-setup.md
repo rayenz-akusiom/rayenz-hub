@@ -258,7 +258,7 @@ node scripts/start-local-api.mjs
 
 `start:api` merges committed [`infra/env.local.json`](../infra/env.local.json) with the overlay (overlay wins) and **exits** if the overlay is missing. `sam build --build-in-source` runs first. Without the build, SAM mounts raw TypeScript and health returns 500 (`Cannot find module 'handler'`). After that, esbuild watch rebuilds `.aws-sam/build` on save for `packages/api` and `packages/shared` — hit the API again; do not restart SAM. Restart `start:api` only when [`infra/template.yaml`](../infra/template.yaml) changes (new routes/env). Set `HUB_API_NO_WATCH=1` to keep the old one-shot bundle. `start-local-api.mjs` passes an absolute `--config-file` because SAM resolves that flag relative to `.aws-sam/build/template.yaml`, so `infra/samconfig.toml` would be looked up in the wrong folder.
 
-Do **not** leave `AWS_ACCESS_KEY_ID=local` set in the PowerShell window that runs SAM (that value is only for the one-time MinIO `s3 mb` command). `setup:local-cognito` exits with instructions if it sees that dummy. The Lambda uses your default AWS profile for Cognito (`cognito-idp:InitiateAuth`; `AdminGetUser` / list pools for the setup script).
+Do **not** leave `AWS_ACCESS_KEY_ID=local` set in the PowerShell window that runs SAM (that value is only for the one-time MinIO `s3 mb` command). `setup:local-cognito` exits with instructions if it sees that dummy. The Lambda uses your default AWS profile for Cognito (`cognito-idp:InitiateAuth`; `AdminGetUser` / list pools for the setup script). If `aws sts get-caller-identity` fails, run `aws login` — an expired console session makes SAM return **502** on every route (the browser reports that as CORS).
 
 Committed [`infra/env.local.json`](../infra/env.local.json) defaults (overlay overrides `HUB_USER_ID` to the Cognito `sub`):
 
@@ -270,7 +270,7 @@ Committed [`infra/env.local.json`](../infra/env.local.json) defaults (overlay ov
 | `S3_ENDPOINT`       | `http://host.docker.internal:9000` |
 
 
-`host.docker.internal` lets the SAM Lambda container reach services on the Windows host. SAM local adds CORS headers when `DYNAMODB_ENDPOINT` is set so the Vite app (`:5173`) can call `:3000`.
+`host.docker.internal` lets the SAM Lambda container reach services on the Windows host. SAM local adds CORS headers when `AWS_SAM_LOCAL` or `DYNAMODB_ENDPOINT` is set so the Vite app (`:5173`) can call `:3000`. If the browser reports CORS with `net::ERR_FAILED`, SAM often returned **502** without those headers because the host AWS session expired (`aws login`).
 
 ### Smoke tests
 

@@ -1,7 +1,9 @@
 import type { APIGatewayProxyResultV2 } from 'aws-lambda';
 
 function isLocalSam(): boolean {
-  return Boolean(process.env.DYNAMODB_ENDPOINT?.trim());
+  // SAM sets AWS_SAM_LOCAL=true. DYNAMODB_ENDPOINT is the local-stack overlay.
+  // Either is enough — missing Dynamo config must not strip CORS from health/OPTIONS.
+  return Boolean(process.env.AWS_SAM_LOCAL?.trim() || process.env.DYNAMODB_ENDPOINT?.trim());
 }
 
 /** CORS for SAM local only. Production HTTP API already injects these. */

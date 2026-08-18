@@ -29,4 +29,10 @@ describe('sam local start-api launcher', () => {
     const command = samLocalStartApiCommand(root);
     expect(command).not.toMatch(/--warm-containers/);
   });
+
+  it('preflights AWS credentials so an expired aws login does not 502 as CORS', () => {
+    const src = readFileSync(path.join(root, 'scripts/start-local-api.mjs'), 'utf8');
+    expect(src).toMatch(/await assertAwsSession\(\)/);
+    expect(src).toMatch(/aws login/);
+  });
 });

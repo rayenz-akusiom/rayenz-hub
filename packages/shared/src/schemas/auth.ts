@@ -66,6 +66,17 @@ export const AuthMeResponseSchema = z.object({
 });
 export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>;
 
+/** Cognito pool policy: min 8, upper, lower, number; symbols not required. */
+export function meetsCognitoPasswordPolicy(password: string): boolean {
+  return password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password);
+}
+
+export const ChangePasswordRequestSchema = z.object({
+  previousPassword: z.string().min(1),
+  proposedPassword: z.string().min(1),
+});
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
+
 export const InviteCreateResponseSchema = z.object({
   inviteId: z.string(),
   url: z.string().url(),

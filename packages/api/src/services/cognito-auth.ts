@@ -3,6 +3,7 @@ import {
   AdminCreateUserCommand,
   AdminGetUserCommand,
   AdminSetUserPasswordCommand,
+  ChangePasswordCommand,
   CodeMismatchException,
   CognitoIdentityProviderClient,
   ConfirmSignUpCommand,
@@ -10,6 +11,7 @@ import {
   GlobalSignOutCommand,
   InitiateAuthCommand,
   InvalidPasswordException,
+  LimitExceededException,
   NotAuthorizedException,
   ResendConfirmationCodeCommand,
   SignUpCommand,
@@ -17,7 +19,7 @@ import {
   UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { normalizeUsername, type AuthTokensResponse } from '@rayenz-hub/shared';
-import { AuthError, BadRequestError, ConflictError, type ApiEnv } from '../lib/auth.js';
+import { AuthError, BadRequestError, ConflictError, TooManyRequestsError, type ApiEnv } from '../lib/auth.js';
 import { encodeTestJwt } from '../lib/jwt.js';
 
 export const MEMORY_CONFIRMATION_CODE = '123456';
@@ -26,6 +28,7 @@ export interface CognitoAuthPort {
   initiateAuth(username: string, password: string): Promise<AuthTokensResponse>;
   refresh(refreshToken: string, username?: string): Promise<AuthTokensResponse>;
   globalSignOut(accessToken: string): Promise<void>;
+  changePassword(accessToken: string, previousPassword: string, proposedPassword: string): Promise<void>;
   signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }>;
   confirmSignUp(username: string, code: string): Promise<void>;
   resendConfirmationCode(username: string): Promise<void>;
@@ -60,17 +63,28 @@ function tokensFromAuthResult(
   };
 }
 
-function subFromAccessToken(accessToken: string): string {
+function payloadFromAccessToken(accessToken: string): { sub: string; username: string } {
   const parts = accessToken.split('.');
   if (parts.length !== 3) {
-    return '';
+    return { sub: '', username: '' };
   }
   try {
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as { sub?: string };
-    return payload.sub || '';
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+      sub?: string;
+      username?: string;
+      'cognito:username'?: string;
+    };
+    return {
+      sub: payload.sub || '',
+      username: payload['cognito:username'] || payload.username || '',
+    };
   } catch {
-    return '';
+    return { sub: '', username: '' };
   }
+}
+
+function subFromAccessToken(accessToken: string): string {
+  return payloadFromAccessToken(accessToken).sub;
 }
 
 export class AwsCognitoAuthPort implements CognitoAuthPort {
@@ -146,6 +160,29 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
       await this.client.send(new GlobalSignOutCommand({ AccessToken: accessToken }));
     } catch {
       /* best-effort */
+    }
+  }
+
+  async changePassword(accessToken: string, previousPassword: string, proposedPassword: string): Promise<void> {
+    try {
+      await this.client.send(
+        new ChangePasswordCommand({
+          AccessToken: accessToken,
+          PreviousPassword: previousPassword,
+          ProposedPassword: proposedPassword,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof InvalidPasswordException) {
+        throw new BadRequestError('Password does not meet requirements');
+      }
+      if (err instanceof NotAuthorizedException) {
+        throw new BadRequestError('Current password is incorrect');
+      }
+      if (err instanceof LimitExceededException) {
+        throw new TooManyRequestsError();
+      }
+      throw err;
     }
   }
 
@@ -321,6 +358,15 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
 
   async globalSignOut(): Promise<void> {
     /* no-op */
+  }
+
+  async changePassword(accessToken: string, previousPassword: string, proposedPassword: string): Promise<void> {
+    const username = normalizeUsername(payloadFromAccessToken(accessToken).username);
+    const user = username ? this.users.get(username) : undefined;
+    if (!user || user.password !== previousPassword) {
+      throw new BadRequestError('Current password is incorrect');
+    }
+    user.password = proposedPassword;
   }
 
   async signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {

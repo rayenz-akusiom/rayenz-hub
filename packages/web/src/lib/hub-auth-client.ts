@@ -1,6 +1,11 @@
 import { normalizeUsername } from '@rayenz-hub/shared';
-import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api-client';
-import { clearHubAuthSession, getHubAuthSession, setHubAuthSession } from './hub-auth-session';
+import { assertApiNotPageOrigin, clientApiFetch, getHubApiConfig } from '../api/hub-api-client';
+import {
+  clearHubAuthSession,
+  getHubAuthSession,
+  HubAuthRequiredError,
+  setHubAuthSession,
+} from './hub-auth-session';
 
 export type AuthTokensResponse = {
   accessToken: string;
@@ -86,4 +91,37 @@ export function signOutHubSession(): void {
     });
   }
   clearHubAuthSession();
+}
+
+export function changePasswordErrorFromUnknown(err: unknown): Error {
+  if (err instanceof HubAuthRequiredError) {
+    return new Error('Session expired — sign in again.');
+  }
+  const raw = err instanceof Error ? err.message : String(err);
+  if (raw === 'Hub API not configured') {
+    return new Error('This build has no Hub API URL.');
+  }
+  const jsonStart = raw.indexOf('{');
+  if (jsonStart >= 0) {
+    try {
+      const body = JSON.parse(raw.slice(jsonStart)) as { error?: unknown };
+      if (typeof body.error === 'string' && body.error.trim()) {
+        return new Error(body.error);
+      }
+    } catch {
+      /* ignore non-JSON */
+    }
+  }
+  return new Error('Could not change password.');
+}
+
+export async function changePassword(previousPassword: string, proposedPassword: string): Promise<void> {
+  try {
+    await clientApiFetch('/v1/auth/change-password', {
+      method: 'POST',
+      body: { previousPassword, proposedPassword },
+    });
+  } catch (err) {
+    throw changePasswordErrorFromUnknown(err);
+  }
 }

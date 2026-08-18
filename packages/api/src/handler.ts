@@ -43,6 +43,10 @@ export async function route(
     const { handleAuthSignOut } = await import('./handlers/auth-sign-in.js');
     return handleAuthSignOut(headers);
   }
+  if (method === 'POST' && path === '/v1/auth/change-password') {
+    const { handleAuthChangePassword } = await import('./handlers/auth-sign-in.js');
+    return handleAuthChangePassword(headers, event.body);
+  }
   if (method === 'GET' && path === '/v1/auth/me') {
     const { handleAuthMe } = await import('./handlers/auth-sign-in.js');
     return handleAuthMe(headers);

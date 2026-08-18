@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api';
-import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
+import { changePassword, hydrateHubOwnerFlag } from '../lib/hub-auth-client';
 import {
   HUB_AUTH_CHANGED_EVENT,
   HUB_AUTH_REQUIRED_EVENT,
@@ -23,14 +23,25 @@ function statusFromConfig(): string {
   return 'Not configured — this build has no Hub API URL.';
 }
 
+function canChangePassword(): boolean {
+  return Boolean(getHubAuthSession() && getHubApiConfig().url);
+}
+
 export function HubApiSettingsPage() {
   const [status, setStatus] = useState<string | null>(() => statusFromConfig());
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(canChangePassword);
+  const [previousPassword, setPreviousPassword] = useState('');
+  const [proposedPassword, setProposedPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
   const url = getHubApiConfig().url;
 
   function refreshStatusMessage() {
     setStatus(statusFromConfig());
+    setShowPasswordForm(canChangePassword());
   }
 
   useEffect(() => {
@@ -40,6 +51,7 @@ export function HubApiSettingsPage() {
     };
     const onAuthRequired = () => {
       setError('Session expired — sign in again.');
+      setPasswordStatus(null);
       refreshStatusMessage();
     };
     window.addEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
@@ -87,6 +99,28 @@ export function HubApiSettingsPage() {
     }
   }
 
+  async function handleChangePassword(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setPasswordStatus(null);
+    if (proposedPassword !== confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await changePassword(previousPassword, proposedPassword);
+      setPreviousPassword('');
+      setProposedPassword('');
+      setConfirmPassword('');
+      setPasswordStatus('Password updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   return (
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Hub API</h2>
@@ -124,6 +158,56 @@ export function HubApiSettingsPage() {
           {testing ? 'Testing…' : 'Test connection'}
         </button>
       </div>
+
+      {showPasswordForm && (
+        <form className="hub-web-form" onSubmit={(e) => void handleChangePassword(e)}>
+          <fieldset>
+            <legend>Change password</legend>
+            <p className="hub-web-hint">At least 8 characters, with uppercase, lowercase, and a number.</p>
+            {passwordStatus && (
+              <div className="hub-web-banner hub-web-banner--ok" role="status">
+                {passwordStatus}
+              </div>
+            )}
+            <label className="hub-web-field">
+              Current password
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={previousPassword}
+                onChange={(e) => setPreviousPassword(e.target.value)}
+              />
+            </label>
+            <label className="hub-web-field">
+              New password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={proposedPassword}
+                onChange={(e) => setProposedPassword(e.target.value)}
+              />
+            </label>
+            <label className="hub-web-field">
+              Confirm new password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              className="hub-web-button"
+              disabled={
+                changingPassword || !previousPassword || !proposedPassword || !confirmPassword
+              }
+            >
+              {changingPassword ? 'Updating…' : 'Update password'}
+            </button>
+          </fieldset>
+        </form>
+      )}
     </div>
   );
 }

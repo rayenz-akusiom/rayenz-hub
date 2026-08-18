@@ -225,6 +225,7 @@ Resources:
                 - cognito-idp:SignUp
                 - cognito-idp:ConfirmSignUp
                 - cognito-idp:ResendConfirmationCode
+                - cognito-idp:ChangePassword
               Resource: '*'
       Events:
         Health:
@@ -394,6 +395,12 @@ Resources:
           Properties:
             ApiId: !Ref HubHttpApi
             Path: /v1/auth/sign-out
+            Method: POST
+        AuthChangePassword:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/auth/change-password
             Method: POST
         AuthMe:
           Type: HttpApi

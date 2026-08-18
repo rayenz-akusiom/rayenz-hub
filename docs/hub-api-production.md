@@ -78,7 +78,7 @@ Optional: `$env:HUB_MIGRATE_SOURCE_USER_ID = 'rayenz-local'` if local writes alr
 
 ## Sign-in on Pages
 
-Sign in from the **left nav** (username `Rayenz`). The API URL is baked in at `npm run publish:hub` (from `VITE_HUB_API_URL` / `HUB_API_URL`, or stack output `HubApiUrl`). Tokens stay in localStorage until Sign out. Access tokens last 24 hours; refresh tokens last up to 10 years (Cognito max; existing refresh tokens keep their original lifetime until the next password sign-in after `deploy:cognito`). Settings → Hub API is status + Test connection only. No API URL in the build → client-only, no login.
+Sign in from the **left nav** (username `Rayenz`). The API URL is baked in at `npm run publish:hub` (from `VITE_HUB_API_URL` / `HUB_API_URL`, or stack output `HubApiUrl`). Tokens stay in localStorage until Sign out. Access tokens last 24 hours; refresh tokens last up to 10 years (Cognito max; existing refresh tokens keep their original lifetime until the next password sign-in after `deploy:cognito`). Settings → Hub API is status, Test connection, and self-serve **change password** (current + new; session stays signed in). Password recovery is admin-only on the Cognito pool. No API URL in the build → client-only, no login.
 
 `HUB_USER_ID` in `infra/env.local.json` / SAM overlays is for local scripts (migration, owner sync). Request identity is always the Cognito JWT `sub`.
 
@@ -120,7 +120,7 @@ AWS Budgets notify at 50% and 80%. At **95%** SNS invokes `SpendLockFunction`, w
 
 | Allowed under lock       | Blocked under lock                        |
 | ------------------------ | ----------------------------------------- |
-| Health, sign-in, refresh | Glance, swaps glance, suggest generate    |
+| Health, sign-in, refresh, change password | Glance, swaps glance, suggest generate    |
 | Signed-in ordinary CRUD  | Invite create / redeem / register / confirm |
 | Owner invite list/revoke | Unauthenticated data routes (already 401) |
 

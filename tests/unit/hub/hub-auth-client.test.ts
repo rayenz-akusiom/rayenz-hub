@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  changePassword,
+  changePasswordErrorFromUnknown,
   signInErrorFromResponse,
   signInWithPassword,
   signOutHubSession,
 } from '../../../packages/web/src/lib/hub-auth-client.ts';
-import { clearHubAuthSession, getHubAuthSession, isHubOwner, setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
+import { clearHubAuthSession, getHubAuthSession, HubAuthRequiredError, isHubOwner, setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
 
 afterEach(() => {
   localStorage.clear();
@@ -93,5 +95,39 @@ describe('hub-auth-client', () => {
     expect(isHubOwner()).toBe(false);
     setHubAuthSession({ accessToken: 't', username: 'Rayenz', isOwner: true });
     expect(isHubOwner()).toBe(true);
+  });
+
+  it('maps change-password API JSON errors', () => {
+    expect(
+      changePasswordErrorFromUnknown(
+        new Error('Hub API error 400: {"error":"Current password is incorrect","code":"BAD_REQUEST"}'),
+      ).message,
+    ).toBe('Current password is incorrect');
+    expect(changePasswordErrorFromUnknown(new HubAuthRequiredError('Hub API unauthorized')).message).toBe(
+      'Session expired — sign in again.',
+    );
+    expect(changePasswordErrorFromUnknown(new Error('Hub API not configured')).message).toBe(
+      'This build has no Hub API URL.',
+    );
+  });
+
+  it('posts change-password through the authenticated client', async () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({ accessToken: 'access', username: 'Rayenz' });
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '{"ok":true}',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await changePassword('old-pass', 'Newpassw0rd');
+    expect(fetchMock).toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:3000/v1/auth/change-password');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({
+      previousPassword: 'old-pass',
+      proposedPassword: 'Newpassw0rd',
+    });
   });
 });

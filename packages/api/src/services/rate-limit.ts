@@ -7,6 +7,7 @@ type DocClient = Pick<import('@aws-sdk/lib-dynamodb').DynamoDBDocumentClient, 's
 export const RATE_LIMITS = {
   signin: { limit: 20, windowMs: 15 * 60 * 1000 },
   register: { limit: 10, windowMs: 15 * 60 * 1000 },
+  changePassword: { limit: 20, windowMs: 15 * 60 * 1000 },
   invite: { limit: 30, windowMs: 24 * 60 * 60 * 1000 },
   publicDeck: { limit: 60, windowMs: 15 * 60 * 1000 },
   publicSwaps: { limit: 20, windowMs: 15 * 60 * 1000 },

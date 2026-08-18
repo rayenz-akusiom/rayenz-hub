@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  handleAuthChangePassword,
   handleAuthMe,
   handleAuthRegister,
   handleAuthRefresh,
@@ -139,6 +140,57 @@ describe('auth session API', () => {
     const res = await handleAuthRefresh(
       {},
       JSON.stringify({ refreshToken: 'anything', username: 'sandbox' }),
+      services,
+    );
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('changes password when the current password matches', async () => {
+    const { services } = createMemoryStores();
+    const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' });
+    const res = await handleAuthChangePassword(
+      { authorization: `Bearer ${token}` },
+      JSON.stringify({ previousPassword: 'test-password-1', proposedPassword: 'Newpassw0rd' }),
+      services,
+    );
+    expect(res.statusCode).toBe(200);
+    const signIn = await handleAuthSignIn(
+      {},
+      JSON.stringify({ username: 'Rayenz', password: 'Newpassw0rd' }),
+      services,
+    );
+    expect(signIn.statusCode).toBe(200);
+  });
+
+  it('rejects a wrong current password with 400', async () => {
+    const { services } = createMemoryStores();
+    const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' });
+    const res = await handleAuthChangePassword(
+      { authorization: `Bearer ${token}` },
+      JSON.stringify({ previousPassword: 'wrong-password-1', proposedPassword: 'Newpassw0rd' }),
+      services,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body)).error).toBe('Current password is incorrect');
+  });
+
+  it('rejects a weak new password', async () => {
+    const { services } = createMemoryStores();
+    const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' });
+    const res = await handleAuthChangePassword(
+      { authorization: `Bearer ${token}` },
+      JSON.stringify({ previousPassword: 'test-password-1', proposedPassword: 'nouppercas1' }),
+      services,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(String(res.body)).error).toBe('Password does not meet requirements');
+  });
+
+  it('rejects change-password without a token', async () => {
+    const { services } = createMemoryStores();
+    const res = await handleAuthChangePassword(
+      {},
+      JSON.stringify({ previousPassword: 'test-password-1', proposedPassword: 'Newpassw0rd' }),
       services,
     );
     expect(res.statusCode).toBe(401);

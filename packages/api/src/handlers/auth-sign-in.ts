@@ -1,5 +1,6 @@
 import {
   AuthMeResponseSchema,
+  ChangePasswordRequestSchema,
   ConfirmRequestSchema,
   RefreshRequestSchema,
   RegisterPendingResponseSchema,
@@ -8,6 +9,7 @@ import {
   SignInRequestSchema,
   isReservedUsername,
   isSandboxUsername,
+  meetsCognitoPasswordPolicy,
   resolveUserId,
 } from '@rayenz-hub/shared';
 import { AuthError, ForbiddenError } from '../lib/auth.js';
@@ -94,6 +96,36 @@ export async function handleAuthSignOut(
     if (token) {
       await services.cognitoAuth.globalSignOut(token);
     }
+    return jsonResponse(200, { ok: true });
+  } catch (e) {
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) return mapped;
+    throw e;
+  }
+}
+
+export async function handleAuthChangePassword(
+  headers: Record<string, string | undefined>,
+  body: string | null | undefined,
+  services: AppServices = getAppServices(),
+) {
+  try {
+    const { auth } = await services.authService.authenticate(headers);
+    await services.rateLimit.consume('changePassword', auth.sub || clientIp(headers));
+    const parsedBody = parseJsonBody(body);
+    if (!parsedBody.ok) return parsedBody.response;
+    const parsed = ChangePasswordRequestSchema.safeParse(parsedBody.value);
+    if (!parsed.success) {
+      return errorResponse(400, 'Invalid request body', 'BAD_REQUEST');
+    }
+    if (parsed.data.previousPassword === parsed.data.proposedPassword) {
+      return errorResponse(400, 'New password must be different from the current password', 'BAD_REQUEST');
+    }
+    if (!meetsCognitoPasswordPolicy(parsed.data.proposedPassword)) {
+      return errorResponse(400, 'Password does not meet requirements', 'BAD_REQUEST');
+    }
+    const token = bearerToken(headers);
+    await services.cognitoAuth.changePassword(token, parsed.data.previousPassword, parsed.data.proposedPassword);
     return jsonResponse(200, { ok: true });
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);

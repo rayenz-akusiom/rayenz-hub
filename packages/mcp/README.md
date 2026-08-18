@@ -4,7 +4,7 @@ Stdio [MCP](https://modelcontextprotocol.io/) server for Rayenz Hub MTG data. Ag
 
 ## Prerequisites
 
-1. Hub API running locally (or deployed) with a valid API key.
+1. Hub API running locally (or deployed). MCP signs in with a Cognito username/password.
 2. From monorepo root:
 
 ```powershell
@@ -18,13 +18,15 @@ Local defaults (see `infra/env.local.json`; `HUB_USER_ID` is overridden to the R
 | Env | Example |
 |-----|---------|
 | `HUB_API_URL` | `http://127.0.0.1:3000` |
-| `HUB_API_KEY` | `test-api-key-local` |
+| `HUB_USERNAME` | `Rayenz` |
+| `HUB_PASSWORD` | (Cognito password; do not commit) |
 
 ## Run
 
 ```powershell
 $env:HUB_API_URL = "http://127.0.0.1:3000"
-$env:HUB_API_KEY = "test-api-key-local"
+$env:HUB_USERNAME = "Rayenz"
+$env:HUB_PASSWORD = "<cognito-password>"
 npm run start:mcp
 ```
 
@@ -34,7 +36,7 @@ Logs go to **stderr** only (stdout is the MCP JSON-RPC channel).
 
 ## Cursor MCP config
 
-Add a stdio server (Cursor Settings → MCP, or your user/project `mcp.json`):
+Add a stdio server (Cursor Settings → MCP, or your user/project `mcp.json`). Put `HUB_PASSWORD` in the local Cursor MCP env — do not commit it:
 
 ```json
 {
@@ -48,7 +50,7 @@ Add a stdio server (Cursor Settings → MCP, or your user/project `mcp.json`):
       "cwd": "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub",
       "env": {
         "HUB_API_URL": "http://127.0.0.1:3000",
-        "HUB_API_KEY": "test-api-key-local"
+        "HUB_USERNAME": "Rayenz"
       }
     }
   }
@@ -78,6 +80,7 @@ Out of scope: Dailies, live Archidekt API, glance PNGs.
 
 ```powershell
 $env:HUB_API_URL = "http://127.0.0.1:3000"
-$env:HUB_API_KEY = "test-api-key-local"
+$env:HUB_USERNAME = "Rayenz"
+$env:HUB_PASSWORD = "<cognito-password>"
 npx @modelcontextprotocol/inspector npx tsx packages/mcp/src/index.ts
 ```

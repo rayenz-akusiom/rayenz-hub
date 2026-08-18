@@ -14,11 +14,13 @@ import { MemoryDocClient } from './memory-dynamo.ts';
 import { MemoryS3Store } from './memory-s3.ts';
 import { asBlobStore } from './test-blob-store.ts';
 
-export const TEST_API_KEY = 'test-api-key-local';
+import { encodeTestJwt } from '../../../packages/api/src/lib/jwt.ts';
+
+export const TEST_JWT_SUB = 'default';
+export const TEST_JWT = encodeTestJwt({ sub: TEST_JWT_SUB, username: 'Rayenz' });
 
 export function testApiEnv(overrides: Partial<ApiEnv> = {}): ApiEnv {
   return {
-    HUB_API_KEY: TEST_API_KEY,
     HUB_USER_ID: 'default',
     HUB_TABLE_NAME: 'HubTable',
     HUB_BUCKET_NAME: 'rayenz-hub-data-local',
@@ -30,7 +32,7 @@ export function testApiEnv(overrides: Partial<ApiEnv> = {}): ApiEnv {
   };
 }
 
-export const TEST_AUTH_HEADERS = { authorization: `Bearer ${TEST_API_KEY}` };
+export const TEST_AUTH_HEADERS = { authorization: `Bearer ${TEST_JWT}` };
 
 export function createTestServices(overrides: ContainerOverrides = {}): AppServices {
   const memoryFallback = new MemoryDocClient();

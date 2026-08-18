@@ -87,7 +87,7 @@ export function InviteRedeemPage() {
         username?: string;
         sub?: string;
       };
-      setHubApiConfig({ url: cfg.url, key: cfg.key });
+      setHubApiConfig({ url: cfg.url });
       setHubAuthSession({
         accessToken: body.accessToken,
         idToken: body.idToken,

@@ -2,7 +2,6 @@ import type { AuthContext } from '@rayenz-hub/shared';
 import { looksLikeJwt, verifyBearerJwt } from './jwt.js';
 
 export interface ApiEnv {
-  HUB_API_KEY?: string;
   HUB_USER_ID?: string;
   HUB_TABLE_NAME?: string;
   HUB_BUCKET_NAME?: string;
@@ -21,7 +20,6 @@ export interface ApiEnv {
 
 export function readEnv(): ApiEnv {
   return {
-    HUB_API_KEY: process.env.HUB_API_KEY,
     HUB_USER_ID: process.env.HUB_USER_ID,
     HUB_TABLE_NAME: process.env.HUB_TABLE_NAME || 'HubTable',
     HUB_BUCKET_NAME: process.env.HUB_BUCKET_NAME || 'rayenz-hub-data-local',
@@ -39,7 +37,7 @@ export function readEnv(): ApiEnv {
   };
 }
 
-export function parseAuthContext(headers: Record<string, string | undefined>, env: ApiEnv): AuthContext {
+export function parseAuthContext(headers: Record<string, string | undefined>, _env: ApiEnv): AuthContext {
   const authHeader = headers.authorization || headers.Authorization;
   if (!authHeader) {
     return { type: 'none', validated: false };
@@ -49,19 +47,10 @@ export function parseAuthContext(headers: Record<string, string | undefined>, en
     return { type: 'none', validated: false };
   }
   const token = match[1];
-  const expected = env.HUB_API_KEY;
-  if (expected && token === expected) {
-    return {
-      type: 'api-key',
-      validated: true,
-      username: env.HUB_OWNER_USERNAME || 'Rayenz',
-      sub: env.HUB_USER_ID,
-    };
-  }
   if (looksLikeJwt(token)) {
     return { type: 'jwt', validated: false };
   }
-  return { type: 'api-key', validated: false };
+  return { type: 'none', validated: false };
 }
 
 export async function parseAuthContextAsync(

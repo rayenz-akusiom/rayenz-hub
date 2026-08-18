@@ -79,6 +79,45 @@ export function notifyAuthRequired(): void {
   }
 }
 
+/** Exchange a stored refresh token for a new access token. Returns null on failure. */
+export async function tryRefreshAccessToken(apiUrl: string): Promise<string | null> {
+  const session = getHubAuthSession();
+  const refreshToken = session?.refreshToken;
+  if (!refreshToken || !apiUrl) {
+    return null;
+  }
+  try {
+    const res = await fetch(`${apiUrl.replace(/\/$/, '')}/v1/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ refreshToken, username: session.username }),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const body = JSON.parse(await res.text()) as {
+      accessToken?: string;
+      idToken?: string;
+      refreshToken?: string;
+      username?: string;
+      sub?: string;
+    };
+    if (!body.accessToken) {
+      return null;
+    }
+    setHubAuthSession({
+      accessToken: body.accessToken,
+      idToken: body.idToken || session.idToken,
+      refreshToken: body.refreshToken || refreshToken,
+      username: body.username || session.username,
+      sub: body.sub || session.sub,
+    });
+    return body.accessToken;
+  } catch {
+    return null;
+  }
+}
+
 export class HubAuthRequiredError extends Error {
   constructor(message = 'Hub API sign-in required') {
     super(message);

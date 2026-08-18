@@ -17,16 +17,14 @@ const persistDeckSuggestSettings = vi.fn();
 const persistOrderReconcileSettings = vi.fn();
 const getHubApiConfig = vi.fn(() => ({
   url: 'http://127.0.0.1:3000',
-  key: 'test-api-key-local',
   enabled: true,
 }));
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   getHubApiConfig: (...args: unknown[]) => getHubApiConfig(...args),
-  setHubApiConfig: vi.fn((input: { url?: string; key?: string }) => {
+  setHubApiConfig: vi.fn((input: { url?: string }) => {
     const url = (input.url ?? '').replace(/\/$/, '');
-    const key = input.key ?? '';
-    return { url, key, enabled: !!(url && key) };
+    return { url, enabled: !!url };
   }),
   clearHubApiConfig: vi.fn(),
   assertApiNotPageOrigin: vi.fn(),
@@ -85,7 +83,6 @@ describe('DailiesSettingsPage', () => {
   beforeEach(() => {
     getHubApiConfig.mockReturnValue({
       url: 'http://127.0.0.1:3000',
-      key: 'test-api-key-local',
       enabled: true,
     });
     loadDailiesSettings.mockResolvedValue({
@@ -172,7 +169,7 @@ describe('DailiesSettingsPage', () => {
   });
 
   it('warns when Hub API is not configured', async () => {
-    getHubApiConfig.mockReturnValue({ url: '', key: '', enabled: false });
+    getHubApiConfig.mockReturnValue({ url: '', enabled: false });
     render(<DailiesSettingsPage />);
     await waitFor(() => {
       expect(screen.getByText(/Hub API is not configured/i)).toBeInTheDocument();

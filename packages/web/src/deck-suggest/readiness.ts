@@ -79,7 +79,7 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
     items.push({
       id: 'api',
       ok: false,
-      label: 'Configure API URL and key in Settings',
+      label: 'Sign in to the Hub API in Settings',
     });
   }
 

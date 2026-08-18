@@ -5,7 +5,7 @@
  * Usage:
  *   npm run seed:local-library
  *   npx tsx scripts/seed-local-library.ts --profiles-dir "C:\Users\...\mtg\decks\profiles"
- *   npx tsx scripts/seed-local-library.ts --api-url http://127.0.0.1:3000 --api-key test-api-key-local
+ *   npx tsx scripts/seed-local-library.ts --api-url http://127.0.0.1:3000 --username Rayenz
  *
  * Prerequisites: DynamoDB Local, MinIO bucket, and `npm run start:api` on :3000.
  */
@@ -30,18 +30,20 @@ import {
   type CategoryDef,
   type DeckDocument,
 } from '../packages/shared/src/index.ts';
+import { signInHubSession } from './hub-cli-session.ts';
 
 const ARCHIDEKT_API = 'https://archidekt.com/api';
 const USER_AGENT = 'rayenz-hub-seed-local-library/1.0';
 const REQUEST_DELAY_MS = 150;
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
-const DEFAULT_API_KEY = 'test-api-key-local';
+const DEFAULT_USERNAME = 'Rayenz';
 const DEFAULT_PROFILES_DIR = path.join(homedir(), 'mtg', 'decks', 'profiles');
 
 interface CliOptions {
   profilesDir: string;
   apiUrl: string;
-  apiKey: string;
+  username: string;
+  password: string;
 }
 
 interface ProfileMeta {
@@ -69,7 +71,8 @@ function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     profilesDir: DEFAULT_PROFILES_DIR,
     apiUrl: process.env.HUB_API_URL || DEFAULT_API_URL,
-    apiKey: process.env.HUB_API_KEY || DEFAULT_API_KEY,
+    username: process.env.HUB_USERNAME || DEFAULT_USERNAME,
+    password: process.env.HUB_PASSWORD || '',
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -77,8 +80,10 @@ function parseArgs(argv: string[]): CliOptions {
       opts.profilesDir = argv[++i] ?? opts.profilesDir;
     } else if (arg === '--api-url') {
       opts.apiUrl = argv[++i] ?? opts.apiUrl;
-    } else if (arg === '--api-key') {
-      opts.apiKey = argv[++i] ?? opts.apiKey;
+    } else if (arg === '--username') {
+      opts.username = argv[++i] ?? opts.username;
+    } else if (arg === '--password') {
+      opts.password = argv[++i] ?? opts.password;
     }
   }
   return opts;
@@ -374,7 +379,7 @@ async function fetchJson(url: string): Promise<Record<string, unknown>> {
 
 async function apiRequest(
   apiUrl: string,
-  apiKey: string,
+  accessToken: string,
   method: string,
   route: string,
   body?: unknown,
@@ -382,7 +387,7 @@ async function apiRequest(
   const res = await fetch(`${apiUrl.replace(/\/$/, '')}${route}`, {
     method,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
@@ -439,6 +444,7 @@ async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   console.log(`Profiles dir: ${opts.profilesDir}`);
   console.log(`API: ${opts.apiUrl}`);
+  const accessToken = await signInHubSession(opts.apiUrl, opts.username, opts.password);
 
   const profiles = await loadProfiles(opts.profilesDir);
   console.log(`Found ${profiles.length} profile(s)\n`);
@@ -450,7 +456,7 @@ async function main(): Promise<void> {
   for (const profile of profiles) {
     const label = `${profile.deckId} (${profile.name})`;
     try {
-      await apiRequest(opts.apiUrl, opts.apiKey, 'PUT', `/v1/profiles/${encodeURIComponent(profile.deckId)}`, {
+      await apiRequest(opts.apiUrl, accessToken, 'PUT', `/v1/profiles/${encodeURIComponent(profile.deckId)}`, {
         deckName: profile.name,
         formatVersion: 1,
         protectedCards: profile.protectedCards,
@@ -477,7 +483,7 @@ async function main(): Promise<void> {
         name: profile.name,
         formatHint: profile.formatHint,
       });
-      await apiRequest(opts.apiUrl, opts.apiKey, 'PUT', `/v1/decks/${encodeURIComponent(profile.deckId)}`, doc);
+      await apiRequest(opts.apiUrl, accessToken, 'PUT', `/v1/decks/${encodeURIComponent(profile.deckId)}`, doc);
       decksOk += 1;
       console.log(`✓ deck     ${label}  cards=${doc.cards.length} format=${doc.format}`);
     } catch (err) {
@@ -491,10 +497,10 @@ async function main(): Promise<void> {
   console.log(`Profiles loaded: ${profilesOk}/${profiles.length}`);
   console.log(`Decks loaded:    ${decksOk}/${profiles.length}`);
 
-  const listDecks = (await apiRequest(opts.apiUrl, opts.apiKey, 'GET', '/v1/decks')) as {
+  const listDecks = (await apiRequest(opts.apiUrl, accessToken, 'GET', '/v1/decks')) as {
     decks?: unknown[];
   };
-  const listProfiles = (await apiRequest(opts.apiUrl, opts.apiKey, 'GET', '/v1/profiles')) as {
+  const listProfiles = (await apiRequest(opts.apiUrl, accessToken, 'GET', '/v1/profiles')) as {
     profiles?: unknown[];
   };
   const deckCount = listDecks?.decks?.length ?? 0;

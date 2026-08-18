@@ -4,7 +4,7 @@ import { SettingsShell } from '../../packages/web/src/SettingsShell';
 import { DeckBuilderSettingsPage } from '../../packages/web/src/pages/DeckBuilderSettingsPage';
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
-  getHubApiConfig: () => ({ url: '', key: '', enabled: false }),
+  getHubApiConfig: () => ({ url: '', enabled: false }),
   loadDeckBuilderSettings: vi.fn(async () => ({ settings: null, source: 'defaults' })),
   persistDeckBuilderSettings: vi.fn(async () => 'local'),
   loadDailiesSettings: vi.fn(async () => ({ settings: null, source: 'defaults' })),

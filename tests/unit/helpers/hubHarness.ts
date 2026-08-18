@@ -96,13 +96,14 @@ export function jsonResponse(body: unknown, init: { status?: number; ok?: boolea
   };
 }
 
-/** Enable Hub API URL + key in localStorage for dual-mode tests. */
+/** Enable Hub API URL + a login session for dual-mode tests. */
 export function enableHubApi(
   url = 'http://127.0.0.1:3000',
-  key = 'test-api-key-local',
+  accessToken = 'test-access-token',
 ): void {
   localStorage.setItem('rayenz-hub-api-url', url);
-  localStorage.setItem('rayenz-hub-api-key', key);
+  localStorage.removeItem('rayenz-hub-api-key');
+  sessionStorage.setItem('rayenz-hub-access-token', accessToken);
 }
 
 /** @deprecated Prefer enableHubApi */

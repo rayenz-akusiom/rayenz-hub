@@ -71,7 +71,7 @@ export function DeckSuggestSettingsPage() {
 
       {!apiConfig.enabled && (
         <div className="hub-web-banner hub-web-banner--warn" role="status">
-          Configure API URL and key in Settings to load or save these preferences.{' '}
+          Sign in to the Hub API in Settings to load or save these preferences.{' '}
           <a href="#/settings/hub-api">Open API settings</a>.
         </div>
       )}

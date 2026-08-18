@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from '../../packages/api/src/handler.ts';
 
@@ -41,16 +41,10 @@ describe('GET /v1/health', () => {
 });
 
 describe('unknown routes', () => {
-  afterEach(() => {
-    delete process.env.HUB_API_KEY;
-  });
-
   it('returns 404 for unmapped paths', async () => {
-    process.env.HUB_API_KEY = 'test-key';
     const result = await handler(apiEvent({
       rawPath: '/v1/unknown',
       method: 'GET',
-      headers: { authorization: 'Bearer test-key' },
     }));
     expect(result.statusCode).toBe(404);
   });

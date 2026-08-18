@@ -6,7 +6,7 @@ export const mockGetDeck = vi.fn(async (): Promise<DeckDocument | null> => null)
 export const mockSaveDeck = vi.fn(async (doc: DeckDocument) => doc);
 export const mockDeleteDeck = vi.fn(async () => undefined);
 export const mockIsApiConfigured = vi.fn(() => false);
-export const mockGetHubApiConfig = vi.fn(() => ({ url: '', key: '', enabled: false }));
+export const mockGetHubApiConfig = vi.fn(() => ({ url: '', enabled: false }));
 export const mockApiListDecks = vi.fn(async (): Promise<unknown[]> => []);
 export const mockApiGetDeck = vi.fn(async (): Promise<DeckDocument | null> => null);
 export const mockApiPutDeck = vi.fn(async (doc: DeckDocument) => doc);

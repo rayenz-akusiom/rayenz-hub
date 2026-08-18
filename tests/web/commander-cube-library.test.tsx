@@ -19,7 +19,7 @@ const mergeDeckDocuments = vi.fn(
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => false,
-  getHubApiConfig: () => ({ url: '', key: '', enabled: false }),
+  getHubApiConfig: () => ({ url: '', enabled: false }),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({

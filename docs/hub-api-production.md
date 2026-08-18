@@ -2,7 +2,7 @@
 
 The public Hub **website stays on GitHub Pages**. AWS hosts the API, DynamoDB, S3, Cognito, and cost controls. Bare “deploy” still means Pages (`npm run deploy:hub`). AWS is `npm run deploy:cognito` then `npm run deploy:api`.
 
-Browser production identity is a **Cognito session** (username/password). Do **not** paste a shared production API key into Pages localStorage as the user identity. A local operator key remains valid for SAM local / MCP (`HUB_API_KEY` → `HUB_USER_ID` = Rayenz Cognito `sub`).
+Browser production identity is a **Cognito session** (username/password). MCP and CLI scripts sign in the same way (`HUB_USERNAME` / `HUB_PASSWORD`). There is no operator API key.
 
 ## Pre-deploy secrets
 
@@ -13,13 +13,10 @@ function New-HubSecret([int]$Length = 40) {
   -join ((1..$Length) | ForEach-Object { Get-Random -InputObject ([char[]]((48..57) + (65..90) + (97..122))) })
 }
 
-$apiKey = New-HubSecret
 $invite = New-HubSecret
 
-aws secretsmanager create-secret --name "rayenz-hub/prod/api-key" --secret-string $apiKey --region us-east-1
 aws secretsmanager create-secret --name "rayenz-hub/prod/invite-hmac" --secret-string $invite --region us-east-1
 
-Write-Host "HUB_API_KEY (operator/MCP only; not Pages): $apiKey"
 Write-Host "HUB_INVITE_SECRET: $invite"
 ```
 
@@ -28,18 +25,16 @@ Names must match `infra/samconfig.toml` exactly (no leading `/`). Do not use a n
 If a secret already exists, use `put-secret-value` instead of `create-secret`. Retrieve later with:
 
 ```powershell
-aws secretsmanager get-secret-value --secret-id rayenz-hub/prod/api-key --region us-east-1 --query SecretString --output text
 aws secretsmanager get-secret-value --secret-id rayenz-hub/prod/invite-hmac --region us-east-1 --query SecretString --output text
 ```
 
 
 | Store                         | Purpose                                                                             |
 | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `rayenz-hub/prod/api-key`     | Operator Bearer key (`HUB_API_KEY` → `HUB_USER_ID`). Not the Pages login.           |
-| `rayenz-hub/prod/invite-hmac` | HMAC/AES key for invite tokens (`HUB_INVITE_SECRET`). Must differ from the API key. |
+| `rayenz-hub/prod/invite-hmac` | HMAC/AES key for invite tokens (`HUB_INVITE_SECRET`). |
 
 
-Do **not** put these in git or Pages localStorage. An SSM SecureString at `/rayenz-hub/prod/api-key` is unused by the stack; you can delete it.
+Do **not** put these in git or Pages localStorage. An unused Secrets Manager secret at `rayenz-hub/prod/api-key` (legacy operator key) can be deleted after the next API deploy.
 
 **Not Secrets Manager:** Cognito client secret (the Cognito stack generates it; `deploy:api` reads it via `DescribeUserPoolClient` and does not commit it). Owner password `HUB_OWNER_PASSWORD` and owner email `HUB_OWNER_EMAIL` for `provision-owner-rayenz.ts` — keep the password in a password manager; it becomes the Cognito `Rayenz` password (email is marked verified by admin). Optional `BudgetNotifyEmail` is a SAM parameter, not a secret.
 
@@ -100,7 +95,7 @@ npm run setup:local-cognito   # once; writes infra/env.local.overlay.json
 npm run start:api             # merges overlay, then sam local
 ```
 
-Do not set `AWS_ACCESS_KEY_ID=local` in the PowerShell window that runs SAM or `setup:local-cognito` — that value is only for the one-time MinIO `s3 mb` command. Operator Bearer key (`test-api-key-local`) still maps to `HUB_USER_ID` from the overlay (the Rayenz `sub`), so MCP and the signed-in SPA share one partition. MCP: `HUB_API_URL` + `HUB_API_KEY` against **local** only — never a global production secret that maps every caller to one user.
+Do not set `AWS_ACCESS_KEY_ID=local` in the PowerShell window that runs SAM or `setup:local-cognito` — that value is only for the one-time MinIO `s3 mb` command. MCP and CLI scripts sign in as `Rayenz` (`HUB_USERNAME` / `HUB_PASSWORD`) so they share the SPA partition (`USER::{sub}`). Do not commit the password.
 
 ## Owner sync (local → production)
 

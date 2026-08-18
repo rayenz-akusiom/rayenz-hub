@@ -7,7 +7,7 @@ import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => false,
-  getHubApiConfig: () => ({ url: '', key: '', enabled: false }),
+  getHubApiConfig: () => ({ url: '', enabled: false }),
   loadDeckBuilderSettings: async () => ({ settings: null, source: 'defaults' }),
 }));
 

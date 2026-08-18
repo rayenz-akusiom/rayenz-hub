@@ -19,6 +19,7 @@ import {
   persistDeckBuilderSettings,
   persistDailiesSettings,
 } from '../../../packages/web/src/api/hub-api.ts';
+import { setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
 import {
   enableHubApi,
   installHubApiGlobalsLifecycle,
@@ -28,52 +29,55 @@ import {
 installHubApiGlobalsLifecycle();
 
 describe('HubApiClient config and parsing', () => {
-  it('getHubApiConfig returns disabled when url or key missing', () => {
-    expect(getHubApiConfig()).toEqual({ url: '', key: '', enabled: false });
+  it('getHubApiConfig returns disabled when url or session missing', () => {
+    expect(getHubApiConfig()).toEqual({ url: '', enabled: false });
     expect(isApiConfigured()).toBe(false);
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
     expect(getHubApiConfig().enabled).toBe(false);
   });
 
-  it('getHubApiConfig strips trailing slash and enables when both set', () => {
+  it('getHubApiConfig strips trailing slash and enables when URL and session are set', () => {
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000/');
-    localStorage.setItem('rayenz-hub-api-key', 'key');
+    setHubAuthSession({ accessToken: 'test-access-token' });
     expect(getHubApiConfig()).toEqual({
       url: 'http://127.0.0.1:3000',
-      key: 'key',
       enabled: true,
     });
     expect(isApiConfigured()).toBe(true);
   });
 
-  it('setHubApiConfig writes and strips trailing slash; empty clears keys', () => {
-    expect(setHubApiConfig({ url: 'http://127.0.0.1:3000/', key: 'test-api-key-local' })).toEqual({
+  it('strips a leftover operator key and does not enable API mode from it', () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
+    expect(getHubApiConfig()).toEqual({
       url: 'http://127.0.0.1:3000',
-      key: 'test-api-key-local',
-      enabled: true,
-    });
-    expect(localStorage.getItem('rayenz-hub-api-url')).toBe('http://127.0.0.1:3000');
-    expect(localStorage.getItem('rayenz-hub-api-key')).toBe('test-api-key-local');
-
-    expect(setHubApiConfig({ url: 'http://127.0.0.1:3000', key: '' })).toEqual({
-      url: 'http://127.0.0.1:3000',
-      key: '',
       enabled: false,
     });
     expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
+  });
 
-    expect(setHubApiConfig({ url: '', key: 'x' })).toEqual({
+  it('setHubApiConfig writes and strips trailing slash; empty clears the URL', () => {
+    expect(setHubApiConfig({ url: 'http://127.0.0.1:3000/' })).toEqual({
+      url: 'http://127.0.0.1:3000',
+      enabled: false,
+    });
+    expect(localStorage.getItem('rayenz-hub-api-url')).toBe('http://127.0.0.1:3000');
+
+    setHubAuthSession({ accessToken: 'test-access-token' });
+    expect(getHubApiConfig().enabled).toBe(true);
+
+    expect(setHubApiConfig({ url: '' })).toEqual({
       url: '',
-      key: 'x',
       enabled: false,
     });
     expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
   });
 
-  it('clearHubApiConfig removes both keys', () => {
+  it('clearHubApiConfig removes the URL and leftover key', () => {
     enableHubApi();
+    localStorage.setItem('rayenz-hub-api-key', 'stale');
     clearHubApiConfig();
-    expect(getHubApiConfig()).toEqual({ url: '', key: '', enabled: false });
+    expect(getHubApiConfig()).toEqual({ url: '', enabled: false });
     expect(localStorage.getItem('rayenz-hub-api-url')).toBe(null);
     expect(localStorage.getItem('rayenz-hub-api-key')).toBe(null);
   });
@@ -134,9 +138,38 @@ describe('clientApiFetch', () => {
 
   it('rejects when api url equals page origin', async () => {
     localStorage.setItem('rayenz-hub-api-url', location.origin.replace(/\/$/, ''));
-    localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
+    setHubAuthSession({ accessToken: 'test-access-token' });
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({})));
     await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow(/rayenz-hub-api-url is set to this page's origin/);
+  });
+
+  it('refreshes the access token once on 401 then retries', async () => {
+    enableHubApi();
+    setHubAuthSession({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-me',
+      username: 'Rayenz',
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/v1/auth/refresh')) {
+        return jsonResponse({
+          accessToken: 'new-token',
+          refreshToken: 'refresh-me',
+          username: 'Rayenz',
+          sub: 'rayenz-sub',
+          expiresIn: 3600,
+        });
+      }
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers?.Authorization === 'Bearer expired-token') {
+        return jsonResponse('denied', { status: 401, ok: false });
+      }
+      return jsonResponse({ payload: { ok: true } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(clientApiFetch('/v1/settings/dailies')).resolves.toEqual({ payload: { ok: true } });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
 

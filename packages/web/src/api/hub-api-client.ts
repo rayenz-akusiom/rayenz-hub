@@ -4,52 +4,61 @@
  */
 
 import { SET_POOL_FORMAT_VERSION } from '@rayenz-hub/shared';
-import { getAccessToken, HubAuthRequiredError, notifyAuthRequired } from '../lib/hub-auth-session';
+import {
+  getAccessToken,
+  HubAuthRequiredError,
+  notifyAuthRequired,
+  tryRefreshAccessToken,
+} from '../lib/hub-auth-session';
 
 const API_URL_KEY = 'rayenz-hub-api-url';
-const API_KEY_KEY = 'rayenz-hub-api-key';
+const LEGACY_API_KEY_KEY = 'rayenz-hub-api-key';
+
+function stripLegacyApiKey(): void {
+  try {
+    localStorage.removeItem(LEGACY_API_KEY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface HubApiConfig {
   url: string;
-  key: string;
   enabled: boolean;
 }
 
 export function getHubApiConfig(): HubApiConfig {
+  stripLegacyApiKey();
   let url = '';
-  let key = '';
   try {
     url = (localStorage.getItem(API_URL_KEY) || '').replace(/\/$/, '');
-    key = localStorage.getItem(API_KEY_KEY) || '';
   } catch {
     /* ignore */
   }
-  return { url, key, enabled: !!(url && (key || getAccessToken())) };
+  return { url, enabled: !!(url && getAccessToken()) };
 }
 
-/** Persist Hub API base URL and key to localStorage (device-local). Empty values remove that key. */
-export function setHubApiConfig(input: { url?: string; key?: string }): HubApiConfig {
+/** Persist Hub API base URL to localStorage (device-local). Empty values remove that key. */
+export function setHubApiConfig(input: { url?: string }): HubApiConfig {
   const url = (input.url ?? '').trim().replace(/\/$/, '');
-  const key = (input.key ?? '').trim();
   try {
     if (url) localStorage.setItem(API_URL_KEY, url);
     else localStorage.removeItem(API_URL_KEY);
-    if (key) localStorage.setItem(API_KEY_KEY, key);
-    else localStorage.removeItem(API_KEY_KEY);
   } catch {
     /* ignore quota / private mode */
   }
+  stripLegacyApiKey();
   return getHubApiConfig();
 }
 
-/** Remove Hub API URL and key from localStorage. */
+/** Remove Hub API URL from localStorage. */
 export function clearHubApiConfig(): void {
   try {
     localStorage.removeItem(API_URL_KEY);
-    localStorage.removeItem(API_KEY_KEY);
   } catch {
     /* ignore */
   }
+  stripLegacyApiKey();
 }
 
 export function isApiConfigured(): boolean {
@@ -87,23 +96,35 @@ export function parseHubApiJsonBody(text: string, fullUrl: string, configuredUrl
 
 export async function clientApiFetch(path: string, options?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<unknown> {
   const cfg = getHubApiConfig();
-  const token = getAccessToken() || cfg.key;
+  let token = getAccessToken();
   if (!cfg.url || !token) {
     return Promise.reject(new Error('Hub API not configured'));
   }
   assertApiNotPageOrigin(cfg.url);
   const opts = options || {};
-  const headers = {
-    ...(opts.headers || {}),
-    Authorization: 'Bearer ' + token,
-    'Content-Type': 'application/json',
-  };
   const fullUrl = cfg.url + path;
-  const res = await fetch(fullUrl, {
-    method: opts.method || 'GET',
-    headers,
-    body: opts.body != null ? JSON.stringify(opts.body) : undefined,
-  });
+  const body = opts.body != null ? JSON.stringify(opts.body) : undefined;
+
+  async function doFetch(accessToken: string): Promise<Response> {
+    return fetch(fullUrl, {
+      method: opts.method || 'GET',
+      headers: {
+        ...(opts.headers || {}),
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json',
+      },
+      body,
+    });
+  }
+
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken(cfg.url);
+    if (refreshed) {
+      token = refreshed;
+      res = await doFetch(token);
+    }
+  }
   const peek = await res.text();
   if (res.status === 401) {
     notifyAuthRequired();

@@ -26,7 +26,7 @@ export type InviteRecord = {
 };
 
 function inviteSecret(env: ApiEnv): Buffer {
-  const raw = env.HUB_INVITE_SECRET || env.HUB_API_KEY || 'local-invite-secret';
+  const raw = env.HUB_INVITE_SECRET || 'local-invite-secret';
   return crypto.createHash('sha256').update(raw).digest();
 }
 

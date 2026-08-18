@@ -89,7 +89,7 @@ export async function handleAuthMe(
   try {
     const { auth, env } = await services.authService.authenticate(headers);
     const sub = resolveUserId(auth, env);
-    const username = auth.username || (auth.type === 'api-key' ? services.authService.ownerUsername() : '');
+    const username = auth.username || '';
     return jsonResponse(
       200,
       AuthMeResponseSchema.parse({

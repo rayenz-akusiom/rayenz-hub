@@ -154,7 +154,7 @@ export function GlanceGenerateButton({ deck }: Props) {
 
   const onOpen = useCallback(() => {
     if (!apiReady) {
-      setError('Hub API is required to generate a glance image. Configure API URL and key in settings.');
+      setError('Hub API is required to generate a glance image. Sign in to the Hub API in Settings.');
       setOpen(true);
       setPhase('options');
       return;

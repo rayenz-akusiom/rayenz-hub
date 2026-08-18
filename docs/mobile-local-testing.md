@@ -31,7 +31,7 @@ The **Device access (LAN)** panel lists:
 - Hub API base URL (`http://<PC-LAN-IP>:3000`)
 - When the API is running, a copyable `localStorage` snippet (fallback)
 
-On the phone, open Hub → **Settings → Hub API**, paste the LAN API URL, set key `test-api-key-local`, and Save (or use **Test connection**).
+On the phone, open Hub → **Settings → Hub API**, paste the LAN API URL, and **Sign in** as Rayenz.
 
 The control panel stays on localhost; only Hub Web and Hub API are meant for devices.
 
@@ -72,15 +72,16 @@ On the phone/iPad Hub:
 
 1. Open **Settings → Hub API** (`#/settings/hub-api`)
 2. API base URL = `http://<PC-LAN-IP>:3000` (from the dashboard Device access panel)
-3. API key = `test-api-key-local`
+3. Sign in as Rayenz
 4. Save (optional: Test connection)
 
 Fallback — phone browser console or dashboard snippet:
 
 ```javascript
 localStorage.setItem('rayenz-hub-api-url', 'http://192.168.x.x:3000');
-localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');
 ```
+
+Then sign in on the Settings → Hub API tab.
 
 Use the PC’s LAN IP, not `127.0.0.1`. Phone storage is separate from the PC’s — configure it on the device.
 
@@ -94,7 +95,7 @@ CORS allows `*` in `infra/template.yaml`, so cross-origin from the Vite origin i
 2. `npm run dev:dashboard` (or `npm run dev:web` / `npm run start:api`)  
 3. Firewall allows 5173 (and 3000 if needed)  
 4. Phone → Hub Web URL from Device access (or Vite Network URL)  
-5. If API: Settings → Hub API on the device (`http://<PC-LAN-IP>:3000` + `test-api-key-local`)
+5. If API: Settings → Hub API on the device (`http://<PC-LAN-IP>:3000` + Sign in)
 
 ---
 

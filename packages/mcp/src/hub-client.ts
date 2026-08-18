@@ -1,13 +1,19 @@
 /**
- * Thin Hub API client for the MCP server (env-configured Bearer auth).
- * Use local SAM (`HUB_API_URL` + `HUB_API_KEY`) mapped to the Rayenz partition
- * (`HUB_USER_ID` / owner sub). Do not use a global production secret as a
- * multi-user identity.
+ * Thin Hub API client for the MCP server.
+ * Signs in with HUB_USERNAME / HUB_PASSWORD against local SAM (live Cognito pool)
+ * and sends the access JWT. Do not commit the password.
  */
 
 export type HubClientConfig = {
   url: string;
-  key: string;
+  username: string;
+  password: string;
+};
+
+type SessionTokens = {
+  accessToken: string;
+  refreshToken?: string;
+  username?: string;
 };
 
 export class HubApiError extends Error {
@@ -28,13 +34,18 @@ export function loadHubConfigFromEnv(
   const url = String(env.HUB_API_URL || '')
     .trim()
     .replace(/\/$/, '');
-  const key = String(env.HUB_API_KEY || '').trim();
-  if (!url || !key) {
-    throw new Error(
-      'HUB_API_URL and HUB_API_KEY are required (e.g. http://127.0.0.1:3000 + test-api-key-local)',
-    );
+  const username = String(env.HUB_USERNAME || '').trim();
+  const password = String(env.HUB_PASSWORD || '').trim();
+  if (!url) {
+    throw new Error('HUB_API_URL is required (e.g. http://127.0.0.1:3000)');
   }
-  return { url, key };
+  if (!username) {
+    throw new Error('HUB_USERNAME is required (e.g. Rayenz)');
+  }
+  if (!password) {
+    throw new Error('HUB_PASSWORD is required');
+  }
+  return { url, username, password };
 }
 
 export type HubFetchOptions = {
@@ -44,21 +55,100 @@ export type HubFetchOptions = {
   nullOn404?: boolean;
 };
 
+async function parseTokenResponse(res: Response, label: string): Promise<SessionTokens> {
+  const text = await res.text();
+  if (!res.ok) {
+    throw new HubApiError(res.status, text || label);
+  }
+  const body = JSON.parse(text) as {
+    accessToken?: string;
+    refreshToken?: string;
+    username?: string;
+  };
+  if (!body.accessToken) {
+    throw new Error(`${label} response missing accessToken`);
+  }
+  return {
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken,
+    username: body.username,
+  };
+}
+
 export function createHubClient(config: HubClientConfig) {
+  let session: SessionTokens | null = null;
+
+  async function signIn(): Promise<SessionTokens> {
+    const res = await fetch(`${config.url}/v1/auth/sign-in`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ username: config.username, password: config.password }),
+    });
+    session = await parseTokenResponse(res, 'sign-in');
+    return session;
+  }
+
+  async function refresh(): Promise<SessionTokens | null> {
+    const refreshToken = session?.refreshToken;
+    if (!refreshToken) {
+      return null;
+    }
+    try {
+      const res = await fetch(`${config.url}/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ refreshToken, username: session?.username || config.username }),
+      });
+      if (!res.ok) {
+        return null;
+      }
+      session = await parseTokenResponse(res, 'refresh');
+      return session;
+    } catch {
+      return null;
+    }
+  }
+
+  async function ensureAccessToken(): Promise<string> {
+    if (session?.accessToken) {
+      return session.accessToken;
+    }
+    return (await signIn()).accessToken;
+  }
+
   async function hubFetch(path: string, options: HubFetchOptions = {}): Promise<unknown> {
     const nullOn404 = options.nullOn404 !== false;
     const method = options.method || 'GET';
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${config.key}`,
-      Accept: 'application/json',
-    };
-    let body: string | undefined;
-    if (options.body !== undefined) {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(options.body);
-    }
     const fullUrl = `${config.url}${path.startsWith('/') ? path : `/${path}`}`;
-    const res = await fetch(fullUrl, { method, headers, body });
+    let requestBody: string | undefined;
+    if (options.body !== undefined) {
+      requestBody = JSON.stringify(options.body);
+    }
+
+    async function doFetch(accessToken: string): Promise<Response> {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      };
+      if (requestBody !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
+      return fetch(fullUrl, { method, headers, body: requestBody });
+    }
+
+    let token = await ensureAccessToken();
+    let res = await doFetch(token);
+    if (res.status === 401) {
+      const refreshed = await refresh();
+      if (refreshed) {
+        token = refreshed.accessToken;
+        res = await doFetch(token);
+      } else {
+        session = null;
+        token = (await signIn()).accessToken;
+        res = await doFetch(token);
+      }
+    }
     const text = await res.text();
 
     if (res.status === 401) {

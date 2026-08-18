@@ -1,17 +1,15 @@
 /** Shared Hub glance POST helpers (deck + swaps). */
 
-async function getGlanceApiConfig(): Promise<{ url: string; key: string }> {
+async function getGlanceApiConfig(): Promise<{ url: string; token: string }> {
   const { getHubApiConfig, assertApiNotPageOrigin } = await import('../api/hub-api-client');
   const { getAccessToken } = await import('./hub-auth-session');
   const cfg = getHubApiConfig();
-  const token = getAccessToken() || cfg.key;
+  const token = getAccessToken();
   if (!cfg.url || !token) {
-    throw new Error(
-      'Hub API not configured. Set the API URL and sign in (or set a local operator key).',
-    );
+    throw new Error('Hub API not configured. Set the API URL and sign in.');
   }
   assertApiNotPageOrigin(cfg.url);
-  return { url: cfg.url, key: token };
+  return { url: cfg.url, token };
 }
 
 export async function postGlanceRequest(
@@ -19,16 +17,30 @@ export async function postGlanceRequest(
   body: unknown,
 ): Promise<Response> {
   const cfg = await getGlanceApiConfig();
-  const res = await fetch(`${cfg.url}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${cfg.key}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  const payload = JSON.stringify(body);
+
+  async function doFetch(accessToken: string): Promise<Response> {
+    return fetch(`${cfg.url}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: payload,
+    });
+  }
+
+  let res = await doFetch(cfg.token);
   if (res.status === 401) {
-    throw new Error('Hub API unauthorized — sign in again.');
+    const { tryRefreshAccessToken, notifyAuthRequired } = await import('./hub-auth-session');
+    const refreshed = await tryRefreshAccessToken(cfg.url);
+    if (refreshed) {
+      res = await doFetch(refreshed);
+    }
+    if (res.status === 401) {
+      notifyAuthRequired();
+      throw new Error('Hub API unauthorized — sign in again.');
+    }
   }
   if (!res.ok) {
     const peek = await res.text();

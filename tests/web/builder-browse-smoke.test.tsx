@@ -16,7 +16,7 @@ const deleteDeck = vi.fn<(deckId: string) => Promise<void>>();
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => false,
-  getHubApiConfig: () => ({ url: '', key: '', enabled: false }),
+  getHubApiConfig: () => ({ url: '', enabled: false }),
   loadDeckBuilderSettings: async () => ({ settings: null, source: 'defaults' }),
 }));
 

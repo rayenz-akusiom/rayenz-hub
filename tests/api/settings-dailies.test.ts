@@ -10,7 +10,7 @@ describe('settings dailies API', () => {
     resetAppServices();
   });
 
-  it('returns 401 without API key', async () => {
+  it('returns 401 without a session', async () => {
     const services = createTestServices();
     const result = await handleSettings(
       'PUT',
@@ -23,7 +23,7 @@ describe('settings dailies API', () => {
     expect(JSON.parse(String(result.body)).error).toBe('Unauthorized');
   });
 
-  it('returns 401 with invalid API key', async () => {
+  it('returns 401 with an invalid bearer token', async () => {
     const memory = new MemoryDocClient();
     const services = createTestServices({
       settingsRepository: new SettingsRepository(memory, 'HubTable'),

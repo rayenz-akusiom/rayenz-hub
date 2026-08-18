@@ -8,6 +8,7 @@ import {
 import {
   HUB_AUTH_REQUIRED_EVENT,
   clearHubAuthSession,
+  getAccessToken,
   getHubAuthSession,
   setHubAuthSession,
 } from '../lib/hub-auth-session';
@@ -31,8 +32,6 @@ export function signInErrorFromResponse(status: number, text: string): Error {
 export function HubApiSettingsPage() {
   const initial = getHubApiConfig();
   const [url, setUrl] = useState(initial.url);
-  const [key, setKey] = useState(initial.key);
-  const [showKey, setShowKey] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -42,19 +41,17 @@ export function HubApiSettingsPage() {
   const [signingIn, setSigningIn] = useState(false);
   const [sessionLabel, setSessionLabel] = useState(() => getHubAuthSession()?.username || '');
 
-  const configured = !!(normalizeUrl(url) && (key.trim() || sessionLabel));
+  const configured = !!(normalizeUrl(url) && sessionLabel);
 
   function refreshStatusMessage(cfg = getHubApiConfig()) {
     const session = getHubAuthSession();
     setSessionLabel(session?.username || '');
     if (session && cfg.url) {
       setStatus(`Signed in as ${session.username || 'user'} — API mode on (${cfg.url}).`);
-    } else if (cfg.enabled) {
-      setStatus(`Configured — API mode on (${cfg.url}).`);
-    } else if (cfg.url && !session && !cfg.key) {
-      setStatus('API URL saved — sign in as Rayenz, or add a local operator key for MCP/curl.');
-    } else if (cfg.url || cfg.key) {
-      setStatus('Partial — URL plus sign-in (or a local operator key) is required for API mode.');
+    } else if (cfg.url && !session) {
+      setStatus('API URL saved — sign in to enable API mode.');
+    } else if (session && !cfg.url) {
+      setStatus('Signed in — save an API base URL to enable API mode.');
     } else {
       setStatus('Not configured — apps use localStorage only.');
     }
@@ -78,9 +75,8 @@ export function HubApiSettingsPage() {
       if (nextUrl) {
         assertApiNotPageOrigin(nextUrl);
       }
-      const cfg = setHubApiConfig({ url: nextUrl, key: key.trim() });
+      const cfg = setHubApiConfig({ url: nextUrl });
       setUrl(cfg.url);
-      setKey(cfg.key);
       refreshStatusMessage(cfg);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -94,7 +90,6 @@ export function HubApiSettingsPage() {
     clearHubApiConfig();
     clearHubAuthSession();
     setUrl('');
-    setKey('');
     setUsername('');
     setPassword('');
     setSessionLabel('');
@@ -111,7 +106,7 @@ export function HubApiSettingsPage() {
         throw new Error('Enter an API base URL first.');
       }
       assertApiNotPageOrigin(nextUrl);
-      setHubApiConfig({ url: nextUrl, key: key.trim() });
+      setHubApiConfig({ url: nextUrl });
       const res = await fetch(`${nextUrl}/v1/auth/sign-in`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -163,8 +158,7 @@ export function HubApiSettingsPage() {
     setError(null);
     setStatus(null);
     const nextUrl = normalizeUrl(url);
-    const nextKey = key.trim();
-    const token = getHubAuthSession()?.accessToken || nextKey;
+    const token = getAccessToken();
     try {
       if (!nextUrl) {
         throw new Error('Enter an API base URL first.');
@@ -175,19 +169,19 @@ export function HubApiSettingsPage() {
         throw new Error(`Health check failed (${healthRes.status}).`);
       }
       if (!token) {
-        setStatus('Health OK — sign in as Rayenz (or add a local operator key) and Save to enable API mode.');
+        setStatus('Health OK — sign in to enable API mode.');
         return;
       }
       const authRes = await fetch(`${nextUrl}/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       if (authRes.status === 401) {
-        throw new Error('Unauthorized — sign in again or check the local operator key.');
+        throw new Error('Unauthorized — sign in again.');
       }
       if (!authRes.ok && authRes.status !== 404) {
         throw new Error(`API check failed (${authRes.status}).`);
       }
-      setStatus('Connection OK — health and credentials look good. Save to keep the URL.');
+      setStatus('Connection OK — health and session look good. Save to keep the URL.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -199,9 +193,9 @@ export function HubApiSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Hub API</h2>
       <p className="hub-web-hint">
-        Optional sync backend. Sign in as Rayenz (local SAM uses the live Cognito pool). The
-        operator key is for MCP/curl, not the browser session. Default:{' '}
-        <code>http://127.0.0.1:3000</code>. Do not set the URL to this page&apos;s origin.
+        Optional sync backend. Set the API URL and sign in as Rayenz (local SAM uses the live
+        Cognito pool). Default: <code>http://127.0.0.1:3000</code>. Do not set the URL to this
+        page&apos;s origin.
       </p>
 
       {error && (
@@ -235,29 +229,6 @@ export function HubApiSettingsPage() {
               onChange={(e) => setUrl(e.target.value)}
             />
           </label>
-          <div className="hub-web-field">
-            <span className="hub-web-field-label">Local operator key (optional)</span>
-            <div className="hub-web-secret-row">
-              <input
-                id="hub-api-key"
-                type={showKey ? 'text' : 'password'}
-                name="hub-api-key"
-                autoComplete="off"
-                placeholder="test-api-key-local"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                aria-label="API key"
-              />
-              <button
-                type="button"
-                className="hub-web-button hub-web-button--secondary hub-web-secret-toggle"
-                onClick={() => setShowKey((v) => !v)}
-                aria-pressed={showKey}
-              >
-                {showKey ? 'Hide key' : 'Show key'}
-              </button>
-            </div>
-          </div>
         </fieldset>
 
         <div className="hub-web-form-actions">

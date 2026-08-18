@@ -12,7 +12,7 @@ type InviteRow = {
 
 async function ownerFetch(path: string, method = 'GET'): Promise<Response> {
   const cfg = getHubApiConfig();
-  const token = getAccessToken() || cfg.key;
+  const token = getAccessToken();
   if (!cfg.url || !token) {
     throw new Error('Sign in as Rayenz first.');
   }

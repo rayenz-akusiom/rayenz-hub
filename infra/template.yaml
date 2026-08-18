@@ -11,23 +11,19 @@ Globals:
       - x86_64
 
 Parameters:
-  HubApiKeySecretId:
-    Type: String
-    Default: ''
-    Description: Secrets Manager secret name for operator HUB_API_KEY (e.g. rayenz-hub/prod/api-key). Empty = inline HubApiKey (local). Do not use SSM SecureString here — CloudFormation cannot resolve ssm-secure into Lambda env vars.
   HubInviteSecretId:
     Type: String
     Default: ''
-    Description: Secrets Manager secret name for HUB_INVITE_SECRET (e.g. rayenz-hub/prod/invite-hmac). Do not end the name with a hyphen plus six characters (CloudFormation treats that as a partial ARN). Empty = fall back to HubApiKey (local).
-  HubApiKey:
+    Description: Secrets Manager secret name for HUB_INVITE_SECRET (e.g. rayenz-hub/prod/invite-hmac). Do not end the name with a hyphen plus six characters (CloudFormation treats that as a partial ARN). Empty = inline HubInviteSecret (local).
+  HubInviteSecret:
     Type: String
-    Default: local-dev-key
+    Default: local-invite-secret
     NoEcho: true
-    Description: Inline API key for SAM local only. Production uses HubApiKeySecretId.
+    Description: Inline invite HMAC for SAM local only. Production uses HubInviteSecretId.
   HubUserId:
     Type: String
     Default: default
-    Description: Local/operator partition user id (Rayenz Cognito sub after cutover). Not a browser identity.
+    Description: Local partition user id (Rayenz Cognito sub after cutover). Not a browser identity.
   HubOwnerUsername:
     Type: String
     Default: Rayenz
@@ -63,7 +59,7 @@ Parameters:
 Conditions:
   UseLocalDynamo: !Not [!Equals [!Ref DynamoDbEndpoint, '']]
   UseLocalS3: !Not [!Equals [!Ref S3Endpoint, '']]
-  UseAwsSecrets: !Not [!Equals [!Ref HubApiKeySecretId, '']]
+  UseAwsSecrets: !Not [!Equals [!Ref HubInviteSecretId, '']]
 
 Resources:
   HubTable:
@@ -193,10 +189,6 @@ Resources:
         Variables:
           HUB_TABLE_NAME: !Ref HubTable
           HUB_BUCKET_NAME: !Ref HubDataBucket
-          HUB_API_KEY: !If
-            - UseAwsSecrets
-            - !Sub '{{resolve:secretsmanager:${HubApiKeySecretId}:SecretString}}'
-            - !Ref HubApiKey
           HUB_USER_ID: !Ref HubUserId
           HUB_OWNER_USERNAME: !Ref HubOwnerUsername
           HUB_PAGES_ORIGIN: !Ref HubPagesOrigin
@@ -207,7 +199,7 @@ Resources:
           HUB_INVITE_SECRET: !If
             - UseAwsSecrets
             - !Sub '{{resolve:secretsmanager:${HubInviteSecretId}:SecretString}}'
-            - !Ref HubApiKey
+            - !Ref HubInviteSecret
           DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
           # Empty string (not NoValue) so `sam local --env-vars` can override for MinIO
           S3_ENDPOINT: !If [UseLocalS3, !Ref S3Endpoint, '']

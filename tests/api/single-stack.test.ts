@@ -24,8 +24,8 @@ describe('production stack inventory', () => {
     expect(samconfig).not.toMatch(/staging/i);
     expect(template).not.toMatch(/\{\{resolve:ssm-secure/);
     expect(template).toMatch(/Type: HttpApi[\s\S]*Path: \/\{\s*proxy\+\}[\s\S]*Method: OPTIONS/);
-    expect(template).toMatch(/resolve:secretsmanager:\$\{HubApiKeySecretId\}:SecretString/);
     expect(template).toMatch(/resolve:secretsmanager:\$\{HubInviteSecretId\}:SecretString/);
+    expect(template).not.toMatch(/HubApiKeySecretId|HUB_API_KEY/);
     expect(template).toMatch(/Path: \/v1\/auth\/confirm/);
     expect(template).toMatch(/Path: \/v1\/auth\/resend-confirmation/);
     expect(template).not.toMatch(/Type: AWS::Cognito::UserPool/);

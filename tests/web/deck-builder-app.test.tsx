@@ -34,8 +34,8 @@ vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
   getHubApiConfig: () =>
     apiConfigured.value
-      ? { url: 'http://127.0.0.1:3000', key: 'test-api-key', enabled: true }
-      : { url: '', key: '', enabled: false },
+      ? { url: 'http://127.0.0.1:3000', enabled: true }
+      : { url: '', enabled: false },
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-store', () => ({

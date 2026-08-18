@@ -2,7 +2,7 @@
 
 Hub API Lambda package.
 
-Production browser auth is Cognito JWT (`Authorization: Bearer <access token>`). Cognito is stack `rayenz-hub-cognito` (`infra/cognito.yaml`, termination protection on). Local SAM sign-in uses that live pool via `npm run setup:local-cognito`. MCP may use `HUB_API_KEY` mapped to `HUB_USER_ID` (Rayenz `sub` after the overlay). See `docs/hub-api-production.md`.
+Production browser auth is Cognito JWT (`Authorization: Bearer <access token>`). Cognito is stack `rayenz-hub-cognito` (`infra/cognito.yaml`, termination protection on). Local SAM sign-in uses that live pool via `npm run setup:local-cognito`. MCP signs in with `HUB_USERNAME` / `HUB_PASSWORD`. See `docs/hub-api-production.md`.
 
 ## Glance image generation
 

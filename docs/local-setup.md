@@ -33,7 +33,7 @@ For **live HTTP API** testing you also need:
 
 ## Glance image generation
 
-`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, at most 100 cards after swaps; underfull decks pad with dashed “+” placeholders). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` / `rayenz-hub-api-key` are configured. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
+`POST /v1/decks/{deckId}/glance` is **API-only** (Commander decks, at most 100 cards after swaps; underfull decks pad with dashed “+” placeholders). The Hub SPA calls it from Commander Builder when `rayenz-hub-api-url` is set and the user is signed in. Swaps glance is `POST /v1/swaps/glance` (multi-page densify layout).
 
 - **Layout strategies**: [glance-layout.md](./glance-layout.md) — deck packing regions, swap pack modes, densify ladder
 - **Art resolution**: Lambda resolves Scryfall CDN URLs server-side (`User-Agent` required). Decks without `scryfallId` use batched `/cards/collection` lookup before compositing.
@@ -108,7 +108,8 @@ With the API up (`npm run start:api` or the dashboard):
 ```powershell
 cd C:\DeepStorage\Documents\Workspaces\Hub\rayenz-hub
 $env:HUB_API_URL = "http://127.0.0.1:3000"
-$env:HUB_API_KEY = "test-api-key-local"
+$env:HUB_USERNAME = "Rayenz"
+$env:HUB_PASSWORD = "<cognito-password>"
 npm run start:mcp
 ```
 
@@ -126,7 +127,7 @@ Cursor MCP config (stdio; cwd = monorepo root):
       "cwd": "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub",
       "env": {
         "HUB_API_URL": "http://127.0.0.1:3000",
-        "HUB_API_KEY": "test-api-key-local"
+        "HUB_USERNAME": "Rayenz"
       }
     }
   }
@@ -264,8 +265,7 @@ Committed [`infra/env.local.json`](../infra/env.local.json) defaults (overlay ov
 
 | Variable            | Value                              |
 | ------------------- | ---------------------------------- |
-| `HUB_API_KEY`       | `test-api-key-local`               |
-| `HUB_USER_ID`       | `rayenz-local` (fallback)          |
+| `HUB_USER_ID`       | overlay sets Cognito `sub`         |
 | `DYNAMODB_ENDPOINT` | `http://host.docker.internal:8000` |
 | `S3_ENDPOINT`       | `http://host.docker.internal:9000` |
 
@@ -278,8 +278,11 @@ Committed [`infra/env.local.json`](../infra/env.local.json) defaults (overlay ov
 # Public
 curl http://127.0.0.1:3000/v1/health
 
-# Protected
-$headers = @{ Authorization = "Bearer test-api-key-local" }
+# Protected (sign in first)
+$signIn = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/v1/auth/sign-in" `
+  -ContentType "application/json" `
+  -Body '{"username":"Rayenz","password":"<cognito-password>"}'
+$headers = @{ Authorization = "Bearer $($signIn.accessToken)" }
 Invoke-RestMethod -Method Put -Uri "http://127.0.0.1:3000/v1/settings/dailies" `
   -Headers $headers -ContentType "application/json" `
   -Body '{"payload":{"wishlists":[]}}'
@@ -307,7 +310,7 @@ Serve `rayenz-hub/rayenz-hub/` over **HTTP** (not `file://`). Options:
 - `npx serve rayenz-hub/rayenz-hub`
 - Playwright static server (used by `npm run test:e2e`)
 
-Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): API URL `http://127.0.0.1:3000`, **Sign in as Rayenz** (live Cognito). Do **not** paste the operator key into the SPA for normal local work — that key is for MCP/curl and maps to the same Cognito `sub` once the overlay is in place.
+Configure the client in the Hub SPA under **Settings → Hub API** (`#/settings/hub-api`): API URL `http://127.0.0.1:3000`, **Sign in as Rayenz** (live Cognito).
 
 DevTools equivalent (URL only):
 
@@ -322,7 +325,7 @@ Try:
 | -------------------- | ------------------------------------------ |
 | `#/dailies`          | Settings pull/push via `hub-api-client` |
 | `#/settings` | Hub Settings shell (tabs: Hub API, Dailies, Deck Suggest, Order Reconcile) |
-| `#/settings/hub-api` | API base URL and key (device localStorage) |
+| `#/settings/hub-api` | API base URL and sign-in (device localStorage + session) |
 | `#/settings/dailies` | Deep-link to Dailies settings tab |
 | `#/deck-suggest`     | Suggest + review (legacy `#/deck-review` redirects here) |
 
@@ -331,7 +334,6 @@ Disable API mode (Hub falls back to `localStorage` only) via **Clear** on the Hu
 
 ```javascript
 localStorage.removeItem('rayenz-hub-api-url');
-localStorage.removeItem('rayenz-hub-api-key');
 ```
 
 ---
@@ -375,11 +377,12 @@ Only when a live AWS endpoint exists:
 
 ```powershell
 $env:HUB_API_URL = "https://<api-id>.execute-api.us-east-1.amazonaws.com"
-$env:HUB_API_KEY = "<key-from-ssm>"
+$env:HUB_USERNAME = "Rayenz"
+$env:HUB_PASSWORD = "<cognito-password>"
 npm run test:api:deployed
 ```
 
-Skips automatically when `HUB_API_URL` / `HUB_API_KEY` are unset.
+Skips automatically when `HUB_API_URL` / `HUB_USERNAME` / `HUB_PASSWORD` are unset.
 
 ---
 
@@ -397,7 +400,7 @@ Need real HTTP?
   → npm run setup:local-cognito   (once; gitignored Cognito overlay)
   → Docker (DynamoDB persist + MinIO persist)
   → npm run start:api
-  → Vite Hub + Sign in as Rayenz (no operator key in the SPA)
+  → Vite Hub + Sign in as Rayenz
 ```
 
 

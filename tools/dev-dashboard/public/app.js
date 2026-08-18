@@ -63,7 +63,6 @@ function lanOrigin(lanUrl) {
 function apiLocalStorageSnippet(lanIp) {
   return [
     `localStorage.setItem('rayenz-hub-api-url', 'http://${lanIp}:3000');`,
-    `localStorage.setItem('rayenz-hub-api-key', 'test-api-key-local');`,
   ].join('\n');
 }
 

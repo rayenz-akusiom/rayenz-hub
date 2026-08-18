@@ -20,7 +20,7 @@ describe('composition root', () => {
   it('allows repository overrides without process.env', async () => {
     const memory = new MemoryDocClient();
     const repo = new SettingsRepository(memory, 'HubTable');
-    const env = testApiEnv({ HUB_API_KEY: 'override-key' });
+    const env = testApiEnv();
     const services = createAppServices({
       apiEnv: env,
       settingsRepository: repo,
@@ -39,14 +39,14 @@ describe('composition root', () => {
     await handleSettings(
       'PUT',
       'dailies',
-      { authorization: 'Bearer override-key' },
+      TEST_AUTH_HEADERS,
       JSON.stringify({ payload: { wishlists: [] } }),
       services,
     );
     const ok = await handleSettings(
       'GET',
       'dailies',
-      { authorization: 'Bearer override-key' },
+      TEST_AUTH_HEADERS,
       null,
       services,
     );

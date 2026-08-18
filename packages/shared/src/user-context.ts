@@ -1,5 +1,5 @@
 export interface AuthContext {
-  type: 'api-key' | 'jwt' | 'none';
+  type: 'jwt' | 'none';
   validated: boolean;
   sub?: string;
   username?: string;
@@ -14,17 +14,11 @@ export const BOOTSTRAP_USER_ID = 'default';
 
 /**
  * Sole source of DynamoDB partition userId.
- * JWT `sub` is primary. Validated API keys require explicit `HUB_USER_ID`.
+ * JWT `sub` is the only identity.
  */
-export function resolveUserId(auth: AuthContext, env: UserContextEnv = {}): string {
+export function resolveUserId(auth: AuthContext, _env: UserContextEnv = {}): string {
   if (auth.type === 'jwt' && auth.validated && auth.sub) {
     return auth.sub;
-  }
-  if (auth.type === 'api-key' && auth.validated) {
-    if (!env.HUB_USER_ID) {
-      throw new Error('Unauthorized');
-    }
-    return env.HUB_USER_ID;
   }
   throw new Error('Unauthorized');
 }

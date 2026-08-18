@@ -62,7 +62,7 @@ const sampleCard = {
 };
 
 describe('GET /v1/suggest/releases', () => {
-  it('returns 401 without API key', async () => {
+  it('returns 401 without a session', async () => {
     const { services } = createMemoryStores();
     const res = await handleSuggestReleases({}, services);
     expect(res.statusCode).toBe(401);
@@ -81,7 +81,7 @@ describe('GET /v1/suggest/releases', () => {
 });
 
 describe('POST /v1/suggest/generate', () => {
-  it('returns 401 without API key', async () => {
+  it('returns 401 without a session', async () => {
     const { services } = createMemoryStores();
     const res = await handleSuggestGenerate(
       {},

@@ -5,62 +5,131 @@ import {
   loadHubConfigFromEnv,
 } from '../../../packages/mcp/src/hub-client.ts';
 
+const sessionConfig = {
+  url: 'http://api.test',
+  username: 'Rayenz',
+  password: 'secret',
+};
+
+function jsonRes(body: unknown, status = 200): Response {
+  return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+}
+
+function withSignIn(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/v1/auth/sign-in')) {
+      return jsonRes({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        username: 'Rayenz',
+        sub: 'rayenz-sub',
+        expiresIn: 3600,
+      });
+    }
+    return handler(url, init);
+  });
+}
+
 describe('mcp hub-client', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('loadHubConfigFromEnv requires url and key', () => {
+  it('loadHubConfigFromEnv requires url, username, and password', () => {
     expect(() => loadHubConfigFromEnv({})).toThrow(/HUB_API_URL/);
-    expect(() => loadHubConfigFromEnv({ HUB_API_URL: 'http://x' })).toThrow(/HUB_API_KEY/);
-    expect(loadHubConfigFromEnv({ HUB_API_URL: 'http://x/', HUB_API_KEY: 'k' })).toEqual({
+    expect(() => loadHubConfigFromEnv({ HUB_API_URL: 'http://x' })).toThrow(/HUB_USERNAME/);
+    expect(() => loadHubConfigFromEnv({ HUB_API_URL: 'http://x', HUB_USERNAME: 'Rayenz' })).toThrow(
+      /HUB_PASSWORD/,
+    );
+    expect(
+      loadHubConfigFromEnv({
+        HUB_API_URL: 'http://x/',
+        HUB_USERNAME: 'Rayenz',
+        HUB_PASSWORD: 'secret',
+      }),
+    ).toEqual({
       url: 'http://x',
-      key: 'k',
+      username: 'Rayenz',
+      password: 'secret',
     });
   });
 
   it('returns null on 404 by default', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('missing', { status: 404 })),
-    );
-    const client = createHubClient({ url: 'http://api.test', key: 'secret' });
+    vi.stubGlobal('fetch', withSignIn(() => jsonRes('missing', 404)));
+    const client = createHubClient(sessionConfig);
     await expect(client.getDeck('d1')).resolves.toBeNull();
   });
 
   it('throws HubApiError on non-404 failures', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('nope', { status: 500 })),
-    );
-    const client = createHubClient({ url: 'http://api.test', key: 'secret' });
+    vi.stubGlobal('fetch', withSignIn(() => jsonRes('nope', 500)));
+    const client = createHubClient(sessionConfig);
     await expect(client.listDecks()).rejects.toBeInstanceOf(HubApiError);
   });
 
-  it('sends Bearer auth and parses JSON', async () => {
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+  it('signs in then sends Bearer access token', async () => {
+    const fetchMock = withSignIn((_url, init) => {
       expect(init?.headers).toMatchObject({
-        Authorization: 'Bearer secret',
+        Authorization: 'Bearer access-token',
       });
-      return new Response(JSON.stringify({ decks: [] }), { status: 200 });
+      return jsonRes({ decks: [] });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const client = createHubClient({ url: 'http://api.test', key: 'secret' });
+    const client = createHubClient(sessionConfig);
     await expect(client.listDecks()).resolves.toEqual({ decks: [] });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://api.test/v1/auth/sign-in',
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       'http://api.test/v1/decks',
       expect.objectContaining({ method: 'GET' }),
     );
   });
 
-  it('patchDeck sends PATCH with body', async () => {
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-      expect(init?.method).toBe('PATCH');
-      expect(JSON.parse(String(init?.body))).toEqual({ name: 'Renamed' });
-      return new Response(JSON.stringify({ deckId: 'd1', name: 'Renamed' }), { status: 200 });
+  it('refreshes once on 401 then retries', async () => {
+    let decksCalls = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/v1/auth/sign-in')) {
+        return jsonRes({
+          accessToken: 'expired',
+          refreshToken: 'refresh-token',
+          username: 'Rayenz',
+          sub: 'rayenz-sub',
+          expiresIn: 3600,
+        });
+      }
+      if (url.endsWith('/v1/auth/refresh')) {
+        return jsonRes({
+          accessToken: 'fresh',
+          refreshToken: 'refresh-token',
+          username: 'Rayenz',
+          sub: 'rayenz-sub',
+          expiresIn: 3600,
+        });
+      }
+      decksCalls += 1;
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (auth === 'Bearer expired') {
+        return jsonRes('denied', 401);
+      }
+      return jsonRes({ decks: [] });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const client = createHubClient({ url: 'http://api.test', key: 'secret' });
+    const client = createHubClient(sessionConfig);
+    await expect(client.listDecks()).resolves.toEqual({ decks: [] });
+    expect(decksCalls).toBe(2);
+  });
+
+  it('patchDeck sends PATCH with body', async () => {
+    const fetchMock = withSignIn((_url, init) => {
+      expect(init?.method).toBe('PATCH');
+      expect(JSON.parse(String(init?.body))).toEqual({ name: 'Renamed' });
+      return jsonRes({ deckId: 'd1', name: 'Renamed' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createHubClient(sessionConfig);
     await expect(client.patchDeck('d1', { name: 'Renamed' })).resolves.toEqual({
       deckId: 'd1',
       name: 'Renamed',
@@ -72,11 +141,8 @@ describe('mcp hub-client', () => {
   });
 
   it('rejects HTML bodies that look like wrong API URL', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('<!doctype html>', { status: 200 })),
-    );
-    const client = createHubClient({ url: 'http://web.test', key: 'secret' });
+    vi.stubGlobal('fetch', withSignIn(() => jsonRes('<!doctype html>')));
+    const client = createHubClient({ url: 'http://web.test', username: 'Rayenz', password: 'secret' });
     await expect(client.listDecks()).rejects.toThrow(/HTML/);
   });
 });

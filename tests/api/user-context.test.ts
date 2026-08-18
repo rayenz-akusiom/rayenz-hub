@@ -22,20 +22,16 @@ function listTsFiles(dir: string): string[] {
 }
 
 describe('resolveUserId', () => {
-  it('maps validated API key to HUB_USER_ID', () => {
-    expect(resolveUserId({ type: 'api-key', validated: true }, { HUB_USER_ID: 'solo' })).toBe('solo');
-  });
-
-  it('rejects API key when HUB_USER_ID is unset', () => {
-    expect(() => resolveUserId({ type: 'api-key', validated: true }, {})).toThrow('Unauthorized');
-  });
-
   it('uses JWT sub when Cognito auth is enabled', () => {
-    expect(resolveUserId({ type: 'jwt', validated: true, sub: 'abc-123' }, {})).toBe('abc-123');
+    expect(resolveUserId({ type: 'jwt', validated: true, sub: 'abc-123' })).toBe('abc-123');
+  });
+
+  it('rejects JWT without a sub', () => {
+    expect(() => resolveUserId({ type: 'jwt', validated: true })).toThrow('Unauthorized');
   });
 
   it('rejects unauthenticated contexts', () => {
-    expect(() => resolveUserId({ type: 'none', validated: false }, {})).toThrow('Unauthorized');
+    expect(() => resolveUserId({ type: 'none', validated: false })).toThrow('Unauthorized');
   });
 });
 

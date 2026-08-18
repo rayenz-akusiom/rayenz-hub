@@ -6,7 +6,7 @@ export const COGNITO_STACK_NAME = 'rayenz-hub-cognito';
 export const COGNITO_STACK_REGION = 'us-east-1';
 
 export const API_BASE_PARAMETER_OVERRIDES =
-  'HubApiKeySecretId=rayenz-hub/prod/api-key HubInviteSecretId=rayenz-hub/prod/invite-hmac HubUserId=rayenz-local HubOwnerUsername=Rayenz';
+  'HubInviteSecretId=rayenz-hub/prod/invite-hmac HubUserId=rayenz-local HubOwnerUsername=Rayenz';
 
 export const LOCAL_COGNITO_PARAMETER_OVERRIDES =
   'CognitoUserPoolId=local CognitoUserPoolArn=arn:aws:cognito-idp:us-east-1:000000000000:userpool/local CognitoClientId=local CognitoClientSecret=local';

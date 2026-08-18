@@ -6,7 +6,7 @@
  * Usage:
  *   npm run stage:sl-limitless -- --dry-run
  *   npm run stage:sl-limitless
- *   npx tsx scripts/stage-sl-limitless-swaps.ts --api-url http://127.0.0.1:3000 --api-key test-api-key-local
+ *   npx tsx scripts/stage-sl-limitless-swaps.ts --api-url http://127.0.0.1:3000 --username Rayenz
  *
  * Prerequisites: Hub API reachable with the target library (local SAM or remote).
  */
@@ -26,9 +26,10 @@ import {
   type PrintingFields,
   type ScryfallCard,
 } from '../packages/shared/src/index.ts';
+import { signInHubSession } from './hub-cli-session.ts';
 
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
-const DEFAULT_API_KEY = 'test-api-key-local';
+const DEFAULT_USERNAME = 'Rayenz';
 const NOTES = 'Secret Lair: Their Magic Is Limitless';
 const SET_CODE = 'sld';
 
@@ -83,22 +84,26 @@ const PLACEMENTS: Placement[] = [
 
 interface CliOptions {
   apiUrl: string;
-  apiKey: string;
+  username: string;
+  password: string;
   dryRun: boolean;
 }
 
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     apiUrl: process.env.HUB_API_URL || DEFAULT_API_URL,
-    apiKey: process.env.HUB_API_KEY || DEFAULT_API_KEY,
+    username: process.env.HUB_USERNAME || DEFAULT_USERNAME,
+    password: process.env.HUB_PASSWORD || '',
     dryRun: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--api-url') {
       opts.apiUrl = argv[++i] ?? opts.apiUrl;
-    } else if (arg === '--api-key') {
-      opts.apiKey = argv[++i] ?? opts.apiKey;
+    } else if (arg === '--username') {
+      opts.username = argv[++i] ?? opts.username;
+    } else if (arg === '--password') {
+      opts.password = argv[++i] ?? opts.password;
     } else if (arg === '--dry-run') {
       opts.dryRun = true;
     }
@@ -108,7 +113,7 @@ function parseArgs(argv: string[]): CliOptions {
 
 async function apiRequest(
   apiUrl: string,
-  apiKey: string,
+  accessToken: string,
   method: string,
   route: string,
   body?: unknown,
@@ -116,7 +121,7 @@ async function apiRequest(
   const res = await fetch(`${apiUrl.replace(/\/$/, '')}${route}`, {
     method,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
@@ -359,11 +364,12 @@ async function loadPrintings(): Promise<Map<string, PrintingFields>> {
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   console.log(`Hub API: ${opts.apiUrl}${opts.dryRun ? ' (dry-run)' : ''}`);
+  const accessToken = await signInHubSession(opts.apiUrl, opts.username, opts.password);
 
   const printings = await loadPrintings();
   console.log(`Resolved ${printings.size} foil SLD printings from Scryfall.`);
 
-  const list = (await apiRequest(opts.apiUrl, opts.apiKey, 'GET', '/v1/decks')) as {
+  const list = (await apiRequest(opts.apiUrl, accessToken, 'GET', '/v1/decks')) as {
     decks?: DeckSummary[];
   };
   const summaries = list?.decks || [];
@@ -385,7 +391,7 @@ async function main(): Promise<void> {
     if (!doc) {
       const raw = await apiRequest(
         opts.apiUrl,
-        opts.apiKey,
+        accessToken,
         'GET',
         `/v1/decks/${encodeURIComponent(summary.deckId)}`,
       );
@@ -427,7 +433,7 @@ async function main(): Promise<void> {
     });
     await apiRequest(
       opts.apiUrl,
-      opts.apiKey,
+      accessToken,
       'PUT',
       `/v1/decks/${encodeURIComponent(deckId)}`,
       body,

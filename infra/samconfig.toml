@@ -19,7 +19,7 @@ resolve_s3 = true
 region = "us-east-1"
 # Create Secrets Manager secrets first (ssm-secure cannot be used in Lambda env vars).
 # Cognito ids/secret are appended by scripts/deploy-api.mjs from the rayenz-hub-cognito stack.
-parameter_overrides = "HubApiKeySecretId=rayenz-hub/prod/api-key HubInviteSecretId=rayenz-hub/prod/invite-hmac HubUserId=rayenz-local HubOwnerUsername=Rayenz"
+parameter_overrides = "HubInviteSecretId=rayenz-hub/prod/invite-hmac HubUserId=rayenz-local HubOwnerUsername=Rayenz"
 
 # Placeholders so `sam local` can resolve required Cognito parameters; env.local overlay supplies the live pool.
 # start:api passes this file via an absolute --config-file (SAM resolves that path relative to the template).

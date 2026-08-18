@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Rayenz Hub MTG MCP server (stdio).
- * Env: HUB_API_URL, HUB_API_KEY
+ * Env: HUB_API_URL, HUB_USERNAME, HUB_PASSWORD
  */
 
 import { serveStdio } from '@modelcontextprotocol/server/stdio';

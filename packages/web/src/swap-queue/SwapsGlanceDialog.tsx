@@ -56,7 +56,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
 
   const generate = useCallback(async () => {
     if (!apiReady) {
-      setError('Hub API is required to generate a swaps glance image. Configure API URL and key in settings.');
+      setError('Hub API is required to generate a swaps glance image. Sign in to the Hub API in Settings.');
       return;
     }
     if (itemCount === 0) {

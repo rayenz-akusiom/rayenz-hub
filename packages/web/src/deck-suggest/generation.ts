@@ -12,7 +12,7 @@ export async function generateSuggestions(
   cap = 20,
 ): Promise<GenerationRun> {
   if (!isApiConfigured()) {
-    throw new Error('Configure API URL and key in Settings to generate suggestions.');
+    throw new Error('Sign in to the Hub API in Settings to generate suggestions.');
   }
   const readiness = getGenerateReadiness({ ...state, generating: false });
   if (!readiness.ok) {

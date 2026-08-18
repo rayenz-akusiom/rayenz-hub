@@ -59,7 +59,7 @@ describe('Deck Suggest without API', () => {
   it('shows the API prerequisite and keeps generate disabled', async () => {
     render(<DeckSuggestApp />);
     await waitFor(() => expect(screen.getByLabelText('Test Deck')).toBeInTheDocument());
-    expect(screen.getByText(/Configure API URL and key in Settings/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in to the Hub API in Settings/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
   });
 });

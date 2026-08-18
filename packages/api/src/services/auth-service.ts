@@ -24,9 +24,6 @@ export class AuthService {
     if (auth.username && auth.username === ownerName) {
       return true;
     }
-    if (auth.type === 'api-key' && auth.validated) {
-      return true;
-    }
     if (this.env.HUB_OWNER_SUB && auth.sub && auth.sub === this.env.HUB_OWNER_SUB) {
       return true;
     }

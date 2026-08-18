@@ -29,12 +29,12 @@ function tempRoot(): string {
 describe('merge local SAM env', () => {
   it('overlay keys win over committed env.local.json', () => {
     const merged = mergeSamEnvVars(
-      { HubApiFunction: { HUB_USER_ID: 'rayenz-local', HUB_API_KEY: 'test-api-key-local' } },
+      { HubApiFunction: { HUB_USER_ID: 'rayenz-local', HUB_TABLE_NAME: 'HubTable' } },
       { HubApiFunction: { HUB_USER_ID: 'cognito-sub', COGNITO_CLIENT_ID: 'abc' } },
     );
     expect(merged.HubApiFunction).toEqual({
       HUB_USER_ID: 'cognito-sub',
-      HUB_API_KEY: 'test-api-key-local',
+      HUB_TABLE_NAME: 'HubTable',
       COGNITO_CLIENT_ID: 'abc',
     });
   });
@@ -62,7 +62,7 @@ describe('merge local SAM env', () => {
     const root = tempRoot();
     writeFileSync(
       path.join(root, 'infra', 'env.local.json'),
-      JSON.stringify({ HubApiFunction: { HUB_API_KEY: 'test-api-key-local', HUB_USER_ID: 'rayenz-local' } }),
+      JSON.stringify({ HubApiFunction: { HUB_TABLE_NAME: 'HubTable', HUB_USER_ID: 'rayenz-local' } }),
     );
     writeFileSync(
       path.join(root, 'infra', 'env.local.overlay.json'),
@@ -78,7 +78,7 @@ describe('merge local SAM env', () => {
     );
     const mergedPath = mergeLocalEnvFiles(root);
     const merged = JSON.parse(readFileSync(mergedPath, 'utf8'));
-    expect(merged.HubApiFunction.HUB_API_KEY).toBe('test-api-key-local');
+    expect(merged.HubApiFunction.HUB_TABLE_NAME).toBe('HubTable');
     expect(merged.HubApiFunction.HUB_USER_ID).toBe('sub-1');
     expect(merged.HubApiFunction.COGNITO_CLIENT_SECRET).toBe('secret');
   });
@@ -87,7 +87,7 @@ describe('merge local SAM env', () => {
     const root = tempRoot();
     writeFileSync(
       path.join(root, 'infra', 'env.local.json'),
-      JSON.stringify({ HubApiFunction: { HUB_API_KEY: 'k' } }),
+      JSON.stringify({ HubApiFunction: { HUB_TABLE_NAME: 'HubTable' } }),
     );
     expect(() => mergeLocalEnvFiles(root)).toThrow(/setup:local-cognito/);
   });

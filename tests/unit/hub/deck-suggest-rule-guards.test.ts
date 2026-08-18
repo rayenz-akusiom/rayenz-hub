@@ -49,6 +49,7 @@ describe('RuleGuards helpers', () => {
       typal_types: [],
       themes: [],
       keyword_interests: [],
+      art_tags: [],
       constraints: {},
     });
   });

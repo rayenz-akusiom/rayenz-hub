@@ -1,26 +1,19 @@
 import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
-import { matchSetCardToRoles } from '@rayenz-hub/shared/suggest';
-import * as G from './rule-guards';
-import type { DebugEntry, DeckProfile, DeckRecord, SetScope, SnapshotCard, Suggestion } from './types';
+import {
+  Debug as SharedDebug,
+  findInSetPool,
+  matchSetCardToRoles,
+  ownedNamesInSnapshot,
+  resolveQueuedInForScope,
+} from '@rayenz-hub/shared/suggest';
+import type { DebugEntry, DeckRecord, SetScope, SnapshotCard } from './types';
 
-export const REASON_LABELS: Record<string, string> = {
-  not_in_set_scope: 'Card not in selected set pool',
-  no_swap_queue: 'No swap queue on deck snapshot',
-  no_cut_candidate: 'No eligible main-deck cut found',
-  blocked_add: 'Card is on profile blocklist (add)',
-  protected_cut: 'Suggested cut is on profile protected list',
-  duplicate_pair: 'Duplicate in/out pair already suggested',
-  queue_out_no_replacement: 'No set-pool replacement matched profile roles',
-  queue_out_not_applicable: 'Queue Out count does not exceed In count',
-  proxy_not_proxy: 'Card is not in Proxies category',
-  proxy_no_official_in_scope: 'No official printing in set pool for proxy',
-  role_already_in_deck: 'Card already in deck',
-  role_wrong_set: 'Printing not in selected set codes',
-  role_no_match: 'No profile role/tag match',
-  role_no_cut: 'No eligible cut for role suggestion',
-  deck_ineligible: 'Deck skipped by eligibility rules',
-  would_emit: 'Would produce a suggestion',
-};
+export {
+  REASON_LABELS,
+  createCollector,
+  formatReason,
+  rejectReason,
+} from '@rayenz-hub/shared/suggest';
 
 function normalizeName(name: string): string {
   return String(name || '').trim().toLowerCase();
@@ -29,72 +22,6 @@ function normalizeName(name: string): string {
 function isProxyCard(card: SnapshotCard): boolean {
   const cats = card.categories || [];
   return cats.indexOf('Proxies') >= 0 || card.primary_category === 'Proxies';
-}
-
-export function createCollector(deckId: string) {
-  const entries: DebugEntry[] = [];
-  return {
-    deckId,
-    push(entry: DebugEntry) {
-      entries.push(Object.assign({ deckId }, entry));
-    },
-    entries() {
-      return entries.slice();
-    },
-    filterByCard(name: string) {
-      const needle = normalizeName(name);
-      if (!needle) {
-        return entries.slice();
-      }
-      return entries.filter((entry) =>
-        [entry.subject, entry.cardIn, entry.cardOut].some(
-          (field) => field && normalizeName(field).indexOf(needle) >= 0,
-        ),
-      );
-    },
-  };
-}
-
-export function rejectReason(
-  suggestion: Suggestion | null | undefined,
-  profile: DeckProfile | undefined,
-  existing: Suggestion[],
-): string | null {
-  if (!suggestion || !suggestion.card) {
-    return 'invalid_suggestion';
-  }
-  if (!G.passesBlocklist(suggestion, profile)) {
-    if (G.isBlockedAdd(suggestion.card.name, profile)) {
-      return 'blocked_add';
-    }
-    return 'protected_cut';
-  }
-  if (G.hasDuplicate(existing, suggestion)) {
-    return 'duplicate_pair';
-  }
-  return null;
-}
-
-export function formatReason(entry: DebugEntry): string {
-  const label = REASON_LABELS[entry.reason || ''] || entry.reason || 'unknown';
-  const parts: string[] = [];
-  if (entry.ruleId) {
-    parts.push('[' + entry.ruleId + ']');
-  }
-  if (entry.subject) {
-    parts.push(entry.subject);
-  }
-  parts.push('— ' + label);
-  if (entry.cardIn && entry.cardIn !== entry.subject) {
-    parts.push('(in: ' + entry.cardIn + ')');
-  }
-  if (entry.cardOut) {
-    parts.push('(cut: ' + entry.cardOut + ')');
-  }
-  if (entry.detail) {
-    parts.push('— ' + entry.detail);
-  }
-  return parts.join(' ');
 }
 
 export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: string): DebugEntry[] {
@@ -144,7 +71,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
     });
     if (inIdx >= 0) {
       const inCard = queue.new_set_in[inIdx];
-      const resolved = G.resolveQueuedInForScope(inCard, setScope);
+      const resolved = resolveQueuedInForScope(inCard, setScope);
       if (!resolved) {
         push('queue_in_pair', 'not_in_set_scope', 'Queued In not found in set pool');
       } else if (outIdx >= 0 && inIdx === outIdx) {
@@ -157,7 +84,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
       if (outIdx < (queue.new_set_in || []).length) {
         push('queue_out_fill', 'would_emit', 'Paired Out — handled by queue_in_pair');
       } else {
-        const ownedNames = G.ownedNamesInSnapshot(deck);
+        const ownedNames = ownedNamesInSnapshot(deck);
         type QueueReplacement = {
           setCard: SetScope['cards'][number];
           match: { roleId: string; score: number; hint: string };
@@ -203,8 +130,8 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
     }
   }
 
-  const poolCard = G.findInSetPool(name, setScope);
-  const ownedNames = G.ownedNamesInSnapshot(deck);
+  const poolCard = findInSetPool(name, setScope);
+  const ownedNames = ownedNamesInSnapshot(deck);
   if (poolCard) {
     const codes: Record<string, boolean> = {};
     (setScope.codes || []).forEach((c) => {
@@ -228,12 +155,7 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
   return lines;
 }
 
-G.registerRejectReason(rejectReason);
-
 export const Debug = {
-  createCollector,
-  rejectReason,
-  formatReason,
+  ...SharedDebug,
   explainCard,
-  REASON_LABELS,
 };

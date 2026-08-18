@@ -112,6 +112,7 @@ export default defineConfig({
   preview: { host: true },
   resolve: {
     alias: {
+      '@rayenz-hub/shared/suggest': path.resolve(rootDir, '../shared/src/suggest/index.ts'),
       '@rayenz-hub/shared': path.resolve(rootDir, '../shared/src/index.ts'),
     },
   },

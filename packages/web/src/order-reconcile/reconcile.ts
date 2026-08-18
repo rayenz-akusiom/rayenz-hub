@@ -1,5 +1,4 @@
-import { CutCandidates, SWAP_IN_LEGACY, SWAP_OUT_LEGACY } from '@rayenz-hub/shared';
-import { optionKey, scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { CutCandidates, SWAP_IN_LEGACY, SWAP_OUT_LEGACY, optionKey, scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import type {
   CutOption,
@@ -51,12 +50,12 @@ export function cubeMainCardSameName(deck: OrderReconcileDeck | null | undefined
 
 export function defaultInImageSrc(item: ReconcileItem): string {
   if (item.is_cube && item.maybeboard_entry?.set_code && item.maybeboard_entry.collector_number) {
-    return scryfallImageFromPrinting(item.maybeboard_entry.set_code, item.maybeboard_entry.collector_number);
+    return scryfallImageFromPrinting(item.maybeboard_entry.set_code, item.maybeboard_entry.collector_number) || '';
   }
   if (item.acquired_set && item.acquired_collector) {
-    return scryfallImageFromPrinting(item.acquired_set, item.acquired_collector);
+    return scryfallImageFromPrinting(item.acquired_set, item.acquired_collector) || '';
   }
-  return scryfallImageFromName(item.card_name);
+  return scryfallImageFromName(item.card_name) || '';
 }
 
 export function defaultInPrinting(item: ReconcileItem): PrintingParts {
@@ -168,7 +167,7 @@ export function defaultCutForItem(item: ReconcileItem, deck: OrderReconcileDeck)
 
 export function cutOptionImageSrc(opt: CutOption | null | undefined): string {
   if (opt?.set_code && opt.collector_number) {
-    return scryfallImageFromPrinting(opt.set_code, opt.collector_number);
+    return scryfallImageFromPrinting(opt.set_code, opt.collector_number) || '';
   }
   return '';
 }
@@ -241,13 +240,13 @@ export function deckReconcileComplete(
 
 export function printingImageSrc(printing: PrintingParts | null | undefined): string {
   if (printing?.scryfall_id) {
-    return scryfallImageFromId(printing.scryfall_id);
+    return scryfallImageFromId(printing.scryfall_id) || '';
   }
   if (printing?.set_code && printing?.collector_number) {
-    return scryfallImageFromPrinting(printing.set_code, printing.collector_number);
+    return scryfallImageFromPrinting(printing.set_code, printing.collector_number) || '';
   }
   if (printing?.name) {
-    return scryfallImageFromName(printing.name);
+    return scryfallImageFromName(printing.name) || '';
   }
   return '';
 }

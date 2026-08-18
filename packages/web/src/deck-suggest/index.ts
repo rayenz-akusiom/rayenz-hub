@@ -20,8 +20,7 @@ import {
 export * from './types';
 export * from './readiness';
 export * from './data';
-export * from './rule-guards';
-export { RuleGuards } from './rule-guards';
+export { RuleGuards } from '@rayenz-hub/shared/suggest';
 export * from './debug';
 export { Debug } from './debug';
 export * from './export';

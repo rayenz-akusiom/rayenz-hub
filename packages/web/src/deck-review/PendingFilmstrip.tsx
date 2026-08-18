@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Suggestion } from '@rayenz-hub/shared';
-import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 
 function suggestionInThumb(suggestion: Suggestion): string {
   const card = suggestion.card as {
@@ -10,12 +10,12 @@ function suggestionInThumb(suggestion: Suggestion): string {
     name?: string;
   };
   if (card.scryfall_id) {
-    return scryfallImageFromId(card.scryfall_id);
+    return scryfallImageFromId(card.scryfall_id) || '';
   }
   if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+    return scryfallImageFromPrinting(card.set_code, card.collector_number) || '';
   }
-  return scryfallImageFromName(card.name);
+  return scryfallImageFromName(card.name) || '';
 }
 
 function suggestionOutThumb(suggestion: Suggestion): string {
@@ -26,12 +26,12 @@ function suggestionOutThumb(suggestion: Suggestion): string {
     return '';
   }
   if (rep.scryfall_id) {
-    return scryfallImageFromId(rep.scryfall_id);
+    return scryfallImageFromId(rep.scryfall_id) || '';
   }
   if (rep.set_code && rep.collector_number) {
-    return scryfallImageFromPrinting(rep.set_code, rep.collector_number);
+    return scryfallImageFromPrinting(rep.set_code, rep.collector_number) || '';
   }
-  return scryfallImageFromName(rep.name);
+  return scryfallImageFromName(rep.name) || '';
 }
 
 export function PendingFilmstrip({

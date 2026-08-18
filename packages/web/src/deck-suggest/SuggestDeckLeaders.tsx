@@ -1,17 +1,17 @@
 import type { DeckEntry, DeckFormat } from '@rayenz-hub/shared';
 import { CardFace } from '../cards/CardFace';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
-import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { commanderCardsFromDeck, lieutenantCardsFromDeck, type LeaderSnapshotCard } from './display';
 
 function leaderImageSrc(card: LeaderSnapshotCard): string {
   if (card.scryfall_id) {
-    return scryfallImageFromId(card.scryfall_id);
+    return scryfallImageFromId(card.scryfall_id) || '';
   }
   if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+    return scryfallImageFromPrinting(card.set_code, card.collector_number) || '';
   }
-  return scryfallImageFromName(card.name);
+  return scryfallImageFromName(card.name) || '';
 }
 
 function LeaderFace({ card }: { card: LeaderSnapshotCard }) {

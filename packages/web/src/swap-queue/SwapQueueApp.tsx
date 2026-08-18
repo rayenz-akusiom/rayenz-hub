@@ -51,7 +51,12 @@ import { listFallbackLibrary, pullRemoteLibraryUpdates } from '../deck-builder/s
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
-import { getHubAuthSession, useIsHubOwner } from '../lib/hub-auth-session';
+import {
+  getHubAuthSession,
+  HUB_AUTH_CHANGED_EVENT,
+  HUB_AUTH_REQUIRED_EVENT,
+  useIsHubOwner,
+} from '../lib/hub-auth-session';
 import { navigateHub } from '../lib/hub-storage';
 import '../deck-builder/deck-builder.css';
 import { findDeck, loadPublicSwapWantSources, loadSwapWantSources } from './aggregate';
@@ -487,6 +492,24 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   useEffect(() => {
     void refresh();
   }, [routeUserSlug]);
+
+  useEffect(() => {
+    function onAuthChanged() {
+      const username = getHubAuthSession()?.username?.trim();
+      const slug = username ? hubUserSlug() : '';
+      if (slug && !parseSwapQueueRoute()) {
+        navigateHub(swapQueueHash(slug, entryPath));
+        return;
+      }
+      void refresh();
+    }
+    window.addEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
+    window.addEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthChanged);
+    return () => {
+      window.removeEventListener(HUB_AUTH_CHANGED_EVENT, onAuthChanged);
+      window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, onAuthChanged);
+    };
+  }, [entryPath]);
 
   useEffect(() => {
     let cancelled = false;

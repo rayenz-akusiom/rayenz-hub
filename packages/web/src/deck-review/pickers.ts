@@ -1,6 +1,6 @@
 import { buildCutCandidates } from '@rayenz-hub/shared';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
-import { optionKey } from '../lib/hub-utils';
+import { optionKey } from '@rayenz-hub/shared';
 import type { CardPickerItem } from '../cards/CardPicker';
 import { cutOptionImageSrc, cutOptionLines, findSnapshotCard, isMissingSuggestedCut, printOptionLines } from './data';
 import type { CutOption, ScryfallPrint } from './types';

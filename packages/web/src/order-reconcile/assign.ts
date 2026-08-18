@@ -1,4 +1,4 @@
-import { scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromName, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { fetchColorIdentity } from './data';
 import { getDeckById } from './helpers';
@@ -399,9 +399,9 @@ export function buildReconcileItems(state: OrderReconcileState): ReconcileItem[]
 
 export function acquiredCardImageSrc(copy: CardCopy): string {
   if (copy.set_code && copy.collector_number) {
-    return scryfallImageFromPrinting(copy.set_code, copy.collector_number);
+    return scryfallImageFromPrinting(copy.set_code, copy.collector_number) || '';
   }
-  return scryfallImageFromName(copy.card_name);
+  return scryfallImageFromName(copy.card_name) || '';
 }
 
 export function slotCountByDeckForCard(state: Pick<OrderReconcileState, 'decks' | 'assignmentIndex'>, cardName: string): Record<string, number> {

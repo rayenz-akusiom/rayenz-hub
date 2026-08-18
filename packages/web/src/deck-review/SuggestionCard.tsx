@@ -6,7 +6,7 @@ import {
   plusLozengesToProfileUpdates,
   toggleProfileLozenge,
 } from '@rayenz-hub/shared';
-import { scryfallImageFromId, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromId, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import type { ReviewProgress } from '../lib/hub-storage';
 import { ProfileSync } from '../mtg/profile-sync';
 import {
@@ -167,11 +167,11 @@ export function SuggestionCard({
       return '';
     }
     if (cutMeta.set_code && cutMeta.collector_number) {
-      return scryfallImageFromPrinting(cutMeta.set_code, cutMeta.collector_number);
+      return scryfallImageFromPrinting(cutMeta.set_code, cutMeta.collector_number) || '';
     }
     const opt = cutOptions.find((o) => o.name === cutMeta.name);
     if (opt?.set_code && opt.collector_number) {
-      return scryfallImageFromPrinting(opt.set_code, opt.collector_number);
+      return scryfallImageFromPrinting(opt.set_code, opt.collector_number) || '';
     }
     return '';
   }, [cutMeta, cutOptions]);

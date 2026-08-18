@@ -1,19 +1,18 @@
 import {
-  applyFormalSwapsToCards,
-  applyLookingForToCards,
-  deriveSwapQueue,
-  getOracle,
-  hasMaybeboardOnlySwapQueue,
-  isSeekingCategory,
-  isSwapInCategory,
   isTheoryDeck,
+  maybeAttachScryfallTags,
   SET_POOL_FORMAT_VERSION,
   SCRYFALL_SUGGEST_POOL_FILTERS,
-  type DeckDocument,
   type DeckSummary,
-  type DeckWithSnapshot,
 } from '@rayenz-hub/shared';
-import { maybeAttachScryfallTags, parseYamlProfile as parseSharedYamlProfile } from '@rayenz-hub/shared';
+import {
+  buildDeckRuleContext,
+  ensureSetPoolIndexed,
+  hubDeckToRecord,
+  indexSetPool,
+  parseYamlProfile,
+  resolveDeckEligibility,
+} from '@rayenz-hub/shared/suggest';
 import {
   clearSetPoolCache,
   hydrateSetPoolFromApi,
@@ -23,55 +22,23 @@ import {
 } from '../lib/hub-storage';
 import { sleep } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
-import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { ProfileSync } from '../mtg/profile-sync';
 import { pullRemoteLibraryUpdates, resolveLibraryDocument, listFallbackLibrary } from '../deck-builder/store/library-sync';
 import { isApiConfigured } from '../api/hub-api';
 import { readLibrarySort, sortLibraryDecks } from '../deck-builder/library/library-sort';
 import type { DeckProfile, DeckRecord, SetScope, SnapshotCard } from './types';
 
+export {
+  buildDeckRuleContext,
+  ensureSetPoolIndexed,
+  getDeckSwapQueue,
+  hubDeckToRecord,
+  indexSetPool,
+  parseYamlProfile,
+  resolveDeckEligibility,
+} from '@rayenz-hub/shared/suggest';
+
 const setPoolCache: Record<string, SetScope> = {};
-
-export function parseYamlProfile(text: string): DeckProfile {
-  return parseSharedYamlProfile(text);
-}
-
-export function resolveDeckEligibility(deck: DeckRecord) {
-  const profile = deck.profile || {};
-  const format = profile.format;
-  if (deck.ownership === 'theory') {
-    return {
-      eligible: false,
-      reason: 'theory_deck',
-      message: deck.deck_name + ': skipped (theory deck).',
-    };
-  }
-  if (format && format !== 'commander') {
-    return {
-      eligible: false,
-      reason: 'non_commander_format',
-      message: deck.deck_name + ': skipped (profile format is ' + format + ').',
-    };
-  }
-  if (OrderReconcileExport.isCubeDeck(deck)) {
-    return {
-      eligible: false,
-      reason: 'cube_or_non_commander',
-      message: deck.deck_name + ': skipped (cube deck — out of scope for v1).',
-    };
-  }
-  if (hasMaybeboardOnlySwapQueue(deck.deck_snapshot as DeckWithSnapshot['deck_snapshot'])) {
-    return {
-      eligible: false,
-      reason: 'maybeboard_swap_queue',
-      message: deck.deck_name + ': skipped (Maybeboard-only swap queue).',
-    };
-  }
-  if (format === 'commander') {
-    return { eligible: true, format: 'commander' };
-  }
-  return { eligible: true, format: 'commander', inferred: true };
-}
 
 function buildScopeFromCodes(codes: string[], cards: SetScope['cards'], source?: string): SetScope {
   const upper = codes.map((c) => String(c).toUpperCase());
@@ -86,63 +53,6 @@ function buildScopeFromCodes(codes: string[], cards: SetScope['cards'], source?:
     source: source || 'scryfall',
     complete: true,
   })!;
-}
-
-export function indexSetPool(scope: SetScope | null): SetScope | null {
-  if (!scope) {
-    return scope;
-  }
-  if (scope.indexVersion === 1 && scope.cardsByName) {
-    return scope;
-  }
-  const cardsByName: Record<string, SetScope['cards']> = {};
-  (scope.cards || []).forEach((card) => {
-    const key = String(card.name || '').toLowerCase();
-    if (!key) {
-      return;
-    }
-    if (!cardsByName[key]) {
-      cardsByName[key] = [];
-    }
-    cardsByName[key].push(card);
-  });
-  scope.cardsByName = cardsByName;
-  scope.indexVersion = 1;
-  return scope;
-}
-
-export function ensureSetPoolIndexed(scope: SetScope | null): SetScope | null {
-  return indexSetPool(scope);
-}
-
-export function buildDeckRuleContext(deck: DeckRecord) {
-  if (deck.ruleContext && deck.ruleContext.version === 2) {
-    return deck.ruleContext;
-  }
-  const deckNames: Record<string, boolean> = {};
-  const ownedNames: Record<string, boolean> = {};
-  ((deck.deck_snapshot && deck.deck_snapshot.cards) || []).forEach((card) => {
-    if (!card.name) return;
-    const key = card.name.toLowerCase();
-    deckNames[key] = true;
-    const primary = card.primary_category || (card.categories && card.categories[0]);
-    if (isSeekingCategory(primary) || isSwapInCategory(primary)) {
-      return;
-    }
-    ownedNames[key] = true;
-  });
-  deck.ruleContext = {
-    version: 2,
-    swapQueue: deriveSwapQueue(deck as DeckWithSnapshot),
-    deckNames,
-    ownedNames,
-    cutCandidates: null,
-  };
-  return deck.ruleContext;
-}
-
-export function getDeckSwapQueue(deck: DeckRecord) {
-  return buildDeckRuleContext(deck).swapQueue;
 }
 
 export function tryRestoreSetPool(codesKey: string): SetScope | null {
@@ -337,41 +247,6 @@ export function buildDeckFromImportText(
       fetched_at: new Date().toISOString().slice(0, 10),
       source: 'paste-import',
       cards: cards as SnapshotCard[],
-    },
-  };
-}
-
-/** Project a Hub deck document into a Suggest DeckRecord (with swap categories applied). */
-export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
-  let cards = applyFormalSwapsToCards(doc.cards || [], doc.formalSwapEntries || [], doc.format);
-  cards = applyLookingForToCards(cards, doc.lookingForEntries || [], doc.format);
-  const snapshotCards: SnapshotCard[] = cards.map((c) => {
-    const oracle = getOracle(doc, c);
-    const categories = [c.primaryCategory, ...(c.categories || []).filter((x) => x !== c.primaryCategory)];
-    return {
-      name: c.name,
-      set_code: c.setCode,
-      collector_number: c.collectorNumber,
-      quantity: c.quantity,
-      primary_category: c.primaryCategory,
-      categories,
-      cmc: oracle?.manaValue ?? undefined,
-      type_line: oracle?.typeLine ?? undefined,
-      oracle_text: oracle?.oracleText ?? undefined,
-      keywords: oracle?.keywords ?? undefined,
-      color_identity: oracle?.colourIdentity || [],
-    } as SnapshotCard;
-  });
-  return {
-    deck_id: doc.deckId,
-    deck_name: doc.name,
-    archidekt_url: doc.archidektUrl || '',
-    format: doc.format,
-    ownership: doc.ownership === 'theory' ? 'theory' : 'owned',
-    deck_snapshot: {
-      fetched_at: new Date().toISOString().slice(0, 10),
-      source: 'hub-library',
-      cards: snapshotCards,
     },
   };
 }

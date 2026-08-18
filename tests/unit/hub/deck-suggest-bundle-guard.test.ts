@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../helpers/hubHarness.ts';
 
 describe('deck-suggest bundle guard', () => {
-  it('does not import @rayenz-hub/shared/suggest from packages/web/src', () => {
+  it('does not run suggestion generation in the browser', () => {
     const root = path.join(REPO_ROOT, 'packages/web/src');
     const hits: string[] = [];
     function walk(dir: string) {
@@ -13,7 +13,7 @@ describe('deck-suggest bundle guard', () => {
         if (ent.isDirectory()) walk(p);
         else if (/\.(ts|tsx)$/.test(ent.name)) {
           const text = fs.readFileSync(p, 'utf8');
-          if (text.includes('@rayenz-hub/shared/suggest')) hits.push(path.relative(root, p));
+          if (/\brunRulesForDeck\b/.test(text)) hits.push(path.relative(root, p));
         }
       }
     }

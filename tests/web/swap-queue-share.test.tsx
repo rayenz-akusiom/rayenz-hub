@@ -113,6 +113,37 @@ describe('SwapQueueApp username share links', () => {
     );
   });
 
+  it('reloads the viewed queue as editable after signing in as that user', async () => {
+    const deck = pairDeck();
+    mockLoadPublicSwapWantSources.mockResolvedValue({
+      username: 'Rayenz',
+      slug: 'rayenz',
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    window.location.hash = '#/swap-queue/rayenz';
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: "Rayenz's Swap Queue" })).toBeInTheDocument();
+    });
+    expect(document.querySelector('.swap-queue-app')).toHaveAttribute('data-readonly', 'true');
+    expect(mockLoadSwapWantSources).not.toHaveBeenCalled();
+
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz' });
+
+    await waitFor(() => {
+      expect(mockLoadSwapWantSources).toHaveBeenCalled();
+    });
+    expect(document.querySelector('.swap-queue-app')).not.toHaveAttribute('data-readonly');
+    expect(screen.getByRole('heading', { name: 'Swap Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add swap' })).toBeInTheDocument();
+  });
+
   it('asks the user to sign in when there is no username to share', async () => {
     const user = userEvent.setup();
     render(<SwapQueueApp entryPath="swap-queue" />);

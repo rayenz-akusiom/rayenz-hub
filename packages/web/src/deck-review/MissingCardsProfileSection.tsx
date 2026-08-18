@@ -11,16 +11,16 @@ import {
 import { CardPickerModal, type CardPickerItem } from '../cards/CardPicker';
 import { fetchSetPool, readProfileForDeck, tryRestoreSetPool } from '../deck-suggest/data';
 import { hydrateSetPoolFromApi, normalizeSetCodesKey } from '../lib/hub-storage';
-import { scryfallImageFromId, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromId, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 
 function poolCardKey(card: SetPoolCard): string {
   return [card.name, card.set_code || '', card.collector_number || ''].join('|');
 }
 
 function poolCardImage(card: SetPoolCard): string {
-  if (card.scryfall_id) return scryfallImageFromId(card.scryfall_id);
+  if (card.scryfall_id) return scryfallImageFromId(card.scryfall_id) || '';
   if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+    return scryfallImageFromPrinting(card.set_code, card.collector_number) || '';
   }
   return '';
 }

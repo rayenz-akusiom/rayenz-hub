@@ -1,4 +1,4 @@
-import { scryfallImageFromName, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { scryfallImageFromName, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import type { CutOption, ItemDecision, OrderReconcileDeck, ReconcileItem } from './types';
 
@@ -7,9 +7,9 @@ export function summaryCardImageSrc(card: CutOption | null | undefined): string 
     return '';
   }
   if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number);
+    return scryfallImageFromPrinting(card.set_code, card.collector_number) || '';
   }
-  return scryfallImageFromName(card.name);
+  return scryfallImageFromName(card.name) || '';
 }
 
 export type SummaryCard = { name?: string; set_code?: string | null; collector_number?: string | null };

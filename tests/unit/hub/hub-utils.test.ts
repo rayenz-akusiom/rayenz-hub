@@ -11,40 +11,6 @@ afterEach(() => {
   resetHubModules();
 });
 
-describe('HubUtils scryfall image builders', () => {
-  it('builds a CDN image url from a scryfall id', () => {
-    expect(HubUtils.scryfallImageFromId('abc-123')).toBe(
-      'https://cards.scryfall.io/normal/front/a/b/abc-123.jpg',
-    );
-    expect(HubUtils.scryfallImageFromId('')).toBe('');
-    expect(HubUtils.scryfallImageFromId('a')).toBe('');
-  });
-
-  it('builds an image url from a set + collector number', () => {
-    expect(HubUtils.scryfallImageFromPrinting('CMM', '1')).toBe(
-      'https://api.scryfall.com/cards/cmm/1?format=image&version=normal',
-    );
-    expect(HubUtils.scryfallImageFromPrinting('cmm', '')).toBe('');
-    expect(HubUtils.scryfallImageFromPrinting('', '1')).toBe('');
-  });
-
-  it('builds an image url from an exact name', () => {
-    expect(HubUtils.scryfallImageFromName('Sol Ring')).toBe(
-      'https://api.scryfall.com/cards/named?exact=Sol%20Ring&format=image&version=normal',
-    );
-    expect(HubUtils.scryfallImageFromName('')).toBe('');
-  });
-});
-
-describe('HubUtils.optionKey', () => {
-  it('joins name/set/collector into a stable key', () => {
-    expect(HubUtils.optionKey({ name: 'Sol Ring', set_code: 'cmm', collector_number: '1' })).toBe(
-      'Sol Ring|cmm|1',
-    );
-    expect(HubUtils.optionKey({ name: 'Sol Ring' })).toBe('Sol Ring||');
-  });
-});
-
 describe('HubUtils.sleep', () => {
   it('resolves after the timeout', async () => {
     await expect(HubUtils.sleep(0)).resolves.toBeUndefined();

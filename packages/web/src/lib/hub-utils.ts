@@ -2,44 +2,10 @@ import { hubDocumentRoot } from '../hub/core-scripts';
 import { HubProgress, type HubProgressController } from './hub-progress';
 import { escapeHtml } from './string-utils';
 
-export function optionKey(opt: { name: string; set_code?: string; collector_number?: string }): string {
-  return [opt.name, opt.set_code || '', opt.collector_number || ''].join('|');
-}
-
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-export function scryfallImageFromId(scryfallId: string | null | undefined): string {
-  const id = String(scryfallId || '').trim();
-  if (!id || id.length < 2) {
-    return '';
-  }
-  // Direct CDN — not rate-limited (unlike api.scryfall.com image redirects).
-  // Path: /normal/front/{id[0]}/{id[1]}/{id}.jpg
-  return `https://cards.scryfall.io/normal/front/${id[0]}/${id[1]}/${id}.jpg`;
-}
-
-export function scryfallImageFromPrinting(setCode: string | null | undefined, collectorNumber: string | null | undefined): string {
-  if (!setCode || !collectorNumber) {
-    return '';
-  }
-  return (
-    'https://api.scryfall.com/cards/' +
-    encodeURIComponent(String(setCode).toLowerCase()) +
-    '/' +
-    encodeURIComponent(String(collectorNumber)) +
-    '?format=image&version=normal'
-  );
-}
-
-export function scryfallImageFromName(name: string | null | undefined): string {
-  if (!name) {
-    return '';
-  }
-  return 'https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(name) + '&format=image&version=normal';
 }
 
 export function resolveHubUrl(path: string): string {
@@ -114,11 +80,7 @@ export function handoffSnapshotSummary(data: {
 
 export const HubUtils = {
   escapeHtml,
-  optionKey,
   sleep,
-  scryfallImageFromId,
-  scryfallImageFromPrinting,
-  scryfallImageFromName,
   ensureCss,
   resolveHubUrl,
   isLocalHub,

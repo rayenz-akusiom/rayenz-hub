@@ -1,5 +1,5 @@
 import { getSwapQueue, type DeckEntry, type Suggestion } from '@rayenz-hub/shared';
-import { optionKey, scryfallImageFromPrinting } from '../lib/hub-utils';
+import { optionKey, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { fetchPrintings } from '../lib/scryfall-cache';
 import type { CutOption, ScryfallPrint } from './types';
 
@@ -202,11 +202,11 @@ export function optionLabel(opt: { name: string; set_code?: string | null; colle
 
 export function cutOptionImageSrc(opt: CutOption, deck: DeckEntry): string {
   if (opt.set_code && opt.collector_number) {
-    return scryfallImageFromPrinting(opt.set_code, opt.collector_number);
+    return scryfallImageFromPrinting(opt.set_code, opt.collector_number) || '';
   }
   const snap = findSnapshotCard(deck, opt.name, opt.set_code, opt.collector_number);
   if (snap?.set_code && snap.collector_number) {
-    return scryfallImageFromPrinting(snap.set_code, snap.collector_number);
+    return scryfallImageFromPrinting(snap.set_code, snap.collector_number) || '';
   }
   return '';
 }

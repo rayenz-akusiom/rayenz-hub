@@ -33,6 +33,7 @@ describe('production stack inventory', () => {
     expect(template).not.toMatch(/HubApiKeySecretId|HUB_API_KEY/);
     expect(template).toMatch(/Path: \/v1\/auth\/confirm/);
     expect(template).toMatch(/Path: \/v1\/users\/\{username\}\/decks\/\{deckSlug\}/);
+    expect(template).toMatch(/Path: \/v1\/users\/\{username\}\/decks\/\{deckSlug\}\/profile/);
     expect(template).not.toMatch(/Type: AWS::Cognito::UserPool/);
     expect(template).not.toMatch(/Type: AWS::Cognito::UserPoolClient/);
   });

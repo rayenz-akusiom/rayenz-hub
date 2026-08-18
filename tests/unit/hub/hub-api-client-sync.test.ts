@@ -8,6 +8,7 @@ import {
   isApiConfigured,
   parseHubApiJsonBody,
   pullProfileYaml,
+  pullPublicProfileYaml,
   pullSettings,
   pushSettingsDomain,
   resolveHubApiUrl,
@@ -256,6 +257,22 @@ describe('HubApiClient settings and profiles', () => {
 
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
     await expect(pullProfileYaml('missing')).resolves.toBe(null);
+  });
+
+  it('pullPublicProfileYaml uses the unauthenticated public profile path', async () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    const fetchMock = vi.fn(async () => jsonResponse({ yaml: 'tags:\n  - aggro\n', deckId: 'cmd-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(pullPublicProfileYaml('rayenz', 'fixture-commander')).resolves.toBe(
+      'tags:\n  - aggro\n',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:3000/v1/users/rayenz/decks/fixture-commander/profile',
+      expect.objectContaining({ method: 'GET' }),
+    );
+
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('', { status: 404, ok: false })));
+    await expect(pullPublicProfileYaml('rayenz', 'missing')).resolves.toBe(null);
   });
 });
 

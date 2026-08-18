@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import {
   DeckProfilePanel,
@@ -13,23 +12,20 @@ vi.mock('../../packages/web/src/deck-suggest/data', () => ({
   readProfileForDeck: vi.fn(),
 }));
 
-vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
-  ProfileSync: {
-    isConnected: vi.fn(),
-    connectProfilesDir: vi.fn(),
-    readProfileYaml: vi.fn(),
-  },
+vi.mock('../../packages/web/src/api/hub-api-client', () => ({
+  pullPublicProfileYaml: vi.fn(),
 }));
 
 import { readProfileForDeck } from '../../packages/web/src/deck-suggest/data';
-import { ProfileSync } from '../../packages/web/src/mtg/profile-sync';
+import { pullPublicProfileYaml } from '../../packages/web/src/api/hub-api-client';
 
 const commanderDoc = commanderFixture as DeckDocument;
 const readProfile = vi.mocked(readProfileForDeck);
-const isConnected = vi.mocked(ProfileSync.isConnected);
+const pullPublic = vi.mocked(pullPublicProfileYaml);
 
 afterEach(() => {
   cleanup();
+  window.location.hash = '';
   vi.clearAllMocks();
 });
 
@@ -65,24 +61,39 @@ describe('loadDeckProfile', () => {
     expect(profile?.tags).toEqual(['tokens']);
     expect(readProfile).toHaveBeenCalledWith('1');
     expect(readProfile).toHaveBeenCalledWith('deck-1');
+    expect(pullPublic).not.toHaveBeenCalled();
+  });
+
+  it('uses authenticated reads for owner/library hashes', async () => {
+    window.location.hash = '#/commander-builder/sandbox/fixture-commander';
+    readProfile.mockResolvedValue({ format: 'commander', tags: ['tokens'] });
+    const profile = await loadDeckProfile(commanderDoc);
+    expect(profile?.tags).toEqual(['tokens']);
+    expect(readProfile).toHaveBeenCalled();
+    expect(pullPublic).not.toHaveBeenCalled();
+  });
+
+  it('loads public YAML on a guest deep link instead of authenticated reads', async () => {
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    pullPublic.mockResolvedValue('format: commander\ntags:\n  - aggro\n');
+    const profile = await loadDeckProfile(commanderDoc);
+    expect(profile?.format).toBe('commander');
+    expect(profile?.tags).toEqual(['aggro']);
+    expect(pullPublic).toHaveBeenCalledWith('other-user', 'fixture-commander');
+    expect(readProfile).not.toHaveBeenCalled();
   });
 });
 
 describe('DeckProfilePanel', () => {
-  it('shows empty state and connect when not connected', async () => {
+  it('shows empty state without a connect-folder action', async () => {
     readProfile.mockResolvedValue(null);
-    isConnected.mockResolvedValue(false);
-    const user = userEvent.setup();
-    const connect = vi.mocked(ProfileSync.connectProfilesDir);
-    connect.mockResolvedValue(undefined);
 
     render(<DeckProfilePanel deck={commanderDoc} />);
 
     await waitFor(() => {
       expect(screen.getByText('No profile linked for this deck.')).toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: 'Connect profiles folder' }));
-    expect(connect).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Connect profiles folder/i })).not.toBeInTheDocument();
   });
 
   it('renders structured profile fields', async () => {
@@ -93,7 +104,6 @@ describe('DeckProfilePanel', () => {
       protected_cards: ['Lightning Bolt'],
       blocked_cards: ['Counterspell'],
     });
-    isConnected.mockResolvedValue(true);
 
     render(<DeckProfilePanel deck={commanderDoc} />);
 
@@ -104,5 +114,18 @@ describe('DeckProfilePanel', () => {
     expect(screen.getByText('draw')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Protected (1)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Blocked (1)' })).toBeInTheDocument();
+  });
+
+  it('renders a public-route profile from YAML', async () => {
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    pullPublic.mockResolvedValue('format: commander\ntags:\n  - tokens\n');
+
+    render(<DeckProfilePanel deck={commanderDoc} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/tokens/)).toBeInTheDocument();
+    });
+    expect(readProfile).not.toHaveBeenCalled();
+    expect(pullPublic).toHaveBeenCalledWith('other-user', 'fixture-commander');
   });
 });

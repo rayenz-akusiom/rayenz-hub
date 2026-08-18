@@ -242,6 +242,15 @@ export function pullProfileYaml(deckId: string): Promise<string | null> {
   });
 }
 
+export function pullPublicProfileYaml(username: string, deckSlug: string): Promise<string | null> {
+  return publicApiFetch(
+    `/v1/users/${encodeURIComponent(username)}/decks/${encodeURIComponent(deckSlug)}/profile`,
+  ).then((data) => {
+    const d = data as { yaml?: string } | null;
+    return d && d.yaml ? d.yaml : null;
+  });
+}
+
 export function pushProfile(deckId: string, body: unknown): Promise<unknown> {
   return clientApiFetch('/v1/profiles/' + encodeURIComponent(deckId), {
     method: 'PUT',
@@ -368,6 +377,7 @@ export const HubApiClient = {
   pushSettings: pushSettingsDomain,
   pullProfile,
   pullProfileYaml,
+  pullPublicProfileYaml,
   pushProfile,
   pullReviewProgress,
   pushReviewProgress,

@@ -46,7 +46,10 @@ export class ProfileRepository {
   }
 
   async get(auth: AuthContext, env: ApiEnv, deckId: string): Promise<ProfileRecord | null> {
-    const userId = resolveUserId(auth, env);
+    return this.getByUserId(resolveUserId(auth, env), deckId);
+  }
+
+  async getByUserId(userId: string, deckId: string): Promise<ProfileRecord | null> {
     const result = await this.doc.send(
       new GetCommand({
         TableName: this.tableName,

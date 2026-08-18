@@ -85,6 +85,16 @@ export async function route(
     return handlePublicUserSwaps(decodeURIComponent(publicSwapsMatch[1]), headers);
   }
 
+  const publicDeckProfileMatch = /^\/v1\/users\/([^/]+)\/decks\/([^/]+)\/profile$/.exec(path);
+  if (publicDeckProfileMatch && method === 'GET') {
+    const { handlePublicUserDeckProfile } = await import('./handlers/public-decks.js');
+    return handlePublicUserDeckProfile(
+      decodeURIComponent(publicDeckProfileMatch[1]),
+      decodeURIComponent(publicDeckProfileMatch[2]),
+      headers,
+    );
+  }
+
   const publicDeckMatch = /^\/v1\/users\/([^/]+)\/decks\/([^/]+)$/.exec(path);
   if (publicDeckMatch && method === 'GET') {
     const { handlePublicUserDeck } = await import('./handlers/public-decks.js');

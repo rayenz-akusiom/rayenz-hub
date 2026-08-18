@@ -34,11 +34,13 @@ export async function postGlanceRequest(
   if (res.status === 401) {
     const { tryRefreshAccessToken, notifyAuthRequired } = await import('./hub-auth-session');
     const refreshed = await tryRefreshAccessToken(cfg.url);
-    if (refreshed) {
-      res = await doFetch(refreshed);
+    if (refreshed.ok) {
+      res = await doFetch(refreshed.accessToken);
+    } else if (refreshed.cause === 'invalid') {
+      notifyAuthRequired();
+      throw new Error('Hub API unauthorized — sign in again.');
     }
     if (res.status === 401) {
-      notifyAuthRequired();
       throw new Error('Hub API unauthorized — sign in again.');
     }
   }

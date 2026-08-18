@@ -60,6 +60,9 @@ describe('hub-auth-client', () => {
       sub: 'sub-1',
       isOwner: true,
     });
+    expect(localStorage.getItem('rayenz-hub-access-token')).toBe('access');
+    expect(localStorage.getItem('rayenz-hub-refresh-token')).toBe('refresh');
+    expect(sessionStorage.getItem('rayenz-hub-access-token')).toBe(null);
   });
 
   it('uses the submitted username when the body omits it', async () => {

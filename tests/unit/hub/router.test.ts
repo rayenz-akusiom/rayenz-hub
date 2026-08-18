@@ -137,6 +137,7 @@ describe('hub hash navigation (DOM)', () => {
 
   afterEach(() => {
     window.location.hash = '';
+    localStorage.clear();
     sessionStorage.clear();
   });
 

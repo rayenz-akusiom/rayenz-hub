@@ -6,6 +6,7 @@
 import { SET_POOL_FORMAT_VERSION } from '@rayenz-hub/shared';
 import {
   getAccessToken,
+  getHubAuthSession,
   HubAuthRequiredError,
   notifyAuthRequired,
   tryRefreshAccessToken,
@@ -88,7 +89,7 @@ export interface HubApiConfig {
 export function getHubApiConfig(): HubApiConfig {
   stripLegacyApiKey();
   const url = resolveHubApiUrl(currentHubApiUrlSources());
-  return { url, enabled: !!(url && getAccessToken()) };
+  return { url, enabled: !!(url && getHubAuthSession()) };
 }
 
 /** Test helper: persist Hub API base URL to localStorage. Production Pages ignore this when VITE_HUB_API_URL is baked. */
@@ -174,8 +175,20 @@ export function parseHubApiJsonBody(text: string, fullUrl: string, configuredUrl
 
 export async function clientApiFetch(path: string, options?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<unknown> {
   const cfg = getHubApiConfig();
+  if (!cfg.url) {
+    return Promise.reject(new Error('Hub API not configured'));
+  }
   let token = getAccessToken();
-  if (!cfg.url || !token) {
+  if (!token && getHubAuthSession()?.refreshToken) {
+    const restored = await tryRefreshAccessToken(cfg.url);
+    if (restored.ok) {
+      token = restored.accessToken;
+    } else if (restored.cause === 'invalid') {
+      notifyAuthRequired();
+      throw new HubAuthRequiredError('Hub API unauthorized');
+    }
+  }
+  if (!token) {
     return Promise.reject(new Error('Hub API not configured'));
   }
   assertApiNotPageOrigin(cfg.url);
@@ -198,14 +211,16 @@ export async function clientApiFetch(path: string, options?: { method?: string; 
   let res = await doFetch(token);
   if (res.status === 401) {
     const refreshed = await tryRefreshAccessToken(cfg.url);
-    if (refreshed) {
-      token = refreshed;
+    if (refreshed.ok) {
+      token = refreshed.accessToken;
       res = await doFetch(token);
+    } else if (refreshed.cause === 'invalid') {
+      notifyAuthRequired();
+      throw new HubAuthRequiredError('Hub API unauthorized');
     }
   }
   const peek = await res.text();
   if (res.status === 401) {
-    notifyAuthRequired();
     throw new HubAuthRequiredError('Hub API unauthorized');
   }
   if (res.status === 404 || res.status === 204) {

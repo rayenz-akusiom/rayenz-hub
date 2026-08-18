@@ -78,7 +78,7 @@ Optional: `$env:HUB_MIGRATE_SOURCE_USER_ID = 'rayenz-local'` if local writes alr
 
 ## Sign-in on Pages
 
-Sign in from the **left nav** (username `Rayenz`). The API URL is baked in at `npm run publish:hub` (from `VITE_HUB_API_URL` / `HUB_API_URL`, or stack output `HubApiUrl`). Tokens stay in sessionStorage. Sign out from the nav clears them. Settings → Hub API is status + Test connection only. No API URL in the build → client-only, no login.
+Sign in from the **left nav** (username `Rayenz`). The API URL is baked in at `npm run publish:hub` (from `VITE_HUB_API_URL` / `HUB_API_URL`, or stack output `HubApiUrl`). Tokens stay in localStorage until Sign out. Access tokens last 24 hours; refresh tokens last up to 10 years (Cognito max; existing refresh tokens keep their original lifetime until the next password sign-in after `deploy:cognito`). Settings → Hub API is status + Test connection only. No API URL in the build → client-only, no login.
 
 `HUB_USER_ID` in `infra/env.local.json` / SAM overlays is for local scripts (migration, owner sync). Request identity is always the Cognito JWT `sub`.
 

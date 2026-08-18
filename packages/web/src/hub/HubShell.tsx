@@ -10,7 +10,9 @@ import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
 import { InviteRedeemPage } from '../pages/InviteRedeemPage';
 import { SettingsShell, type SettingsTab } from '../SettingsShell';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
+import { getHubApiConfig } from '../api/hub-api-client';
 import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
+import { restoreHubAuthSession } from '../lib/hub-auth-session';
 import { HubNav } from './HubNav';
 import { isSettingsPath } from './routes';
 import { useHubRoute } from './useHubRoute';
@@ -52,7 +54,11 @@ export function HubShell() {
 
   useEffect(() => {
     installHubCardPickerBridge();
-    void hydrateHubOwnerFlag();
+    void (async () => {
+      const url = getHubApiConfig().url;
+      if (url) await restoreHubAuthSession(url);
+      await hydrateHubOwnerFlag();
+    })();
   }, []);
 
   return (

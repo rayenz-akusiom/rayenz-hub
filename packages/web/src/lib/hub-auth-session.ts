@@ -7,6 +7,11 @@ const USERNAME_KEY = 'rayenz-hub-username';
 const SUB_KEY = 'rayenz-hub-sub';
 const OWNER_KEY = 'rayenz-hub-is-owner';
 
+const AUTH_KEYS = [ACCESS_KEY, ID_KEY, REFRESH_KEY, USERNAME_KEY, SUB_KEY, OWNER_KEY] as const;
+
+/** Refresh when the access JWT expires within this many seconds. */
+export const ACCESS_TOKEN_REFRESH_SKEW_SECONDS = 60;
+
 export const HUB_AUTH_REQUIRED_EVENT = 'hub-auth-required';
 export const HUB_AUTH_CHANGED_EVENT = 'hub-auth-changed';
 export const OWNER_ONLY_EXPENSIVE_MESSAGE =
@@ -29,9 +34,25 @@ export type HubAuthSession = {
   isOwner?: boolean;
 };
 
-function storageGet(key: string): string {
+export type RefreshAccessTokenResult =
+  | { ok: true; accessToken: string }
+  | { ok: false; cause: 'invalid' | 'unavailable' };
+
+function migrateSessionKey(key: string): void {
   try {
-    return sessionStorage.getItem(key) || localStorage.getItem(key) || '';
+    const fromSession = sessionStorage.getItem(key);
+    if (!fromSession) return;
+    localStorage.setItem(key, fromSession);
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function storageGet(key: string): string {
+  migrateSessionKey(key);
+  try {
+    return localStorage.getItem(key) || '';
   } catch {
     return '';
   }
@@ -39,25 +60,31 @@ function storageGet(key: string): string {
 
 function storageSet(key: string, value: string): void {
   try {
-    if (value) sessionStorage.setItem(key, value);
-    else sessionStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
   } catch {
     /* ignore */
   }
 }
 
-export function getHubAuthSession(): HubAuthSession | null {
+function readStoredSession(): HubAuthSession | null {
   const accessToken = storageGet(ACCESS_KEY);
-  if (!accessToken) return null;
+  const refreshToken = storageGet(REFRESH_KEY) || undefined;
+  if (!accessToken && !refreshToken) return null;
   const ownerRaw = storageGet(OWNER_KEY);
   return {
     accessToken,
     idToken: storageGet(ID_KEY) || undefined,
-    refreshToken: storageGet(REFRESH_KEY) || undefined,
+    refreshToken,
     username: storageGet(USERNAME_KEY) || undefined,
     sub: storageGet(SUB_KEY) || undefined,
     isOwner: ownerRaw === '1' ? true : ownerRaw === '0' ? false : undefined,
   };
+}
+
+export function getHubAuthSession(): HubAuthSession | null {
+  return readStoredSession();
 }
 
 /** Fail closed: expensive APIs stay hidden until /v1/auth/me says owner. */
@@ -70,11 +97,11 @@ export function getAccessToken(): string {
 }
 
 export function isSignedIn(): boolean {
-  return Boolean(getHubAuthSession()?.accessToken);
+  return getHubAuthSession() != null;
 }
 
 export function setHubAuthSession(session: HubAuthSession): void {
-  storageSet(ACCESS_KEY, session.accessToken);
+  storageSet(ACCESS_KEY, session.accessToken || '');
   storageSet(ID_KEY, session.idToken || '');
   storageSet(REFRESH_KEY, session.refreshToken || '');
   storageSet(USERNAME_KEY, session.username || '');
@@ -86,18 +113,13 @@ export function setHubAuthSession(session: HubAuthSession): void {
 }
 
 export function clearHubAuthSession(): void {
-  storageSet(ACCESS_KEY, '');
-  storageSet(ID_KEY, '');
-  storageSet(REFRESH_KEY, '');
-  storageSet(USERNAME_KEY, '');
-  storageSet(SUB_KEY, '');
-  storageSet(OWNER_KEY, '');
-  try {
-    localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(ID_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-  } catch {
-    /* ignore */
+  for (const key of AUTH_KEYS) {
+    try {
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
   }
   dispatchAuthChanged();
 }
@@ -111,12 +133,36 @@ export function notifyAuthRequired(): void {
   }
 }
 
-/** Exchange a stored refresh token for a new access token. Returns null on failure. */
-export async function tryRefreshAccessToken(apiUrl: string): Promise<string | null> {
+/** JWT `exp` (unix seconds), or null when the token is not a JWT with exp. */
+export function readJwtExp(token: string): number | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { exp?: unknown };
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+export function shouldRefreshAccessToken(
+  accessToken: string,
+  nowSeconds = Date.now() / 1000,
+): boolean {
+  if (!accessToken) return true;
+  const exp = readJwtExp(accessToken);
+  if (exp == null) return false;
+  return exp <= nowSeconds + ACCESS_TOKEN_REFRESH_SKEW_SECONDS;
+}
+
+/** Exchange a stored refresh token for a new access token. Does not wipe the session. */
+export async function tryRefreshAccessToken(apiUrl: string): Promise<RefreshAccessTokenResult> {
   const session = getHubAuthSession();
   const refreshToken = session?.refreshToken;
   if (!refreshToken || !apiUrl) {
-    return null;
+    return { ok: false, cause: 'invalid' };
   }
   try {
     const res = await fetch(`${apiUrl.replace(/\/$/, '')}/v1/auth/refresh`, {
@@ -124,8 +170,11 @@ export async function tryRefreshAccessToken(apiUrl: string): Promise<string | nu
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ refreshToken, username: session.username }),
     });
+    if (res.status === 400 || res.status === 401) {
+      return { ok: false, cause: 'invalid' };
+    }
     if (!res.ok) {
-      return null;
+      return { ok: false, cause: 'unavailable' };
     }
     const body = JSON.parse(await res.text()) as {
       accessToken?: string;
@@ -135,7 +184,7 @@ export async function tryRefreshAccessToken(apiUrl: string): Promise<string | nu
       sub?: string;
     };
     if (!body.accessToken) {
-      return null;
+      return { ok: false, cause: 'unavailable' };
     }
     setHubAuthSession({
       accessToken: body.accessToken,
@@ -145,9 +194,20 @@ export async function tryRefreshAccessToken(apiUrl: string): Promise<string | nu
       sub: body.sub || session.sub,
       isOwner: session.isOwner,
     });
-    return body.accessToken;
+    return { ok: true, accessToken: body.accessToken };
   } catch {
-    return null;
+    return { ok: false, cause: 'unavailable' };
+  }
+}
+
+/** Refresh when the access token is missing or near expiry. Wipes only if the refresh token is invalid. */
+export async function restoreHubAuthSession(apiUrl: string): Promise<void> {
+  const session = getHubAuthSession();
+  if (!session?.refreshToken || !apiUrl) return;
+  if (!shouldRefreshAccessToken(session.accessToken)) return;
+  const result = await tryRefreshAccessToken(apiUrl);
+  if (!result.ok && result.cause === 'invalid') {
+    notifyAuthRequired();
   }
 }
 

@@ -319,7 +319,7 @@ Try:
 | -------------------- | ------------------------------------------ |
 | `#/dailies`          | Settings pull/push via `hub-api-client` |
 | `#/settings` | Hub Settings shell (tabs: Hub API, Dailies, Deck Suggest, Order Reconcile) |
-| `#/settings/hub-api` | Sign-in (sessionStorage). API URL comes from the build / Vite dev. |
+| `#/settings/hub-api` | Sign-in (localStorage). API URL comes from the build / Vite dev. |
 | `#/settings/dailies` | Deep-link to Dailies settings tab |
 | `#/deck-suggest`     | Suggest + review (legacy `#/deck-review` redirects here) |
 

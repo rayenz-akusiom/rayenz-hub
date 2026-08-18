@@ -27,7 +27,7 @@ export async function applyAuthTokensResponse(
 export async function hydrateHubOwnerFlag(options: { force?: boolean } = {}): Promise<void> {
   const session = getHubAuthSession();
   const url = getHubApiConfig().url;
-  if (!session || !url) return;
+  if (!session?.accessToken || !url) return;
   if (!options.force && session.isOwner !== undefined) return;
   try {
     assertApiNotPageOrigin(url);

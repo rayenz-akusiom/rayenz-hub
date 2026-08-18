@@ -78,7 +78,7 @@ describe('Hub invites UI', () => {
     await waitFor(() => {
       expect(screen.getByText(/You are signed in/i)).toBeInTheDocument();
     });
-    expect(sessionStorage.getItem('rayenz-hub-access-token')).toBe('access');
+    expect(localStorage.getItem('rayenz-hub-access-token')).toBe('access');
   });
 
   it('renders owner invite admin', () => {

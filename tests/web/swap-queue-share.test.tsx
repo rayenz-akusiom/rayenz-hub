@@ -9,18 +9,21 @@ import {
   pairDeck,
 } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import { clearHubAuthSession, setHubAuthSession } from '../../packages/web/src/lib/hub-auth-session';
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   window.location.hash = '';
   sessionStorage.clear();
+  clearHubAuthSession();
 });
 
 describe('SwapQueueApp username share links', () => {
   beforeEach(() => {
     window.location.hash = '';
     sessionStorage.clear();
+    clearHubAuthSession();
     mockLoadSwapWantSources.mockResolvedValue({ decks: [], sources: [] });
     mockLoadPublicSwapWantSources.mockResolvedValue(null);
   });
@@ -58,8 +61,7 @@ describe('SwapQueueApp username share links', () => {
   });
 
   it('copies a share link for the signed-in username', async () => {
-    sessionStorage.setItem('rayenz-hub-access-token', 'token');
-    sessionStorage.setItem('rayenz-hub-username', 'Rayenz');
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz' });
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -83,8 +85,7 @@ describe('SwapQueueApp username share links', () => {
   });
 
   it('copies the viewed queue share link for a signed-in invitee', async () => {
-    sessionStorage.setItem('rayenz-hub-access-token', 'token');
-    sessionStorage.setItem('rayenz-hub-username', 'Friend');
+    setHubAuthSession({ accessToken: 'token', username: 'Friend' });
     const deck = pairDeck();
     mockLoadPublicSwapWantSources.mockResolvedValue({
       username: 'Rayenz',

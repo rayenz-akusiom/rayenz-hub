@@ -102,7 +102,7 @@ export function enableHubApi(
 ): void {
   localStorage.setItem('rayenz-hub-api-url', url);
   localStorage.removeItem('rayenz-hub-api-key');
-  sessionStorage.setItem('rayenz-hub-access-token', accessToken);
+  localStorage.setItem('rayenz-hub-access-token', accessToken);
 }
 
 /** @deprecated Prefer enableHubApi */

@@ -21,7 +21,7 @@ import {
   persistDeckBuilderSettings,
   persistDailiesSettings,
 } from '../../../packages/web/src/api/hub-api.ts';
-import { setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
+import { getAccessToken, getHubAuthSession, setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
 import {
   enableHubApi,
   installHubApiGlobalsLifecycle,
@@ -45,6 +45,13 @@ describe('HubApiClient config and parsing', () => {
       url: 'http://127.0.0.1:3000',
       enabled: true,
     });
+    expect(isApiConfigured()).toBe(true);
+  });
+
+  it('enables API mode when only a refresh token is stored', () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({ accessToken: '', refreshToken: 'refresh-me', username: 'Rayenz' });
+    expect(getHubApiConfig().enabled).toBe(true);
     expect(isApiConfigured()).toBe(true);
   });
 
@@ -218,6 +225,64 @@ describe('clientApiFetch', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(clientApiFetch('/v1/settings/dailies')).resolves.toEqual({ payload: { ok: true } });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not wipe the session when refresh fails with a network error', async () => {
+    enableHubApi();
+    setHubAuthSession({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-me',
+      username: 'Rayenz',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/v1/auth/refresh')) {
+          throw new Error('network');
+        }
+        return jsonResponse('denied', { status: 401, ok: false });
+      }),
+    );
+    await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow('Hub API unauthorized');
+    expect(getHubAuthSession()?.refreshToken).toBe('refresh-me');
+  });
+
+  it('wipes the session when refresh returns 401', async () => {
+    enableHubApi();
+    setHubAuthSession({
+      accessToken: 'expired-token',
+      refreshToken: 'stale-refresh',
+      username: 'Rayenz',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/v1/auth/refresh')) {
+          return jsonResponse('denied', { status: 401, ok: false });
+        }
+        return jsonResponse('denied', { status: 401, ok: false });
+      }),
+    );
+    await expect(clientApiFetch('/v1/settings/dailies')).rejects.toThrow('Hub API unauthorized');
+    expect(getHubAuthSession()).toBeNull();
+  });
+
+  it('refreshes a refresh-only session before the first API call', async () => {
+    localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
+    setHubAuthSession({
+      accessToken: '',
+      refreshToken: 'refresh-me',
+      username: 'Rayenz',
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/v1/auth/refresh')) {
+        return jsonResponse({ accessToken: 'new-token', refreshToken: 'refresh-me' });
+      }
+      return jsonResponse({ payload: { ok: true } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(clientApiFetch('/v1/settings/dailies')).resolves.toEqual({ payload: { ok: true } });
+    expect(getAccessToken()).toBe('new-token');
   });
 });
 

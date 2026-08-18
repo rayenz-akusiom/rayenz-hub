@@ -46,6 +46,9 @@ describe('production stack inventory', () => {
     expect(samconfig).toMatch(/template_file = "infra\/cognito.yaml"/);
     expect(cognito).toMatch(/Type: AWS::Cognito::UserPool/);
     expect(cognito).toMatch(/Type: AWS::Cognito::UserPoolClient/);
+    expect(cognito).toMatch(/AccessTokenValidity: 24/);
+    expect(cognito).toMatch(/IdTokenValidity: 24/);
+    expect(cognito).toMatch(/RefreshTokenValidity: 3650/);
     expect(cognito).toMatch(/AutoVerifiedAttributes:[\s\S]*?- email/);
     expect(cognito).toMatch(/DeletionPolicy: Retain/);
     expect(cognito).toMatch(/UpdateReplacePolicy: Retain/);

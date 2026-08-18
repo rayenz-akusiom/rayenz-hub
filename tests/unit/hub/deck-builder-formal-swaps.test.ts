@@ -10,6 +10,7 @@ import {
   inTargetCategoryFromOutCard,
   isValidSwapInTargetCategory,
   normalizeFormalEntries,
+  projectLiveFormalSwaps,
   queueCardsAsOut,
   removeFormalSwapEntries,
   resolveSwapInTargetCategory,
@@ -457,6 +458,27 @@ describe('formal swaps', () => {
       });
       expect(seeking.formalSwapEntries[0]!.inTargetCategory).toBe('Creature');
       expect(seeking.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+    });
+
+    it('projectLiveFormalSwaps moves Ins without bumping updatedAt', () => {
+      const deck: DeckDocument = {
+        ...baseDeck,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        formalSwapEntries: [
+          {
+            id: 's1',
+            inInstanceId: 'c3',
+            outInstanceId: 'c1',
+            inTargetCategory: 'Creature',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      };
+      const next = projectLiveFormalSwaps(deck);
+      expect(next.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+      expect(next.cards.find((c) => c.instanceId === 'c3')!.primaryCategory).toBe('Creature');
+      expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Queued Out');
     });
 
     it('does not fall back to Maybeboard when inTargetCategory is null', () => {

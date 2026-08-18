@@ -34,6 +34,7 @@ import {
   moveCardsCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
+  projectLiveFormalSwaps,
   queueCardsAsOut,
   reconcileLookingForFromCards,
   removeCardsFromDeck,
@@ -215,23 +216,25 @@ export function BrowseShell({
     };
   }, [cardWidthPx]);
 
+  const liveDeck = useMemo(() => projectLiveFormalSwaps(deck), [deck]);
+
   const selectedCards = useMemo(
-    () => deck.cards.filter((c) => selectedIds.has(c.instanceId)),
-    [deck.cards, selectedIds],
+    () => liveDeck.cards.filter((c) => selectedIds.has(c.instanceId)),
+    [liveDeck.cards, selectedIds],
   );
   const selectionCount = selectedCards.length;
   const multi = selectionCount > 1;
   const primarySelected = selectedCards[0] || null;
 
-  /** Browse-only view with set / proxy / foil filters; mutations still use full `deck`. */
+  /** Browse-only view with set / proxy / foil filters; mutations still use full `liveDeck`. */
   const browseDeck = useMemo((): DeckDocument => {
     const setActive = setFilter.active && setFilter.membership;
     const membership = setFilter.membership;
     const flagActive = proxyFilter !== 'all' || foilFilter !== 'all';
-    if (!setActive && !flagActive) return deck;
+    if (!setActive && !flagActive) return liveDeck;
     return {
-      ...deck,
-      cards: deck.cards.filter((c) => {
+      ...liveDeck,
+      cards: liveDeck.cards.filter((c) => {
         if (setActive && membership && !cardMatchesSetMembership(c.name, membership)) {
           return false;
         }
@@ -241,18 +244,18 @@ export function BrowseShell({
       }),
     };
   }, [
-    deck,
+    liveDeck,
     setFilter.active,
     setFilter.membership,
     proxyFilter,
     foilFilter,
   ]);
 
-  const incomplete = incompleteEntryCount(deck.formalSwapEntries);
-  const size = deckSize(deck);
-  const queuesReadOnly = isTheoryDeck(deck) || readOnly;
+  const incomplete = incompleteEntryCount(liveDeck.formalSwapEntries);
+  const size = deckSize(liveDeck);
+  const queuesReadOnly = isTheoryDeck(liveDeck) || readOnly;
 
-  const deckRef = useRef(deck);
+  const deckRef = useRef(liveDeck);
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const swapAutosaveTimer = useRef(0);
@@ -294,32 +297,33 @@ export function BrowseShell({
   useEffect(() => {
     const local = deckRef.current;
     if (deck.deckId !== local.deckId) {
-      deckRef.current = deck;
+      deckRef.current = liveDeck;
       editHistory.clear();
-      setView(deck.browseViewDefault || defaultBrowseView(deck.format));
-      setLayout(deck.cardLayoutDefault || 'stacked');
-      setCardSort(deck.cardSortDefault || 'name_asc');
+      setView(liveDeck.browseViewDefault || defaultBrowseView(liveDeck.format));
+      setLayout(liveDeck.cardLayoutDefault || 'stacked');
+      setCardSort(liveDeck.cardSortDefault || 'name_asc');
       setSelectedIds(new Set());
       setSelectionAnchorId(null);
       return;
     }
     if (deck.updatedAt >= local.updatedAt) {
-      deckRef.current = deck;
+      deckRef.current = liveDeck;
     }
-  }, [deck, editHistory]);
+  }, [deck, liveDeck, editHistory]);
 
   // Ensure Seeking category def exists so aside flags / deck size stay correct.
   useEffect(() => {
-    const cats = deck.categories || [];
+    const current = deckRef.current;
+    const cats = current.categories || [];
     if (cats.some((c) => c.name === SEEKING)) return;
     commit(
       {
-        ...deckRef.current,
+        ...current,
         categories: ensureCategoryDef(cats, SEEKING),
       },
       { recordHistory: false },
     );
-  }, [deck.deckId, deck.categories, commit]);
+  }, [liveDeck.deckId, liveDeck.categories, commit]);
 
   const onEnrichPatch = useCallback(
     (next: DeckDocument) => {
@@ -353,11 +357,11 @@ export function BrowseShell({
     view === 'colour_identity' || view === 'colour_identity_spells';
   const isUnifiedListView = view === 'unified_list';
   // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
-  const { enriching } = useScryfallEnrich(deck, true, onEnrichPatch);
+  const { enriching } = useScryfallEnrich(liveDeck, true, onEnrichPatch);
 
-  const headerTarget = deckHeaderTarget(deck);
-  const sizeWarn = deckSizeMismatch(deck);
-  const targetsVsCubeWarn = categoryTargetsMismatchCubeSize(deck);
+  const headerTarget = deckHeaderTarget(liveDeck);
+  const sizeWarn = deckSizeMismatch(liveDeck);
+  const targetsVsCubeWarn = categoryTargetsMismatchCubeSize(liveDeck);
   const sizeLabel =
     headerTarget != null ? `${size}/${headerTarget} cards` : `${size} cards`;
   const deckMeta = [
@@ -424,7 +428,7 @@ export function BrowseShell({
 
   // Drop selection entries that no longer exist on the deck.
   useEffect(() => {
-    const live = new Set(deck.cards.map((c) => c.instanceId));
+    const live = new Set(liveDeck.cards.map((c) => c.instanceId));
     setSelectedIds((prev) => {
       let changed = false;
       const next = new Set<string>();
@@ -434,7 +438,7 @@ export function BrowseShell({
       }
       return changed ? next : prev;
     });
-  }, [deck.cards]);
+  }, [liveDeck.cards]);
 
   const onMainVisibleOrderChange = useCallback((ids: string[]) => {
     setMainVisibleOrder((prev) => {
@@ -805,17 +809,17 @@ export function BrowseShell({
   const isCover =
     !multi &&
     primarySelected != null &&
-    deck.coverInstanceId === primarySelected.instanceId;
+    liveDeck.coverInstanceId === primarySelected.instanceId;
   const coverActionLabel =
     primarySelected && isCommanderCategory(primarySelected.primaryCategory)
       ? 'primary'
       : 'cover';
-  const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(deck, c));
+  const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(liveDeck, c));
   const anyFoil = selectedCards.some((c) => c.foil);
   const anyProxy = selectedCards.some((c) => c.proxy);
   const contextCard =
     contextMenu != null
-      ? deck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
+      ? liveDeck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
       : null;
 
   return (
@@ -847,10 +851,10 @@ export function BrowseShell({
         />
         {readOnly ? null : (
           <DeckActionsMenu
-            deck={deck}
+            deck={liveDeck}
             onDeckChange={(next) => {
               // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
-              if (next.cards !== deck.cards || next.categories !== deck.categories) {
+              if (next.cards !== liveDeck.cards || next.categories !== liveDeck.categories) {
                 commit(next);
               } else {
                 commitPatch({
@@ -860,7 +864,9 @@ export function BrowseShell({
             }}
           />
         )}
-        {deck.format === 'commander' && !readOnly ? <GlanceGenerateButton deck={deck} /> : null}
+        {liveDeck.format === 'commander' && !readOnly ? (
+          <GlanceGenerateButton deck={liveDeck} />
+        ) : null}
       </header>
 
       <div className="db-body">
@@ -1013,7 +1019,7 @@ export function BrowseShell({
             className="db-aside-panel"
           >
             <SwapQueuePanel
-              deck={deck}
+              deck={liveDeck}
               setMembership={setFilter.active ? setFilter.membership : null}
               readOnly={queuesReadOnly}
               onChange={(next) => {
@@ -1056,14 +1062,14 @@ export function BrowseShell({
             hidden={asideTab !== 'profile'}
             className="db-aside-panel"
           >
-            {asideTab === 'profile' ? <DeckProfilePanel deck={deck} /> : null}
+            {asideTab === 'profile' ? <DeckProfilePanel deck={liveDeck} /> : null}
           </div>
         </aside>
       </div>
 
       {moveOpen && selectionCount ? (
         <MoveSheet
-          deck={deck}
+          deck={liveDeck}
           cards={selectedCards}
           initialCreatingNew={moveCreatingNew}
           onClose={() => {
@@ -1080,7 +1086,7 @@ export function BrowseShell({
 
       {addOpen ? (
         <ScryfallSearchModal
-          deck={deck}
+          deck={liveDeck}
           onClose={() => setAddOpen(false)}
           onAdd={onAddCard}
           allowQuickAdd
@@ -1105,7 +1111,7 @@ export function BrowseShell({
 
       {categoriesOpen ? (
         <CategorySettingsPanel
-          deck={deck}
+          deck={liveDeck}
           onChange={(next) => {
             commitPatch({
               categories: next.categories,
@@ -1123,7 +1129,7 @@ export function BrowseShell({
 
       {basicsOpen ? (
         <BasicLandsPanel
-          deck={deck}
+          deck={liveDeck}
           onChange={(next) => commit(next)}
           onClose={() => setBasicsOpen(false)}
         />
@@ -1131,13 +1137,13 @@ export function BrowseShell({
 
       {editingCategory ? (
         <CategoryEditDialog
-          deck={deck}
+          deck={liveDeck}
           categoryName={editingCategory}
           onChange={(next) => {
             commitPatch({
               categories: next.categories,
               // Only apply cards when rename rewrote memberships (same ref = no rename).
-              ...(next.cards !== deck.cards ? { cards: next.cards } : {}),
+              ...(next.cards !== liveDeck.cards ? { cards: next.cards } : {}),
             });
           }}
           onClose={() => setEditingCategory(null)}
@@ -1149,19 +1155,19 @@ export function BrowseShell({
         <CardContextMenu
           state={contextMenu}
           selectionCount={selectionCount}
-          isCover={deck.coverInstanceId === contextCard.instanceId}
+          isCover={liveDeck.coverInstanceId === contextCard.instanceId}
           coverActionLabel={
             isCommanderCategory(contextCard.primaryCategory) ? 'primary' : 'cover'
           }
           foil={Boolean(contextCard.foil)}
           foilEnabled={
             multi
-              ? selectedCards.some((c) => cardSupportsFoilToggle(deck, c))
-              : cardSupportsFoilToggle(deck, contextCard)
+              ? selectedCards.some((c) => cardSupportsFoilToggle(liveDeck, c))
+              : cardSupportsFoilToggle(liveDeck, contextCard)
           }
           proxy={Boolean(contextCard.proxy)}
           secondaryCategories={secondaryCategoriesOf(contextCard)}
-          categoryOptions={deckCategoryOptions(deck).filter(
+          categoryOptions={deckCategoryOptions(liveDeck).filter(
             (c) =>
               c !== contextCard.primaryCategory &&
               !(contextCard.categories || []).includes(c),

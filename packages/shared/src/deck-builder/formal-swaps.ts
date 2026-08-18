@@ -373,6 +373,15 @@ export function syncCardsWithFormalSwaps(
   };
 }
 
+/**
+ * Display-time live projection: same card/category moves as sync, original updatedAt.
+ * Use when opening a deck so In ghosts show without treating the view as an edit.
+ */
+export function projectLiveFormalSwaps(deck: DeckDocument): DeckDocument {
+  const next = syncCardsWithFormalSwaps(deck);
+  return { ...next, updatedAt: deck.updatedAt };
+}
+
 function newSwapEntry(sortIndex: number, outInstanceId: string | null = null): FormalSwapEntry {
   return {
     id: `swap-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

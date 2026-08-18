@@ -64,6 +64,10 @@ describe('import', () => {
 
     expect(doc.formalSwapEntries[0].outInstanceId).toBeTruthy();
 
+    expect(doc.cards.find((c) => c.name === 'In Card')?.primaryCategory).not.toBe('Queued In');
+
+    expect(doc.cards.find((c) => c.name === 'Out Card')?.primaryCategory).toBe('Queued Out');
+
   });
 
   it('aliases legacy New Set In/Out headers to Queued In/Out on paste', () => {
@@ -480,6 +484,8 @@ describe('import', () => {
     };
     const doc = documentFromArchidektSnapshot(snap);
     expect(doc.formalSwapEntries.length).toBeGreaterThan(0);
+    expect(doc.cards.find((c) => c.name === 'In Card')?.primaryCategory).not.toBe('Queued In');
+    expect(doc.cards.find((c) => c.name === 'Out Card')?.primaryCategory).toBe('Queued Out');
   });
 
   it('refresh keep-swaps vs clear-swaps', () => {
@@ -504,7 +510,7 @@ describe('import', () => {
 
       cards: existing.cards.map((c) => ({
 
-        id: c.archidektCardId,
+        id: c.instanceId,
 
         name: c.name,
 
@@ -529,6 +535,10 @@ describe('import', () => {
     const kept = documentFromArchidektSnapshot(snap, existing, { clearSwaps: false });
 
     expect(kept.formalSwapEntries).toHaveLength(1);
+
+    expect(kept.cards.find((c) => c.instanceId === 'c1')?.primaryCategory).not.toBe('Queued In');
+
+    expect(kept.cards.find((c) => c.instanceId === 'c2')?.primaryCategory).toBe('Queued Out');
 
     const cleared = documentFromArchidektSnapshot(snap, existing, { clearSwaps: true });
 

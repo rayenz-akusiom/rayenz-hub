@@ -14,6 +14,7 @@ import {
   scryfallImageFromId,
   seedFormalSwapsFromCategories,
   seedLookingForFromCategories,
+  syncCardsWithFormalSwaps,
   upsertOracle,
   canonicalizeSwapCategory,
   canonicalizeCategoryName,
@@ -348,7 +349,7 @@ export function documentFromImportText(
   const formalSwapEntries = seedFormalSwapsFromCategories(cards, []);
   const lookingForEntries = seedLookingForFromCategories(cards, []);
 
-  return withForcedFormat(
+  return syncCardsWithFormalSwaps(withForcedFormat(
     {
     schemaVersion: 1,
     deckId: opts.deckId || nextId('deck'),
@@ -372,7 +373,7 @@ export function documentFromImportText(
     cubeTargetSize: null,
   },
     opts.forcedFormat,
-  );
+  ));
 
 }
 
@@ -557,7 +558,7 @@ export function documentFromArchidektSnapshot(
 
 
 
-  return withForcedFormat(
+  return syncCardsWithFormalSwaps(withForcedFormat(
     {
     schemaVersion: 1,
 
@@ -600,7 +601,7 @@ export function documentFromArchidektSnapshot(
     cubeTargetSize: existing?.cubeTargetSize ?? null,
   },
     opts.forcedFormat,
-  );
+  ));
 
 }
 

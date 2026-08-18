@@ -788,6 +788,60 @@ describe('CategoryBrowse swap-In ghosts', () => {
   });
 });
 
+describe('BrowseShell swap-In ghosts on load', () => {
+  function unsyncedGhostDeck(): DeckDocument {
+    const ghostIn = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'ghost-in',
+      name: 'Alpha Ghost',
+      primaryCategory: 'Queued In',
+      categories: ['Queued In'],
+    };
+    return {
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      cards: [ghostIn, ...commanderDoc.cards],
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: 'ghost-in',
+          outInstanceId: null,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+  }
+
+  it('projects Queued In cards into the target category as ghosts without saving', () => {
+    const onChange = vi.fn();
+    render(
+      <BrowseShell deck={unsyncedGhostDeck()} onChange={onChange} onBack={noop} />,
+    );
+
+    const ghost = screen.getByRole('button', { name: /Alpha Ghost, swap in/i });
+    expect(ghost).toHaveClass('is-swap-in-ghost');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('projects ghosts on load when read-only', () => {
+    const onChange = vi.fn();
+    render(
+      <BrowseShell
+        deck={unsyncedGhostDeck()}
+        onChange={onChange}
+        onBack={noop}
+        readOnly
+      />,
+    );
+
+    const ghost = screen.getByRole('button', { name: /Alpha Ghost, swap in/i });
+    expect(ghost).toHaveClass('is-swap-in-ghost');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 describe('MoveSheet', () => {
   it('applies category move', async () => {
     const card = commanderDoc.cards[0] as CardInstance;

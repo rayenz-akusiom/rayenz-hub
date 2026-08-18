@@ -1,3 +1,4 @@
+import { normalizeUsername } from '@rayenz-hub/shared';
 import { useMemo, useState, type FormEvent } from 'react';
 import { getHubApiConfig } from '../api/hub-api-client';
 import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
@@ -41,7 +42,7 @@ export function InviteRedeemPage() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           token,
-          username: username.trim(),
+          username: normalizeUsername(username),
           email: email.trim(),
           password,
         }),
@@ -75,7 +76,7 @@ export function InviteRedeemPage() {
       const res = await fetch(`${cfg.url}/v1/auth/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ username: username.trim(), code: code.trim(), password }),
+        body: JSON.stringify({ username: normalizeUsername(username), code: code.trim(), password }),
       });
       const text = await res.text();
       if (!res.ok) {
@@ -92,7 +93,7 @@ export function InviteRedeemPage() {
         accessToken: body.accessToken,
         idToken: body.idToken,
         refreshToken: body.refreshToken,
-        username: body.username || username.trim(),
+        username: body.username || normalizeUsername(username),
         sub: body.sub,
       });
       await hydrateHubOwnerFlag({ force: true });
@@ -115,7 +116,7 @@ export function InviteRedeemPage() {
       const res = await fetch(`${cfg.url}/v1/auth/resend-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username: normalizeUsername(username) }),
       });
       if (!res.ok) {
         throw new Error('Could not resend the confirmation code.');
@@ -177,7 +178,13 @@ export function InviteRedeemPage() {
         <form className="hub-web-form" onSubmit={(e) => void handleRegister(e)}>
           <label className="hub-web-field">
             Username
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+            <input
+              value={username}
+              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
           </label>
           <label className="hub-web-field">
             Email

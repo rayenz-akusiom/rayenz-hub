@@ -27,6 +27,11 @@ export function usernameToSlug(name: string): string {
   return toKebabCase(name.trim());
 }
 
+/** Canonical Cognito / directory username: trimmed lowercase. */
+export function normalizeUsername(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 export function isReservedUsername(name: string): boolean {
   const lower = name.trim().toLowerCase();
   const slug = usernameToSlug(name);

@@ -1,5 +1,5 @@
 import { injectable } from 'inversify';
-import type { AuthContext } from '@rayenz-hub/shared';
+import { normalizeUsername, type AuthContext } from '@rayenz-hub/shared';
 import { AuthError, ForbiddenError, parseAuthContextAsync, requireAuth, type ApiEnv } from '../lib/auth.js';
 
 @injectable()
@@ -21,7 +21,7 @@ export class AuthService {
 
   isOwner(auth: AuthContext): boolean {
     const ownerName = this.env.HUB_OWNER_USERNAME || 'Rayenz';
-    if (auth.username && auth.username === ownerName) {
+    if (auth.username && normalizeUsername(auth.username) === normalizeUsername(ownerName)) {
       return true;
     }
     if (this.env.HUB_OWNER_SUB && auth.sub && auth.sub === this.env.HUB_OWNER_SUB) {

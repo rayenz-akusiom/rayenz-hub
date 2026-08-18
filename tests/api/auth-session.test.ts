@@ -28,7 +28,7 @@ describe('auth session API', () => {
     );
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(String(res.body));
-    expect(body.username).toBe('Rayenz');
+    expect(body.username).toBe('rayenz');
     expect(body.sub).toBe('rayenz-sub');
     expect(body.accessToken).toBeTruthy();
   });
@@ -70,7 +70,7 @@ describe('auth session API', () => {
         throw new Error('directory miss');
       },
     } as never);
-    expect(record).toEqual({ sub: 'rayenz-sub', username: 'Rayenz', slug: 'rayenz' });
+    expect(record).toEqual({ sub: 'rayenz-sub', username: 'rayenz', slug: 'rayenz' });
   });
 
   it('JWT can read settings for that sub', async () => {
@@ -100,6 +100,14 @@ describe('auth session API', () => {
       services,
     );
     expect(res.statusCode).toBe(403);
+  });
+
+  it('treats mixed-case JWT username as owner', async () => {
+    const { services } = createMemoryStores();
+    const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'rayenz' });
+    const me = await handleAuthMe({ authorization: `Bearer ${token}` }, services);
+    expect(me.statusCode).toBe(200);
+    expect(JSON.parse(String(me.body)).isOwner).toBe(true);
   });
 
   it('rejects sandbox sign-in even if that Cognito user exists', async () => {

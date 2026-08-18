@@ -73,7 +73,7 @@ describe('hub-auth-client', () => {
       })),
     );
     await signInWithPassword('  Rayenz  ', 'secret');
-    expect(getHubAuthSession()?.username).toBe('Rayenz');
+    expect(getHubAuthSession()?.username).toBe('rayenz');
   });
 
   it('does not call sign-out when there is no session', () => {

@@ -6,6 +6,7 @@ import { resolveUserId } from '../../packages/shared/src/user-context.ts';
 import {
   isReservedUsername,
   isSandboxUsername,
+  normalizeUsername,
   usernameToSlug,
 } from '../../packages/shared/src/usernames.ts';
 
@@ -60,6 +61,11 @@ describe('api package partition literals', () => {
 describe('username slugs', () => {
   it('kebabs Rayenz to rayenz', () => {
     expect(usernameToSlug('Rayenz')).toBe('rayenz');
+  });
+
+  it('normalizes mixed-case usernames to lowercase', () => {
+    expect(normalizeUsername(' Rayenz ')).toBe('rayenz');
+    expect(normalizeUsername('FRIEND')).toBe('friend');
   });
 
   it('treats sandbox and default as reserved', () => {

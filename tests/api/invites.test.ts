@@ -60,6 +60,41 @@ describe('invites API', () => {
     expect(reused.statusCode).toBe(403);
   });
 
+  it('registers mixed-case usernames as lowercase', async () => {
+    const { services } = createMemoryStores();
+    const created = await handleInvites('POST', TEST_AUTH_HEADERS, services);
+    const invite = JSON.parse(String(created.body)) as { url: string };
+    const token = decodeURIComponent(invite.url.split('#/invite/')[1]);
+
+    const registered = await handleAuthRegister({}, registerBody(token, 'Friend'), services);
+    expect(registered.statusCode).toBe(201);
+    expect(JSON.parse(String(registered.body))).toEqual({ status: 'CONFIRM_EMAIL', username: 'friend' });
+
+    const confirmed = await handleAuthConfirm(
+      {},
+      JSON.stringify({ username: 'FRIEND', code: MEMORY_CONFIRMATION_CODE, password: 'password1' }),
+      services,
+    );
+    expect(confirmed.statusCode).toBe(200);
+    const body = JSON.parse(String(confirmed.body));
+    expect(body.username).toBe('friend');
+
+    const record = await services.usernameDirectory.resolve('friend', {
+      findUser: async () => {
+        throw new Error('directory miss');
+      },
+    } as never);
+    expect(record).toEqual({ sub: body.sub, username: 'friend', slug: 'friend' });
+
+    const mixedSignIn = await handleAuthSignIn(
+      {},
+      JSON.stringify({ username: 'FrIeNd', password: 'password1' }),
+      services,
+    );
+    expect(mixedSignIn.statusCode).toBe(200);
+    expect(JSON.parse(String(mixedSignIn.body)).username).toBe('friend');
+  });
+
   it('rejects a wrong confirmation code', async () => {
     const { services } = createMemoryStores();
     const created = await handleInvites('POST', TEST_AUTH_HEADERS, services);

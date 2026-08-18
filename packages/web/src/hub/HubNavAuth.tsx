@@ -1,3 +1,4 @@
+import { normalizeUsername } from '@rayenz-hub/shared';
 import { useEffect, useState, type FormEvent } from 'react';
 import { signInWithPassword, signOutHubSession } from '../lib/hub-auth-client';
 import {
@@ -115,7 +116,9 @@ export function HubNavAuth() {
               name="hub-nav-username"
               autoComplete="username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              autoCapitalize="none"
+              spellCheck={false}
             />
           </label>
           <label className="hub-nav-auth-field">

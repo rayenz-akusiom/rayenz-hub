@@ -16,7 +16,7 @@ import {
   UsernameExistsException,
   UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider';
-import type { AuthTokensResponse } from '@rayenz-hub/shared';
+import { normalizeUsername, type AuthTokensResponse } from '@rayenz-hub/shared';
 import { AuthError, BadRequestError, ConflictError, type ApiEnv } from '../lib/auth.js';
 import { encodeTestJwt } from '../lib/jwt.js';
 
@@ -98,20 +98,21 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async initiateAuth(username: string, password: string): Promise<AuthTokensResponse> {
     const { clientId, clientSecret } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       const out = await this.client.send(
         new InitiateAuthCommand({
           AuthFlow: 'USER_PASSWORD_AUTH',
           ClientId: clientId,
           AuthParameters: {
-            USERNAME: username,
+            USERNAME: normalized,
             PASSWORD: password,
-            ...this.hash(username, clientId, clientSecret),
+            ...this.hash(normalized, clientId, clientSecret),
           },
         }),
       );
       const access = out.AuthenticationResult?.AccessToken || '';
-      return tokensFromAuthResult(out.AuthenticationResult, username, subFromAccessToken(access));
+      return tokensFromAuthResult(out.AuthenticationResult, normalized, subFromAccessToken(access));
     } catch {
       throw new AuthError();
     }
@@ -119,10 +120,11 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async refresh(refreshToken: string, username?: string): Promise<AuthTokensResponse> {
     const { clientId, clientSecret } = this.requirePool();
+    const normalized = username ? normalizeUsername(username) : '';
     try {
       const params: Record<string, string> = { REFRESH_TOKEN: refreshToken };
-      if (username && clientSecret) {
-        Object.assign(params, this.hash(username, clientId, clientSecret));
+      if (normalized && clientSecret) {
+        Object.assign(params, this.hash(normalized, clientId, clientSecret));
       }
       const out = await this.client.send(
         new InitiateAuthCommand({
@@ -133,7 +135,7 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
       );
       const access = out.AuthenticationResult?.AccessToken || '';
       const sub = subFromAccessToken(access);
-      return tokensFromAuthResult(out.AuthenticationResult, username || '', sub);
+      return tokensFromAuthResult(out.AuthenticationResult, normalized, sub);
     } catch {
       throw new AuthError();
     }
@@ -149,21 +151,22 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
     const { clientId, clientSecret } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       const out = await this.client.send(
         new SignUpCommand({
           ClientId: clientId,
-          Username: username,
+          Username: normalized,
           Password: password,
           UserAttributes: [{ Name: 'email', Value: email }],
-          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+          SecretHash: clientSecret ? secretHash(normalized, clientId, clientSecret) : undefined,
         }),
       );
       const sub = out.UserSub || '';
       if (!sub) {
         throw new Error('Cognito SignUp returned no sub');
       }
-      return { sub, username };
+      return { sub, username: normalized };
     } catch (err) {
       if (err instanceof UsernameExistsException) {
         throw new ConflictError('Username is not available');
@@ -177,13 +180,14 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async confirmSignUp(username: string, code: string): Promise<void> {
     const { clientId, clientSecret } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       await this.client.send(
         new ConfirmSignUpCommand({
           ClientId: clientId,
-          Username: username,
+          Username: normalized,
           ConfirmationCode: code,
-          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+          SecretHash: clientSecret ? secretHash(normalized, clientId, clientSecret) : undefined,
         }),
       );
     } catch (err) {
@@ -199,12 +203,13 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async resendConfirmationCode(username: string): Promise<void> {
     const { clientId, clientSecret } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       await this.client.send(
         new ResendConfirmationCodeCommand({
           ClientId: clientId,
-          Username: username,
-          SecretHash: clientSecret ? secretHash(username, clientId, clientSecret) : undefined,
+          Username: normalized,
+          SecretHash: clientSecret ? secretHash(normalized, clientId, clientSecret) : undefined,
         }),
       );
     } catch (err) {
@@ -217,11 +222,12 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
     const { poolId } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       const created = await this.client.send(
         new AdminCreateUserCommand({
           UserPoolId: poolId,
-          Username: username,
+          Username: normalized,
           MessageAction: 'SUPPRESS',
           TemporaryPassword: password,
           UserAttributes: [
@@ -233,19 +239,19 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
       await this.client.send(
         new AdminSetUserPasswordCommand({
           UserPoolId: poolId,
-          Username: username,
+          Username: normalized,
           Password: password,
           Permanent: true,
         }),
       );
       const sub =
         created.User?.Attributes?.find((a) => a.Name === 'sub')?.Value ||
-        (await this.findUser(username))?.sub ||
+        (await this.findUser(normalized))?.sub ||
         '';
       if (!sub) {
         throw new Error('Cognito user created without sub');
       }
-      return { sub, username };
+      return { sub, username: normalized };
     } catch (err) {
       if (err instanceof UsernameExistsException) {
         throw new ConflictError('Username is not available');
@@ -256,12 +262,13 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
 
   async findUser(username: string): Promise<{ sub: string; username: string } | null> {
     const { poolId } = this.requirePool();
+    const normalized = normalizeUsername(username);
     try {
       const out = await this.client.send(
-        new AdminGetUserCommand({ UserPoolId: poolId, Username: username }),
+        new AdminGetUserCommand({ UserPoolId: poolId, Username: normalized }),
       );
       const sub = out.UserAttributes?.find((a) => a.Name === 'sub')?.Value || '';
-      return { sub, username: out.Username || username };
+      return { sub, username: normalizeUsername(out.Username || normalized) };
     } catch (err) {
       if (err instanceof UserNotFoundException) {
         return null;
@@ -279,26 +286,29 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
 
   constructor(seed: Array<{ username: string; password: string; sub: string; email?: string }> = []) {
     for (const u of seed) {
-      this.users.set(u.username, {
+      const username = normalizeUsername(u.username);
+      this.users.set(username, {
         sub: u.sub,
         password: u.password,
-        email: u.email || `${u.username.toLowerCase()}@example.test`,
+        email: u.email || `${username}@example.test`,
         confirmed: true,
       });
     }
   }
 
   async initiateAuth(username: string, password: string): Promise<AuthTokensResponse> {
-    const user = this.users.get(username);
+    const key = normalizeUsername(username);
+    const user = this.users.get(key);
     if (!user || user.password !== password || !user.confirmed) {
       throw new AuthError();
     }
-    return this.issue(username, user.sub);
+    return this.issue(key, user.sub);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokensResponse> {
     const decoded = Buffer.from(refreshToken, 'base64url').toString('utf8');
-    const [username, sub] = decoded.split(':');
+    const [rawUsername, sub] = decoded.split(':');
+    const username = normalizeUsername(rawUsername || '');
     if (!username || !this.users.has(username)) {
       throw new AuthError();
     }
@@ -314,16 +324,17 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
   }
 
   async signUp(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
-    if (this.users.has(username)) {
+    const key = normalizeUsername(username);
+    if (this.users.has(key)) {
       throw new ConflictError('Username is not available');
     }
     const sub = crypto.randomUUID();
-    this.users.set(username, { sub, password, email, confirmed: false });
-    return { sub, username };
+    this.users.set(key, { sub, password, email, confirmed: false });
+    return { sub, username: key };
   }
 
   async confirmSignUp(username: string, code: string): Promise<void> {
-    const user = this.users.get(username);
+    const user = this.users.get(normalizeUsername(username));
     if (!user || user.confirmed) {
       throw new AuthError();
     }
@@ -334,33 +345,29 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
   }
 
   async resendConfirmationCode(username: string): Promise<void> {
-    const user = this.users.get(username);
+    const user = this.users.get(normalizeUsername(username));
     if (!user || user.confirmed) {
       throw new AuthError();
     }
   }
 
   async adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }> {
-    if (this.users.has(username)) {
+    const key = normalizeUsername(username);
+    if (this.users.has(key)) {
       throw new ConflictError('Username is not available');
     }
     const sub = crypto.randomUUID();
-    this.users.set(username, { sub, password, email, confirmed: true });
-    return { sub, username };
+    this.users.set(key, { sub, password, email, confirmed: true });
+    return { sub, username: key };
   }
 
   async findUser(username: string): Promise<{ sub: string; username: string } | null> {
-    const exact = this.users.get(username);
-    if (exact) {
-      return { sub: exact.sub, username };
+    const key = normalizeUsername(username);
+    const user = this.users.get(key);
+    if (!user) {
+      return null;
     }
-    const needle = username.toLowerCase();
-    for (const [stored, user] of this.users) {
-      if (stored.toLowerCase() === needle) {
-        return { sub: user.sub, username: stored };
-      }
-    }
-    return null;
+    return { sub: user.sub, username: key };
   }
 
   private issue(username: string, sub: string): AuthTokensResponse {

@@ -1,6 +1,7 @@
 import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import {
   isReservedUsername,
+  normalizeUsername,
   usernamePk,
   usernameToSlug,
 } from '@rayenz-hub/shared';
@@ -20,12 +21,12 @@ export class UsernameDirectory {
   ) {}
 
   async put(username: string, sub: string): Promise<UsernameRecord | null> {
-    const trimmed = username.trim();
-    const slug = usernameToSlug(trimmed);
-    if (!slug || !sub || isReservedUsername(trimmed)) {
+    const normalized = normalizeUsername(username);
+    const slug = usernameToSlug(normalized);
+    if (!slug || !sub || isReservedUsername(normalized)) {
       return null;
     }
-    const record: UsernameRecord = { sub, username: trimmed, slug };
+    const record: UsernameRecord = { sub, username: normalized, slug };
     await this.doc.send(
       new PutCommand({
         TableName: this.tableName,
@@ -34,7 +35,7 @@ export class UsernameDirectory {
           SK: 'META',
           entityType: 'USERNAME',
           sub,
-          username: trimmed,
+          username: normalized,
           slug,
           updatedAt: new Date().toISOString(),
         },

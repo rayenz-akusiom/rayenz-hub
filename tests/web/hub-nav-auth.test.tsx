@@ -68,7 +68,7 @@ describe('HubNavAuth', () => {
   it('signs in against the resolved URL and shows the username', async () => {
     const user = userEvent.setup();
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/v1/auth/sign-in')) {
         return {
@@ -95,7 +95,8 @@ describe('HubNavAuth', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Rayenz' })).toBeInTheDocument();
     });
-    expect(fetchMock).toHaveBeenCalled();
+    const signInCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/v1/auth/sign-in'));
+    expect(JSON.parse(String(signInCall?.[1]?.body))).toMatchObject({ username: 'rayenz' });
   });
 
   it('signs out from the username control', async () => {

@@ -45,7 +45,7 @@ describe('public user swaps GET', () => {
       slug: string;
       decks: Array<{ name: string; cards: Array<{ instanceId: string }> }>;
     };
-    expect(body.username).toBe('Rayenz');
+    expect(body.username).toBe('rayenz');
     expect(body.slug).toBe('rayenz');
     expect(body.decks).toHaveLength(1);
     expect(body.decks[0]?.name).toBe(commander.name);

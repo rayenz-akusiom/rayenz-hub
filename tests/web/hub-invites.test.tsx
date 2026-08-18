@@ -36,7 +36,7 @@ describe('Hub invites UI', () => {
         expect(JSON.parse(String(init?.body))).toMatchObject({
           token: 'secret-token',
           username: 'friend',
-          email: 'friend@example.test',
+          email: 'Friend@example.test',
         });
         return { ok: true, status: 201, text: async () => JSON.stringify({ status: 'CONFIRM_EMAIL', username: 'friend' }) };
       }
@@ -64,8 +64,8 @@ describe('Hub invites UI', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<InviteRedeemPage />);
-    await user.type(screen.getByLabelText(/Username/i), 'friend');
-    await user.type(screen.getByLabelText(/Email/i), 'friend@example.test');
+    await user.type(screen.getByLabelText(/Username/i), 'Friend');
+    await user.type(screen.getByLabelText(/Email/i), 'Friend@example.test');
     await user.type(screen.getByLabelText(/Password/i), 'password1');
     await user.click(screen.getByRole('button', { name: /Create account/i }));
 

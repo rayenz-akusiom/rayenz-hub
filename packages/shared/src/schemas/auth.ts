@@ -1,7 +1,18 @@
 import { z } from 'zod';
+import { normalizeUsername } from '../usernames.js';
+
+const inboundUsername = z
+  .string()
+  .transform((value) => normalizeUsername(value))
+  .pipe(z.string().min(1));
+
+const inboundUsername128 = z
+  .string()
+  .transform((value) => normalizeUsername(value))
+  .pipe(z.string().min(1).max(128));
 
 export const SignInRequestSchema = z.object({
-  username: z.string().min(1),
+  username: inboundUsername,
   password: z.string().min(1),
 });
 export type SignInRequest = z.infer<typeof SignInRequestSchema>;
@@ -18,13 +29,13 @@ export type AuthTokensResponse = z.infer<typeof AuthTokensResponseSchema>;
 
 export const RefreshRequestSchema = z.object({
   refreshToken: z.string().min(1),
-  username: z.string().min(1).optional(),
+  username: inboundUsername.optional(),
 });
 export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;
 
 export const RegisterRequestSchema = z.object({
   token: z.string().min(1),
-  username: z.string().min(1).max(128),
+  username: inboundUsername128,
   email: z.string().email().max(256),
   password: z.string().min(8),
 });
@@ -37,14 +48,14 @@ export const RegisterPendingResponseSchema = z.object({
 export type RegisterPendingResponse = z.infer<typeof RegisterPendingResponseSchema>;
 
 export const ConfirmRequestSchema = z.object({
-  username: z.string().min(1).max(128),
+  username: inboundUsername128,
   code: z.string().min(1).max(32),
   password: z.string().min(8),
 });
 export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
 
 export const ResendConfirmationRequestSchema = z.object({
-  username: z.string().min(1).max(128),
+  username: inboundUsername128,
 });
 export type ResendConfirmationRequest = z.infer<typeof ResendConfirmationRequestSchema>;
 

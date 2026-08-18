@@ -1,3 +1,4 @@
+import { normalizeUsername } from '@rayenz-hub/shared';
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api-client';
 import { clearHubAuthSession, getHubAuthSession, setHubAuthSession } from './hub-auth-session';
 
@@ -43,7 +44,7 @@ export async function signInWithPassword(username: string, password: string): Pr
   const res = await fetch(`${nextUrl}/v1/auth/sign-in`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ username: username.trim(), password }),
+    body: JSON.stringify({ username: normalizeUsername(username), password }),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -60,7 +61,7 @@ export async function signInWithPassword(username: string, password: string): Pr
     accessToken: body.accessToken,
     idToken: body.idToken,
     refreshToken: body.refreshToken,
-    username: body.username || username.trim(),
+    username: body.username || normalizeUsername(username),
     sub: body.sub,
   });
   await hydrateHubOwnerFlag({ force: true });

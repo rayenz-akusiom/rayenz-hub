@@ -4,7 +4,7 @@ import {
   signInWithPassword,
   signOutHubSession,
 } from '../../../packages/web/src/lib/hub-auth-client.ts';
-import { clearHubAuthSession, getHubAuthSession, setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
+import { clearHubAuthSession, getHubAuthSession, isHubOwner, setHubAuthSession } from '../../../packages/web/src/lib/hub-auth-session.ts';
 
 afterEach(() => {
   localStorage.clear();
@@ -26,28 +26,39 @@ describe('hub-auth-client', () => {
     expect(signInErrorFromResponse(401, JSON.stringify({ error: '  ' })).message).toBe('Sign-in failed (401).');
   });
 
-  it('signs in and stores the session', async () => {
+  it('signs in and stores the session with owner flag from /v1/auth/me', async () => {
     localStorage.setItem('rayenz-hub-api-url', 'http://127.0.0.1:3000');
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        text: async () =>
-          JSON.stringify({
-            accessToken: 'access',
-            idToken: 'id',
-            refreshToken: 'refresh',
-            username: 'Rayenz',
-            sub: 'sub-1',
-          }),
-      })),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/v1/auth/me')) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ username: 'Rayenz', sub: 'sub-1', isOwner: true }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              accessToken: 'access',
+              idToken: 'id',
+              refreshToken: 'refresh',
+              username: 'Rayenz',
+              sub: 'sub-1',
+            }),
+        };
+      }),
     );
     await signInWithPassword('Rayenz', 'secret');
     expect(getHubAuthSession()).toMatchObject({
       accessToken: 'access',
       username: 'Rayenz',
       sub: 'sub-1',
+      isOwner: true,
     });
   });
 
@@ -71,5 +82,13 @@ describe('hub-auth-client', () => {
     signOutHubSession();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(getHubAuthSession()).toBeNull();
+  });
+
+  it('treats a missing owner flag as not owner', () => {
+    expect(isHubOwner()).toBe(false);
+    setHubAuthSession({ accessToken: 't', username: 'friend', isOwner: false });
+    expect(isHubOwner()).toBe(false);
+    setHubAuthSession({ accessToken: 't', username: 'Rayenz', isOwner: true });
+    expect(isHubOwner()).toBe(true);
   });
 });

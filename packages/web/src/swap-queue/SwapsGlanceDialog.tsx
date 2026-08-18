@@ -6,6 +6,7 @@ import {
   type WantSource,
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
+import { useIsHubOwner } from '../lib/hub-auth-session';
 import { copyPngBlob, downloadPngBlob } from '../lib/glance-png';
 import {
   formatGlanceStatusLine,
@@ -34,6 +35,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   const [statusLine, setStatusLine] = useState<string | null>(null);
 
   const apiReady = isApiConfigured();
+  const ownerReady = useIsHubOwner();
   const itemCount = useMemo(
     () => countSwapGlanceItems(sources, { mode, includeSeeking }),
     [sources, mode, includeSeeking],
@@ -55,8 +57,12 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   }, [onClose, resetPreview]);
 
   const generate = useCallback(async () => {
-    if (!apiReady) {
-      setError('Hub API is required to generate a swaps glance image. Sign in to the Hub API in Settings.');
+    if (!apiReady || !ownerReady) {
+      setError(
+        ownerReady
+          ? 'Hub API is required to generate a swaps glance image. Sign in to the Hub API in Settings.'
+          : 'Owner-only — glance is disabled for this account.',
+      );
       return;
     }
     if (itemCount === 0) {
@@ -92,7 +98,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     } finally {
       setLoading(false);
     }
-  }, [apiReady, includeSeeking, itemCount, mode, resetPreview, setCodes, sources]);
+  }, [apiReady, ownerReady, includeSeeking, itemCount, mode, resetPreview, setCodes, sources]);
 
   const pageCount = pngBlobs.length;
   const currentBlob = pngBlobs[pageIndex] ?? null;
@@ -186,8 +192,14 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
             <button
               type="button"
               className="db-btn"
-              disabled={loading || itemCount === 0 || !apiReady}
-              title={!apiReady ? 'Configure Hub API to generate glance images' : undefined}
+              disabled={loading || itemCount === 0 || !apiReady || !ownerReady}
+              title={
+                !apiReady
+                  ? 'Configure Hub API to generate glance images'
+                  : !ownerReady
+                    ? 'Owner-only — glance is disabled for this account'
+                    : undefined
+              }
               onClick={() => void generate()}
             >
               {currentBlob ? 'Regenerate' : 'Generate'}

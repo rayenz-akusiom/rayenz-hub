@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { getHubApiConfig } from '../api/hub-api-client';
+import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
 import { setHubAuthSession } from '../lib/hub-auth-session';
 
 function tokenFromHash(): string {
@@ -94,6 +95,7 @@ export function InviteRedeemPage() {
         username: body.username || username.trim(),
         sub: body.sub,
       });
+      await hydrateHubOwnerFlag({ force: true });
       setStatus('Account created. You are signed in to an empty Hub.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

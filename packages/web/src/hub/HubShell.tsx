@@ -10,6 +10,7 @@ import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
 import { InviteRedeemPage } from '../pages/InviteRedeemPage';
 import { SettingsShell, type SettingsTab } from '../SettingsShell';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
+import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
 import { HubNav } from './HubNav';
 import { isSettingsPath } from './routes';
 import { useHubRoute } from './useHubRoute';
@@ -47,6 +48,7 @@ export function HubShell() {
 
   useEffect(() => {
     installHubCardPickerBridge();
+    void hydrateHubOwnerFlag();
   }, []);
 
   return (

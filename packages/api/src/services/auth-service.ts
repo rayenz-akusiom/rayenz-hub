@@ -1,6 +1,6 @@
 import { injectable } from 'inversify';
 import type { AuthContext } from '@rayenz-hub/shared';
-import { AuthError, parseAuthContextAsync, requireAuth, type ApiEnv } from '../lib/auth.js';
+import { AuthError, ForbiddenError, parseAuthContextAsync, requireAuth, type ApiEnv } from '../lib/auth.js';
 
 @injectable()
 export class AuthService {
@@ -28,6 +28,12 @@ export class AuthService {
       return true;
     }
     return false;
+  }
+
+  requireOwner(auth: AuthContext): void {
+    if (!this.isOwner(auth)) {
+      throw new ForbiddenError('Only the owner can use this endpoint', 'OWNER_REQUIRED');
+    }
   }
 
   ownerUsername(): string {

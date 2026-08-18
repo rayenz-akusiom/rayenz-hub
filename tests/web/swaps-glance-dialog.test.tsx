@@ -6,6 +6,7 @@ import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 import { SwapsGlanceDialog } from '../../packages/web/src/swap-queue/SwapsGlanceDialog';
 import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
 import { stubGlanceObjectUrls } from './helpers/glance-stub.ts';
+import { clearHubAuthSession, setHubAuthSession } from '../../packages/web/src/lib/hub-auth-session';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postSwapsGlance = vi.hoisted(() =>
@@ -68,10 +69,12 @@ afterEach(() => {
   cleanup();
   apiConfigured.value = true;
   vi.clearAllMocks();
+  clearHubAuthSession();
 });
 
 describe('Swaps at a glance dialog', () => {
   beforeEach(() => {
+    setHubAuthSession({ accessToken: 't', username: 'Rayenz', isOwner: true });
     const deck = buildGlanceSwapCommanderDeck({
       deckId: 'sq-glance',
       lookingForEntries: [{ id: 'seek-1', instanceId: 'spell-1', sortIndex: 0, notes: null }],
@@ -193,5 +196,14 @@ describe('Swaps at a glance dialog', () => {
       screen.getByRole('img', { name: /Swaps at a glance preview 2 of 2/i }),
     ).toBeInTheDocument();
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
+  });
+
+  it('omits Swaps at a glance for a non-owner session', async () => {
+    setHubAuthSession({ accessToken: 't', username: 'friend', isOwner: false });
+    render(<SwapQueueApp entryPath="swap-queue" />);
+    await waitFor(() => expect(screen.getByText(/Swap In Spell/)).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Swaps at a glance…' })).not.toBeInTheDocument();
   });
 });

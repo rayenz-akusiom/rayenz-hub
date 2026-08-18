@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
+
 const ACCESS_KEY = 'rayenz-hub-access-token';
 const ID_KEY = 'rayenz-hub-id-token';
 const REFRESH_KEY = 'rayenz-hub-refresh-token';
 const USERNAME_KEY = 'rayenz-hub-username';
 const SUB_KEY = 'rayenz-hub-sub';
+const OWNER_KEY = 'rayenz-hub-is-owner';
 
 export const HUB_AUTH_REQUIRED_EVENT = 'hub-auth-required';
 export const HUB_AUTH_CHANGED_EVENT = 'hub-auth-changed';
@@ -21,6 +24,7 @@ export type HubAuthSession = {
   refreshToken?: string;
   username?: string;
   sub?: string;
+  isOwner?: boolean;
 };
 
 function storageGet(key: string): string {
@@ -43,13 +47,20 @@ function storageSet(key: string, value: string): void {
 export function getHubAuthSession(): HubAuthSession | null {
   const accessToken = storageGet(ACCESS_KEY);
   if (!accessToken) return null;
+  const ownerRaw = storageGet(OWNER_KEY);
   return {
     accessToken,
     idToken: storageGet(ID_KEY) || undefined,
     refreshToken: storageGet(REFRESH_KEY) || undefined,
     username: storageGet(USERNAME_KEY) || undefined,
     sub: storageGet(SUB_KEY) || undefined,
+    isOwner: ownerRaw === '1' ? true : ownerRaw === '0' ? false : undefined,
   };
+}
+
+/** Fail closed: expensive APIs stay hidden until /v1/auth/me says owner. */
+export function isHubOwner(): boolean {
+  return getHubAuthSession()?.isOwner === true;
 }
 
 export function getAccessToken(): string {
@@ -62,6 +73,9 @@ export function setHubAuthSession(session: HubAuthSession): void {
   storageSet(REFRESH_KEY, session.refreshToken || '');
   storageSet(USERNAME_KEY, session.username || '');
   storageSet(SUB_KEY, session.sub || '');
+  if (session.isOwner === true) storageSet(OWNER_KEY, '1');
+  else if (session.isOwner === false) storageSet(OWNER_KEY, '0');
+  else storageSet(OWNER_KEY, '');
   dispatchAuthChanged();
 }
 
@@ -71,6 +85,7 @@ export function clearHubAuthSession(): void {
   storageSet(REFRESH_KEY, '');
   storageSet(USERNAME_KEY, '');
   storageSet(SUB_KEY, '');
+  storageSet(OWNER_KEY, '');
   try {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(ID_KEY);
@@ -122,6 +137,7 @@ export async function tryRefreshAccessToken(apiUrl: string): Promise<string | nu
       refreshToken: body.refreshToken || refreshToken,
       username: body.username || session.username,
       sub: body.sub || session.sub,
+      isOwner: session.isOwner,
     });
     return body.accessToken;
   } catch {
@@ -134,4 +150,19 @@ export class HubAuthRequiredError extends Error {
     super(message);
     this.name = 'HubAuthRequiredError';
   }
+}
+
+/** Re-renders when sign-in, sign-out, or owner hydration updates the session. */
+export function useIsHubOwner(): boolean {
+  const [owner, setOwner] = useState(isHubOwner);
+  useEffect(() => {
+    const sync = () => setOwner(isHubOwner());
+    window.addEventListener(HUB_AUTH_CHANGED_EVENT, sync);
+    window.addEventListener(HUB_AUTH_REQUIRED_EVENT, sync);
+    return () => {
+      window.removeEventListener(HUB_AUTH_CHANGED_EVENT, sync);
+      window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, sync);
+    };
+  }, []);
+  return owner;
 }

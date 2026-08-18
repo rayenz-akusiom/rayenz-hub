@@ -99,6 +99,7 @@ export async function handleSuggestGenerate(
 ) {
   try {
     const { auth, env } = await services.authService.authenticate(headers);
+    services.authService.requireOwner(auth);
     if (await services.spendLock.isActive()) {
       return spendLockResponse();
     }

@@ -1,4 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
+import { isHubOwner } from '../lib/hub-auth-session';
 import { MANUAL_SET_CODES_MAX } from '@rayenz-hub/shared';
 import type { DeckSuggestState, ReadinessResult } from './types';
 import { pageIsOverCap } from './paging';
@@ -80,6 +81,17 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
       id: 'api',
       ok: false,
       label: 'Sign in to the Hub API in Settings',
+    });
+  }
+
+  if (isHubOwner()) {
+    items.push({ id: 'owner', ok: true, label: 'Owner account' });
+  } else {
+    missing.push('owner');
+    items.push({
+      id: 'owner',
+      ok: false,
+      label: 'Owner-only — glance and Suggest generate are disabled for this account',
     });
   }
 

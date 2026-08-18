@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
+import { useIsHubOwner } from '../lib/hub-auth-session';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
 import { acceptAllPendingAsSeeking } from '../deck-review/bulk-seeking';
 import { DeckReviewSidebar } from '../deck-review/DeckReviewSidebar';
@@ -67,6 +68,7 @@ function createSuggestState(): DeckSuggestState {
 
 export function DeckSuggestApp() {
   const [suggest, setSuggest] = useState<DeckSuggestState>(createSuggestState);
+  const isOwner = useIsHubOwner();
   const [review, setReview] = useState<DeckReviewState>(createInitialReviewState);
   const [error, setError] = useState('');
   const [decksLoading, setDecksLoading] = useState(true);
@@ -130,7 +132,7 @@ export function DeckSuggestApp() {
     };
   }, []);
 
-  const readiness = useMemo(() => getGenerateReadiness(suggest), [suggest]);
+  const readiness = useMemo(() => getGenerateReadiness(suggest), [suggest, isOwner]);
   const blockedReason = readiness.ok
     ? ''
     : readiness.items.find((item) => !item.ok)?.label || 'Complete setup first';

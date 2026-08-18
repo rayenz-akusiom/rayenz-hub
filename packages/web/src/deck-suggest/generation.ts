@@ -1,4 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
+import { isHubOwner } from '../lib/hub-auth-session';
 import { attachProfileLists, enrichDeckWithProfile, resolveDeckEligibility } from './data';
 import { getGenerateReadiness, normalizeCodesInput } from './readiness';
 import { apiPostSuggestGenerate } from './generate-api';
@@ -13,6 +14,9 @@ export async function generateSuggestions(
 ): Promise<GenerationRun> {
   if (!isApiConfigured()) {
     throw new Error('Sign in to the Hub API in Settings to generate suggestions.');
+  }
+  if (!isHubOwner()) {
+    throw new Error('Owner-only — glance and Suggest generate are disabled for this account.');
   }
   const readiness = getGenerateReadiness({ ...state, generating: false });
   if (!readiness.ok) {

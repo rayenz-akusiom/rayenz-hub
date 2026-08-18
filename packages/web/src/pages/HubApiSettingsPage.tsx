@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api';
+import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
 import {
   HUB_AUTH_CHANGED_EVENT,
   HUB_AUTH_REQUIRED_EVENT,
@@ -77,6 +78,7 @@ export function HubApiSettingsPage() {
       if (!authRes.ok && authRes.status !== 404) {
         throw new Error(`API check failed (${authRes.status}).`);
       }
+      await hydrateHubOwnerFlag({ force: true });
       setStatus('Connection OK — health and session look good.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

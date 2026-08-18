@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isApiConfigured } from '../../../packages/web/src/api/hub-api';
+import { isHubOwner } from '../../../packages/web/src/lib/hub-auth-session';
 import { getGenerateReadiness, rulesDebugEnabled } from '../../../packages/web/src/deck-suggest/readiness.ts';
 import { resetHubModules } from '../helpers/hubHarness.ts';
 
 vi.mock('../../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: vi.fn(() => true),
+}));
+
+vi.mock('../../../packages/web/src/lib/hub-auth-session', () => ({
+  isHubOwner: vi.fn(() => true),
 }));
 
 function readyState(overrides: Record<string, unknown> = {}) {
@@ -28,6 +33,7 @@ function readyState(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetHubModules();
   vi.mocked(isApiConfigured).mockReturnValue(true);
+  vi.mocked(isHubOwner).mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -126,6 +132,14 @@ describe('getGenerateReadiness', () => {
     const result = getGenerateReadiness(readyState());
     expect(result.ok).toBe(false);
     expect(result.missing).toContain('api');
+  });
+
+  it('fails when the session is not the owner', () => {
+    vi.mocked(isHubOwner).mockReturnValue(false);
+    const result = getGenerateReadiness(readyState());
+    expect(result.ok).toBe(false);
+    expect(result.missing).toContain('owner');
+    expect(result.items.find((i) => i.id === 'owner')?.label).toMatch(/owner-only/i);
   });
 
   it('fails when selection exceeds the page cap', () => {

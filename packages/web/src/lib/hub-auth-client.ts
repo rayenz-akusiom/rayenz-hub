@@ -1,6 +1,27 @@
 import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api-client';
 import { clearHubAuthSession, getHubAuthSession, setHubAuthSession } from './hub-auth-session';
 
+export async function hydrateHubOwnerFlag(options: { force?: boolean } = {}): Promise<void> {
+  const session = getHubAuthSession();
+  const url = getHubApiConfig().url;
+  if (!session || !url) return;
+  if (!options.force && session.isOwner !== undefined) return;
+  try {
+    assertApiNotPageOrigin(url);
+    const res = await fetch(`${url.replace(/\/$/, '')}/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${session.accessToken}`, Accept: 'application/json' },
+    });
+    if (!res.ok) return;
+    const body = JSON.parse(await res.text()) as { isOwner?: unknown };
+    if (typeof body.isOwner !== 'boolean') return;
+    const latest = getHubAuthSession();
+    if (!latest) return;
+    setHubAuthSession({ ...latest, isOwner: body.isOwner });
+  } catch {
+    /* fail closed — expensive UI stays hidden */
+  }
+}
+
 export function signInErrorFromResponse(status: number, text: string): Error {
   try {
     const body = JSON.parse(text) as { error?: unknown };
@@ -42,6 +63,7 @@ export async function signInWithPassword(username: string, password: string): Pr
     username: body.username || username.trim(),
     sub: body.sub,
   });
+  await hydrateHubOwnerFlag({ force: true });
 }
 
 export function signOutHubSession(): void {

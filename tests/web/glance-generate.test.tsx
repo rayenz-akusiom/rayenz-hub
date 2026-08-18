@@ -9,6 +9,7 @@ import {
   buildMultiLieutenantCommanderDeck,
 } from '../fixtures/deck-builder/glance-eligible.ts';
 import { stubGlanceObjectUrls } from './helpers/glance-stub.ts';
+import { clearHubAuthSession, setHubAuthSession } from '../../packages/web/src/lib/hub-auth-session';
 
 const apiConfigured = vi.hoisted(() => ({ value: true }));
 const postGlance = vi.hoisted(() =>
@@ -41,10 +42,12 @@ describe('GlanceGenerateButton', () => {
     cleanup();
     apiConfigured.value = true;
     postGlance.mockClear();
+    clearHubAuthSession();
   });
 
   beforeEach(() => {
     stubGlanceObjectUrls();
+    setHubAuthSession({ accessToken: 't', username: 'Rayenz', isOwner: true });
     postGlance.mockImplementation(async () => ({
       blob: new Blob(['png'], { type: 'image/png' }),
       cache: 'MISS',
@@ -58,6 +61,15 @@ describe('GlanceGenerateButton', () => {
     const deck = buildEligibleCommanderDeck();
     render(<GlanceGenerateButton deck={deck} />);
     expect(screen.getByRole('button', { name: 'Generate glance' })).toBeDisabled();
+  });
+
+  it('is disabled for a non-owner session and does not POST', async () => {
+    setHubAuthSession({ accessToken: 't', username: 'friend', isOwner: false });
+    const deck = buildEligibleCommanderDeck();
+    render(<GlanceGenerateButton deck={deck} />);
+    const button = screen.getByRole('button', { name: 'Generate glance' });
+    expect(button).toBeDisabled();
+    expect(postGlance).not.toHaveBeenCalled();
   });
 
   it('shows a clear error for local-only decks without API sync', async () => {

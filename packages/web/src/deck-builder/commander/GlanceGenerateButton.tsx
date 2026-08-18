@@ -3,6 +3,7 @@ import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/sha
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
+import { useIsHubOwner } from '../../lib/hub-auth-session';
 import { apiPostDeckGlance } from '../store/deck-glance-api';
 import { copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
 import {
@@ -43,8 +44,9 @@ export function GlanceGenerateButton({ deck }: Props) {
   const [cache, setCache] = useState<Record<string, CachedPreview>>({});
 
   const apiReady = isApiConfigured();
+  const ownerReady = useIsHubOwner();
   const hasDeckId = Boolean(deck.deckId);
-  const enabled = apiReady && deck.format === 'commander';
+  const enabled = apiReady && ownerReady && deck.format === 'commander';
 
   const lieutenants = useMemo<GlanceCard[]>(() => {
     if (deck.format !== 'commander') return [];
@@ -153,8 +155,12 @@ export function GlanceGenerateButton({ deck }: Props) {
   );
 
   const onOpen = useCallback(() => {
-    if (!apiReady) {
-      setError('Hub API is required to generate a glance image. Sign in to the Hub API in Settings.');
+    if (!apiReady || !ownerReady) {
+      setError(
+        ownerReady
+          ? 'Hub API is required to generate a glance image. Sign in to the Hub API in Settings.'
+          : 'Owner-only — glance is disabled for this account.',
+      );
       setOpen(true);
       setPhase('options');
       return;
@@ -185,6 +191,7 @@ export function GlanceGenerateButton({ deck }: Props) {
     applyMode(mode, []);
   }, [
     apiReady,
+    ownerReady,
     applyMode,
     clearVisiblePreview,
     deck.format,
@@ -235,9 +242,11 @@ export function GlanceGenerateButton({ deck }: Props) {
         title={
           !apiReady
             ? 'Configure Hub API to generate glance images'
-            : !hasDeckId
-              ? 'Save deck to Hub API first'
-              : 'Generate deck glance image'
+            : !ownerReady
+              ? 'Owner-only — glance is disabled for this account'
+              : !hasDeckId
+                ? 'Save deck to Hub API first'
+                : 'Generate deck glance image'
         }
         onClick={onOpen}
       >

@@ -44,6 +44,7 @@ import { pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
+import { useIsHubOwner } from '../lib/hub-auth-session';
 import '../deck-builder/deck-builder.css';
 import { findDeck, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
@@ -374,6 +375,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [originDeckWorking, setOriginDeckWorking] = useState<DeckDocument | null>(null);
   const [addPickerOpen, setAddPickerOpen] = useState(false);
   const [swapsGlanceOpen, setSwapsGlanceOpen] = useState(false);
+  const isOwner = useIsHubOwner();
   const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
   const editingDeckRef = useRef(editingDeck);
   const pairDraftRef = useRef(pairDraft);
@@ -973,7 +975,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         >
           <DbMenuItem onSelect={() => void onExportArchidekt()}>Export Archidekt</DbMenuItem>
           <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
-          <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
+          {isOwner ? (
+            <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
+          ) : null}
           <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
         </DbMenu>
       </header>

@@ -15,7 +15,11 @@ export async function handlePublicUserDeck(
     if (isReservedUsername(username)) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }
-    const record = await services.usernameDirectory.resolve(username, services.cognitoAuth);
+    const record = await services.usernameDirectory.resolve(
+      username,
+      services.cognitoAuth,
+      services.authService.ownerUsername(),
+    );
     if (!record) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }

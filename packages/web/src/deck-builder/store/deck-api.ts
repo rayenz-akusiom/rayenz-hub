@@ -26,7 +26,10 @@ export async function apiGetPublicDeck(
   );
   if (!data) return null;
   const parsed = DeckDocumentSchema.safeParse(data);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) {
+    throw new Error('Public deck response was not a valid deck document');
+  }
+  return parsed.data;
 }
 
 export async function apiPutDeck(doc: DeckDocument): Promise<DeckDocument> {

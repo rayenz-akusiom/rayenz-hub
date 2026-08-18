@@ -110,6 +110,9 @@ export async function handleAuthMe(
     const { auth, env } = await services.authService.authenticate(headers);
     const sub = resolveUserId(auth, env);
     const username = auth.username || '';
+    if (username && sub) {
+      await services.usernameDirectory.upsert(username, sub);
+    }
     return jsonResponse(
       200,
       AuthMeResponseSchema.parse({

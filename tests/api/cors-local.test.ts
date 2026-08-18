@@ -49,6 +49,7 @@ describe('local SAM CORS', () => {
     expect(result.statusCode).toBe(200);
     expect(result.headers?.['access-control-allow-origin']).toBe('*');
     expect(result.headers?.['access-control-allow-headers']).toMatch(/authorization/i);
+    expect(result.headers?.['access-control-allow-headers']).toMatch(/accept/i);
   });
 
   it('answers OPTIONS with 204 and CORS locally', async () => {

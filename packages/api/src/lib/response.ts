@@ -11,7 +11,7 @@ export function corsHeaders(): Record<string, string> {
   }
   return {
     'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'authorization,content-type',
+    'access-control-allow-headers': 'authorization,content-type,accept',
     'access-control-allow-methods': 'GET,PUT,POST,DELETE,OPTIONS',
   };
 }

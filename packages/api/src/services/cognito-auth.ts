@@ -350,8 +350,17 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
   }
 
   async findUser(username: string): Promise<{ sub: string; username: string } | null> {
-    const user = this.users.get(username);
-    return user ? { sub: user.sub, username } : null;
+    const exact = this.users.get(username);
+    if (exact) {
+      return { sub: exact.sub, username };
+    }
+    const needle = username.toLowerCase();
+    for (const [stored, user] of this.users) {
+      if (stored.toLowerCase() === needle) {
+        return { sub: user.sub, username: stored };
+      }
+    }
+    return null;
   }
 
   private issue(username: string, sub: string): AuthTokensResponse {

@@ -59,6 +59,20 @@ describe('auth session API', () => {
     expect(body.sub).toBe('rayenz-sub');
   });
 
+  it('GET /v1/auth/me backfills the username directory', async () => {
+    const { services } = createMemoryStores();
+    const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' });
+    const me = await handleAuthMe({ authorization: `Bearer ${token}` }, services);
+    expect(me.statusCode).toBe(200);
+
+    const record = await services.usernameDirectory.resolve('rayenz', {
+      findUser: async () => {
+        throw new Error('directory miss');
+      },
+    } as never);
+    expect(record).toEqual({ sub: 'rayenz-sub', username: 'Rayenz', slug: 'rayenz' });
+  });
+
   it('JWT can read settings for that sub', async () => {
     const { services } = createMemoryStores();
     const token = encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' });

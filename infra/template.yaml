@@ -438,6 +438,7 @@ Resources:
         AllowHeaders:
           - authorization
           - content-type
+          - accept
         AllowMethods:
           - GET
           - PUT

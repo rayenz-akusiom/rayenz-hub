@@ -245,8 +245,8 @@ export function BuilderApp({
           setActive(doc);
           activeRef.current = doc;
           setSyncStatus(null);
-        } catch {
-          setError('Deck not found');
+        } catch (e) {
+          setError(e instanceof Error && e.message ? e.message : 'Deck not found');
           activeRef.current = null;
           setActive(null);
           setSyncStatus(null);

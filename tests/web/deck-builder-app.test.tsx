@@ -422,6 +422,20 @@ describe('CommanderBuilderApp', () => {
     expect(saveDeck).not.toHaveBeenCalled();
   });
 
+  it('surfaces a thrown public-fetch error instead of Deck not found', async () => {
+    apiGetPublicDeck.mockRejectedValue(new Error('Hub API error 403: Missing Authentication Token'));
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Hub API error 403: Missing Authentication Token'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Deck not found')).not.toBeInTheDocument();
+    expect(saveDeck).not.toHaveBeenCalled();
+  });
+
   it('opens another user deck read-only from a public deep link', async () => {
     apiGetPublicDeck.mockResolvedValue(commanderDoc);
     window.location.hash = '#/commander-builder/rayenz/fixture-commander';

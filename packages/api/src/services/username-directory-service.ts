@@ -9,7 +9,11 @@ export class UsernameDirectoryService {
     return this.directory.put(username, sub);
   }
 
-  async resolve(usernameOrSlug: string, cognito: CognitoAuthPort): Promise<UsernameRecord | null> {
+  async resolve(
+    usernameOrSlug: string,
+    cognito: CognitoAuthPort,
+    ownerUsername?: string,
+  ): Promise<UsernameRecord | null> {
     if (isReservedUsername(usernameOrSlug)) {
       return null;
     }
@@ -21,10 +25,27 @@ export class UsernameDirectoryService {
     if (existing) {
       return existing;
     }
-    const found = await cognito.findUser(usernameOrSlug.trim());
-    if (!found) {
-      return null;
+    const candidates: string[] = [];
+    const seen = new Set<string>();
+    const addCandidate = (value: string) => {
+      const trimmed = value.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      seen.add(trimmed);
+      candidates.push(trimmed);
+    };
+    addCandidate(usernameOrSlug);
+    addCandidate(slug);
+    if (ownerUsername && usernameToSlug(ownerUsername) === slug) {
+      addCandidate(ownerUsername);
     }
-    return this.directory.put(found.username, found.sub);
+    for (const candidate of candidates) {
+      const found = await cognito.findUser(candidate);
+      if (found) {
+        return this.directory.put(found.username, found.sub);
+      }
+    }
+    return null;
   }
 }

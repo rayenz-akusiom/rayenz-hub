@@ -7,6 +7,25 @@ import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.t
 import commander from '../fixtures/deck-builder/commander-slice.json';
 
 describe('public user deck GET', () => {
+  it('resolves a Rayenz deck by slug without a prior sign-in backfill', async () => {
+    const { services } = createMemoryStores();
+    const ownerHeaders = {
+      authorization: `Bearer ${encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' })}`,
+    };
+    const put = await handleDeck(
+      'PUT',
+      'cmd-fixture',
+      ownerHeaders,
+      JSON.stringify(commander),
+      services,
+    );
+    expect(put.statusCode).toBe(200);
+
+    const pub = await handlePublicUserDeck('rayenz', 'fixture-commander', {}, services);
+    expect(pub.statusCode).toBe(200);
+    expect(JSON.parse(String(pub.body)).name).toBe(commander.name);
+  });
+
   it('returns a Rayenz deck by slug without auth after sign-in backfill', async () => {
     const { services } = createMemoryStores();
     const signIn = await handleAuthSignIn(

@@ -149,8 +149,7 @@ export function LibraryView({
         <div className="db-empty-state">
           <p>No Hub-saved decks yet.</p>
           <p>
-            Add a deck by pasting an Archidekt import, or refresh from Archidekt when the bridge is
-            available.
+            Add a deck by pasting an Archidekt import.
           </p>
           <button type="button" className="db-btn is-active" onClick={onAdd}>
             Add deck

@@ -37,7 +37,7 @@ export default defineConfig({
         'packages/web/src/**/main.tsx',
         'packages/web/src/**/types.ts',
         'packages/web/src/**/index.ts',
-        // Non-UI orchestration / bridge giants — tracked via test:coverage:full.
+        // Non-UI orchestration giants — tracked via test:coverage:full.
         'packages/web/src/mtg/archidekt-export.ts',
         'packages/web/src/mtg/order-reconcile-export.ts',
         'packages/web/src/mtg/profile-sync.ts',

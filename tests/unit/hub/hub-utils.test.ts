@@ -51,30 +51,6 @@ describe('HubUtils.sleep', () => {
   });
 });
 
-describe('HubUtils bridge guards', () => {
-  afterEach(() => {
-    delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
-  });
-
-  it('reports unavailable when no bridge is present', () => {
-    delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
-    expect(HubUtils.bridgeAvailable()).toBeFalsy();
-    expect(HubUtils.bridgeApplyAvailable()).toBe(false);
-  });
-
-  it('reports apply-available only when stageApply exists', () => {
-    (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge = { isAvailable: true };
-    expect(HubUtils.bridgeAvailable()).toBe(true);
-    expect(HubUtils.bridgeApplyAvailable()).toBe(false);
-
-    (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge = {
-      isAvailable: true,
-      stageApply: () => {},
-    };
-    expect(HubUtils.bridgeApplyAvailable()).toBe(true);
-  });
-});
-
 describe('HubUtils.ensureCss', () => {
   it('injects a stylesheet link once', () => {
     HubUtils.ensureCss('apps/foo/foo.css', 'data-foo-css');

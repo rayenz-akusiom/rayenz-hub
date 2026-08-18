@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
+import { persistReconcileDeckToHub } from './apply-hub';
 import { buildAssignmentPlan } from './assign';
-import { fetchAllSnapshots } from './data';
+import { loadHubLibrarySnapshots } from './data';
 import { itemsForDeck } from './helpers';
 import { parseInputToAcquired } from './input';
 import { OrderReconcileAssign } from './OrderReconcileAssign';
 import { OrderReconcileDeckPanel } from './OrderReconcileDeck';
 import { OrderReconcileInput } from './OrderReconcileInput';
-import { OrderReconcileStaging } from './OrderReconcileStaging';
 import { createInitialState, resetSession, saveStateProgress, setDecision } from './progress';
 import { getNextDeckId } from './reconcile';
 import type { ItemDecision, OrderReconcileState, ReconcileItem } from './types';
-import { ASSIGN_PHASE_ID, STAGING_DECK_ID } from './types';
+import { ASSIGN_PHASE_ID } from './types';
 import './order-reconcile.css';
 
 export function OrderReconcileApp() {
@@ -56,8 +56,8 @@ export function OrderReconcileApp() {
       if (state.phase === 'input' || !state.acquiredCards.length) return;
       if (state.decks.length && state.decks[0].deck_snapshot) return;
       try {
-        setStatus('Restoring session — refetching decks…');
-        const result = await fetchAllSnapshots(state, {
+        setStatus('Restoring session — loading Hub decks…');
+        const result = await loadHubLibrarySnapshots(state, {
           onProgress: showProgress,
           onStatus: setStatus,
           onFinish: finishProgress,
@@ -86,14 +86,14 @@ export function OrderReconcileApp() {
     }
     try {
       let next = { ...state, acquiredCards };
-      const fetched = await fetchAllSnapshots(next, {
+      const loaded = await loadHubLibrarySnapshots(next, {
         onProgress: showProgress,
         onStatus: setStatus,
         onFinish: finishProgress,
       });
       next = {
         ...next,
-        ...fetched,
+        ...loaded,
         progress: { decisions: {} },
         completedDecks: {},
       };
@@ -126,11 +126,25 @@ export function OrderReconcileApp() {
     });
   }
 
-  function handleCompleteDeck() {
-    const completedDecks = { ...state.completedDecks, [state.activeDeckId!]: true };
-    const { phase, activeDeckId } = getNextDeckId({ ...state, completedDecks });
-    persist({ ...state, completedDecks, phase, activeDeckId });
-    scrollToTop();
+  async function handleCompleteDeck() {
+    setError('');
+    const deckId = state.activeDeckId;
+    if (!deckId) return;
+    const items = itemsForDeck(deckId, state.reconcileItems) as ReconcileItem[];
+    try {
+      await persistReconcileDeckToHub(
+        deckId,
+        items,
+        (itemId) => state.progress.decisions[itemId] || null,
+        state.isProxyOrder,
+      );
+      const completedDecks = { ...state.completedDecks, [deckId]: true };
+      const { phase, activeDeckId } = getNextDeckId({ ...state, completedDecks });
+      persist({ ...state, completedDecks, phase, activeDeckId, statusMessage: 'Saved to Hub.' });
+      scrollToTop();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   function hasProgressDecisions() {
@@ -170,7 +184,7 @@ export function OrderReconcileApp() {
         </button>
       );
     }
-    if (state.phase === 'reconcile' || state.phase === 'staging') {
+    if (state.phase === 'reconcile') {
       return (
         <>
           {state.decks.map((deck) => {
@@ -189,13 +203,6 @@ export function OrderReconcileApp() {
               </button>
             );
           })}
-          <button
-            type="button"
-            className={'hub-deck-chip' + (state.activeDeckId === STAGING_DECK_ID ? ' active' : '')}
-            onClick={() => handleDeckSelect(STAGING_DECK_ID)}
-          >
-            Buy/trade list
-          </button>
         </>
       );
     }
@@ -233,9 +240,6 @@ export function OrderReconcileApp() {
         />
       );
     }
-    if (state.activeDeckId === STAGING_DECK_ID) {
-      return <OrderReconcileStaging state={state} onStatus={setStatus} />;
-    }
     const deck = state.decks.find((d) => d.deck_id === state.activeDeckId);
     const items = itemsForDeck(state.activeDeckId || '', state.reconcileItems);
     if (!deck || !items.length) {
@@ -248,7 +252,7 @@ export function OrderReconcileApp() {
         items={items}
         onDecision={handleDecision}
         onItemChange={handleItemChange}
-        onCompleteDeck={handleCompleteDeck}
+        onCompleteDeck={() => void handleCompleteDeck()}
         onStatus={setStatus}
       />
     );
@@ -276,7 +280,7 @@ export function OrderReconcileApp() {
           <div className="hub-sticky-chrome">
             <header className="or-header">
               <h2>Order Reconcile</h2>
-              <div className="or-meta">Match acquired cards to swap queues and update Archidekt decks.</div>
+              <div className="or-meta">Match acquired cards to swap queues and Seeking, then save to Hub.</div>
               {state.statusMessage ? <div className="or-meta">{state.statusMessage}</div> : null}
             </header>
             <div className="hub-progress-host" ref={progressHostRef} id="or-progress-host" />

@@ -5,7 +5,6 @@ import { SettingsShell } from '../../packages/web/src/SettingsShell';
 import { DailiesSettingsPage } from '../../packages/web/src/pages/DailiesSettingsPage';
 import { DeckBuilderSettingsPage } from '../../packages/web/src/pages/DeckBuilderSettingsPage';
 import { DeckSuggestSettingsPage } from '../../packages/web/src/pages/DeckSuggestSettingsPage';
-import { OrderReconcileSettingsPage } from '../../packages/web/src/pages/OrderReconcileSettingsPage';
 
 const loadDailiesSettings = vi.fn();
 const persistDailiesSettings = vi.fn();
@@ -61,7 +60,7 @@ describe('SettingsShell', () => {
     expect(screen.getByRole('button', { name: 'Hub API' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dailies' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deck Suggest' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Order Reconcile' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Order Reconcile' })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();
     });
@@ -71,7 +70,7 @@ describe('SettingsShell', () => {
     const user = userEvent.setup();
     render(<SettingsShell tab="hub-api" />);
     expect(screen.getByRole('button', { name: 'Hub API' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Test connection' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dailies' }));
     await waitFor(() => {
       expect(screen.getByText('Main pet')).toBeInTheDocument();
@@ -340,44 +339,6 @@ describe('DeckSuggestSettingsPage', () => {
 
     expect(persistDeckSuggestSettings).toHaveBeenCalledWith(
       expect.objectContaining({ setCodes: 'MAR' }),
-    );
-  });
-});
-
-describe('OrderReconcileSettingsPage', () => {
-  beforeEach(() => {
-    loadOrderReconcileSettings.mockResolvedValue({
-      settings: {
-        folderUrl: 'https://archidekt.com/folders/or',
-        stagingDeckUrl: 'https://archidekt.com/decks/staging',
-        registrySource: 'folder',
-        customDeckUrls: '',
-      },
-      source: 'api',
-    });
-    persistOrderReconcileSettings.mockResolvedValue('api');
-  });
-
-  it('loads Archidekt URLs and saves updates', async () => {
-    const user = userEvent.setup();
-    render(<OrderReconcileSettingsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('https://archidekt.com/folders/or')).toBeInTheDocument();
-    });
-    expect(screen.getByDisplayValue('https://archidekt.com/decks/staging')).toBeInTheDocument();
-
-    const staging = screen.getByLabelText('Buy/trade staging deck URL');
-    await user.clear(staging);
-    await user.type(staging, 'https://archidekt.com/decks/new-staging');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Saved to API/)).toBeInTheDocument();
-    });
-
-    expect(persistOrderReconcileSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ stagingDeckUrl: 'https://archidekt.com/decks/new-staging' }),
     );
   });
 });

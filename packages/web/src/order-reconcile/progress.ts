@@ -19,7 +19,6 @@ export function createInitialState(): OrderReconcileState {
     assignments: (progress.assignments as OrderReconcileState['assignments']) || [],
     needsReview: (progress.needsReview as OrderReconcileState['needsReview']) || [],
     decks: [],
-    stagingDeck: null,
     reconcileItems: (progress.reconcileItems as OrderReconcileState['reconcileItems']) || [],
     completedDecks: (progress.completedDecks as OrderReconcileState['completedDecks']) || {},
     activeDeckId: (progress.activeDeckId as string | null) ?? null,

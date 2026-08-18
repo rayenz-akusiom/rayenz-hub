@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ORDER_RECONCILE_SETTINGS } from '@rayenz-hub/shared';
+import { DEFAULT_ORDER_RECONCILE_SETTINGS, SEEKING, type DeckDocument } from '@rayenz-hub/shared';
+import { persistReconcileDeckToHub } from '../../../packages/web/src/order-reconcile/apply-hub.ts';
 import {
   acquiredCardImageSrc,
   autoAssignedDeckNote,
@@ -14,12 +15,9 @@ import {
   slotCountByDeckForCard,
 } from '../../../packages/web/src/order-reconcile/assign.ts';
 import {
-  fetchAllSnapshots,
   fetchColorIdentity,
-  fetchDeckSnapshot,
   fetchPrintings,
-  loadDeckRegistry,
-  parseFolderId,
+  loadHubLibrarySnapshots,
   printOptionLines,
   printingValueFromParts,
   readPrintingValue,
@@ -62,7 +60,6 @@ import {
   maybeboardOptionGroups,
 } from '../../../packages/web/src/order-reconcile/select-options.ts';
 import {
-  buildStagingImportText,
   countAcceptedRemovals,
   summarizeDeck,
   summaryCardImageSrc,
@@ -73,10 +70,35 @@ import type {
   OrderReconcileState,
   ReconcileItem,
 } from '../../../packages/web/src/order-reconcile/types.ts';
-import { STAGING_DECK_ID } from '../../../packages/web/src/order-reconcile/types.ts';
 import { loadOrderReconcileProgress, saveOrderReconcileProgress } from '../../../packages/web/src/lib/hub-storage.ts';
 import * as scryfallCache from '../../../packages/web/src/lib/scryfall-cache.ts';
 import { resetHubModules } from '../helpers/hubHarness.ts';
+import { leanDeck, cardInstance } from '../helpers/deck-fixtures.ts';
+
+const mockPullRemoteLibraryUpdates = vi.fn();
+const mockListFallbackLibrary = vi.fn();
+const mockResolveLibraryDocument = vi.fn();
+const mockGetDeck = vi.fn();
+const mockApiGetDeck = vi.fn();
+const mockSaveDualMode = vi.fn();
+
+vi.mock('../../../packages/web/src/deck-builder/store/library-sync.ts', () => ({
+  pullRemoteLibraryUpdates: (...args: unknown[]) => mockPullRemoteLibraryUpdates(...args),
+  listFallbackLibrary: (...args: unknown[]) => mockListFallbackLibrary(...args),
+  resolveLibraryDocument: (...args: unknown[]) => mockResolveLibraryDocument(...args),
+}));
+
+vi.mock('../../../packages/web/src/deck-builder/store/deck-store.ts', () => ({
+  getDeck: (...args: unknown[]) => mockGetDeck(...args),
+}));
+
+vi.mock('../../../packages/web/src/deck-builder/store/deck-api.ts', () => ({
+  apiGetDeck: (...args: unknown[]) => mockApiGetDeck(...args),
+}));
+
+vi.mock('../../../packages/web/src/deck-builder/store/deck-dual-mode.ts', () => ({
+  saveDualMode: (...args: unknown[]) => mockSaveDualMode(...args),
+}));
 
 function commanderDeck(id: string, name: string): OrderReconcileDeck {
   return {
@@ -103,7 +125,6 @@ function baseState(overrides: Partial<OrderReconcileState> = {}): OrderReconcile
     assignments: [],
     needsReview: [],
     decks: [],
-    stagingDeck: null,
     reconcileItems: [],
     completedDecks: {},
     activeDeckId: null,
@@ -129,123 +150,74 @@ function acceptedDecision(cardName: string): ItemDecision {
   };
 }
 
-type ArchidektBridge = {
-  isAvailable: boolean;
-  fetchFolder?: (folderId: number) => Promise<OrderReconcileDeck[]>;
-  fetchDeckSnapshot?: (deckId: number) => Promise<unknown>;
-};
-
-function installBridge(bridge: ArchidektBridge): void {
-  (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge = bridge;
-}
-
-function clearBridge(): void {
-  delete (window as Window & { RayenzArchidektBridge?: ArchidektBridge }).RayenzArchidektBridge;
-}
-
 beforeEach(() => {
   resetHubModules();
-  clearBridge();
+  vi.clearAllMocks();
+  mockGetDeck.mockResolvedValue(null);
+  mockApiGetDeck.mockResolvedValue(null);
+  mockSaveDualMode.mockResolvedValue({ saved: leanDeck({ deckId: 'd1', name: 'Test' }), apiError: null });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  clearBridge();
 });
 
 describe('data.ts', () => {
-  it('parseFolderId extracts folder id from Archidekt URLs', () => {
-    expect(parseFolderId('https://archidekt.com/folders/12345/decks')).toBe(12345);
-    expect(parseFolderId('')).toBe(null);
-    expect(parseFolderId(null)).toBe(null);
-    expect(parseFolderId('https://example.com')).toBe(null);
-  });
-
-  it('loadDeckRegistry returns custom decks from url list', async () => {
-    const decks = await loadDeckRegistry({
-      ...DEFAULT_ORDER_RECONCILE_SETTINGS,
-      registrySource: 'urls',
-      customDeckUrls: 'https://archidekt.com/decks/1\nhttps://archidekt.com/decks/2',
+  it('loadHubLibrarySnapshots projects commander and cube decks from Hub', async () => {
+    mockPullRemoteLibraryUpdates.mockResolvedValue([
+      { deckId: 'd2', name: 'Atraxa', format: 'commander', ownership: 'owned', updatedAt: '2026-01-01' },
+      { deckId: 'c1', name: 'Powered Cube', format: 'cube', ownership: 'owned', updatedAt: '2026-01-01' },
+      { deckId: 't1', name: 'Theory', format: 'commander', ownership: 'theory', updatedAt: '2026-01-01' },
+    ]);
+    mockResolveLibraryDocument.mockImplementation(async (id: string) => {
+      if (id === 't1') return leanDeck({ deckId: 't1', name: 'Theory', ownership: 'theory' });
+      if (id === 'c1') {
+        return leanDeck({
+          deckId: 'c1',
+          name: 'Powered Cube',
+          format: 'cube',
+          cards: [cardInstance({ instanceId: 'mb1', name: 'Plains', primaryCategory: 'Maybeboard' })],
+        });
+      }
+      return leanDeck({
+        deckId: 'd2',
+        name: 'Atraxa',
+        cards: [
+          cardInstance({ instanceId: 'in1', name: 'New Card', primaryCategory: 'Ramp' }),
+          cardInstance({ instanceId: 'out1', name: 'Cut Card', primaryCategory: 'Removal' }),
+        ],
+        formalSwapEntries: [
+          {
+            id: 'sw1',
+            inInstanceId: 'in1',
+            outInstanceId: 'out1',
+            inTargetCategory: 'Ramp',
+            sortIndex: 0,
+            notes: null,
+          },
+        ],
+      });
     });
-    expect(decks).toHaveLength(2);
-    expect(decks[0].deck_id).toBe('custom-0');
-    expect(decks[0].archidekt_url).toBe('https://archidekt.com/decks/1');
-  });
-
-  it('loadDeckRegistry throws when bridge is missing for folder source', async () => {
-    await expect(loadDeckRegistry(DEFAULT_ORDER_RECONCILE_SETTINGS)).rejects.toThrow(/Bridge userscript/);
-  });
-
-  it('loadDeckRegistry throws on invalid folder URL', async () => {
-    installBridge({ isAvailable: true, fetchFolder: vi.fn() });
-    await expect(
-      loadDeckRegistry({ ...DEFAULT_ORDER_RECONCILE_SETTINGS, folderUrl: 'https://example.com/bad' }),
-    ).rejects.toThrow(/Invalid Archidekt folder URL/);
-  });
-
-  it('loadDeckRegistry fetches folder via bridge', async () => {
-    const folderDecks = [commanderDeck('d1', 'Fetched Deck')];
-    installBridge({
-      isAvailable: true,
-      fetchFolder: vi.fn(async () => folderDecks),
-    });
-    const decks = await loadDeckRegistry({
-      ...DEFAULT_ORDER_RECONCILE_SETTINGS,
-      folderUrl: 'https://archidekt.com/folders/99',
-    });
-    expect(decks).toEqual(folderDecks);
-  });
-
-  it('fetchDeckSnapshot requires bridge and valid deck URL', async () => {
-    await expect(fetchDeckSnapshot('https://archidekt.com/decks/123')).rejects.toThrow(/Bridge userscript/);
-    installBridge({ isAvailable: true, fetchDeckSnapshot: vi.fn(async () => ({ cards: [] })) });
-    await expect(fetchDeckSnapshot('not-a-url')).rejects.toThrow(/Invalid Archidekt URL/);
-    const snapshot = await fetchDeckSnapshot('https://archidekt.com/decks/456');
-    expect(snapshot).toEqual({ cards: [] });
-  });
-
-  it('fetchAllSnapshots loads staging and deck snapshots with progress callbacks', async () => {
-    const deckA = { deck_id: 'd1', deck_name: 'Zedruu', archidekt_url: 'https://archidekt.com/decks/1' };
-    const deckB = { deck_id: 'd2', deck_name: 'Atraxa', archidekt_url: 'https://archidekt.com/decks/2' };
-    installBridge({
-      isAvailable: true,
-      fetchFolder: vi.fn(async () => [deckA, deckB]),
-      fetchDeckSnapshot: vi.fn(async (id: number) => ({ cards: [{ name: 'Deck ' + id }] })),
-    });
-    const onProgress = vi.fn();
-    const onStatus = vi.fn();
     const onFinish = vi.fn();
-    const state = baseState({
-      settings: {
-        ...DEFAULT_ORDER_RECONCILE_SETTINGS,
-        folderUrl: 'https://archidekt.com/folders/1',
-        stagingDeckUrl: 'https://archidekt.com/decks/999',
-      },
+    const result = await loadHubLibrarySnapshots(baseState(), {
+      onProgress: vi.fn(),
+      onStatus: vi.fn(),
+      onFinish,
     });
-    const result = await fetchAllSnapshots(state, { onProgress, onStatus, onFinish });
-    expect(result.stagingDeck?.deck_name).toBe('Buy / trade list');
-    expect(result.decks).toHaveLength(2);
-    expect(result.decks.every((d) => d.deck_snapshot?.cards?.length === 1)).toBe(true);
+    expect(result.decks.map((d) => d.deck_name)).toEqual(['Powered Cube', 'Atraxa']);
     expect(result.assignmentIndex?.swapByName).toBeDefined();
-    expect(onFinish).toHaveBeenCalledWith('Fetched 2 decks + staging list.');
+    expect(onFinish).toHaveBeenCalledWith('Loaded 2 Hub decks.');
   });
 
-  it('fetchAllSnapshots reports error via onFinish and rethrows', async () => {
-    installBridge({
-      isAvailable: true,
-      fetchFolder: vi.fn(async () => {
-        throw new Error('folder fetch failed');
-      }),
-    });
+  it('loadHubLibrarySnapshots reports error via onFinish and rethrows', async () => {
+    mockPullRemoteLibraryUpdates.mockRejectedValue(new Error('library failed'));
+    mockListFallbackLibrary.mockRejectedValue(new Error('library failed'));
     const onFinish = vi.fn();
-    const state = baseState({
-      settings: { ...DEFAULT_ORDER_RECONCILE_SETTINGS, folderUrl: 'https://archidekt.com/folders/1' },
-    });
     await expect(
-      fetchAllSnapshots(state, { onProgress: vi.fn(), onStatus: vi.fn(), onFinish }),
-    ).rejects.toThrow('folder fetch failed');
-    expect(onFinish).toHaveBeenCalledWith('folder fetch failed', 'error');
+      loadHubLibrarySnapshots(baseState(), { onProgress: vi.fn(), onStatus: vi.fn(), onFinish }),
+    ).rejects.toThrow('library failed');
+    expect(onFinish).toHaveBeenCalledWith('library failed', 'error');
   });
 
   it('validateScryfallName checks Scryfall named endpoint', async () => {
@@ -348,12 +320,10 @@ describe('data.ts', () => {
 });
 
 describe('helpers.ts', () => {
-  it('getDeckById returns staging deck or deck by id', () => {
-    const staging = { deck_id: STAGING_DECK_ID, deck_name: 'Staging' };
+  it('getDeckById returns a deck by id', () => {
     const decks = [commanderDeck('d1', 'Test')];
-    expect(getDeckById(STAGING_DECK_ID, decks, staging, STAGING_DECK_ID)).toBe(staging);
-    expect(getDeckById('d1', decks, staging, STAGING_DECK_ID)?.deck_name).toBe('Test');
-    expect(getDeckById('missing', decks, staging, STAGING_DECK_ID)).toBeUndefined();
+    expect(getDeckById('d1', decks)?.deck_name).toBe('Test');
+    expect(getDeckById('missing', decks)).toBeUndefined();
   });
 
   it('itemsForDeck filters reconcile items by deck', () => {
@@ -700,7 +670,7 @@ describe('reconcile.ts', () => {
     expect(status.total).toBe(1);
   });
 
-  it('getNextDeckId returns next pending deck or staging', () => {
+  it('getNextDeckId returns next pending deck or stays in reconcile', () => {
     const state = baseState({
       decks: [commanderDeck('d1', 'A'), commanderDeck('d2', 'B')],
       reconcileItems: [
@@ -712,7 +682,7 @@ describe('reconcile.ts', () => {
     expect(getNextDeckId(state)).toEqual({ phase: 'reconcile', activeDeckId: 'd2' });
 
     const allDone = { ...state, completedDecks: { d1: true, d2: true } };
-    expect(getNextDeckId(allDone)).toEqual({ phase: 'staging', activeDeckId: STAGING_DECK_ID });
+    expect(getNextDeckId(allDone)).toEqual({ phase: 'reconcile', activeDeckId: 'd1' });
   });
 });
 
@@ -723,7 +693,7 @@ describe('summary.ts', () => {
     expect(summaryCardImageSrc({ name: 'Sol Ring' })).toContain('Sol');
   });
 
-  it('summarizeDeck, buildStagingImportText, and countAcceptedRemovals use decisions', () => {
+  it('summarizeDeck and countAcceptedRemovals use decisions', () => {
     const deck = commanderDeck('d1', 'Test Deck');
     const item = {
       item_id: 'item-1',
@@ -734,16 +704,7 @@ describe('summary.ts', () => {
     const summary = summarizeDeck(deck, [item], getDecisionFn);
     expect(summary.ins).toHaveLength(1);
     expect(summary.outs).toHaveLength(1);
-
-    const staging: OrderReconcileDeck = {
-      deck_id: STAGING_DECK_ID,
-      deck_name: 'Buy / trade list',
-      deck_snapshot: { cards: [{ name: 'New Card', primary_category: 'Buy list', quantity: 1 }] },
-    };
-    const importText = buildStagingImportText(staging, [item], getDecisionFn);
-    expect(typeof importText).toBe('string');
     expect(countAcceptedRemovals([item], getDecisionFn)).toBe(1);
-    expect(buildStagingImportText(null, [], getDecisionFn)).toBe('');
     expect(summarizeDeck(deck, [item], () => ({ status: 'skipped' })).ins).toEqual([]);
   });
 });
@@ -839,6 +800,24 @@ describe('buildAssignmentPlan edge cases', () => {
     const plan = await buildAssignmentPlan(state);
     expect(plan.assignments).toHaveLength(1);
     expect(plan.assignments![0].is_cube).toBe(true);
+  });
+
+  it('indexes Seeking names as candidates without a paired Out', async () => {
+    const deck: OrderReconcileDeck = {
+      deck_id: 'd1',
+      deck_name: 'Test Commander',
+      deck_snapshot: {
+        cards: [{ name: 'Wanted Card', primary_category: 'Seeking', quantity: 1, set_code: 'cmm', collector_number: '1' }],
+      },
+    };
+    const state = baseState({
+      decks: [deck],
+      acquiredCards: [{ id: 'acq-0', name: 'Wanted Card', quantity: 1 }],
+    });
+    const plan = await buildAssignmentPlan(state);
+    expect(plan.assignments).toHaveLength(1);
+    expect(plan.assignments![0].is_seeking).toBe(true);
+    expect(plan.assignments![0].paired_out).toBeNull();
   });
 });
 
@@ -951,7 +930,7 @@ describe('select-options.ts groups', () => {
   it('deckOptionGroups and candidateOptionGroups split cube and commander', () => {
     const decks = [commanderDeck('d1', 'Atraxa'), commanderDeck('c1', 'Legacy Cube')];
     const deckGroups = deckOptionGroups(decks, true, { d1: true });
-    expect(deckGroups[0].options[0].label).toContain('leave out');
+    expect(deckGroups[0].options[0].label).toContain('leave unassigned');
     expect(deckGroups.some((g) => g.label === 'Cube')).toBe(true);
     expect(deckGroups.some((g) => g.label === 'Commander')).toBe(true);
 
@@ -984,7 +963,7 @@ describe('select-options.ts groups', () => {
       true,
       {},
     );
-    expect(html).toContain('— leave out (buy/trade only) —');
+    expect(html).toContain('— leave unassigned —');
     expect(html).toContain('<optgroup label="Cube">');
     expect(html).toContain('<optgroup label="Commander">');
     expect(html).toContain('Legacy Cube');
@@ -1009,5 +988,171 @@ describe('select-options.ts groups', () => {
     expect(html).toContain('<optgroup label="Cube">');
     expect(html).toContain('<optgroup label="Commander">');
     expect(html).toContain('selected');
+  });
+});
+
+describe('apply-hub persistReconcileDeckToHub', () => {
+  const persistItem = (over: Partial<ReconcileItem> = {}): ReconcileItem => ({
+    item_id: 'item-1',
+    copy_id: 'copy-1',
+    slot_key: 'slot',
+    deck_id: 'd1',
+    deck_name: 'Test',
+    card_name: 'New Card',
+    quantity: 1,
+    queued_in: { name: 'New Card' },
+    paired_out: null,
+    destination_category: 'Ramp',
+    is_cube: false,
+    maybeboard_entry: null,
+    acquired_set: null,
+    acquired_collector: null,
+    type: 'matched',
+    ...over,
+  });
+
+  const persistDecision = (
+    name: string,
+    out: { name: string; set_code?: string; collector_number?: string } | null = {
+      name: 'Cut Card',
+      set_code: 'nout',
+      collector_number: '1',
+    },
+  ): ItemDecision => ({
+    status: 'accepted',
+    accepted: {
+      quantity: 1,
+      destination_category: 'Ramp',
+      card_in: { name, set_code: 'cmm', collector_number: '1', finish: 'nonfoil' },
+      card_out: out,
+    },
+  });
+
+  function persistDeck(over: Partial<DeckDocument> = {}): DeckDocument {
+    return leanDeck({
+      deckId: 'd1',
+      name: 'Test',
+      categories: [
+        { name: 'Ramp', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Removal', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+      cards: [
+        cardInstance({ instanceId: 'in1', name: 'New Card', primaryCategory: 'Queued In' }),
+        cardInstance({ instanceId: 'out1', name: 'Cut Card', primaryCategory: 'Queued Out' }),
+      ],
+      formalSwapEntries: [
+        {
+          id: 'sw1',
+          inInstanceId: 'in1',
+          outInstanceId: 'out1',
+          inTargetCategory: 'Ramp',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      ...over,
+    });
+  }
+
+  it('throws when the Hub deck is missing', async () => {
+    await expect(
+      persistReconcileDeckToHub('d1', [persistItem()], () => persistDecision('New Card'), false),
+    ).rejects.toThrow(/Save this deck to Hub/);
+  });
+
+  it('throws when saveDualMode reports an API error', async () => {
+    mockGetDeck.mockResolvedValue(persistDeck());
+    mockSaveDualMode.mockResolvedValue({ saved: persistDeck(), apiError: 'API down' });
+    await expect(
+      persistReconcileDeckToHub('d1', [persistItem()], () => persistDecision('New Card'), false),
+    ).rejects.toThrow('API down');
+  });
+
+  it('finalizes an existing formal swap', async () => {
+    const deck = persistDeck();
+    mockGetDeck.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+    const saved = await persistReconcileDeckToHub(
+      'd1',
+      [persistItem()],
+      () => persistDecision('New Card'),
+      false,
+    );
+    expect(saved.formalSwapEntries).toEqual([]);
+    expect(saved.cards.find((c) => c.name === 'Cut Card')).toBeUndefined();
+    expect(saved.cards.find((c) => c.name === 'New Card')?.primaryCategory).toBe('Ramp');
+  });
+
+  it('converts Seeking plus Out into a finalized swap', async () => {
+    const deck = persistDeck({
+      cards: [
+        cardInstance({ instanceId: 'seek1', name: 'Wanted Card', primaryCategory: SEEKING }),
+        cardInstance({ instanceId: 'out1', name: 'Cut Card', primaryCategory: 'Removal' }),
+      ],
+      formalSwapEntries: [],
+      lookingForEntries: [{ id: 'lf1', instanceId: 'seek1', sortIndex: 0, notes: null }],
+    });
+    mockGetDeck.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+    const saved = await persistReconcileDeckToHub(
+      'd1',
+      [persistItem({ card_name: 'Wanted Card', is_seeking: true })],
+      () => persistDecision('Wanted Card'),
+      false,
+    );
+    expect(saved.lookingForEntries).toEqual([]);
+    expect(saved.formalSwapEntries).toEqual([]);
+    expect(saved.cards.find((c) => c.name === 'Cut Card')).toBeUndefined();
+    expect(saved.cards.find((c) => c.name === 'Wanted Card')?.primaryCategory).toBe('Ramp');
+  });
+
+  it('moves Seeking without Out into the destination category', async () => {
+    const deck = persistDeck({
+      cards: [cardInstance({ instanceId: 'seek1', name: 'Wanted Card', primaryCategory: SEEKING })],
+      formalSwapEntries: [],
+      lookingForEntries: [{ id: 'lf1', instanceId: 'seek1', sortIndex: 0, notes: null }],
+    });
+    mockGetDeck.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+    const saved = await persistReconcileDeckToHub(
+      'd1',
+      [persistItem({ card_name: 'Wanted Card', is_seeking: true })],
+      () => persistDecision('Wanted Card', null),
+      false,
+    );
+    expect(saved.lookingForEntries).toEqual([]);
+    expect(saved.cards.find((c) => c.name === 'Wanted Card')?.primaryCategory).toBe('Ramp');
+  });
+
+  it('creates a swap from an extra plus Out then finalizes', async () => {
+    const deck = persistDeck({
+      cards: [cardInstance({ instanceId: 'out1', name: 'Cut Card', primaryCategory: 'Removal' })],
+      formalSwapEntries: [],
+    });
+    mockGetDeck.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+    const saved = await persistReconcileDeckToHub(
+      'd1',
+      [persistItem({ card_name: 'Bonus Card' })],
+      () => persistDecision('Bonus Card'),
+      false,
+    );
+    expect(saved.formalSwapEntries).toEqual([]);
+    expect(saved.cards.find((c) => c.name === 'Cut Card')).toBeUndefined();
+    expect(saved.cards.find((c) => c.name === 'Bonus Card')?.primaryCategory).toBe('Ramp');
+  });
+
+  it('creates Seeking for an extra with no Out', async () => {
+    const deck = persistDeck({ cards: [], formalSwapEntries: [] });
+    mockGetDeck.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+    const saved = await persistReconcileDeckToHub(
+      'd1',
+      [persistItem({ card_name: 'Wishlist Card' })],
+      () => persistDecision('Wishlist Card', null),
+      false,
+    );
+    expect(saved.lookingForEntries?.length).toBe(1);
+    expect(saved.cards.find((c) => c.name === 'Wishlist Card')?.primaryCategory).toBe(SEEKING);
   });
 });

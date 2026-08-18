@@ -14,13 +14,11 @@ import {
   parseImportText,
   type ArchidektCategorySettings,
 } from '@rayenz-hub/shared';
-import { getArchidektBridge as getSharedArchidektBridge } from '../lib/archidekt-bridge';
 
 const MANIFEST_VERSION = '1.1';
 const IN_CATEGORY = SWAP_IN;
 const OUT_CATEGORY = SWAP_OUT;
 const SEEKING_CATEGORY = SEEKING;
-const APPLY_STORAGE_PREFIX = 'rayenz-deck-apply:';
 
 type CategorySettings = ArchidektCategorySettings;
 
@@ -84,12 +82,6 @@ type DeckWithSnapshot = {
   deck_id?: string;
   archidekt_url?: string;
   deck_snapshot?: DeckSnapshot;
-};
-
-type ArchidektBridge = {
-  stageApply?: (deckId: number, importText: string) => void;
-  getStagedApply?: (deckId: number) => unknown;
-  clearStagedApply?: (deckId: number) => void;
 };
 
 function parseDeckId(url: string | null | undefined): number | null {
@@ -509,33 +501,6 @@ function buildApplyManifest(
   };
 }
 
-function stageDeckApply(archidektDeckId: number, importText: string): void {
-  if (!archidektDeckId || !importText) {
-    throw new Error('Missing deck id or import text');
-  }
-  const bridge = getSharedArchidektBridge();
-  if (bridge && typeof bridge.stageApply === 'function') {
-    bridge.stageApply(archidektDeckId, importText);
-    return;
-  }
-  throw new Error('Install/update Archidekt Deck Review Bridge userscript to apply from Hub.');
-}
-
-function getStagedDeckApply(archidektDeckId: number): unknown {
-  const bridge = getSharedArchidektBridge();
-  if (bridge && typeof bridge.getStagedApply === 'function') {
-    return bridge.getStagedApply(archidektDeckId);
-  }
-  return null;
-}
-
-function clearStagedDeckApply(archidektDeckId: number): void {
-  const bridge = getSharedArchidektBridge();
-  if (bridge && typeof bridge.clearStagedApply === 'function') {
-    bridge.clearStagedApply(archidektDeckId);
-  }
-}
-
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(text);
@@ -556,7 +521,6 @@ export const ArchidektExport = {
   IN_CATEGORY,
   OUT_CATEGORY,
   SEEKING_CATEGORY,
-  APPLY_STORAGE_PREFIX,
   parseDeckId,
   formatImportLine,
   parseImportLine,
@@ -578,8 +542,5 @@ export const ArchidektExport = {
   buildFullDeckImport,
   buildDeckApplyEntry,
   buildApplyManifest,
-  stageDeckApply,
-  getStagedDeckApply,
-  clearStagedDeckApply,
   copyText,
 };

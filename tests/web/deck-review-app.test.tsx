@@ -43,17 +43,6 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   };
 });
 
-vi.mock('../../packages/web/src/deck-review/archidekt-bridge', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../packages/web/src/deck-review/archidekt-bridge')>();
-  return {
-    ...actual,
-    bridgeAvailable: vi.fn(() => false),
-    bridgeApplyAvailable: vi.fn(() => false),
-    refreshAllDeckSnapshots: vi.fn(() => Promise.resolve()),
-    refreshActiveDeckSnapshot: vi.fn(() => Promise.resolve()),
-  };
-});
-
 vi.mock('../../packages/web/src/lib/hub-storage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/lib/hub-storage')>();
   return {
@@ -150,7 +139,6 @@ beforeEach(() => {
   resetHubModules();
   vi.clearAllMocks();
   sessionStorage.clear();
-  delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
 });
 
 afterEach(() => {

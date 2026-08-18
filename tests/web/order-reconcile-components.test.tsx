@@ -3,8 +3,6 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { OrderReconcileAssign } from '../../packages/web/src/order-reconcile/OrderReconcileAssign';
 import { OrderReconcileDeckPanel } from '../../packages/web/src/order-reconcile/OrderReconcileDeck';
-import { OrderReconcileStaging } from '../../packages/web/src/order-reconcile/OrderReconcileStaging';
-import { STAGING_DECK_ID } from '../../packages/web/src/order-reconcile/types';
 import type {
   NeedsReviewItem,
   OrderReconcileDeck,
@@ -20,8 +18,6 @@ const mockBuildAssignmentPlan = vi.fn();
 const mockIsCubeDeck = vi.fn(() => false);
 const mockDeckCategories = vi.fn(() => ['Queued In', 'Ramp', 'Removal']);
 const mockCopyText = vi.fn(() => Promise.resolve());
-const mockStageDeckApply = vi.fn();
-const mockBridgeApplyAvailable = vi.fn(() => false);
 
 vi.mock('../../packages/web/src/order-reconcile/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/order-reconcile/data')>();
@@ -76,17 +72,8 @@ vi.mock('../../packages/web/src/mtg/archidekt-export', async (importOriginal) =>
     ArchidektExport: {
       ...actual.ArchidektExport,
       copyText: (...args: unknown[]) => mockCopyText(...args),
-      stageDeckApply: (...args: unknown[]) => mockStageDeckApply(...args),
       parseDeckId: () => '12345',
     },
-  };
-});
-
-vi.mock('../../packages/web/src/lib/hub-utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../packages/web/src/lib/hub-utils')>();
-  return {
-    ...actual,
-    bridgeApplyAvailable: (...args: unknown[]) => mockBridgeApplyAvailable(...args),
   };
 });
 
@@ -110,12 +97,7 @@ function baseState(over: Partial<OrderReconcileState> = {}): OrderReconcileState
   return {
     phase: 'assign',
     sessionId: 'sess-1',
-    settings: {
-      folderUrl: 'https://archidekt.com/folders/1',
-      stagingDeckUrl: 'https://archidekt.com/decks/99999/staging',
-      registrySource: 'folder',
-      customDeckUrls: '',
-    },
+    settings: {},
     acquiredCards: [{ id: 'acq-1', name: 'Shock' }],
     assignments: [
       {
@@ -143,11 +125,6 @@ function baseState(over: Partial<OrderReconcileState> = {}): OrderReconcileState
     ],
     needsReview: [],
     decks: [sampleDeck()],
-    stagingDeck: sampleDeck({
-      deck_id: STAGING_DECK_ID,
-      deck_name: 'Buy / trade list',
-      archidekt_url: 'https://archidekt.com/decks/99999/staging',
-    }),
     reconcileItems: [],
     completedDecks: {},
     activeDeckId: null,
@@ -203,7 +180,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockValidateScryfallName.mockResolvedValue(true);
   mockIsCubeDeck.mockReturnValue(false);
-  mockBridgeApplyAvailable.mockReturnValue(false);
   mockBuildAssignmentPlan.mockResolvedValue({
     assignmentIndex: {},
     copies: [],
@@ -414,12 +390,9 @@ describe('OrderReconcileDeckPanel', () => {
     });
   });
 
-  it('applies deck via bridge when available', async () => {
-    mockBridgeApplyAvailable.mockReturnValue(true);
+  it('saves to Hub when complete', async () => {
     const onCompleteDeck = vi.fn();
-    const onStatus = vi.fn();
     const user = userEvent.setup();
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const item = reconcileItem({ destination_category: 'Queued In' });
     const state = baseState({
       progress: {
@@ -445,77 +418,11 @@ describe('OrderReconcileDeckPanel', () => {
         onDecision={vi.fn()}
         onItemChange={vi.fn()}
         onCompleteDeck={onCompleteDeck}
-        onStatus={onStatus}
+        onStatus={vi.fn()}
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /Apply & stay/i }));
-    expect(mockStageDeckApply).toHaveBeenCalled();
-    expect(openSpy).toHaveBeenCalled();
-    expect(onCompleteDeck).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith(
-      'Applied — verify the Archidekt banner, then continue when ready.',
-    );
-
-    await user.click(screen.getByRole('button', { name: /Apply & next/i }));
+    await user.click(screen.getByRole('button', { name: 'Save to Hub' }));
     expect(onCompleteDeck).toHaveBeenCalled();
-    openSpy.mockRestore();
-  });
-});
-
-describe('OrderReconcileStaging', () => {
-  it('copies staging import text', async () => {
-    const onStatus = vi.fn();
-    const user = userEvent.setup();
-    const item = reconcileItem({ deck_id: STAGING_DECK_ID, destination_category: 'Queued In' });
-
-    render(
-      <OrderReconcileStaging
-        state={baseState({
-          reconcileItems: [item],
-          progress: {
-            decisions: {
-              'item-1': {
-                status: 'accepted',
-                accepted: {
-                  quantity: 1,
-                  destination_category: 'Queued In',
-                  card_in: { name: 'Sol Ring' },
-                  card_out: null,
-                },
-              },
-            },
-          },
-        })}
-        onStatus={onStatus}
-      />,
-    );
-
-    expect(screen.getByText(/Remove 1 accepted card/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Copy staging import' }));
-    expect(mockCopyText).toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith('Staging import copied.');
-  });
-
-  it('applies staging deck via bridge when available', async () => {
-    mockBridgeApplyAvailable.mockReturnValue(true);
-    const onStatus = vi.fn();
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    const user = userEvent.setup();
-
-    render(
-      <OrderReconcileStaging
-        state={baseState({
-          reconcileItems: [reconcileItem({ deck_id: STAGING_DECK_ID })],
-        })}
-        onStatus={onStatus}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Apply via bridge' }));
-    expect(mockStageDeckApply).toHaveBeenCalled();
-    expect(openSpy).toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith('Staged staging deck — apply on Archidekt tab.');
-    openSpy.mockRestore();
   });
 });

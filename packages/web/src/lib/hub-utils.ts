@@ -1,9 +1,6 @@
 import { hubDocumentRoot } from '../hub/core-scripts';
 import { HubProgress, type HubProgressController } from './hub-progress';
 import { escapeHtml } from './string-utils';
-import { bridgeApplyAvailable, bridgeAvailable } from './archidekt-bridge';
-
-export { bridgeAvailable, bridgeApplyAvailable } from './archidekt-bridge';
 
 export function optionKey(opt: { name: string; set_code?: string; collector_number?: string }): string {
   return [opt.name, opt.set_code || '', opt.collector_number || ''].join('|');
@@ -117,8 +114,6 @@ export function handoffSnapshotSummary(data: {
 
 export const HubUtils = {
   escapeHtml,
-  bridgeAvailable,
-  bridgeApplyAvailable,
   optionKey,
   sleep,
   scryfallImageFromId,

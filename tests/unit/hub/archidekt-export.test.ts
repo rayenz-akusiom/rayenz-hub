@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArchidektExport } from '../../../packages/web/src/mtg/archidekt-export.ts';
 
 afterEach(() => {
-  delete (window as Window & { RayenzArchidektBridge?: unknown }).RayenzArchidektBridge;
   vi.restoreAllMocks();
 });
 
@@ -556,49 +555,6 @@ describe('ArchidektExport.buildFullDeckImport deduct paths', () => {
 
   it('returns empty when snapshot cards is not an array', () => {
     expect(ArchidektExport.buildFullDeckImport({ deck_snapshot: { cards: null as unknown as [] } }, [])).toBe('');
-  });
-});
-
-describe('ArchidektExport bridge helpers', () => {
-  it('stageDeckApply throws when deck id or import text is missing', () => {
-    expect(() => ArchidektExport.stageDeckApply(0, 'text')).toThrow(/Missing deck id/);
-    expect(() => ArchidektExport.stageDeckApply(123, '')).toThrow(/Missing deck id/);
-  });
-
-  it('stageDeckApply throws when the bridge is unavailable', () => {
-    expect(() => ArchidektExport.stageDeckApply(123, '1x Card')).toThrow(/Bridge userscript/);
-  });
-
-  it('stageDeckApply delegates to the bridge when present', () => {
-    const stageApply = vi.fn();
-    (window as Window & { RayenzArchidektBridge?: { stageApply?: typeof stageApply } }).RayenzArchidektBridge = {
-      stageApply,
-    };
-    ArchidektExport.stageDeckApply(123, '1x Card');
-    expect(stageApply).toHaveBeenCalledWith(123, '1x Card');
-  });
-
-  it('getStagedDeckApply returns null without a bridge', () => {
-    expect(ArchidektExport.getStagedDeckApply(123)).toBe(null);
-  });
-
-  it('getStagedDeckApply delegates to the bridge when present', () => {
-    (window as Window & { RayenzArchidektBridge?: { getStagedApply?: () => string } }).RayenzArchidektBridge = {
-      getStagedApply: () => 'staged',
-    };
-    expect(ArchidektExport.getStagedDeckApply(123)).toBe('staged');
-  });
-
-  it('clearStagedDeckApply no-ops without a bridge', () => {
-    expect(() => ArchidektExport.clearStagedDeckApply(123)).not.toThrow();
-  });
-
-  it('clearStagedDeckApply delegates to the bridge when present', () => {
-    const clearStagedApply = vi.fn();
-    (window as Window & { RayenzArchidektBridge?: { clearStagedApply?: typeof clearStagedApply } }).RayenzArchidektBridge =
-      { clearStagedApply };
-    ArchidektExport.clearStagedDeckApply(123);
-    expect(clearStagedApply).toHaveBeenCalledWith(123);
   });
 });
 

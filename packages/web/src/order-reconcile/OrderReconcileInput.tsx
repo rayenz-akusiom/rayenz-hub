@@ -26,10 +26,6 @@ export function OrderReconcileInput({
   onParse,
   onContinue,
 }: OrderReconcileInputProps) {
-  const settingsSummary = state.settings.folderUrl
-    ? state.settings.folderUrl
-    : '(no folder URL — configure in Settings)';
-
   function handleParse() {
     const cards = parseInputToAcquired(state.inputMode, listText, emailText);
     onAcquiredCardsChange(cards);
@@ -38,15 +34,6 @@ export function OrderReconcileInput({
 
   return (
     <>
-      <div className="or-settings-panel">
-        <h3>Settings</h3>
-        <p className="or-meta">Folder: {settingsSummary}</p>
-        <p>
-          <a className="or-btn or-btn-ghost" href="#/settings/order-reconcile">
-            Open Order Reconcile settings
-          </a>
-        </p>
-      </div>
       <div className="or-input-tabs">
         <button
           type="button"

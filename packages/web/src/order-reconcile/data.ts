@@ -1,42 +1,16 @@
-import { sleep } from '../lib/hub-utils';
-import { fetchPrintings as scryfallFetchPrintings } from '../lib/scryfall-cache';
 import {
-  bridgeAvailable,
-  fetchDeckSnapshotFromBridge,
-  fetchFolderFromBridge,
-  parseFolderId,
-} from '../lib/archidekt-bridge';
+  applyFormalSwapsToCards,
+  applyLookingForToCards,
+  getOracle,
+  isTheoryDeck,
+  type DeckDocument,
+} from '@rayenz-hub/shared';
+import { fetchPrintings as scryfallFetchPrintings } from '../lib/scryfall-cache';
+import { listFallbackLibrary, pullRemoteLibraryUpdates, resolveLibraryDocument } from '../deck-builder/store/library-sync';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
 import { buildAssignmentIndex } from './assign';
 import { sortDecksByName } from './helpers';
-import type { OrderReconcileDeck, OrderReconcileSettingsPayload, OrderReconcileState, PrintingParts } from './types';
-import { STAGING_DECK_ID } from './types';
-
-export { parseFolderId };
-
-export async function loadDeckRegistry(settings: OrderReconcileSettingsPayload): Promise<OrderReconcileDeck[]> {
-  const source = settings.registrySource || 'folder';
-  if (source === 'urls') {
-    const urls = (settings.customDeckUrls || '').split(/\r?\n/).filter(Boolean);
-    return urls.map((url, i) => ({
-      deck_id: 'custom-' + i,
-      deck_name: 'Deck ' + (i + 1),
-      archidekt_url: url.trim(),
-    }));
-  }
-  if (!bridgeAvailable()) {
-    throw new Error('Install Archidekt Deck Review Bridge userscript (2026-06-25-2+) for folder fetch.');
-  }
-  const folderId = parseFolderId(settings.folderUrl);
-  if (!folderId) {
-    throw new Error('Invalid Archidekt folder URL.');
-  }
-  return (await fetchFolderFromBridge(folderId)) as OrderReconcileDeck[];
-}
-
-export async function fetchDeckSnapshot(url: string): Promise<unknown> {
-  return fetchDeckSnapshotFromBridge(url);
-}
+import type { OrderReconcileDeck, OrderReconcileState, PrintingParts } from './types';
 
 export type FetchProgressCallbacks = {
   onProgress: (current: number, total: number, msg: string) => void;
@@ -44,40 +18,67 @@ export type FetchProgressCallbacks = {
   onFinish: (label: string, variant?: string) => void;
 };
 
-export async function fetchAllSnapshots(
-  state: OrderReconcileState,
-  callbacks: FetchProgressCallbacks,
-): Promise<Pick<OrderReconcileState, 'decks' | 'stagingDeck' | 'assignmentIndex'>> {
+/** Same projection as shared `hubDeckToRecord` (export-style Queued In/Out + Seeking). */
+function hubDeckToReconcileDeck(doc: DeckDocument): OrderReconcileDeck {
+  let cards = applyFormalSwapsToCards(doc.cards || [], doc.formalSwapEntries || [], doc.format);
+  cards = applyLookingForToCards(cards, doc.lookingForEntries || [], doc.format);
+  return {
+    deck_id: doc.deckId,
+    deck_name: doc.name,
+    archidekt_url: doc.archidektUrl || '',
+    format: doc.format,
+    deck_snapshot: {
+      cards: cards.map((c) => {
+        const oracle = getOracle(doc, c);
+        const categories = [c.primaryCategory, ...(c.categories || []).filter((x) => x !== c.primaryCategory)];
+        return {
+          name: c.name,
+          set_code: c.setCode,
+          collector_number: c.collectorNumber,
+          quantity: c.quantity,
+          primary_category: c.primaryCategory,
+          categories,
+          color_identity: oracle?.colourIdentity || [],
+        };
+      }),
+    },
+  };
+}
+
+export async function loadHubLibraryDecksForReconcile(): Promise<OrderReconcileDeck[]> {
+  let summaries;
   try {
-    const decks = sortDecksByName(await loadDeckRegistry(state.settings));
-    const total = decks.length + 1;
-    let step = 0;
-    callbacks.onProgress(step, total, 'Fetching staging deck…');
-    const stagingDeck: OrderReconcileDeck = {
-      deck_id: STAGING_DECK_ID,
-      deck_name: 'Buy / trade list',
-      archidekt_url: state.settings.stagingDeckUrl,
-      deck_snapshot: (await fetchDeckSnapshot(state.settings.stagingDeckUrl || '')) as OrderReconcileDeck['deck_snapshot'],
-    };
-    step = 1;
-    callbacks.onProgress(step, total, 'Fetched staging deck');
-    for (let i = 0; i < decks.length; i++) {
-      step = i + 2;
-      callbacks.onProgress(
-        step,
-        total,
-        'Fetching deck ' + (i + 1) + '/' + decks.length + ': ' + decks[i].deck_name + '…',
-      );
-      decks[i].deck_snapshot = (await fetchDeckSnapshot(decks[i].archidekt_url || '')) as OrderReconcileDeck['deck_snapshot'];
-      if (i < decks.length - 1) {
-        await sleep(150);
-      }
-    }
+    summaries = await pullRemoteLibraryUpdates();
+  } catch {
+    summaries = await listFallbackLibrary();
+  }
+  const decks: OrderReconcileDeck[] = [];
+  for (const s of summaries) {
+    if (s.format !== 'commander' && s.format !== 'cube') continue;
+    if (isTheoryDeck(s)) continue;
+    const doc = await resolveLibraryDocument(s.deckId);
+    if (!doc || isTheoryDeck(doc)) continue;
+    decks.push(hubDeckToReconcileDeck(doc));
+  }
+  return sortDecksByName(decks);
+}
+
+export async function loadHubLibrarySnapshots(
+  _state: OrderReconcileState,
+  callbacks: FetchProgressCallbacks,
+): Promise<Pick<OrderReconcileState, 'decks' | 'assignmentIndex'>> {
+  try {
+    callbacks.onProgress(0, 1, 'Loading Hub library…');
+    const decks = await loadHubLibraryDecksForReconcile();
+    callbacks.onProgress(1, 1, 'Loaded ' + decks.length + ' decks');
     const assignmentIndex = buildAssignmentIndex(decks);
-    const label = 'Fetched ' + decks.length + ' decks + staging list.';
+    const label =
+      decks.length === 0
+        ? 'No commander or cube decks in the Hub library.'
+        : 'Loaded ' + decks.length + ' Hub decks.';
     callbacks.onStatus(label);
     callbacks.onFinish(label);
-    return { decks, stagingDeck, assignmentIndex };
+    return { decks, assignmentIndex };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     callbacks.onFinish(msg, 'error');

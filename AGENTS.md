@@ -51,7 +51,7 @@ Reports land under `coverage/` (gitignored). Gate → `coverage/web-gate/`; full
 ### SPA UI testing practices
 
 1. Put RTL suites under `tests/web/*.test.tsx` (jsdom).
-2. Mock network, Hub API, IndexedDB stores, Archidekt bridges, and `HubProgress.mount` — assert visible chrome and user flows, not implementation details.
+2. Mock network, Hub API, IndexedDB stores, and `HubProgress.mount` — assert visible chrome and user flows, not implementation details.
 3. Prefer exercising real child components with tiny fixtures; mock a child only when it pulls an entire subsystem.
 4. Cover at least: empty/loading/error, primary happy path, and one settings/API-off vs API-on branch per major app.
 5. HubShell may still mock app children when testing chrome alone; app-level suites must import the real `*App` under test.

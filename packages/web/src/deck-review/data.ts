@@ -5,19 +5,6 @@ import type { CutOption, ScryfallPrint } from './types';
 
 export { getSwapQueue as deriveSwapQueue };
 
-const BRIDGE_SCRIPT_URL =
-  'https://github.com/rayenz-akusiom/rayenz-hub/blob/main/monkey-scripts/archidekt-deck-review.user.js';
-
-export { BRIDGE_SCRIPT_URL };
-
-export function archidektApplyOpenUrl(archidektUrl: string | null | undefined): string {
-  if (!archidektUrl) {
-    return archidektUrl || '';
-  }
-  const sep = archidektUrl.indexOf('?') >= 0 ? '&' : '?';
-  return archidektUrl + sep + 'rayenz_apply=1';
-}
-
 function swapQueueHasName(cards: Array<{ name?: string }> | null | undefined, name: string): boolean {
   return (cards || []).some((c) => c.name === name);
 }

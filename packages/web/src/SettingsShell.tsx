@@ -4,7 +4,6 @@ import { DeckBuilderSettingsPage } from './pages/DeckBuilderSettingsPage';
 import { DeckSuggestSettingsPage } from './pages/DeckSuggestSettingsPage';
 import { HubApiSettingsPage } from './pages/HubApiSettingsPage';
 import { HubInvitesPage } from './pages/HubInvitesPage';
-import { OrderReconcileSettingsPage } from './pages/OrderReconcileSettingsPage';
 import { SwapQueueSettingsPage } from './pages/SwapQueueSettingsPage';
 import { navigateHub } from './lib/hub-storage';
 
@@ -13,7 +12,6 @@ export type SettingsTab =
   | 'dailies'
   | 'deck-builder'
   | 'deck-suggest'
-  | 'order-reconcile'
   | 'swap-queue'
   | 'invites';
 
@@ -22,7 +20,6 @@ const TABS: { id: SettingsTab; label: string; path: string }[] = [
   { id: 'dailies', label: 'Dailies', path: '/settings/dailies' },
   { id: 'deck-builder', label: 'Deck builders', path: '/settings/deck-builder' },
   { id: 'deck-suggest', label: 'Deck Suggest', path: '/settings/deck-suggest' },
-  { id: 'order-reconcile', label: 'Order Reconcile', path: '/settings/order-reconcile' },
   { id: 'swap-queue', label: 'Swap Queue', path: '/settings/swap-queue' },
   { id: 'invites', label: 'Invites', path: '/settings/invites' },
 ];
@@ -32,7 +29,6 @@ function tabFromPathHint(hint?: SettingsTab): SettingsTab {
     hint === 'hub-api' ||
     hint === 'deck-builder' ||
     hint === 'deck-suggest' ||
-    hint === 'order-reconcile' ||
     hint === 'swap-queue' ||
     hint === 'invites' ||
     hint === 'dailies'
@@ -85,7 +81,6 @@ export function SettingsShell({ tab: tabProp }: { tab?: SettingsTab } = {}) {
         {tab === 'dailies' && <DailiesSettingsPage />}
         {tab === 'deck-builder' && <DeckBuilderSettingsPage />}
         {tab === 'deck-suggest' && <DeckSuggestSettingsPage />}
-        {tab === 'order-reconcile' && <OrderReconcileSettingsPage />}
         {tab === 'swap-queue' && <SwapQueueSettingsPage />}
         {tab === 'invites' && <HubInvitesPage />}
       </div>

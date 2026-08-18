@@ -38,29 +38,6 @@ export function summarizeDeck(
   return OrderReconcileExport.summarizeDeck(deck.deck_id, deck.deck_snapshot, accepted, { isCube });
 }
 
-export function buildStagingImportText(
-  stagingDeck: OrderReconcileDeck | null,
-  reconcileItems: ReconcileItem[],
-  getDecisionFn: (itemId: string) => ItemDecision | null,
-): string {
-  const removals: { name: string; set_code?: string | null; collector_number?: string | null; quantity: number }[] = [];
-  reconcileItems.forEach((item) => {
-    const d = getDecisionFn(item.item_id);
-    if (d && d.status === 'accepted') {
-      removals.push({
-        name: d.accepted.card_in.name,
-        set_code: d.accepted.card_in.set_code,
-        collector_number: d.accepted.card_in.collector_number,
-        quantity: 1,
-      });
-    }
-  });
-  if (!stagingDeck?.deck_snapshot) {
-    return '';
-  }
-  return OrderReconcileExport.buildStagingCleanupImport(stagingDeck.deck_snapshot, removals);
-}
-
 export function countAcceptedRemovals(
   reconcileItems: ReconcileItem[],
   getDecisionFn: (itemId: string) => ItemDecision | null,

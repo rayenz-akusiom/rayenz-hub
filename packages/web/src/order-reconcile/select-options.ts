@@ -32,7 +32,7 @@ export function deckOptionsHtml(
 ): string {
   let html = '';
   if (includeLeaveOut) {
-    html += '<option value=""' + (!selectedId ? ' selected' : '') + '>— leave out (buy/trade only) —</option>';
+    html += '<option value=""' + (!selectedId ? ' selected' : '') + '>— leave unassigned —</option>';
   }
   const cubeDecks = decks.filter((d) => OrderReconcileExport.isCubeDeck(d));
   const commanderDecks = decks.filter((d) => !OrderReconcileExport.isCubeDeck(d));
@@ -50,7 +50,7 @@ export function maybeboardDeckOptionsHtml(
   nr: NeedsReviewItem,
   disabledSet: Record<string, boolean>,
 ): string {
-  let html = '<option value=""' + (!nr.assigned_deck_id ? ' selected' : '') + '>— leave out (buy/trade only) —</option>';
+  let html = '<option value=""' + (!nr.assigned_deck_id ? ' selected' : '') + '>— leave unassigned —</option>';
   const seen: Record<string, boolean> = {};
   const suggested = (nr.candidates || []).filter((c) => {
     if (seen[c.deck_id]) {
@@ -128,7 +128,7 @@ export function deckOptionGroups(
   if (includeLeaveOut) {
     groups.push({
       label: '',
-      options: [{ value: '', label: '— leave out (buy/trade only) —' }],
+      options: [{ value: '', label: '— leave unassigned —' }],
     });
   }
   const cubeDecks = decks.filter((d) => OrderReconcileExport.isCubeDeck(d));
@@ -194,7 +194,7 @@ export function maybeboardOptionGroups(
   disabledSet: Record<string, boolean>,
 ): SelectOptionGroup[] {
   const groups: SelectOptionGroup[] = [
-    { label: '', options: [{ value: '', label: '— leave out (buy/trade only) —' }] },
+    { label: '', options: [{ value: '', label: '— leave unassigned —' }] },
   ];
   const seen: Record<string, boolean> = {};
   const suggested = (nr.candidates || []).filter((c) => {

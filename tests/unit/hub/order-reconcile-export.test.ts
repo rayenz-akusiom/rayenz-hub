@@ -399,41 +399,6 @@ describe('OrderReconcileExport.buildReconcileDeckImport', () => {
   });
 });
 
-describe('OrderReconcileExport.buildStagingCleanupImport', () => {
-  it('deducts removed quantities from the staging snapshot', () => {
-    const snapshot = {
-      cards: [
-        { name: 'Buy A', set_code: 'aaa', collector_number: '1', quantity: 2, primary_category: 'Maybeboard' },
-      ],
-    };
-    const removals = [{ name: 'Buy A', set_code: 'aaa', collector_number: '1', quantity: 1 }];
-    const text = OrderReconcileExport.buildStagingCleanupImport(snapshot, removals);
-    expect(text).toContain('1x Buy A (aaa) 1 [Maybeboard{noDeck}{noPrice}]');
-  });
-
-  it('returns empty string when snapshot is null', () => {
-    expect(OrderReconcileExport.buildStagingCleanupImport(null, [])).toBe('');
-  });
-
-  it('skips rows when set codes conflict during deduct', () => {
-    const snapshot = {
-      cards: [{ name: 'Flex Cut', set_code: 'aaa', collector_number: '1', quantity: 1, primary_category: 'Ramp' }],
-    };
-    const text = OrderReconcileExport.buildStagingCleanupImport(snapshot, [
-      { name: 'Flex Cut', set_code: 'bbb', collector_number: '9', quantity: 1 },
-    ]);
-    expect(text).toContain('Flex Cut');
-  });
-
-  it('deducts by name when the removal lacks printing info', () => {
-    const snapshot = {
-      cards: [{ name: 'Flex Cut', set_code: 'aaa', collector_number: '1', quantity: 1, primary_category: 'Ramp' }],
-    };
-    const text = OrderReconcileExport.buildStagingCleanupImport(snapshot, [{ name: 'Flex Cut', quantity: 1 }]);
-    expect(text).not.toContain('Flex Cut');
-  });
-});
-
 describe('OrderReconcileExport.summarizeDeck', () => {
   const queueSnapshot = {
     cards: [

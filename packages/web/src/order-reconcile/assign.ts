@@ -13,7 +13,6 @@ import type {
   OrderReconcileState,
   ReconcileItem,
 } from './types';
-import { STAGING_DECK_ID } from './types';
 
 export function expandToCopies(acquiredCards: AcquiredCard[]): CardCopy[] {
   const copies: CardCopy[] = [];
@@ -108,6 +107,24 @@ export function buildAssignmentIndex(decks: OrderReconcileDeck[]): AssignmentInd
       });
     });
 
+    OrderReconcileExport.deriveSeeking(deck.deck_snapshot).forEach((entry, idx) => {
+      addCandidateToIndex(swapByName, entry.name || '', {
+        deck_id: deck.deck_id,
+        deck_name: deck.deck_name,
+        slot_key: OrderReconcileExport.seekingSlotKey(deck.deck_id, idx, entry.name || ''),
+        queued_in: {
+          name: entry.name || '',
+          set_code: entry.set_code,
+          collector_number: entry.collector_number,
+          quantity: entry.quantity,
+        },
+        paired_out: null,
+        is_cube: false,
+        is_seeking: true,
+        maybeboard_entry: null,
+      });
+    });
+
     OrderReconcileExport.deriveMaybeboard(deck.deck_snapshot).forEach((entry, idx) => {
       addCandidateToIndex(maybeboardByName, entry.name, {
         deck_id: deck.deck_id,
@@ -165,7 +182,7 @@ async function resolveCubeCandidateCategories(
     if (!c.is_cube || c.destination_category) {
       continue;
     }
-    const deck = getDeckById(c.deck_id, state.decks, state.stagingDeck, STAGING_DECK_ID);
+    const deck = getDeckById(c.deck_id, state.decks);
     if (!deck?.deck_snapshot) {
       continue;
     }
@@ -190,6 +207,7 @@ function makeAssignment(copy: CardCopy, candidate: AssignmentCandidate, reason: 
     paired_out: candidate.paired_out,
     destination_category: candidate.destination_category || '',
     is_cube: !!candidate.is_cube,
+    is_seeking: !!candidate.is_seeking,
     maybeboard_entry: candidate.maybeboard_entry || null,
     reason: reason || 'auto',
   };
@@ -340,6 +358,7 @@ export function buildReconcileItems(state: OrderReconcileState): ReconcileItem[]
       paired_out: a.paired_out,
       destination_category: a.destination_category,
       is_cube: !!a.is_cube,
+      is_seeking: !!a.is_seeking,
       maybeboard_entry: a.maybeboard_entry || null,
       acquired_set: acquired.acquired_set,
       acquired_collector: acquired.acquired_collector,
@@ -351,7 +370,7 @@ export function buildReconcileItems(state: OrderReconcileState): ReconcileItem[]
     if (!nr.assigned_deck_id) {
       return;
     }
-    const deck = getDeckById(nr.assigned_deck_id, state.decks, state.stagingDeck, STAGING_DECK_ID);
+    const deck = getDeckById(nr.assigned_deck_id, state.decks);
     const candidate = (nr.candidates || []).find((c) => c.deck_id === nr.assigned_deck_id);
     const isCube = candidate ? !!candidate.is_cube : OrderReconcileExport.isCubeDeck(deck);
     const acquiredNr = copyFieldsForReconcileItem(nr.copy.copy_id, state.copies);
@@ -367,6 +386,7 @@ export function buildReconcileItems(state: OrderReconcileState): ReconcileItem[]
       paired_out: candidate ? candidate.paired_out : null,
       destination_category: nr.destination_category || (candidate ? candidate.destination_category || '' : ''),
       is_cube: isCube,
+      is_seeking: candidate ? !!candidate.is_seeking : false,
       maybeboard_entry: candidate ? candidate.maybeboard_entry : null,
       acquired_set: acquiredNr.acquired_set,
       acquired_collector: acquiredNr.acquired_collector,

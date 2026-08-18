@@ -16,7 +16,6 @@ import {
 import { fetchPrintings, printOptionLines, printingValueFromParts, readPrintingValue } from './data';
 import type { CutOption, ItemDecision, OrderReconcileDeck, OrderReconcileState, PrintingParts, ReconcileItem } from './types';
 import { OrderReconcileExport } from '../mtg/order-reconcile-export';
-import { bridgeApplyAvailable } from '../lib/hub-utils';
 import { ArchidektExport } from '../mtg/archidekt-export';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { resolveFinish } from '../cards/CardPicker';
@@ -262,18 +261,6 @@ export function OrderReconcileDeckPanel({
     void ArchidektExport.copyText(importText).then(() => onStatus('Deck import copied.'));
   }
 
-  function applyDeck(advance: boolean) {
-    const deckId = ArchidektExport.parseDeckId(deck.archidekt_url || '');
-    ArchidektExport.stageDeckApply(deckId, importText);
-    window.open(deck.archidekt_url, '_blank', 'noopener');
-    if (advance) {
-      onStatus('Applied — move to next deck.');
-      onCompleteDeck();
-    } else {
-      onStatus('Applied — verify the Archidekt banner, then continue when ready.');
-    }
-  }
-
   return (
     <div className="or-status-card">
       <div className="or-status-header">
@@ -304,26 +291,14 @@ export function OrderReconcileDeckPanel({
           <button type="button" className="or-btn or-btn-primary" disabled={!complete.complete} onClick={copyImport}>
             Copy deck import
           </button>
-          {bridgeApplyAvailable() ? (
-            <>
-              <button
-                type="button"
-                className="or-btn or-btn-success"
-                disabled={!complete.complete}
-                onClick={() => applyDeck(false)}
-              >
-                Apply &amp; stay
-              </button>
-              <button
-                type="button"
-                className="or-btn or-btn-ghost"
-                disabled={!complete.complete}
-                onClick={() => applyDeck(true)}
-              >
-                Apply &amp; next
-              </button>
-            </>
-          ) : null}
+          <button
+            type="button"
+            className="or-btn or-btn-success"
+            disabled={!complete.complete}
+            onClick={onCompleteDeck}
+          >
+            Save to Hub
+          </button>
         </div>
         <textarea className="or-textarea" readOnly value={importText} style={{ minHeight: 100, marginTop: 12 }} />
       </div>

@@ -1,9 +1,8 @@
 import type { OrderReconcileSettingsPayload } from '@rayenz-hub/shared';
 
 export const ASSIGN_PHASE_ID = '__assign__';
-export const STAGING_DECK_ID = '__staging__';
 
-export type Phase = 'input' | 'assign' | 'reconcile' | 'staging';
+export type Phase = 'input' | 'assign' | 'reconcile';
 export type InputMode = 'list' | 'email';
 
 export type AcquiredCard = {
@@ -47,6 +46,7 @@ export type AssignmentCandidate = {
   destination_category?: string;
   is_cube: boolean;
   is_maybeboard?: boolean;
+  is_seeking?: boolean;
   maybeboard_entry: MaybeboardEntry | null;
 };
 
@@ -65,6 +65,7 @@ export type Assignment = {
   paired_out: QueuedCard | null;
   destination_category: string;
   is_cube: boolean;
+  is_seeking?: boolean;
   maybeboard_entry: MaybeboardEntry | null;
   reason: string;
 };
@@ -95,6 +96,7 @@ export type ReconcileItem = {
   paired_out: QueuedCard | null;
   destination_category: string;
   is_cube: boolean;
+  is_seeking?: boolean;
   maybeboard_entry: MaybeboardEntry | null;
   acquired_set: string | null;
   acquired_collector: string | null;
@@ -146,6 +148,7 @@ export type OrderReconcileDeck = {
   deck_id: string;
   deck_name: string;
   archidekt_url?: string;
+  format?: string;
   deck_snapshot?: DeckSnapshot;
 };
 
@@ -171,7 +174,6 @@ export type OrderReconcileState = {
   assignments: Assignment[];
   needsReview: NeedsReviewItem[];
   decks: OrderReconcileDeck[];
-  stagingDeck: OrderReconcileDeck | null;
   reconcileItems: ReconcileItem[];
   completedDecks: Record<string, boolean>;
   activeDeckId: string | null;

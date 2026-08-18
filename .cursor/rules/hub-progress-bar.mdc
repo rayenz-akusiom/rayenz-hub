@@ -22,7 +22,7 @@ progress.update({ current: 2, total: 5, label: 'Step 2 of 5…' });
 progress.finish({ label: 'Done.', variant: 'success' });
 ```
 
-Reference: Deck Suggest generate, Deck Review refresh, Order Reconcile fetch, Dailies batch automation.
+Reference: Deck Suggest generate, Order Reconcile Hub library load, Dailies batch automation.
 
 ## Overrides
 
@@ -37,8 +37,8 @@ Row format:
 
 ## Documented overrides
 
-- **Deck Review** — `setProfileStatus` in `dr-profiles.js`, `dr-render.js` — profile connect, bridge hint, staging banner — short messages only; deck refresh uses `HubProgress` (added: 2026-06-30)
-- **Order Reconcile** — `#or-status` / `OR.setStatus` in `order-reconcile.js` — ephemeral feedback (settings saved, copy applied, Scryfall miss) — deck fetch uses `HubProgress` (added: 2026-06-30)
+- **Deck Review** — `setProfileStatus` in `dr-profiles.js`, `dr-render.js` — profile connect, short status — long-running work uses `HubProgress` (added: 2026-06-30)
+- **Order Reconcile** — `#or-status` / in-panel status — ephemeral feedback (copy applied, Scryfall miss) — Hub library load uses `HubProgress` (added: 2026-06-30)
 
 ## Enforcement
 

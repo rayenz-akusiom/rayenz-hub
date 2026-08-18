@@ -16,7 +16,6 @@ import {
   type SelectOptionGroup,
 } from './select-options';
 import type { NeedsReviewItem, OrderReconcileState } from './types';
-import { STAGING_DECK_ID } from './types';
 
 function SelectWithGroups({
   groups,
@@ -74,7 +73,7 @@ function AssignRow({ nr, idx, state, onUpdate, onStatePatch, onNameFix, onStatus
         ? maybeboardOptionGroups(state.decks, nr, disabled)
         : deckOptionGroups(state.decks, true, disabled);
 
-  const selectedDeck = getDeckById(nr.assigned_deck_id, state.decks, state.stagingDeck, STAGING_DECK_ID);
+  const selectedDeck = getDeckById(nr.assigned_deck_id, state.decks);
   const cats = selectedDeck?.deck_snapshot ? OrderReconcileExport.deckCategories(selectedDeck.deck_snapshot) : [];
 
   async function handleDeckChange(deckId: string) {
@@ -90,7 +89,7 @@ function AssignRow({ nr, idx, state, onUpdate, onStatePatch, onNameFix, onStatus
       onUpdate(idx, { assigned_deck_id: '', destination_category: '' });
       return;
     }
-    const deck = getDeckById(deckId, state.decks, state.stagingDeck, STAGING_DECK_ID);
+    const deck = getDeckById(deckId, state.decks);
     if (deck && OrderReconcileExport.isCubeDeck(deck)) {
       const { category, colorIdentityCache } = await resolveCubeDestinationForCard(
         deck,
@@ -199,7 +198,7 @@ export function OrderReconcileAssign({
   function handleStartReconcile() {
     const reconcileItems = buildReconcileItems(state);
     const first = state.decks.find((d) => reconcileItems.some((item) => item.deck_id === d.deck_id));
-    onStartReconcile(reconcileItems, first ? first.deck_id : STAGING_DECK_ID);
+    onStartReconcile(reconcileItems, first ? first.deck_id : '');
   }
 
   return (

@@ -1,4 +1,4 @@
-import { SWAP_IN, SWAP_OUT, SwapQueue, isSwapQueueCategoryName } from '@rayenz-hub/shared';
+import { SWAP_IN, SWAP_OUT, SwapQueue, isSeekingCategory, isSwapQueueCategoryName } from '@rayenz-hub/shared';
 import { ArchidektExport } from './archidekt-export';
 
 const IN_CATEGORY = SWAP_IN;
@@ -46,7 +46,8 @@ const buildMainDeckPool = ArchidektExport.buildMainDeckPool;
 const addToLineMap = ArchidektExport.addToLineMap;
 const lineMapToImportLines = ArchidektExport.lineMapToImportLines;
 
-function isCubeDeck(deck: { deck_name?: string } | null | undefined): boolean {
+function isCubeDeck(deck: { deck_name?: string; format?: string } | null | undefined): boolean {
+  if (deck?.format === 'cube') return true;
   return /cube/i.test(String((deck && deck.deck_name) || ''));
 }
 
@@ -143,8 +144,22 @@ function deriveMaybeboard(snapshot: DeckSnapshot | null | undefined): SnapshotCa
   });
 }
 
+function deriveSeeking(snapshot: DeckSnapshot | null | undefined): SnapshotCard[] {
+  if (!snapshot || !Array.isArray(snapshot.cards)) {
+    return [];
+  }
+  return snapshot.cards.filter((card) => {
+    const primary = card.primary_category || (card.categories && card.categories[0]);
+    return isSeekingCategory(primary);
+  });
+}
+
 function maybeboardSlotKey(deckId: string, slotIndex: number, cardName: string): string {
   return deckId + ':mb:' + slotIndex + ':' + cardName;
+}
+
+function seekingSlotKey(deckId: string, slotIndex: number, cardName: string): string {
+  return deckId + ':seeking:' + slotIndex + ':' + cardName;
 }
 
 function cardFaces(name: string): string[] {
@@ -355,30 +370,6 @@ function buildReconcileDeckImport(
   return lines.join('\n');
 }
 
-function buildStagingCleanupImport(
-  snapshot: DeckSnapshot | null | undefined,
-  removals: { name: string; set_code?: string | null; collector_number?: string | null; quantity?: number }[] | null | undefined,
-): string {
-  if (!snapshot) {
-    return '';
-  }
-  const categorySettings = snapshot.category_settings || null;
-  const map: LineMap = {};
-  (snapshot.cards || []).forEach((card) => {
-    const cats =
-      card.categories && card.categories.length
-        ? card.categories.slice()
-        : ArchidektExport.normalizeCategories([], card.primary_category);
-    addToLineMap(map, card, cats, card.quantity || 1);
-  });
-
-  (removals || []).forEach((rem) => {
-    deductFromLineMap(map, rem, rem.quantity || 1, undefined);
-  });
-
-  return lineMapToImportLines(map, categorySettings).join('\n');
-}
-
 function deckReconcileComplete(
   items: { item_id?: string }[] | null | undefined,
   getDecisionFn: (id: unknown) => { status?: string } | null | undefined,
@@ -467,7 +458,9 @@ export const OrderReconcileExport = {
   cubeColorCategory,
   resolveCubeDestinationCategory,
   deriveMaybeboard,
+  deriveSeeking,
   maybeboardSlotKey,
+  seekingSlotKey,
   cardFaces,
   namesMatch,
   deriveSwapQueue,
@@ -475,7 +468,6 @@ export const OrderReconcileExport = {
   deckCategories,
   fulfilledSlotKey,
   buildReconcileDeckImport,
-  buildStagingCleanupImport,
   deckReconcileComplete,
   summarizeDeck,
 };

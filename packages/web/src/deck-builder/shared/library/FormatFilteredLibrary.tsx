@@ -251,11 +251,11 @@ export function FormatFilteredLibrary({
     builderFormat === 'commander'
       ? {
           lead: 'No Commander decks saved in Hub yet.',
-          hint: 'Create or import a Commander deck by pasting Archidekt text or fetching from Archidekt when the bridge is available.',
+          hint: 'Create or import a Commander deck by pasting Archidekt import text.',
         }
       : {
           lead: 'No cube decks saved in Hub yet.',
-          hint: 'Create a new cube with a target size and colour-identity browse defaults, or import from Archidekt.',
+          hint: 'Create a new cube with a target size and colour-identity browse defaults, or paste Archidekt import text.',
         };
 
   const showEmptyOnboarding = !decks.length;

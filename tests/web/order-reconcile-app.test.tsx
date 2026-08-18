@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { STAGING_DECK_ID } from '../../packages/web/src/order-reconcile/types';
 import { OrderReconcileApp } from '../../packages/web/src/order-reconcile/OrderReconcileApp';
 import { resetHubModules } from '../unit/helpers/hubHarness';
 
@@ -14,23 +13,20 @@ vi.mock('../../packages/web/src/lib/hub-storage', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/lib/hub-storage')>();
   return {
     ...actual,
-    loadOrderReconcileSettings: vi.fn(() => ({
-      folderUrl: 'https://archidekt.com/folders/12345/my-folder',
-      stagingDeckUrl: 'https://archidekt.com/decks/99999/staging',
-    })),
+    loadOrderReconcileSettings: vi.fn(() => ({})),
     loadOrderReconcileProgress: vi.fn(() => ({ decisions: {} })),
     saveOrderReconcileProgress: vi.fn(),
   };
 });
 
-const mockFetchAllSnapshots = vi.fn();
+const mockLoadHubLibrarySnapshots = vi.fn();
 const mockBuildAssignmentPlan = vi.fn();
 
 vi.mock('../../packages/web/src/order-reconcile/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/order-reconcile/data')>();
   return {
     ...actual,
-    fetchAllSnapshots: (...args: unknown[]) => mockFetchAllSnapshots(...args),
+    loadHubLibrarySnapshots: (...args: unknown[]) => mockLoadHubLibrarySnapshots(...args),
   };
 });
 
@@ -58,15 +54,6 @@ function mockDecks() {
         },
       },
     ],
-    stagingDeck: {
-      deck_id: STAGING_DECK_ID,
-      deck_name: 'Buy / trade list',
-      archidekt_url: 'https://archidekt.com/decks/99999/staging',
-      deck_snapshot: {
-        fetched_at: '2026-01-01',
-        cards: [{ name: 'Shock', primary_category: 'Queued In', categories: ['Queued In'] }],
-      },
-    },
     assignmentIndex: {},
   };
 }
@@ -105,7 +92,7 @@ beforeEach(() => {
   resetHubModules();
   window.scrollTo = vi.fn() as typeof window.scrollTo;
   vi.clearAllMocks();
-  mockFetchAllSnapshots.mockResolvedValue(mockDecks());
+  mockLoadHubLibrarySnapshots.mockResolvedValue(mockDecks());
   mockBuildAssignmentPlan.mockResolvedValue(mockAssignmentPlan());
 });
 
@@ -116,16 +103,10 @@ afterEach(() => {
 });
 
 describe('OrderReconcileApp input phase', () => {
-  it('renders input chrome with settings link and tabs', () => {
+  it('renders input chrome with tabs', () => {
     render(<OrderReconcileApp />);
 
     expect(screen.getByRole('heading', { name: 'Order Reconcile' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByText(/Folder: https:\/\/archidekt.com\/folders/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open Order Reconcile settings/i })).toHaveAttribute(
-      'href',
-      '#/settings/order-reconcile',
-    );
     expect(screen.getByRole('button', { name: 'Card list' })).toHaveClass('active');
     expect(screen.getByRole('button', { name: /Order email/i })).toBeInTheDocument();
     expect(screen.getByText('No cards parsed yet.')).toBeInTheDocument();
@@ -203,7 +184,7 @@ describe('OrderReconcileApp assign phase', () => {
   });
 });
 
-describe('OrderReconcileApp deck and staging panels', () => {
+describe('OrderReconcileApp deck panel', () => {
   it('starts reconcile on the deck panel with summary section', async () => {
     const user = userEvent.setup();
     render(<OrderReconcileApp />);
@@ -219,23 +200,6 @@ describe('OrderReconcileApp deck and staging panels', () => {
     });
     expect(document.querySelector('.or-summary-section')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy deck import' })).toBeInTheDocument();
-  });
-
-  it('shows staging cleanup panel from deck nav', async () => {
-    const user = userEvent.setup();
-    render(<OrderReconcileApp />);
-
-    await user.type(screen.getAllByRole('textbox')[0], '1 Sol Ring (cmm) 1');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await waitFor(() => screen.getByRole('button', { name: 'Start reconcile' }));
-    await user.click(screen.getByRole('button', { name: 'Start reconcile' }));
-    await waitFor(() => screen.getByRole('heading', { name: 'Test Commander' }));
-
-    await user.click(screen.getByRole('button', { name: 'Buy/trade list' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Buy/trade list cleanup' })).toBeInTheDocument();
-    });
-    expect(screen.getByRole('button', { name: 'Copy staging import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save to Hub' })).toBeInTheDocument();
   });
 });

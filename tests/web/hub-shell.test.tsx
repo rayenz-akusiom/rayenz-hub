@@ -86,7 +86,7 @@ describe('HubShell AppOutlet', () => {
     ['/settings/dailies', 'settings', 'dailies'],
     ['/settings/deck-builder', 'settings', 'deck-builder'],
     ['/settings/deck-suggest', 'settings', 'deck-suggest'],
-    ['/settings/order-reconcile', 'settings', 'order-reconcile'],
+    ['/settings/order-reconcile', 'settings', 'dailies'],
   ] as const)('renders %s outlet', (path, testId, settingsTab) => {
     setHash(path);
     render(<HubShell />);

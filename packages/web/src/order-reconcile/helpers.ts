@@ -15,12 +15,7 @@ export function sortDecksByName(decks: OrderReconcileDeck[]): OrderReconcileDeck
 export function getDeckById(
   deckId: string,
   decks: OrderReconcileDeck[],
-  stagingDeck: OrderReconcileDeck | null,
-  stagingDeckId: string,
-): OrderReconcileDeck | null | undefined {
-  if (deckId === stagingDeckId) {
-    return stagingDeck;
-  }
+): OrderReconcileDeck | undefined {
   return decks.find((d) => d.deck_id === deckId);
 }
 

@@ -9,7 +9,6 @@ import type {
   PrintingParts,
   ReconcileItem,
 } from './types';
-import { STAGING_DECK_ID } from './types';
 
 export function excludeCategories(): Record<string, boolean> {
   const excluded: Record<string, boolean> = {};
@@ -260,7 +259,8 @@ export function getNextDeckId(state: OrderReconcileState): { phase: OrderReconci
   if (pending.length) {
     return { phase: 'reconcile', activeDeckId: pending[0].deck_id };
   }
-  return { phase: 'staging', activeDeckId: STAGING_DECK_ID };
+  const last = state.decks.find((d) => state.reconcileItems.some((item) => item.deck_id === d.deck_id));
+  return { phase: 'reconcile', activeDeckId: last?.deck_id || state.activeDeckId || '' };
 }
 
 export { scryfallImageFromId, scryfallImageFromName, scryfallImageFromPrinting };

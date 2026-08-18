@@ -13,7 +13,6 @@ import {
   allAcceptedByDeck,
 } from '../../../packages/web/src/deck-review/decisions.ts';
 import {
-  archidektApplyOpenUrl,
   canNeverSuggestOutCut,
   cutOptionImageSrc,
   cutOptionLines,
@@ -86,12 +85,6 @@ afterEach(() => {
 });
 
 describe('deck-review data helpers', () => {
-  it('archidektApplyOpenUrl appends rayenz_apply query param', () => {
-    expect(archidektApplyOpenUrl('')).toBe('');
-    expect(archidektApplyOpenUrl('https://archidekt.com/decks/1')).toContain('rayenz_apply=1');
-    expect(archidektApplyOpenUrl('https://archidekt.com/decks/1?edit=1')).toContain('&rayenz_apply=1');
-  });
-
   it('formatSwapQueueItem includes printing when available', () => {
     expect(formatSwapQueueItem({ name: 'Bolt', set_code: 'MH2', collector_number: '1' })).toContain('MH2 #1');
     expect(formatSwapQueueItem({ name: 'Bolt' })).toBe('Bolt');

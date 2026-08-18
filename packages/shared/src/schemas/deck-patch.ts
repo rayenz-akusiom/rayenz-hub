@@ -8,6 +8,7 @@ import {
   CategoryDefSchema,
   DeckFormatSchema,
   DeckOwnershipSchema,
+  DeckVisibilitySchema,
   FormalSwapEntrySchema,
   LookingForEntrySchema,
 } from './deck-builder.js';
@@ -103,6 +104,7 @@ export const DeckPatchSchema = z.object({
   name: z.string().min(1).optional(),
   format: DeckFormatSchema.optional(),
   ownership: DeckOwnershipSchema.optional(),
+  visibility: DeckVisibilitySchema.optional(),
   archidektId: z.number().nullable().optional(),
   archidektUrl: z.string().nullable().optional(),
   coverInstanceId: z.string().nullable().optional(),
@@ -144,6 +146,7 @@ export function deckPatchHasMutations(patch: DeckPatch): boolean {
   if (patch.name !== undefined) return true;
   if (patch.format !== undefined) return true;
   if (patch.ownership !== undefined) return true;
+  if (patch.visibility !== undefined) return true;
   if (patch.archidektId !== undefined) return true;
   if (patch.archidektUrl !== undefined) return true;
   if (patch.coverInstanceId !== undefined) return true;

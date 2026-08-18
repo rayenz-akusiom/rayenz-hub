@@ -272,6 +272,30 @@ describe('CommanderBuilderApp', () => {
     });
   });
 
+  it('marks a deck Private via context menu', async () => {
+    saveDeck.mockImplementation(async (doc) => doc);
+
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    const ownedLane = screen.getByRole('region', { name: 'Owned' });
+    const ownedTile = within(ownedLane)
+      .getByText('Fixture Commander', { selector: '.db-library-tile-name' })
+      .closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: ownedTile });
+    await user.click(screen.getByRole('menuitem', { name: 'Mark as Private' }));
+
+    await waitFor(() => {
+      expect(saveDeck).toHaveBeenCalledWith(
+        expect.objectContaining({ deckId: commanderDoc.deckId, visibility: 'private' }),
+      );
+    });
+  });
+
   it('shows Theory read-only swap notice when opening a Theory deck', async () => {
     const theoryDoc = { ...commanderDoc, ownership: 'theory' as const };
     const theorySummary = toDeckSummary(theoryDoc);

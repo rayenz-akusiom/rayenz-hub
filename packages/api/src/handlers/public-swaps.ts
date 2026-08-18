@@ -27,6 +27,7 @@ export async function handlePublicUserSwaps(
     for (const summary of summaries) {
       if (summary.format !== 'commander' && summary.format !== 'cube') continue;
       if (isTheoryDeck(summary)) continue;
+      if (summary.visibility === 'private') continue;
       const doc = await services.deckRepository.getByUserId(record.sub, summary.deckId);
       if (!doc) continue;
       if (!(doc.formalSwapEntries || []).length && !(doc.lookingForEntries || []).length) {

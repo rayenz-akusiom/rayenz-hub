@@ -47,6 +47,7 @@ export class DeckRepository {
       name: String(item.deckName ?? item.deckId ?? ''),
       format: (item.format as DeckSummary['format']) || 'other',
       ownership: item.ownership === 'theory' ? 'theory' : 'owned',
+      visibility: item.visibility === 'private' ? 'private' : 'public',
       updatedAt: String(item.updatedAt ?? ''),
       archidektId: item.archidektId != null ? Number(item.archidektId) : null,
       coverImageUrl: item.coverImageUrl != null ? String(item.coverImageUrl) : null,
@@ -85,7 +86,7 @@ export class DeckRepository {
   async getByUserIdAndSlug(userId: string, deckSlug: string): Promise<DeckDocument | null> {
     const summaries = await this.listByUserId(userId);
     const match = summaries.find((d) => toKebabCase(d.name) === deckSlug);
-    if (!match) {
+    if (!match || match.visibility === 'private') {
       return null;
     }
     return this.getByUserId(userId, match.deckId);
@@ -114,6 +115,7 @@ export class DeckRepository {
           deckName: doc.name,
           format: doc.format,
           ownership: doc.ownership === 'theory' ? 'theory' : 'owned',
+          visibility: doc.visibility === 'private' ? 'private' : 'public',
           archidektId: doc.archidektId,
           s3Key,
           byteSize: Buffer.byteLength(json, 'utf8'),

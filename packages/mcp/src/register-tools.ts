@@ -150,6 +150,7 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
         name: z.string().min(1).optional(),
         format: z.string().optional(),
         ownership: z.enum(['owned', 'theory']).optional(),
+        visibility: z.enum(['public', 'private']).optional(),
         archidektId: z.number().nullable().optional(),
         archidektUrl: z.string().nullable().optional(),
         coverInstanceId: z.string().nullable().optional(),

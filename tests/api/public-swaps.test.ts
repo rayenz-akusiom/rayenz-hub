@@ -97,6 +97,29 @@ describe('public user swaps GET', () => {
     expect(JSON.parse(String(pub.body)).decks).toEqual([]);
   });
 
+  it('skips private decks', async () => {
+    const { services } = createMemoryStores();
+    const ownerHeaders = {
+      authorization: `Bearer ${encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' })}`,
+    };
+    await handleDeck(
+      'PUT',
+      'cmd-private',
+      ownerHeaders,
+      JSON.stringify({
+        ...swapDeck(),
+        deckId: 'cmd-private',
+        name: 'Private Queue',
+        visibility: 'private',
+      }),
+      services,
+    );
+
+    const pub = await handlePublicUserSwaps('rayenz', {}, services);
+    expect(pub.statusCode).toBe(200);
+    expect(JSON.parse(String(pub.body)).decks).toEqual([]);
+  });
+
   it('returns 429 after the public swaps rate limit', async () => {
     const { services } = createMemoryStores();
     let last = 200;

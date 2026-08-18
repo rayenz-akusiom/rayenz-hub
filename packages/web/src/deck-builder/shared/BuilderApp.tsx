@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import type { DeckDocument, DeckOwnership, DeckSummary } from '@rayenz-hub/shared';
+import type { DeckDocument, DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
 import { filterLibraryByFormat } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import {
@@ -490,6 +490,29 @@ export function BuilderApp({
     await refreshLibrary({ applyRoute: false });
   }
 
+  async function setDeckVisibility(deckId: string, visibility: DeckVisibility) {
+    setApiWarning(null);
+    const doc = await resolveLibraryDocument(deckId);
+    if (!doc) return;
+    const current = doc.visibility === 'private' ? 'private' : 'public';
+    if (current === visibility) return;
+    const sample = isSampleDeckId(doc.deckId);
+    const { saved, apiError, uploaded } = await saveDualMode({ ...doc, visibility });
+    if (apiError) {
+      setApiWarning(apiError);
+      if (isApiConfigured()) setSyncStatus('error');
+    } else if (uploaded) {
+      setSyncStatus('synced');
+    } else if (isApiConfigured() && !sample && getHubAuthSession()) {
+      setSyncStatus('local');
+    }
+    if (activeRef.current?.deckId === saved.deckId) {
+      activeRef.current = saved;
+      setActive(saved);
+    }
+    await refreshLibrary({ applyRoute: false });
+  }
+
   if (active) {
     return (
       <div className="db-app">
@@ -542,6 +565,7 @@ export function BuilderApp({
         onAdd={() => setAddOpen(true)}
         onDelete={(id) => void removeDeck(id)}
         onSetOwnership={(id, ownership) => void setDeckOwnership(id, ownership)}
+        onSetVisibility={(id, visibility) => void setDeckVisibility(id, visibility)}
         onRefreshRemote={isApiConfigured() ? () => void refreshLibrary() : undefined}
       />
       {addOpen ? (

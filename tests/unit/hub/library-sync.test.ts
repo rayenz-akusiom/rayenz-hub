@@ -130,6 +130,26 @@ describe('pullRemoteLibraryUpdates', () => {
     expect(list[0]?.name).toBe('Local Newer');
   });
 
+  it('keeps local private visibility when remote list defaults to public', async () => {
+    apiConfigured.value = true;
+    setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });
+    const privateLocal = {
+      ...localDoc,
+      visibility: 'private' as const,
+      updatedAt: '2026-08-05T00:00:00.000Z',
+    } as DeckDocument;
+    setLocalLibraryScope(privateLocal.deckId, 'account');
+    listDecks.mockResolvedValue([toDeckSummary(privateLocal)]);
+    apiListDecks.mockResolvedValue([
+      toDeckSummary({ ...remoteDoc, visibility: 'public' as const }),
+    ]);
+
+    const list = await pullRemoteLibraryUpdates();
+
+    expect(list[0]?.visibility).toBe('private');
+    expect(list[0]?.name).toBe('Remote Commander');
+  });
+
   it('does not include sandbox decks on the signed-in library list', async () => {
     apiConfigured.value = true;
     setHubAuthSession({ accessToken: 'token', username: 'Rayenz', sub: 'rayenz-sub' });

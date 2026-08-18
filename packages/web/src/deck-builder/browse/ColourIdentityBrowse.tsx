@@ -15,6 +15,7 @@ import {
   type DeckBuilderSettingsPayload,
   type DeckDocument,
   type DeckOwnership,
+  type DeckVisibility,
   type FormalSwapEntry,
 } from '@rayenz-hub/shared';
 import { loadDeckBuilderSettings } from '../../api/hub-api';
@@ -43,6 +44,7 @@ export function ColourIdentityBrowse({
   onCardContextMenu,
   onVisibleOrderChange,
   onSetOwnership,
+  onSetVisibility,
   onRename,
   deckMeta,
   deckMetaWarn,
@@ -58,6 +60,7 @@ export function ColourIdentityBrowse({
         | 'name'
         | 'deckId'
         | 'ownership'
+        | 'visibility'
         | 'formalSwapEntries'
         | 'coverInstanceId'
       >
@@ -69,6 +72,7 @@ export function ColourIdentityBrowse({
         name?: string;
         deckId?: string;
         ownership?: DeckOwnership;
+        visibility?: DeckVisibility;
         formalSwapEntries?: FormalSwapEntry[];
         coverInstanceId?: string | null;
       };
@@ -82,6 +86,7 @@ export function ColourIdentityBrowse({
   onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
@@ -203,6 +208,8 @@ export function ColourIdentityBrowse({
         deckId={'deckId' in resolvedDeck ? resolvedDeck.deckId : undefined}
         ownership={'ownership' in resolvedDeck ? resolvedDeck.ownership : undefined}
         onSetOwnership={onSetOwnership}
+        visibility={'visibility' in resolvedDeck ? resolvedDeck.visibility : undefined}
+        onSetVisibility={onSetVisibility}
         onRename={onRename}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}

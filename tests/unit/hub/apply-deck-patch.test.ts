@@ -199,4 +199,11 @@ describe('applyDeckPatch', () => {
     const next = applyDeckPatch(deck, { ownership: 'theory' });
     expect(next.ownership).toBe('theory');
   });
+
+  it('applies visibility patch', () => {
+    const deck = baseDeck();
+    expect(deck.visibility).toBe('public');
+    const next = applyDeckPatch(deck, { visibility: 'private' });
+    expect(next.visibility).toBe('private');
+  });
 });

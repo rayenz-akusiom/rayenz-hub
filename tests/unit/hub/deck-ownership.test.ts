@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DeckDocumentSchema,
   deckOwnership,
+  deckVisibility,
   filterLibraryByFormat,
+  isPrivateDeck,
   isTheoryDeck,
   partitionLibraryByOwnership,
   toDeckSummary,
@@ -97,5 +99,24 @@ describe('deck ownership', () => {
     expect(filterLibraryByFormat(summaries, 'commander').map((d) => d.deckId)).toEqual(['c1', 'c2']);
     expect(filterLibraryByFormat(summaries, 'cube').map((d) => d.name)).toEqual(['Cube A']);
     expect(filterLibraryByFormat([summaries[2]!], 'commander')).toEqual([]);
+  });
+});
+
+describe('deck visibility', () => {
+  it('defaults missing visibility to public on parse and summary', () => {
+    const raw = { ...commander };
+    delete (raw as { visibility?: string }).visibility;
+    const doc = DeckDocumentSchema.parse(raw);
+    expect(doc.visibility).toBe('public');
+    expect(toDeckSummary(doc).visibility).toBe('public');
+    expect(isPrivateDeck(doc)).toBe(false);
+    expect(deckVisibility(undefined)).toBe('public');
+  });
+
+  it('preserves private on document and summary', () => {
+    const doc = DeckDocumentSchema.parse({ ...commander, visibility: 'private' });
+    expect(doc.visibility).toBe('private');
+    expect(toDeckSummary(doc).visibility).toBe('private');
+    expect(isPrivateDeck(doc)).toBe(true);
   });
 });

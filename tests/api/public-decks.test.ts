@@ -97,4 +97,26 @@ describe('public user deck GET', () => {
     const pub = await handlePublicUserDeck('rayenz', 'fixture-commander', {}, services);
     expect(pub.statusCode).toBe(404);
   });
+
+  it('returns 404 for a private deck slug while owner GET still works', async () => {
+    const { services } = createMemoryStores();
+    const ownerHeaders = {
+      authorization: `Bearer ${encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' })}`,
+    };
+    const put = await handleDeck(
+      'PUT',
+      'cmd-fixture',
+      ownerHeaders,
+      JSON.stringify({ ...commander, visibility: 'private' }),
+      services,
+    );
+    expect(put.statusCode).toBe(200);
+
+    const pub = await handlePublicUserDeck('rayenz', 'fixture-commander', {}, services);
+    expect(pub.statusCode).toBe(404);
+
+    const ownerGet = await handleDeck('GET', 'cmd-fixture', ownerHeaders, null, services);
+    expect(ownerGet.statusCode).toBe(200);
+    expect(JSON.parse(String(ownerGet.body)).visibility).toBe('private');
+  });
 });

@@ -53,6 +53,7 @@ import {
   type CardSortMode,
   type DeckDocument,
   type DeckOwnership,
+  type DeckVisibility,
   type PrintingFields,
   type ScryfallCard,
 } from '@rayenz-hub/shared';
@@ -542,6 +543,10 @@ export function BrowseShell({
     commitPatch({ ownership });
   }
 
+  function onSetVisibility(visibility: DeckVisibility) {
+    commitPatch({ visibility });
+  }
+
   function setViewAndPersist(next: BrowseView) {
     setView(next);
     if (deckRef.current.browseViewDefault !== next) {
@@ -948,6 +953,7 @@ export function BrowseShell({
               onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
@@ -964,6 +970,7 @@ export function BrowseShell({
               onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}

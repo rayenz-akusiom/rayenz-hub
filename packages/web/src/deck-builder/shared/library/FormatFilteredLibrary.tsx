@@ -1,7 +1,9 @@
 import { useMemo, useState, type CSSProperties, type DragEvent } from 'react';
-import type { DeckOwnership, DeckSummary } from '@rayenz-hub/shared';
+import type { DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
 import {
   deckOwnership,
+  deckVisibility,
+  isPrivateDeck,
   ownershipLabel,
   partitionLibraryByOwnership,
 } from '@rayenz-hub/shared';
@@ -67,6 +69,7 @@ function LibraryGrid({
           {decks.map((d) => {
             const isSample = sampleIds?.has(d.deckId) ?? false;
             const isTheory = deckOwnership(d) === 'theory';
+            const isPrivate = isPrivateDeck(d);
             const updated = `Updated ${new Date(d.updatedAt).toLocaleString()}`;
             const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
             const href = builderHash(builderFormat, hubUserSlug(), toKebabCase(d.name));
@@ -76,7 +79,9 @@ function LibraryGrid({
                 key={d.deckId}
                 className={`db-library-tile${dual ? ' is-partner-pair' : ''}${
                   d.coverPartnerStatus === 'illegal' ? ' is-illegal-pair' : ''
-                }${isSample ? ' is-sample' : ''}${isTheory ? ' is-theory' : ''}`}
+                }${isSample ? ' is-sample' : ''}${isTheory ? ' is-theory' : ''}${
+                  isPrivate && !isSample ? ' is-private' : ''
+                }`}
                 draggable={!isSample}
                 onDragStart={(e) => {
                   if (isSample) {
@@ -120,6 +125,11 @@ function LibraryGrid({
                     {isTheory && !isSample ? (
                       <span className="db-theory-badge" aria-hidden="true">
                         Theory
+                      </span>
+                    ) : null}
+                    {isPrivate && !isSample ? (
+                      <span className="db-private-badge" aria-hidden="true">
+                        Private
                       </span>
                     ) : null}
                     <span className="db-library-tile-name">{d.name}</span>
@@ -168,6 +178,7 @@ export function FormatFilteredLibrary({
   onAdd,
   onDelete,
   onSetOwnership,
+  onSetVisibility,
   onRefreshRemote,
 }: {
   builderFormat: BuilderFormat;
@@ -182,6 +193,7 @@ export function FormatFilteredLibrary({
   onAdd: () => void;
   onDelete: (deckId: string) => void;
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
+  onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
   onRefreshRemote?: () => void;
 }) {
   const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort());
@@ -311,7 +323,13 @@ export function FormatFilteredLibrary({
                 onOpen={onOpen}
                 onDelete={onDelete}
                 onContextMenu={(d, x, y) =>
-                  setMenu({ x, y, deckId: d.deckId, current: deckOwnership(d) })
+                  setMenu({
+                    x,
+                    y,
+                    deckId: d.deckId,
+                    current: deckOwnership(d),
+                    visibility: deckVisibility(d),
+                  })
                 }
                 dropActive={dropTarget === 'owned'}
                 onDragOverLane={(e) => onDragOverLane(e, 'owned')}
@@ -325,7 +343,13 @@ export function FormatFilteredLibrary({
                 onOpen={onOpen}
                 onDelete={onDelete}
                 onContextMenu={(d, x, y) =>
-                  setMenu({ x, y, deckId: d.deckId, current: deckOwnership(d) })
+                  setMenu({
+                    x,
+                    y,
+                    deckId: d.deckId,
+                    current: deckOwnership(d),
+                    visibility: deckVisibility(d),
+                  })
                 }
                 dropActive={dropTarget === 'theory'}
                 onDragOverLane={(e) => onDragOverLane(e, 'theory')}
@@ -336,11 +360,12 @@ export function FormatFilteredLibrary({
           )}
         </>
       )}
-      {menu && onSetOwnership ? (
+      {menu && (onSetOwnership || onSetVisibility) ? (
         <DeckOwnershipContextMenu
           state={menu}
           onClose={() => setMenu(null)}
           onSetOwnership={onSetOwnership}
+          onSetVisibility={onSetVisibility}
         />
       ) : null}
     </div>

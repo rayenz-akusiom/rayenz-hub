@@ -1,26 +1,31 @@
 import { useEffect, useRef } from 'react';
-import type { DeckOwnership } from '@rayenz-hub/shared';
+import type { DeckOwnership, DeckVisibility } from '@rayenz-hub/shared';
 
 export type DeckOwnershipMenuState = {
   x: number;
   y: number;
   deckId: string;
   current: DeckOwnership;
+  visibility: DeckVisibility;
 };
 
-/** Right-click menu to mark a deck Owned or Theory (no toggles). */
+/** Right-click menu to mark a deck Owned/Theory and Public/Private (no toggles). */
 export function DeckOwnershipContextMenu({
   state,
   onClose,
   onSetOwnership,
+  onSetVisibility,
 }: {
   state: DeckOwnershipMenuState;
   onClose: () => void;
-  onSetOwnership: (deckId: string, ownership: DeckOwnership) => void;
+  onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
+  onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const next: DeckOwnership = state.current === 'theory' ? 'owned' : 'theory';
-  const label = next === 'theory' ? 'Mark as Theory' : 'Mark as Owned';
+  const nextOwnership: DeckOwnership = state.current === 'theory' ? 'owned' : 'theory';
+  const ownershipLabel = nextOwnership === 'theory' ? 'Mark as Theory' : 'Mark as Owned';
+  const nextVisibility: DeckVisibility = state.visibility === 'private' ? 'public' : 'private';
+  const visibilityLabel = nextVisibility === 'private' ? 'Mark as Private' : 'Mark as Public';
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -40,7 +45,7 @@ export function DeckOwnershipContextMenu({
 
   const style = {
     left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 200 : state.x),
-    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 80 : state.y),
+    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 120 : state.y),
   };
 
   return (
@@ -51,17 +56,32 @@ export function DeckOwnershipContextMenu({
       role="menu"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <button
-        type="button"
-        role="menuitem"
-        className="db-context-menu-item"
-        onClick={() => {
-          onSetOwnership(state.deckId, next);
-          onClose();
-        }}
-      >
-        {label}
-      </button>
+      {onSetOwnership ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-context-menu-item"
+          onClick={() => {
+            onSetOwnership(state.deckId, nextOwnership);
+            onClose();
+          }}
+        >
+          {ownershipLabel}
+        </button>
+      ) : null}
+      {onSetVisibility ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-context-menu-item"
+          onClick={() => {
+            onSetVisibility(state.deckId, nextVisibility);
+            onClose();
+          }}
+        >
+          {visibilityLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

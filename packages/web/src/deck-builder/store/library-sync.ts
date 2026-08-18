@@ -1,4 +1,5 @@
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
+import { deckVisibility } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import { getHubAuthSession } from '../../lib/hub-auth-session';
 import { isSampleDeckId } from '../sample/sample-deck';
@@ -94,11 +95,21 @@ async function dropSyncedLocalCopies(remote: DeckSummary[]): Promise<void> {
   }
 }
 
+function overlayPrivateVisibility(remote: DeckSummary, local?: DeckSummary): DeckSummary {
+  if (deckVisibility(local) === 'private' && deckVisibility(remote) !== 'private') {
+    return { ...remote, visibility: 'private' };
+  }
+  return remote;
+}
+
 function mergeRemoteWithAccountBuffers(
   remote: DeckSummary[],
   localAll: DeckSummary[],
 ): DeckSummary[] {
-  const byId = new Map(remote.map((r) => [r.deckId, r]));
+  const localById = new Map(localAll.map((s) => [s.deckId, s]));
+  const byId = new Map(
+    remote.map((r) => [r.deckId, overlayPrivateVisibility(r, localById.get(r.deckId))]),
+  );
   for (const s of localAll) {
     if (isSampleDeckId(s.deckId)) continue;
     if (getLocalLibraryScope(s.deckId) !== 'account') continue;

@@ -14,6 +14,10 @@ export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 export const DeckOwnershipSchema = z.enum(['owned', 'theory']);
 export type DeckOwnership = z.infer<typeof DeckOwnershipSchema>;
 
+/** Public slug URL vs owner-only. Missing/legacy docs stay public. */
+export const DeckVisibilitySchema = z.enum(['public', 'private']);
+export type DeckVisibility = z.infer<typeof DeckVisibilitySchema>;
+
 export const BrowseViewSchema = z.enum([
   'category',
   'category_custom',
@@ -116,6 +120,8 @@ const DeckDocumentObjectSchema = z.object({
   format: DeckFormatSchema,
   /** Owned = physical; Theory = speculative (default owned for legacy docs). */
   ownership: DeckOwnershipSchema.optional().default('owned'),
+  /** Public slug URL vs owner-only (default public for legacy docs). */
+  visibility: DeckVisibilitySchema.optional().default('public'),
   archidektId: z.number().nullable().default(null),
   archidektUrl: z.string().nullable().default(null),
   categories: z.array(CategoryDefSchema).default([]),
@@ -148,6 +154,7 @@ export const DeckSummarySchema = z.object({
   name: z.string(),
   format: DeckFormatSchema,
   ownership: DeckOwnershipSchema.optional().default('owned'),
+  visibility: DeckVisibilitySchema.optional().default('public'),
   updatedAt: z.string(),
   archidektId: z.number().nullable().default(null),
   /** Scryfall image URL for library cover (commander, or first card for cubes). */
@@ -174,6 +181,19 @@ export function isTheoryDeck(
   return deckOwnership(doc) === 'theory';
 }
 
+/** Normalize visibility; missing/legacy → public. */
+export function deckVisibility(
+  doc: Pick<DeckDocument, 'visibility'> | Pick<DeckSummary, 'visibility'> | null | undefined,
+): DeckVisibility {
+  return doc?.visibility === 'private' ? 'private' : 'public';
+}
+
+export function isPrivateDeck(
+  doc: Pick<DeckDocument, 'visibility'> | Pick<DeckSummary, 'visibility'> | null | undefined,
+): boolean {
+  return deckVisibility(doc) === 'private';
+}
+
 export function toDeckSummary(doc: DeckDocument): DeckSummary {
   const coverCard = pickDeckCoverCard(doc);
   return {
@@ -181,6 +201,7 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     name: doc.name,
     format: doc.format,
     ownership: deckOwnership(doc),
+    visibility: deckVisibility(doc),
     updatedAt: doc.updatedAt,
     archidektId: doc.archidektId ?? null,
     coverImageUrl: deckCoverImageUrl(doc),

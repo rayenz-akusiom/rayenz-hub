@@ -73,4 +73,20 @@ describe('deck sync merge', () => {
     expect(reconciled.ownership).toBe('theory');
     expect(reconciled.updatedAt).toBe(remote.updatedAt);
   });
+
+  it('reconcileDeckAfterApiPut preserves local private visibility when API strips it', () => {
+    const local = {
+      ...commander,
+      visibility: 'private' as const,
+      updatedAt: '2026-07-01T00:00:00.000Z',
+    };
+    const remote = {
+      ...commander,
+      visibility: 'public' as const,
+      updatedAt: '2026-07-01T00:00:05.000Z',
+    };
+    const reconciled = reconcileDeckAfterApiPut(local, remote);
+    expect(reconciled.visibility).toBe('private');
+    expect(reconciled.updatedAt).toBe(remote.updatedAt);
+  });
 });

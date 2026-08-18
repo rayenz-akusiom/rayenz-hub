@@ -10,6 +10,8 @@ import {
 } from 'react';
 import {
   deckOwnership,
+  deckVisibility,
+  isPrivateDeck,
   pickCommanderLeaders,
   partitionCategories,
   resolveDeckCards,
@@ -30,6 +32,7 @@ import {
   type DeckDocument,
   type DeckFormat,
   type DeckOwnership,
+  type DeckVisibility,
   type FormalSwapEntry,
   categoryKeySortFor,
 } from '@rayenz-hub/shared';
@@ -802,6 +805,8 @@ export function DeckHeaderRow({
   deckId,
   ownership,
   onSetOwnership,
+  visibility,
+  onSetVisibility,
   onRename,
   deckMeta,
   deckMetaWarn,
@@ -823,6 +828,8 @@ export function DeckHeaderRow({
   deckId?: string;
   ownership?: DeckOwnership;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  visibility?: DeckVisibility;
+  onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
@@ -838,6 +845,9 @@ export function DeckHeaderRow({
   const badgeFormat: DeckFormat = format === 'commander' || format === 'cube' ? format : 'other';
   const resolvedOwnership = deckOwnership({ ownership });
   const theory = resolvedOwnership === 'theory';
+  const resolvedVisibility = deckVisibility({ visibility });
+  const privateDeck = isPrivateDeck({ visibility: resolvedVisibility });
+  const canOpenMenu = Boolean((onSetOwnership || onSetVisibility) && deckId);
 
   let slots: ReactNode = null;
   if (format === 'commander') {
@@ -913,21 +923,27 @@ export function DeckHeaderRow({
           <h2
             className="db-header-title"
             onContextMenu={(e) => {
-              if (!onSetOwnership || !deckId) return;
+              if (!canOpenMenu || !deckId) return;
               e.preventDefault();
               setOwnershipMenu({
                 x: e.clientX,
                 y: e.clientY,
                 deckId,
                 current: resolvedOwnership,
+                visibility: resolvedVisibility,
               });
             }}
-            title={onSetOwnership ? 'Right-click to mark Owned or Theory' : undefined}
+            title={canOpenMenu ? 'Right-click to mark Owned, Theory, Public, or Private' : undefined}
           >
             <FormatBadge format={badgeFormat} />
             {theory ? (
               <span className="db-theory-badge" aria-label="Theory deck">
                 Theory
+              </span>
+            ) : null}
+            {privateDeck ? (
+              <span className="db-private-badge" aria-label="Private deck">
+                Private
               </span>
             ) : null}
             <DeckNameControl name={deckName} onRename={onRename} />
@@ -943,11 +959,12 @@ export function DeckHeaderRow({
         </div>
       ) : null}
       {slots}
-      {ownershipMenu && onSetOwnership ? (
+      {ownershipMenu && (onSetOwnership || onSetVisibility) ? (
         <DeckOwnershipContextMenu
           state={ownershipMenu}
           onClose={() => setOwnershipMenu(null)}
-          onSetOwnership={(_id, next) => onSetOwnership(next)}
+          onSetOwnership={onSetOwnership ? (_id, next) => onSetOwnership(next) : undefined}
+          onSetVisibility={onSetVisibility ? (_id, next) => onSetVisibility(next) : undefined}
         />
       ) : null}
     </div>
@@ -967,6 +984,7 @@ export function CategoryBrowse({
   onMarkMainDeckSeeking,
   onVisibleOrderChange,
   onSetOwnership,
+  onSetVisibility,
   onRename,
   queuesReadOnly = false,
   mode = 'main',
@@ -985,6 +1003,7 @@ export function CategoryBrowse({
         | 'name'
         | 'deckId'
         | 'ownership'
+        | 'visibility'
         | 'formalSwapEntries'
         | 'coverInstanceId'
       >
@@ -996,6 +1015,7 @@ export function CategoryBrowse({
         name?: string;
         deckId?: string;
         ownership?: DeckOwnership;
+        visibility?: DeckVisibility;
         formalSwapEntries?: FormalSwapEntry[];
         coverInstanceId?: string | null;
       };
@@ -1012,6 +1032,7 @@ export function CategoryBrowse({
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
+  onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
   /** Theory decks: Seeking actions stay visible but disabled. */
   queuesReadOnly?: boolean;
@@ -1186,6 +1207,8 @@ export function CategoryBrowse({
         deckId={'deckId' in deck ? deck.deckId : undefined}
         ownership={'ownership' in deck ? deck.ownership : undefined}
         onSetOwnership={onSetOwnership}
+        visibility={'visibility' in deck ? deck.visibility : undefined}
+        onSetVisibility={onSetVisibility}
         onRename={onRename}
         deckMeta={deckMeta}
         deckMetaWarn={deckMetaWarn}

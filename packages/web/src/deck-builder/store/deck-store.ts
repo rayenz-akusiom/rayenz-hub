@@ -89,7 +89,8 @@ async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummar
       summary.updatedAt !== s.updatedAt ||
       summary.format !== s.format ||
       summary.archidektId !== s.archidektId ||
-      summary.ownership !== s.ownership
+      summary.ownership !== s.ownership ||
+      summary.visibility !== s.visibility
     ) {
       changed = true;
     }
@@ -199,7 +200,7 @@ export function mergeDeckDocuments(
   return overlayCategoryTargets(winner, donor);
 }
 
-/** After API PUT: keep local category targets / ownership if the response dropped them. */
+/** After API PUT: keep local category targets / ownership / visibility if the response dropped them. */
 export function reconcileDeckAfterApiPut(
   local: DeckDocument,
   remote: DeckDocument,
@@ -207,8 +208,10 @@ export function reconcileDeckAfterApiPut(
   const withTargets = overlayCategoryTargets(remote, local);
   // Prefer the ownership we just wrote — older APIs strip unknown fields on PUT.
   const ownership = local.ownership === 'theory' ? 'theory' : withTargets.ownership === 'theory' ? 'theory' : 'owned';
-  if (withTargets.ownership === ownership) return withTargets;
-  return { ...withTargets, ownership };
+  const visibility =
+    local.visibility === 'private' ? 'private' : withTargets.visibility === 'private' ? 'private' : 'public';
+  if (withTargets.ownership === ownership && withTargets.visibility === visibility) return withTargets;
+  return { ...withTargets, ownership, visibility };
 }
 
 /**

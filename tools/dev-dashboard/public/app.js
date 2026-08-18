@@ -4,6 +4,9 @@ const deviceAccess = document.getElementById('device-access');
 const deviceRows = document.getElementById('device-rows');
 const openLogs = new Set();
 const pending = new Set();
+const lastMetaHtml = new WeakMap();
+const FOLLOW_PX = 32;
+let lastDeviceHtml = '';
 
 function showBanner(message, isError = false) {
   banner.hidden = false;
@@ -55,20 +58,14 @@ function lanOrigin(lanUrl) {
   }
 }
 
-function renderDeviceAccess(lanIp, services) {
-  if (!lanIp) {
-    deviceAccess.hidden = true;
-    return;
-  }
-
-  deviceAccess.hidden = false;
+function deviceRowsHtml(lanIp, services) {
   const byId = Object.fromEntries(services.map((s) => [s.id, s]));
   const webUrl = `http://${lanIp}:5173`;
   const apiUrl = `http://${lanIp}:3000`;
   const webRunning = byId.web?.status === 'running';
   const apiRunning = byId.api?.status === 'running';
 
-  deviceRows.innerHTML = `
+  return `
     <div class="device-row">
       <span class="device-label">Hub Web</span>
       <a class="device-url" href="${escapeHtml(webUrl)}" target="_blank" rel="noreferrer">${escapeHtml(webUrl)}</a>
@@ -84,12 +81,30 @@ function renderDeviceAccess(lanIp, services) {
   `;
 }
 
-function renderCard(svc) {
-  const busy = pending.has(svc.id) || svc.status === 'starting' || svc.status === 'stopping';
-  const startDisabled = busy || svc.status === 'running';
-  const stopDisabled = busy || svc.status === 'stopped';
-  const restartDisabled = busy || svc.status === 'stopped';
+function renderDeviceAccess(lanIp, services) {
+  if (!lanIp) {
+    deviceAccess.hidden = true;
+    lastDeviceHtml = '';
+    return;
+  }
 
+  deviceAccess.hidden = false;
+  const html = deviceRowsHtml(lanIp, services);
+  if (html === lastDeviceHtml) return;
+  lastDeviceHtml = html;
+  deviceRows.innerHTML = html;
+}
+
+function buttonStates(svc) {
+  const busy = pending.has(svc.id) || svc.status === 'starting' || svc.status === 'stopping';
+  return {
+    startDisabled: busy || svc.status === 'running',
+    stopDisabled: busy || svc.status === 'stopped',
+    restartDisabled: busy || svc.status === 'stopped',
+  };
+}
+
+function metaHtml(svc) {
   const open = svc.openUrl
     ? `<a href="${escapeHtml(svc.openUrl)}" target="_blank" rel="noreferrer">open</a> · `
     : '';
@@ -100,7 +115,47 @@ function renderCard(svc) {
         ? ` <button type="button" class="linkish" data-copy="${escapeHtml(lanOriginUrl)}">copy</button> · `
         : ' · ')
     : '';
+  return `${open}${lan}port ${svc.port} · ${svc.kind}${
+    svc.ownedPid ? ` · pid ${svc.ownedPid}` : ''
+  }${svc.containerStatus ? ` · docker ${svc.containerStatus}` : ''}`;
+}
 
+function setDisabled(el, disabled) {
+  if (!el) return;
+  if (disabled) el.setAttribute('disabled', '');
+  else el.removeAttribute('disabled');
+}
+
+function applyCard(card, svc) {
+  const { startDisabled, stopDisabled, restartDisabled } = buttonStates(svc);
+  const logsOpen = openLogs.has(svc.id);
+  const nextMeta = metaHtml(svc);
+  const meta = card.querySelector('.meta');
+  if (meta && lastMetaHtml.get(card) !== nextMeta) {
+    lastMetaHtml.set(card, nextMeta);
+    meta.innerHTML = nextMeta;
+  }
+
+  const pill = card.querySelector('.pill');
+  if (pill) {
+    pill.className = `pill ${svc.status}`;
+    const label = statusLabel(svc);
+    if (pill.textContent !== label) pill.textContent = label;
+  }
+
+  setDisabled(card.querySelector('[data-act="start"]'), startDisabled);
+  setDisabled(card.querySelector('[data-act="stop"]'), stopDisabled);
+  setDisabled(card.querySelector('[data-act="restart"]'), restartDisabled);
+
+  const logsBtn = card.querySelector('[data-act="toggle-logs"]');
+  const logsLabel = logsOpen ? 'Hide logs' : 'Logs';
+  if (logsBtn && logsBtn.textContent.trim() !== logsLabel) logsBtn.textContent = logsLabel;
+
+  card.querySelector(`[data-logs="${svc.id}"]`)?.classList.toggle('open', logsOpen);
+}
+
+function renderCard(svc) {
+  const { startDisabled, stopDisabled, restartDisabled } = buttonStates(svc);
   const logsOpen = openLogs.has(svc.id);
 
   return `
@@ -108,9 +163,7 @@ function renderCard(svc) {
       <div class="card-head">
         <div class="card-title">
           <h2>${escapeHtml(svc.name)}</h2>
-          <p class="meta">${open}${lan}port ${svc.port} · ${svc.kind}${
-            svc.ownedPid ? ` · pid ${svc.ownedPid}` : ''
-          }${svc.containerStatus ? ` · docker ${svc.containerStatus}` : ''}</p>
+          <p class="meta">${metaHtml(svc)}</p>
         </div>
         <span class="pill ${svc.status}">${statusLabel(svc)}</span>
         <div class="actions">
@@ -135,24 +188,64 @@ function renderCard(svc) {
   `;
 }
 
+function cardFromHtml(html) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html.trim();
+  return wrap.firstElementChild;
+}
+
+function nearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_PX;
+}
+
 async function refreshLogs(id) {
   if (!openLogs.has(id)) return;
   try {
     const data = await api(`/api/services/${id}/logs?lines=100`);
     const pre = root.querySelector(`[data-logs="${id}"] pre`);
-    if (pre) {
-      pre.textContent = data.logs || '(no log output yet)';
-      pre.scrollTop = pre.scrollHeight;
-    }
+    if (!pre) return;
+    const next = data.logs || '(no log output yet)';
+    if (pre.textContent === next) return;
+    const follow = !pre.textContent || nearBottom(pre);
+    const saved = pre.scrollTop;
+    pre.textContent = next;
+    pre.scrollTop = follow ? pre.scrollHeight : saved;
   } catch {
     /* ignore */
   }
 }
 
+function setLogsOpen(id, open) {
+  const panel = root.querySelector(`[data-logs="${id}"]`);
+  const btn = root.querySelector(`[data-act="toggle-logs"][data-id="${id}"]`);
+  panel?.classList.toggle('open', open);
+  if (btn) btn.textContent = open ? 'Hide logs' : 'Logs';
+}
+
 function render(payload) {
   const services = payload.services || [];
   renderDeviceAccess(payload.lanIp || null, services);
-  root.innerHTML = services.map(renderCard).join('');
+
+  const existing = new Map([...root.querySelectorAll('.card')].map((el) => [el.dataset.id, el]));
+  const keep = new Set(services.map((s) => s.id));
+
+  let next = root.firstElementChild;
+  for (const svc of services) {
+    let card = existing.get(svc.id);
+    if (!card) {
+      card = cardFromHtml(renderCard(svc));
+      lastMetaHtml.set(card, metaHtml(svc));
+    } else {
+      applyCard(card, svc);
+    }
+    if (next !== card) root.insertBefore(card, next);
+    next = card.nextElementSibling;
+  }
+
+  for (const [id, card] of existing) {
+    if (!keep.has(id)) card.remove();
+  }
+
   for (const id of openLogs) refreshLogs(id);
 }
 
@@ -208,9 +301,14 @@ root.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   const act = btn.dataset.act;
   if (act === 'toggle-logs') {
-    if (openLogs.has(id)) openLogs.delete(id);
-    else openLogs.add(id);
-    poll();
+    if (openLogs.has(id)) {
+      openLogs.delete(id);
+      setLogsOpen(id, false);
+    } else {
+      openLogs.add(id);
+      setLogsOpen(id, true);
+      refreshLogs(id);
+    }
     return;
   }
   if (act === 'start' || act === 'stop' || act === 'restart') {

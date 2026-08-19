@@ -1,5 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
-import { OWNER_ONLY_EXPENSIVE_MESSAGE, isHubOwner } from '../lib/hub-auth-session';
+import { isSignedIn } from '../lib/hub-auth-session';
 import { attachProfileLists, enrichDeckWithProfile, resolveDeckEligibility } from './data';
 import { getGenerateReadiness, normalizeCodesInput } from './readiness';
 import { apiPostSuggestGenerate } from './generate-api';
@@ -15,8 +15,8 @@ export async function generateSuggestions(
   if (!isApiConfigured()) {
     throw new Error('Sign in from the left nav to generate suggestions.');
   }
-  if (!isHubOwner()) {
-    throw new Error(`${OWNER_ONLY_EXPENSIVE_MESSAGE}.`);
+  if (!isSignedIn()) {
+    throw new Error('Sign in from the left nav to generate suggestions.');
   }
   const readiness = getGenerateReadiness({ ...state, generating: false });
   if (!readiness.ok) {

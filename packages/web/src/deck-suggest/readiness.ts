@@ -1,5 +1,5 @@
 import { isApiConfigured } from '../api/hub-api';
-import { OWNER_ONLY_EXPENSIVE_MESSAGE, isHubOwner } from '../lib/hub-auth-session';
+import { isSignedIn } from '../lib/hub-auth-session';
 import { MANUAL_SET_CODES_MAX } from '@rayenz-hub/shared';
 import type { DeckSuggestState, ReadinessResult } from './types';
 import { pageIsOverCap } from './paging';
@@ -84,14 +84,14 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
     });
   }
 
-  if (isHubOwner()) {
-    items.push({ id: 'owner', ok: true, label: 'Owner account' });
+  if (isSignedIn()) {
+    items.push({ id: 'session', ok: true, label: 'Signed in' });
   } else {
-    missing.push('owner');
+    missing.push('session');
     items.push({
-      id: 'owner',
+      id: 'session',
       ok: false,
-      label: OWNER_ONLY_EXPENSIVE_MESSAGE,
+      label: 'Sign in from the left nav',
     });
   }
 

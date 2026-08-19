@@ -125,7 +125,7 @@ AWS Budgets notify at 50% and 80%. At **95%** SNS invokes `SpendLockFunction`, w
 | Owner invite list/revoke | Unauthenticated data routes (already 401) |
 
 
-Glance, swaps glance, and suggest generate are **owner-only** even when the spend lock is off (`403 OWNER_REQUIRED` for invitees and other signed-in users).
+Glance and swaps glance are **owner-only** even when the spend lock is off (`403 OWNER_REQUIRED` for invitees). Suggest generate is available to any signed-in user and is still blocked by the spend lock (`403 SPEND_LOCK`).
 
 Month-start EventBridge clears the flag. Verify locally by writing the SYSTEM item, then health/sign-in/CRUD vs glance/register.
 

@@ -18,7 +18,7 @@ function ownerRequiredBody(res: { statusCode?: number; body?: unknown }) {
 }
 
 describe('expensive APIs are owner-only', () => {
-  it('rejects a non-owner JWT on glance, swaps glance, and suggest generate', async () => {
+  it('rejects a non-owner JWT on glance and swaps glance', async () => {
     const { services } = createMemoryStores();
 
     const glance = await handleDeckGlance('any-deck', FRIEND_HEADERS, null, services);
@@ -34,13 +34,27 @@ describe('expensive APIs are owner-only', () => {
       services,
     );
     ownerRequiredBody(swaps);
+  });
 
+  it('allows a signed-in non-owner to generate suggestions', async () => {
+    const { services } = createMemoryStores();
     const generate = await handleSuggestGenerate(
       FRIEND_HEADERS,
       JSON.stringify({ deckIds: ['d1'], setCodes: ['eoe'] }),
       services,
+      {
+        fetchSetCards: async () => ({
+          set_codes: ['EOE'],
+          primary_set_code: 'EOE',
+          product_name: 'Edge of Eternities',
+          sets: [],
+          expected_card_count: 0,
+          fetched_card_count: 0,
+          cards: [],
+        }),
+      },
     );
-    ownerRequiredBody(generate);
+    expect(generate.statusCode).toBe(200);
   });
 
   it('still allows ordinary deck list for a non-owner', async () => {

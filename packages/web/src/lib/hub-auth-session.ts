@@ -15,7 +15,7 @@ export const ACCESS_TOKEN_REFRESH_SKEW_SECONDS = 60;
 export const HUB_AUTH_REQUIRED_EVENT = 'hub-auth-required';
 export const HUB_AUTH_CHANGED_EVENT = 'hub-auth-changed';
 export const OWNER_ONLY_EXPENSIVE_MESSAGE =
-  'Owner-only — glance and Suggest generate are disabled for this account';
+  'Owner-only — glance is disabled for this account';
 
 function dispatchAuthChanged(): void {
   try {
@@ -231,4 +231,19 @@ export function useIsHubOwner(): boolean {
     };
   }, []);
   return owner;
+}
+
+/** Re-renders when sign-in or sign-out updates the session. */
+export function useIsSignedIn(): boolean {
+  const [signedIn, setSignedIn] = useState(isSignedIn);
+  useEffect(() => {
+    const sync = () => setSignedIn(isSignedIn());
+    window.addEventListener(HUB_AUTH_CHANGED_EVENT, sync);
+    window.addEventListener(HUB_AUTH_REQUIRED_EVENT, sync);
+    return () => {
+      window.removeEventListener(HUB_AUTH_CHANGED_EVENT, sync);
+      window.removeEventListener(HUB_AUTH_REQUIRED_EVENT, sync);
+    };
+  }, []);
+  return signedIn;
 }

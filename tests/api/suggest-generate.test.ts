@@ -4,6 +4,7 @@ import { handleSuggestReleases } from '../../packages/api/src/handlers/suggest-r
 import { handleSetPool } from '../../packages/api/src/handlers/set-pools.ts';
 import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
 import { handleProfile } from '../../packages/api/src/handlers/profiles.ts';
+import { encodeTestJwt } from '../../packages/api/src/lib/jwt.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 import commander from '../fixtures/deck-builder/commander-slice.json';
 
@@ -138,6 +139,35 @@ describe('POST /v1/suggest/generate', () => {
       services,
     );
     expect(res.statusCode).toBe(400);
+  });
+
+  it('generates for a signed-in non-owner', async () => {
+    const { services } = createMemoryStores();
+    const friendHeaders = {
+      authorization: `Bearer ${encodeTestJwt({ sub: 'friend-sub', username: 'friend' })}`,
+    };
+    await handleDeck('PUT', 'cmd-fixture', friendHeaders, JSON.stringify(commander), services);
+    const res = await handleSuggestGenerate(
+      friendHeaders,
+      JSON.stringify({ setCodes: ['MSH'], deckIds: ['cmd-fixture'] }),
+      services,
+      {
+        fetchSetCards: async () => ({
+          product_name: 'Marvel Super Heroes',
+          primary_set_code: 'MSH',
+          set_codes: ['MSH'],
+          sets: [],
+          expected_card_count: 1,
+          fetched_card_count: 1,
+          cards: [sampleCard],
+        }),
+      },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(String(res.body));
+    expect(body.deckResults).toHaveLength(1);
+    expect(body.deckResults[0].deckId).toBe('cmd-fixture');
+    expect(body.deckResults[0].skipped).toBe(false);
   });
 
   it('ensures missing set pool via fetchSetCards dep', async () => {

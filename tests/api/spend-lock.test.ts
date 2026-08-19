@@ -44,6 +44,17 @@ describe('spend lock', () => {
       services,
     );
     expect(generate.statusCode).toBe(403);
+    expect(JSON.parse(String(generate.body)).code).toBe('SPEND_LOCK');
+
+    const inviteeGenerate = await handleSuggestGenerate(
+      {
+        authorization: `Bearer ${encodeTestJwt({ sub: 'friend-sub', username: 'friend' })}`,
+      },
+      JSON.stringify({ deckIds: ['d1'], setCodes: ['eoe'] }),
+      services,
+    );
+    expect(inviteeGenerate.statusCode).toBe(403);
+    expect(JSON.parse(String(inviteeGenerate.body)).code).toBe('SPEND_LOCK');
 
     const settings = await handleSettings(
       'PUT',

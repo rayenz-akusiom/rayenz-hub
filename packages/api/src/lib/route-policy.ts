@@ -10,15 +10,22 @@ export function spendLockResponse(): APIGatewayProxyResultV2 {
   });
 }
 
-/** Owner-only expensive routes (glance, swaps glance, suggest generate). */
+/** Spend-locked expensive routes (suggest generate). Auth is required by the handler. */
+export async function requireSpendUnlocked(
+  spendLock: { isActive(): Promise<boolean> },
+): Promise<APIGatewayProxyResultV2 | null> {
+  if (await spendLock.isActive()) {
+    return spendLockResponse();
+  }
+  return null;
+}
+
+/** Owner-only expensive routes (glance, swaps glance). */
 export async function requireOwnerAndSpendUnlocked(
   auth: AuthContext,
   authService: { requireOwner(auth: AuthContext): void },
   spendLock: { isActive(): Promise<boolean> },
 ): Promise<APIGatewayProxyResultV2 | null> {
   authService.requireOwner(auth);
-  if (await spendLock.isActive()) {
-    return spendLockResponse();
-  }
-  return null;
+  return requireSpendUnlocked(spendLock);
 }

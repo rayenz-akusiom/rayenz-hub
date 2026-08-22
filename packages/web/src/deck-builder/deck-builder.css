@@ -3256,6 +3256,15 @@ body,
   padding: 0.4rem 0.6rem;
 }
 
+.db-shell.is-trimming .db-card-tile {
+  cursor: pointer;
+}
+
+.db-selection-bar.is-pick.is-trim-delete {
+  background: rgba(180, 35, 24, 0.08);
+  border-color: var(--db-danger);
+}
+
 .db-swap-mini-fallback {
   display: block;
   padding: 1.5rem 0.35rem 0.5rem;

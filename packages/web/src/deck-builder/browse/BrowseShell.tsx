@@ -28,6 +28,7 @@ import {
   incompleteEntryCount,
   isCategoryBrowseView,
   isCommanderCategory,
+  isPendragonLeaderCategory,
   isPendragonAddLegal,
   pendragonRoleForCategory,
   formatScryfallClause,
@@ -35,6 +36,7 @@ import {
   PENDRAGON_EXCALIBUR,
   isSeekingCategory,
   isSwapQueueCategoryName,
+  MAYBEBOARD,
   markCardsSeekingSecondary,
   markMainDeckSeekingSecondary,
   moveCardsCategory,
@@ -155,6 +157,12 @@ function rangeIds(order: string[], fromId: string, toId: string): string[] {
   return order.slice(lo, hi + 1);
 }
 
+type TrimEffect = 'maybeboard' | 'delete';
+
+function isTrimProtectedSlot(primaryCategory: string | null | undefined): boolean {
+  return isCommanderCategory(primaryCategory) || isPendragonLeaderCategory(primaryCategory);
+}
+
 export function BrowseShell({
   deck,
   onChange,
@@ -192,6 +200,8 @@ export function BrowseShell({
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [basicsOpen, setBasicsOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [trimMode, setTrimMode] = useState(false);
+  const [trimEffect, setTrimEffect] = useState<TrimEffect>('maybeboard');
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const setFilter = useSetMembershipFilter();
   const [proxyFilter, setProxyFilter] = useState<FlagFilterMode>('all');
@@ -330,6 +340,8 @@ export function BrowseShell({
       setCardSort(liveDeck.cardSortDefault || 'name_asc');
       setSelectedIds(new Set());
       setSelectionAnchorId(null);
+      setTrimMode(false);
+      setTrimEffect('maybeboard');
       return;
     }
     if (deck.updatedAt >= local.updatedAt) {
@@ -406,6 +418,17 @@ export function BrowseShell({
     setContextMenu(null);
   }, []);
 
+  const exitTrim = useCallback(() => {
+    setTrimMode(false);
+    setTrimEffect('maybeboard');
+  }, []);
+
+  const enterTrim = useCallback(() => {
+    clearSelection();
+    setTrimEffect('maybeboard');
+    setTrimMode(true);
+  }, [clearSelection]);
+
   const overlayBlocksShortcuts =
     moveOpen ||
     printingOpen ||
@@ -440,13 +463,19 @@ export function BrowseShell({
       }
 
       if (e.key !== 'Escape') return;
+      if (trimMode) {
+        exitTrim();
+        return;
+      }
       if (selectedIds.size) clearSelection();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [
     selectedIds.size,
+    trimMode,
     clearSelection,
+    exitTrim,
     overlayBlocksShortcuts,
     commit,
     editHistory,
@@ -484,8 +513,25 @@ export function BrowseShell({
     });
   }, []);
 
+  function applyTrimToInstance(instanceId: string) {
+    const current = deckRef.current;
+    const card = current.cards.find((c) => c.instanceId === instanceId);
+    if (!card) return;
+    if (isTrimProtectedSlot(card.primaryCategory)) return;
+    if (trimEffect === 'maybeboard') {
+      if (card.primaryCategory === MAYBEBOARD) return;
+      commit(moveCardsCategory(current, [instanceId], MAYBEBOARD));
+      return;
+    }
+    commit(removeCardsFromDeck(current, [instanceId]));
+  }
+
   function onSelectCard(card: CardView, e?: MouseEvent | ReactKeyboardEvent) {
     setContextMenu(null);
+    if (trimMode && !readOnly) {
+      applyTrimToInstance(card.instanceId);
+      return;
+    }
     const id = card.instanceId;
 
     if (isShiftSelect(e) && selectionAnchorId) {
@@ -514,6 +560,10 @@ export function BrowseShell({
 
   function onSelectUnifiedInstance(instanceId: string) {
     setContextMenu(null);
+    if (trimMode && !readOnly) {
+      applyTrimToInstance(instanceId);
+      return;
+    }
     setSelectedIds((prev) => {
       if (prev.size === 1 && prev.has(instanceId)) return new Set();
       return new Set([instanceId]);
@@ -881,7 +931,7 @@ export function BrowseShell({
   return (
     <div
       ref={shellRef}
-      className={`db-shell${draft ? ' is-swap-editing' : ''}`}
+      className={`db-shell${draft ? ' is-swap-editing' : ''}${trimMode ? ' is-trimming' : ''}`}
       style={shellStyle}
     >
       <header className="db-header">
@@ -907,6 +957,17 @@ export function BrowseShell({
           onFoilFilterChange={setFoilFilter}
         />
         {readOnly ? null : (
+          <button
+            type="button"
+            className={`db-btn${trimMode ? ' is-active' : ''}`}
+            aria-pressed={trimMode}
+            title="Click cards to move to Maybeboard or delete"
+            onClick={() => (trimMode ? exitTrim() : enterTrim())}
+          >
+            Trim
+          </button>
+        )}
+        {readOnly ? null : (
           <DeckActionsMenu
             deck={liveDeck}
             onDeckChange={(next) => {
@@ -930,7 +991,38 @@ export function BrowseShell({
 
       <div className="db-body">
         <main className="db-main">
-          {selectionCount && !readOnly ? (
+          {trimMode && !readOnly ? (
+            <div
+              className={`db-selection-bar is-pick${trimEffect === 'delete' ? ' is-trim-delete' : ''}`}
+            >
+              <span className="db-selection-bar-count" aria-live="polite">
+                {trimEffect === 'delete'
+                  ? 'Click a card to delete it'
+                  : 'Click a card to move it to Maybeboard'}
+              </span>
+              <div className="db-selection-bar-actions">
+                <button
+                  type="button"
+                  className={`db-btn${trimEffect === 'maybeboard' ? ' is-active' : ''}`}
+                  aria-pressed={trimEffect === 'maybeboard'}
+                  onClick={() => setTrimEffect('maybeboard')}
+                >
+                  Maybeboard
+                </button>
+                <button
+                  type="button"
+                  className={`db-btn db-btn-danger${trimEffect === 'delete' ? ' is-active' : ''}`}
+                  aria-pressed={trimEffect === 'delete'}
+                  onClick={() => setTrimEffect('delete')}
+                >
+                  Delete
+                </button>
+                <button type="button" className="db-btn" onClick={exitTrim}>
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : selectionCount && !readOnly ? (
             <div className="db-selection-bar">
               <span className="db-selection-bar-count" aria-live="polite">
                 {selectionCount === 1 ? '1 selected' : `${selectionCount} selected`}
@@ -1327,6 +1419,9 @@ export function BrowseShell({
           }}
           onDropDefault={(ids) => {
             commit(moveCardsToDefaultCategories(deckRef.current, ids));
+          }}
+          onDropMaybeboard={(ids) => {
+            commit(moveCardsCategory(deckRef.current, ids, MAYBEBOARD));
           }}
           onDropNewCategory={(ids) => {
             setSelectedIds(new Set(ids));

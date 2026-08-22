@@ -840,6 +840,105 @@ describe('CategoryBrowse swap-In ghosts', () => {
   });
 });
 
+describe('BrowseShell trim mode', () => {
+  function trimDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
+    return {
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      ...overrides,
+    };
+  }
+
+  it('moves a clicked card to Maybeboard', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const deck = trimDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.arrayContaining([
+          expect.objectContaining({ instanceId: card.instanceId, primaryCategory: 'Maybeboard' }),
+        ]),
+      }),
+    );
+  });
+
+  it('deletes a clicked card without confirm', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onChange = vi.fn();
+    const deck = trimDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.not.arrayContaining([
+          expect.objectContaining({ instanceId: card.instanceId }),
+        ]),
+      }),
+    );
+    confirm.mockRestore();
+  });
+
+  it('does not move a card that is already Maybeboard', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const mbCard = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      instanceId: 'mb-1',
+      name: 'Stash Me',
+      primaryCategory: 'Maybeboard',
+      categories: ['Maybeboard'],
+    };
+    const deck = trimDeck({
+      cards: [mbCard, ...commanderDoc.cards],
+      categories: [
+        ...(commanderDoc.categories || []),
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false },
+      ],
+    });
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await user.click(screen.getByRole('button', { name: /^Stash Me$/i }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('exits on Escape and returns to selection', async () => {
+    const user = userEvent.setup();
+    const deck = trimDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
+    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    expect(screen.getByText('Click a card to move it to Maybeboard')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText('Click a card to move it to Maybeboard')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Trim' })).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('hides Trim when read-only', () => {
+    render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} readOnly />);
+    expect(screen.queryByRole('button', { name: 'Trim' })).not.toBeInTheDocument();
+  });
+});
+
 describe('BrowseShell swap-In ghosts on load', () => {
   function unsyncedGhostDeck(): DeckDocument {
     const ghostIn = {

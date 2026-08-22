@@ -243,6 +243,21 @@ describe('DeckHeaderRow', () => {
     expect(onPickSlot).toHaveBeenCalledWith('Excalibur');
   });
 
+  it('separates Arthur and Excalibur from the description with a divider', () => {
+    render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{}}
+        headerKeys={[]}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon Deck"
+      />,
+    );
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+    expect(screen.getByLabelText('Deck description')).toBeInTheDocument();
+    expect(document.querySelector('.db-header-divider')).toBeTruthy();
+  });
+
   it('keeps a solo commander as one slot until the partner row is drag-targeted', () => {
     const commander = asHeaderCard({
       instanceId: 'cmd-1',

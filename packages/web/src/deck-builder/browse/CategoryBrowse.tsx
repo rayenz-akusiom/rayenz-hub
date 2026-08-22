@@ -756,7 +756,7 @@ function PendragonSlots({
   return (
     <div className="db-partner-pair" aria-label="Arthur and Excalibur">
       <h3 className="db-partner-pair-title">Arthur & Excalibur</h3>
-      <div className="db-partner-pair-row">
+      <div className="db-partner-pair-row is-fixed">
         <CommanderSlot
           slot={0}
           card={arthur}
@@ -1081,7 +1081,9 @@ export function DeckHeaderRow({
         ) : null}
         {needsRemainder ? (
           <div className="db-header-slot is-remainder" ref={remainderRef}>
-            {hasCommander ? <div className="db-header-divider" aria-hidden="true" /> : null}
+            {hasCommander || hasPendragon ? (
+              <div className="db-header-divider" aria-hidden="true" />
+            ) : null}
             <div className="db-header-remainder" id="db-leaders-panel">{remainderPane}</div>
           </div>
         ) : hasOtherLeaders ? (

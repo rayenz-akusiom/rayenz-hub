@@ -1076,6 +1076,7 @@ body,
 
 .db-header-slot.is-commander {
   flex: 0 0 auto;
+  min-width: min-content;
 }
 
 .db-header-slot.is-lieutenants {
@@ -1215,6 +1216,10 @@ body,
   flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem 0.65rem;
+}
+
+.db-partner-pair-row.is-fixed {
+  flex-wrap: nowrap;
 }
 
 .db-partner-pair-slot {

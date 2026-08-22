@@ -147,6 +147,7 @@ export function ScryfallSearchModal({
   const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommandZone);
   const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommandZone);
   const [results, setResults] = useState<ScryfallCard[]>([]);
+  const [totalCards, setTotalCards] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -357,6 +358,7 @@ export function ScryfallSearchModal({
     try {
       const page1 = await searchCards(composed, 1);
       setResults(page1.data);
+      setTotalCards(typeof page1.total_cards === 'number' ? page1.total_cards : null);
       setHasMore(page1.has_more);
       setNextPage(page1.next_page);
       setPage(1);
@@ -366,6 +368,7 @@ export function ScryfallSearchModal({
       }
     } catch (err: unknown) {
       setResults([]);
+      setTotalCards(null);
       setHasMore(false);
       setNextPage(null);
       setError(err instanceof Error ? err.message : 'Search failed.');
@@ -441,6 +444,17 @@ export function ScryfallSearchModal({
   }
 
   const showRecent = !query.trim() && !results.length && recent.length > 0;
+  const foundCount = results.length
+    ? totalCards != null
+      ? totalCards
+      : results.length
+    : null;
+  const foundLabel =
+    foundCount == null
+      ? null
+      : foundCount === 1
+        ? '1 card found'
+        : `${foundCount} cards found`;
 
   const card = (
     <div className="db-modal-card db-modal-picker">
@@ -559,6 +573,11 @@ export function ScryfallSearchModal({
         {error ? <p className="db-error">{error}</p> : null}
         {loading && !results.length ? <p className="db-muted">Searching…</p> : null}
         {resolvingPrinting ? <p className="db-muted">Loading printings…</p> : null}
+        {foundLabel ? (
+          <p className="db-muted" aria-live="polite">
+            {foundLabel}
+          </p>
+        ) : null}
 
         {results.length ? (
           <div className="db-picker-grid" role="listbox" aria-label="Search results">

@@ -318,6 +318,27 @@ describe('ScryfallSearchModal quick add', () => {
   });
 });
 
+describe('ScryfallSearchModal result count', () => {
+  it('shows how many cards Scryfall found', async () => {
+    const user = userEvent.setup();
+    searchCards.mockResolvedValue({
+      data: [solRing, birds],
+      has_more: false,
+      next_page: null,
+      total_cards: 2,
+    });
+
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 't:artifact');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('2 cards found')).toBeInTheDocument();
+    });
+  });
+});
+
 describe('ScryfallSearchModal deck-edit singleton gestures', () => {
   async function searchWithResults(user: ReturnType<typeof userEvent.setup>, data: ScryfallCard[]) {
     searchCards.mockResolvedValue({ data, has_more: false, next_page: null });

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import type { DeckFormat } from '@rayenz-hub/shared';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import { canCopyPng } from '../../lib/glance-png';
+import { CategorySelectOptgroups } from './CategorySelectOptgroups';
 
 export type CardContextMenuState = {
   x: number;
@@ -19,6 +21,8 @@ export function CardContextMenu({
   proxy,
   secondaryCategories = [],
   categoryOptions = [],
+  format = 'commander',
+  categoryOrder,
   onClose,
   onToggleFoil,
   onToggleProxy,
@@ -47,6 +51,8 @@ export function CardContextMenu({
   secondaryCategories?: string[];
   /** Categories available to add as secondary (excludes current memberships). */
   categoryOptions?: string[];
+  format?: DeckFormat;
+  categoryOrder?: string[];
   onClose: () => void;
   onToggleFoil: () => void;
   onToggleProxy: () => void;
@@ -276,11 +282,11 @@ export function CardContextMenu({
                 }}
               >
                 <option value="">Choose…</option>
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                <CategorySelectOptgroups
+                  names={categoryOptions}
+                  format={format}
+                  categoryOrder={categoryOrder}
+                />
                 <option value="__new__">New category…</option>
               </select>
             )}

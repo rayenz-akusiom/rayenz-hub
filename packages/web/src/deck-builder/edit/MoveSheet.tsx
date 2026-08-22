@@ -7,6 +7,7 @@ import {
   type CardView,
   type DeckDocument,
 } from '@rayenz-hub/shared';
+import { CategorySelectOptgroups } from './CategorySelectOptgroups';
 
 const NEW_CATEGORY_VALUE = '__new__';
 
@@ -106,22 +107,23 @@ export function MoveSheet({
                 setCategory(e.target.value);
               }}
             >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              <CategorySelectOptgroups
+                names={categories}
+                format={deck.format}
+                categoryOrder={(deck.categories || []).map((c) => c.name)}
+              />
               <option value={NEW_CATEGORY_VALUE}>New category…</option>
             </select>
           </label>
         )}
         <label>
-          Stack (optional)
+          Pile name (optional)
           <input
             className="db-input"
             value={stack}
             onChange={(e) => setStack(e.target.value)}
-            aria-label="Stack (optional)"
+            placeholder="Same name = one pile"
+            aria-label="Pile name (optional)"
           />
         </label>
         <div className="db-modal-actions">

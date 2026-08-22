@@ -477,6 +477,8 @@ export function ScryfallSearchModal({
         defaultScryfallId={pending.id}
         selectedScryfallId={pending.id}
         categoryOptions={categories}
+        format={deck.format}
+        categoryOrder={(deck.categories || []).map((c) => c.name)}
         defaultCategory={defaultCat}
         confirmLabel={confirmLabel}
         title={printingTitle ? printingTitle(pending.name) : `Add — ${pending.name}`}

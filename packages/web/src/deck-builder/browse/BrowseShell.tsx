@@ -1267,6 +1267,8 @@ export function BrowseShell({
               c !== contextCard.primaryCategory &&
               !(contextCard.categories || []).includes(c),
           )}
+          format={liveDeck.format}
+          categoryOrder={(liveDeck.categories || []).map((c) => c.name)}
           onClose={() => setContextMenu(null)}
           onToggleFoil={onToggleFoil}
           onToggleProxy={onToggleProxy}

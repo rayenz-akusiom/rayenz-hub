@@ -12,6 +12,7 @@ import {
   type PrintingFields,
 } from '@rayenz-hub/shared';
 import { CardTile } from '../browse/CardTile';
+import { CategorySelectOptgroups } from '../edit/CategorySelectOptgroups';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { FinalizeSwapConfirmDialog } from './FinalizeSwapConfirm';
@@ -465,11 +466,11 @@ export function SwapEditChrome({
                     onChange={(e) => onDraftChange({ inTargetCategory: e.target.value || null })}
                   >
                     <option value="">— not set —</option>
-                    {targetOptions.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
+                    <CategorySelectOptgroups
+                      names={targetOptions}
+                      format={deck.format}
+                      categoryOrder={(deck.categories || []).map((c) => c.name)}
+                    />
                   </select>
                 </label>
                 <label>

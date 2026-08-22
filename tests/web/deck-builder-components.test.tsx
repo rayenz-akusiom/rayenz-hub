@@ -906,6 +906,7 @@ describe('MoveSheet', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Pile name (optional)')).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Category'), 'Land');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
@@ -950,6 +951,25 @@ describe('MoveSheet', () => {
     const moved = next.cards.find((c) => c.instanceId === card.instanceId);
     expect(moved?.primaryCategory).toBe('Ramp');
     expect(next.categories.some((c) => c.name === 'Ramp')).toBe(true);
+  });
+
+  it('splits category options into Custom then Default', () => {
+    const card = commanderDoc.cards[0] as CardInstance;
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      categories: [
+        { name: 'Ramp', includedInDeck: true, includedInPrice: true, target: null },
+        ...commanderDoc.categories,
+      ],
+    };
+
+    render(<MoveSheet deck={deck} cards={[card]} onClose={vi.fn()} onApply={vi.fn()} />);
+
+    const select = screen.getByLabelText('Category');
+    const groups = within(select).getAllByRole('group');
+    expect(groups.map((g) => g.getAttribute('label'))).toEqual(['Custom', 'Default']);
+    expect(within(groups[0]!).getByRole('option', { name: 'Ramp' })).toBeInTheDocument();
+    expect(within(groups[1]!).getByRole('option', { name: 'Land' })).toBeInTheDocument();
   });
 });
 

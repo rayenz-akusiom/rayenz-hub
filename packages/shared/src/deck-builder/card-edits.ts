@@ -3,17 +3,20 @@ import type {
   CardOracle,
   CategoryDef,
   DeckDocument,
+  DeckFormat,
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
-import { isSwapQueueCategory, moveCardCategory } from './browse.js';
+import { HEADER_CATEGORIES, isSwapQueueCategory, moveCardCategory } from './browse.js';
 import { canonicalizeCategoryName } from './category-names.js';
 import {
   isLookingForCategory,
   isSeekingCategory,
   isSwapQueueCategoryName,
   SEEKING,
+  SWAP_IN,
+  SWAP_OUT,
 } from '../mtg/swap-queue.js';
-import { colourIdentitySection } from './colour-identity.js';
+import { colourIdentitySection, cubeCategorySectionsOrder } from './colour-identity.js';
 import {
   emptyCardOracle,
   getOracle,
@@ -22,7 +25,7 @@ import {
   resolveDeckCards,
   upsertOracle,
 } from './card-oracle.js';
-import { commanderTypeCategory } from './card-types.js';
+import { COMMANDER_TYPE_CATEGORY_PRECEDENCE, commanderTypeCategory } from './card-types.js';
 import { collectCommandZoneCards } from './partner.js';
 import { isCommandZoneFormat } from './format.js';
 import {
@@ -144,6 +147,80 @@ export function deckCategoryOptions(deck: Pick<DeckDocument, 'categories' | 'car
 }
 
 export const PROXIES_CATEGORY = 'Proxies';
+
+const ASIDE_SELECT_CATEGORIES = [
+  'Maybeboard',
+  SEEKING,
+  SWAP_IN,
+  SWAP_OUT,
+  PROXIES_CATEGORY,
+] as const;
+
+function defaultCategoryTaxonomyOrder(format: DeckFormat): string[] {
+  if (format === 'cube') {
+    return [...cubeCategorySectionsOrder(), ...ASIDE_SELECT_CATEGORIES];
+  }
+  return [
+    ...HEADER_CATEGORIES,
+    ...COMMANDER_TYPE_CATEGORY_PRECEDENCE.map((e) => e.category),
+    'Other',
+    ...ASIDE_SELECT_CATEGORIES,
+  ];
+}
+
+function isDefaultCategorySelectName(name: string, format: DeckFormat): boolean {
+  const key = canonicalizeCategoryName(name);
+  if (!key) return false;
+  if (key === 'Maybeboard' || key === PROXIES_CATEGORY) return true;
+  if (isSeekingCategory(key) || isSwapQueueCategoryName(key)) return true;
+  if (format === 'cube') {
+    return cubeCategorySectionsOrder().some((n) => canonicalizeCategoryName(n) === key);
+  }
+  if ((HEADER_CATEGORIES as readonly string[]).includes(key)) return true;
+  if (key === 'Other') return true;
+  return COMMANDER_TYPE_CATEGORY_PRECEDENCE.some((e) => e.category === key);
+}
+
+function sortByOrderThenAlpha(names: string[], order: string[]): string[] {
+  const rank = new Map(order.map((n, i) => [canonicalizeCategoryName(n), i] as const));
+  return [...names].sort((a, b) => {
+    const ra = rank.get(canonicalizeCategoryName(a));
+    const rb = rank.get(canonicalizeCategoryName(b));
+    if (ra != null && rb != null && ra !== rb) return ra - rb;
+    if (ra != null && rb == null) return -1;
+    if (ra == null && rb != null) return 1;
+    return a.localeCompare(b);
+  });
+}
+
+/** Split add/move category names into Custom (user) vs Default (format taxonomy). */
+export function groupCategorySelectOptions(
+  names: string[],
+  opts: { format: DeckFormat; categoryOrder?: string[] },
+): { custom: string[]; defaults: string[] } {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const raw of names) {
+    const name = String(raw || '').trim();
+    if (!name) continue;
+    const key = canonicalizeCategoryName(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(name);
+  }
+
+  const custom: string[] = [];
+  const defaults: string[] = [];
+  for (const name of unique) {
+    if (isDefaultCategorySelectName(name, opts.format)) defaults.push(name);
+    else custom.push(name);
+  }
+
+  return {
+    custom: sortByOrderThenAlpha(custom, opts.categoryOrder || []),
+    defaults: sortByOrderThenAlpha(defaults, defaultCategoryTaxonomyOrder(opts.format)),
+  };
+}
 
 /** Ensure a named category exists on the deck (Maybeboard aside; Proxies no price). */
 export function ensureCategoryDef(

@@ -10,11 +10,13 @@ import {
   scryfallCardImageUrl,
   scryfallImageFromId,
   searchCardsNextPage,
+  type DeckFormat,
   type PrintingFields,
   type ScryfallCard,
 } from '@rayenz-hub/shared';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
+import { CategorySelectOptgroups } from '../edit/CategorySelectOptgroups';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 
 const NEW_CATEGORY_VALUE = '__new__';
@@ -45,6 +47,8 @@ export function PrintingPickerModal({
   proxyDefault = false,
   selectedScryfallId = null,
   categoryOptions,
+  format = 'commander',
+  categoryOrder,
   defaultCategory,
   confirmLabel = 'Apply',
   title,
@@ -64,6 +68,10 @@ export function PrintingPickerModal({
   selectedScryfallId?: string | null;
   /** When set, shows a category select (add flow). */
   categoryOptions?: string[];
+  /** Format for Custom / Default optgroups (add flow). */
+  format?: DeckFormat;
+  /** Categories (Custom) browse order for the Custom optgroup. */
+  categoryOrder?: string[];
   defaultCategory?: string;
   confirmLabel?: string;
   title?: string;
@@ -329,11 +337,11 @@ export function PrintingPickerModal({
                   setCategory(e.target.value);
                 }}
               >
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                <CategorySelectOptgroups
+                  names={categoryOptions}
+                  format={format}
+                  categoryOrder={categoryOrder}
+                />
                 <option value={NEW_CATEGORY_VALUE}>New category…</option>
               </select>
             </label>

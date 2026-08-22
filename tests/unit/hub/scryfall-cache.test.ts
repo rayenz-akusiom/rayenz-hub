@@ -28,6 +28,8 @@ describe('ScryfallCache.fetchPrintings', () => {
     expect(first).toEqual(prints);
     expect(second).toBe(first);
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    const called = String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0]);
+    expect(new URL(called).searchParams.get('q')).toBe('(!"Sol Ring") game:paper');
   });
 
   it('falls back to defaultScryfallId when search fails', async () => {

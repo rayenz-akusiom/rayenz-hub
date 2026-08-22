@@ -9,6 +9,25 @@ const PAGE_DELAY_MS = 90;
 /** Scryfall `/cards/search` `q` max length (Unicode characters). */
 export const SCRYFALL_Q_MAX = 1000;
 
+/** Silent `/cards/search` filter — paper printings only. */
+export const SCRYFALL_PAPER_GAME_CLAUSE = 'game:paper';
+
+/** Extra `q` length from wrapping as `(query) game:paper`. */
+export const SCRYFALL_PAPER_QUERY_OVERHEAD = '() game:paper'.length;
+
+const PAPER_GAME_RE = /\bgame:paper\b/i;
+
+/**
+ * AND `game:paper` onto a Scryfall search `q`. Wraps the original query so
+ * `or` clauses stay fully constrained. No-ops when `game:paper` is already present.
+ */
+export function withPaperGameQuery(q: string): string {
+  const trimmed = String(q || '').trim();
+  if (!trimmed) return trimmed;
+  if (PAPER_GAME_RE.test(trimmed)) return trimmed;
+  return `(${trimmed}) ${SCRYFALL_PAPER_GAME_CLAUSE}`;
+}
+
 /** Minimal Scryfall card fields we use for search / printings. */
 export type ScryfallCard = {
   id: string;
@@ -181,7 +200,7 @@ export function buildSearchUrl(
   page = 1,
   opts?: { unique?: 'cards' | 'prints' | 'art' },
 ): string {
-  const q = String(query || '').trim();
+  const q = withPaperGameQuery(String(query || '').trim());
   const url = new URL(`${SCYFALL_API}/cards/search`);
   url.searchParams.set('q', q);
   if (opts?.unique) url.searchParams.set('unique', opts.unique);
@@ -202,7 +221,10 @@ export function buildPrintingsSearchUrl(
 ): string {
   const name = String(cardName || '').trim();
   const url = new URL(`${SCYFALL_API}/cards/search`);
-  url.searchParams.set('q', `!"${name}"${printingsSetClause(opts?.setCodes)}`);
+  url.searchParams.set(
+    'q',
+    withPaperGameQuery(`!"${name}"${printingsSetClause(opts?.setCodes)}`),
+  );
   url.searchParams.set('unique', 'prints');
   url.searchParams.set('order', 'released');
   if (page > 1) url.searchParams.set('page', String(page));
@@ -522,13 +544,15 @@ export function buildScopedSearchQueries(
   const prefix = `(${q}) (`;
   const suffix = ')';
   const overhead = prefix.length + suffix.length;
+  const paperOverhead = PAPER_GAME_RE.test(q) ? 0 : SCRYFALL_PAPER_QUERY_OVERHEAD;
+  const cap = Math.max(overhead + 1, maxQ - paperOverhead);
   const queries: string[] = [];
   let batch: string[] = [];
   let batchLen = overhead;
 
   for (const clause of usable) {
     const extra = batch.length === 0 ? clause.length : 4 + clause.length;
-    if (batch.length && batchLen + extra > maxQ) {
+    if (batch.length && batchLen + extra > cap) {
       queries.push(`${prefix}${batch.join(' or ')}${suffix}`);
       batch = [clause];
       batchLen = overhead + clause.length;

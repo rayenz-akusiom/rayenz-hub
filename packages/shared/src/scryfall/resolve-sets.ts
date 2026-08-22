@@ -1,3 +1,4 @@
+import { withPaperGameQuery } from '../deck-builder/scryfall-api.js';
 import type { ReleaseKind } from './release-catalog.js';
 import { maybeAttachScryfallTags } from './oracle-tags.js';
 
@@ -390,7 +391,9 @@ export const SCRYFALL_SUGGEST_POOL_FILTERS = 'game:paper format:commander';
 async function fetchAllCardsForSet(setCode: string): Promise<Record<string, unknown>[]> {
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
   const query = encodeURIComponent(
-    `set:${setCode.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+    withPaperGameQuery(
+      `set:${setCode.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+    ),
   );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
   const cards: Record<string, unknown>[] = [];
@@ -497,7 +500,7 @@ export async function fetchReleaseCards(
   const prefix = kind === 'block' ? 'b' : 'g';
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
   const query = encodeURIComponent(
-    `${prefix}:${seed} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+    withPaperGameQuery(`${prefix}:${seed} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`),
   );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
   const raw: Record<string, unknown>[] = [];

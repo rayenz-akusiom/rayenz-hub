@@ -655,6 +655,13 @@ describe('ScryfallSearchModal commander Include options', () => {
     expect(
       composeScryfallQuery(
         't:instant',
+        { includeIdentity: true, includeFormatCommander: true },
+        deck,
+      ),
+    ).not.toContain('game:paper');
+    expect(
+      composeScryfallQuery(
+        't:instant',
         { includeIdentity: true, includeFormatCommander: false },
         deck,
       ),

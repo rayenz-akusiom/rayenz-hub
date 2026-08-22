@@ -29,8 +29,13 @@ import {
   searchCards,
   searchCardsNextPage,
   syntaxScopeKey,
+  withPaperGameQuery,
 } from '../../../packages/shared/src/index.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+
+function searchQuery(url: string): string {
+  return new URL(url).searchParams.get('q') || '';
+}
 
 const sampleCard = {
   id: 'sf-sol',
@@ -52,9 +57,29 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('withPaperGameQuery', () => {
+  it('wraps the query so or clauses stay fully constrained', () => {
+    expect(withPaperGameQuery('t:creature or t:instant')).toBe(
+      '(t:creature or t:instant) game:paper',
+    );
+  });
+
+  it('does not wrap when game:paper is already present', () => {
+    expect(withPaperGameQuery('t:instant game:paper')).toBe('t:instant game:paper');
+    expect(withPaperGameQuery('GAME:PAPER t:instant')).toBe('GAME:PAPER t:instant');
+  });
+
+  it('returns empty input unchanged', () => {
+    expect(withPaperGameQuery('')).toBe('');
+    expect(withPaperGameQuery('   ')).toBe('');
+  });
+});
+
 describe('scryfall URL builders', () => {
   it('builds search urls with query and page', () => {
-    expect(buildSearchUrl('t:creature id:w', 1)).toContain('q=t%3Acreature+id%3Aw');
+    expect(searchQuery(buildSearchUrl('t:creature id:w', 1))).toBe(
+      '(t:creature id:w) game:paper',
+    );
     expect(buildSearchUrl('sol ring', 2)).toContain('page=2');
     expect(buildSearchUrl('sol ring', 1)).not.toContain('page=');
   });
@@ -62,22 +87,19 @@ describe('scryfall URL builders', () => {
   it('builds search urls with unique=cards for in-set membership', () => {
     const url = buildSearchUrl(buildInSetQuery(['CMM']), 1, { unique: 'cards' });
     expect(url).toContain('unique=cards');
-    expect(url).toContain('in%3Acmm');
-    expect(url).toContain('set%3Acmm');
+    expect(searchQuery(url)).toBe('((in:cmm OR set:cmm)) game:paper');
   });
 
   it('builds exact-name printings search', () => {
     const url = buildPrintingsSearchUrl('Sol Ring');
     expect(url).toContain('unique=prints');
-    expect(url).toMatch(/q=%21%22Sol[+%20]Ring%22/);
+    expect(searchQuery(url)).toBe('(!"Sol Ring") game:paper');
   });
 
   it('builds printings search with set: clauses', () => {
     const url = buildPrintingsSearchUrl('Forest', 1, { setCodes: ['UNF', 'sld'] });
     expect(url).toContain('unique=prints');
-    expect(decodeURIComponent(new URL(url).searchParams.get('q') || '')).toBe(
-      '!"Forest" (set:unf OR set:sld)',
-    );
+    expect(searchQuery(url)).toBe('(!"Forest" (set:unf OR set:sld)) game:paper');
   });
 });
 
@@ -98,6 +120,7 @@ describe('scoped syntax queries', () => {
     expect(queries.length).toBeGreaterThan(1);
     for (const q of queries) {
       expect(q.length).toBeLessThanOrEqual(SCRYFALL_Q_MAX);
+      expect(withPaperGameQuery(q).length).toBeLessThanOrEqual(SCRYFALL_Q_MAX);
       expect(q.startsWith('(t:creature) (')).toBe(true);
       expect(q.endsWith(')')).toBe(true);
     }
@@ -153,6 +176,7 @@ describe('fetchSyntaxMembership', () => {
       const q = new URL(String(url)).searchParams.get('q') || '';
       expect(q).toContain('t:instant');
       expect(q).toContain('oracleid:oracle-ponder');
+      expect(q).toContain('game:paper');
       expect(q).not.toContain('!"Ponder"');
       return {
         ok: true,
@@ -190,6 +214,7 @@ describe('fetchSyntaxMembership', () => {
       expect(String(url)).toContain('/cards/search');
       const q = new URL(String(url)).searchParams.get('q') || '';
       expect(q).toContain('!"Ponder"');
+      expect(q).toContain('game:paper');
       return {
         ok: true,
         json: async () => ({
@@ -252,6 +277,7 @@ describe('fetchInSetMembership', () => {
       });
 
     const first = await fetchInSetMembership('cmm', { fetchImpl, delayMs: 0 });
+    expect(searchQuery(String(fetchImpl.mock.calls[0]![0]))).toContain('game:paper');
     expect(first.has('sol ring')).toBe(true);
     expect(first.has('ponder')).toBe(true);
     expect(first.has('delver of secrets')).toBe(true);
@@ -332,6 +358,7 @@ describe('searchCards / fetchPrintings', () => {
     const page = await searchCards('sol ring', 1, { fetchImpl });
     expect(page.data).toHaveLength(1);
     expect(page.data[0].name).toBe('Sol Ring');
+    expect(searchQuery(String(fetchImpl.mock.calls[0]![0]))).toBe('(sol ring) game:paper');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -381,6 +408,7 @@ describe('searchCards / fetchPrintings', () => {
     expect(page.next_page).toContain('page=2');
     expect(String(fetchImpl.mock.calls[0]![0])).toContain('unique=prints');
     expect(String(fetchImpl.mock.calls[0]![0])).toContain('order=released');
+    expect(searchQuery(String(fetchImpl.mock.calls[0]![0]))).toBe('(!"Forest") game:paper');
   });
 
   it('fetchPrintingsPage page 2 hits page query param', async () => {

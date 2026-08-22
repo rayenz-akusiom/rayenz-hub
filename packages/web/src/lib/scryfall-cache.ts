@@ -1,3 +1,5 @@
+import { buildPrintingsSearchUrl } from '@rayenz-hub/shared';
+
 const printCache: Record<string, unknown[]> = {};
 
 export async function fetchPrintings(
@@ -9,11 +11,7 @@ export async function fetchPrintings(
   if (printCache[cacheKey]) {
     return printCache[cacheKey];
   }
-  const url =
-    'https://api.scryfall.com/cards/search?q=' +
-    encodeURIComponent('!"' + cardName + '"') +
-    '&unique=prints&order=released';
-  const resp = await fetch(url);
+  const resp = await fetch(buildPrintingsSearchUrl(cardName));
   if (!resp.ok) {
     if (opts.defaultScryfallId) {
       const single = await fetch('https://api.scryfall.com/cards/' + opts.defaultScryfallId);

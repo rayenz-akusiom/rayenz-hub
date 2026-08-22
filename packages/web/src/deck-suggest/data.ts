@@ -3,6 +3,7 @@ import {
   maybeAttachScryfallTags,
   SET_POOL_FORMAT_VERSION,
   SCRYFALL_SUGGEST_POOL_FILTERS,
+  withPaperGameQuery,
   type DeckSummary,
 } from '@rayenz-hub/shared';
 import {
@@ -111,7 +112,9 @@ export async function fetchSetPool(
       const url =
         'https://api.scryfall.com/cards/search?q=' +
         encodeURIComponent(
-          `set:${code.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+          withPaperGameQuery(
+            `set:${code.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+          ),
         ) +
         '&order=name&page=' +
         page;

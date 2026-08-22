@@ -61,6 +61,7 @@ export function BasicLandsPanel({
   onClose: () => void;
 }) {
   const [picker, setPicker] = useState<PickerMode | null>(null);
+  const [pickerSetCodes, setPickerSetCodes] = useState<string[]>([]);
   const stacks = useMemo(() => listBasicLandStacks(deck), [deck]);
   const types = useMemo(() => basicLandTypesForPanel(deck), [deck]);
   const grandTotal = typeTotal(stacks);
@@ -238,6 +239,8 @@ export function BasicLandsPanel({
           proxyDefault={picker.kind === 'change' ? Boolean(picker.card.proxy) : false}
           confirmLabel={picker.kind === 'add' ? 'Add printing' : 'Apply printing'}
           title={`${picker.kind === 'add' ? 'Add' : 'Change'} printing — ${picker.cardName}`}
+          setCodes={pickerSetCodes}
+          onSetCodesChange={setPickerSetCodes}
           onClose={() => setPicker(null)}
           onConfirm={onPickerConfirm}
         />

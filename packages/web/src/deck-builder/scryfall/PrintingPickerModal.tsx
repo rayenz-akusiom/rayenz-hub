@@ -5,6 +5,7 @@ import {
   fetchCardById,
   fetchPrintingsPage,
   mapScryfallCardToPrinting,
+  normalizeSetCodes,
   printingSupportsFoil,
   scryfallCardImageUrl,
   scryfallImageFromId,
@@ -47,6 +48,8 @@ export function PrintingPickerModal({
   defaultCategory,
   confirmLabel = 'Apply',
   title,
+  setCodes: setCodesProp,
+  onSetCodesChange,
   onConfirm,
   onClose,
   onBack,
@@ -62,6 +65,9 @@ export function PrintingPickerModal({
   defaultCategory?: string;
   confirmLabel?: string;
   title?: string;
+  /** Applied set-code filter (Basics panel lifts this across land types). */
+  setCodes?: string[];
+  onSetCodesChange?: (codes: string[]) => void;
   onConfirm: (
     printing: PrintingFields,
     category?: string,
@@ -72,6 +78,9 @@ export function PrintingPickerModal({
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
 }) {
+  const initialCodes = normalizeSetCodes(setCodesProp);
+  const [codesInput, setCodesInput] = useState(() => initialCodes.join(','));
+  const [appliedCodes, setAppliedCodes] = useState<string[]>(() => initialCodes);
   const [prints, setPrints] = useState<ScryfallCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);
@@ -90,6 +99,14 @@ export function PrintingPickerModal({
   const loadingMoreRef = useRef(false);
   const nextPageRef = useRef<string | null>(null);
   nextPageRef.current = nextPage;
+  const filterActive = appliedCodes.length > 0;
+
+  function commitSetCodes(codes: string[]) {
+    const next = normalizeSetCodes(codes);
+    setCodesInput(next.join(','));
+    setAppliedCodes(next);
+    onSetCodesChange?.(next);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -102,12 +119,13 @@ export function PrintingPickerModal({
     setNextPage(null);
     setPicked(null);
 
-    const pinId = selectedScryfallId || defaultScryfallId || null;
+    const pinId = filterActive ? null : selectedScryfallId || defaultScryfallId || null;
 
     void (async () => {
       try {
         const page1 = await fetchPrintingsPage(cardName, 1, {
-          defaultScryfallId: defaultScryfallId,
+          defaultScryfallId: filterActive ? null : defaultScryfallId,
+          setCodes: appliedCodes,
         });
         if (cancelled) return;
 
@@ -122,9 +140,13 @@ export function PrintingPickerModal({
         setPrints(list);
         setHasMore(page1.has_more);
         setNextPage(page1.next_page);
-        setPicked(preferPicked(list, selectedScryfallId, defaultScryfallId));
+        setPicked(
+          filterActive
+            ? list[0] || null
+            : preferPicked(list, selectedScryfallId, defaultScryfallId),
+        );
         if (!list.length) {
-          setError('No printings found.');
+          setError(filterActive ? 'No printings in those sets.' : 'No printings found.');
         }
       } catch (err: unknown) {
         if (cancelled) return;
@@ -137,7 +159,7 @@ export function PrintingPickerModal({
     return () => {
       cancelled = true;
     };
-  }, [cardName, defaultScryfallId, selectedScryfallId]);
+  }, [cardName, defaultScryfallId, selectedScryfallId, appliedCodes, filterActive]);
 
   const loadMore = useCallback(async () => {
     const url = nextPageRef.current;
@@ -219,6 +241,46 @@ export function PrintingPickerModal({
             Close
           </button>
         </div>
+      </div>
+
+      <div className="db-picker-set-filter">
+        <label>
+          Set codes
+          <input
+            className="db-input"
+            type="text"
+            value={codesInput}
+            placeholder="unf, sld"
+            aria-label="Set codes"
+            spellCheck={false}
+            autoCapitalize="characters"
+            onChange={(e) => setCodesInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitSetCodes(normalizeSetCodes(codesInput));
+              }
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="db-btn"
+          disabled={loading}
+          aria-label="Apply set filter"
+          onClick={() => commitSetCodes(normalizeSetCodes(codesInput))}
+        >
+          Apply
+        </button>
+        <button
+          type="button"
+          className="db-btn"
+          disabled={loading || (!codesInput.trim() && !filterActive)}
+          aria-label="Clear set filter"
+          onClick={() => commitSetCodes([])}
+        >
+          Clear
+        </button>
       </div>
 
       <div className="db-picker-scroll" ref={scrollRef}>

@@ -2810,8 +2810,30 @@ body,
 }
 
 .db-modal-picker > .db-picker-header,
+.db-modal-picker > .db-picker-set-filter,
 .db-modal-picker > .db-modal-actions {
   flex-shrink: 0;
+}
+
+.db-picker-set-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.db-picker-set-filter label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  flex: 1 1 12rem;
+  min-width: 8rem;
+}
+
+.db-picker-set-filter input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .db-picker-scroll {

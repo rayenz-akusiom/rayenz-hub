@@ -189,10 +189,20 @@ export function buildSearchUrl(
   return url.toString();
 }
 
-export function buildPrintingsSearchUrl(cardName: string, page = 1): string {
+function printingsSetClause(setCodes: string[] | string | null | undefined): string {
+  const codes = normalizeSetCodes(setCodes);
+  if (!codes.length) return '';
+  return ` (${codes.map((c) => `set:${c.toLowerCase()}`).join(' OR ')})`;
+}
+
+export function buildPrintingsSearchUrl(
+  cardName: string,
+  page = 1,
+  opts?: { setCodes?: string[] | string | null },
+): string {
   const name = String(cardName || '').trim();
   const url = new URL(`${SCYFALL_API}/cards/search`);
-  url.searchParams.set('q', `!"${name}"`);
+  url.searchParams.set('q', `!"${name}"${printingsSetClause(opts?.setCodes)}`);
   url.searchParams.set('unique', 'prints');
   url.searchParams.set('order', 'released');
   if (page > 1) url.searchParams.set('page', String(page));
@@ -715,6 +725,7 @@ export async function fetchPrintingsPage(
     fetchImpl?: typeof fetch;
     delayMs?: number;
     defaultScryfallId?: string | null;
+    setCodes?: string[] | string | null;
   },
 ): Promise<ScryfallSearchPage> {
   const name = String(cardName || '').trim();
@@ -723,18 +734,23 @@ export async function fetchPrintingsPage(
   }
   const fetchImpl = opts?.fetchImpl || fetch;
   const pageNum = Math.max(1, Math.floor(Number(page) || 1));
+  const setCodes = normalizeSetCodes(opts?.setCodes);
   if (pageNum > 1) {
     await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
   }
-  const res = await fetchImpl(buildPrintingsSearchUrl(name, pageNum), {
+  const res = await fetchImpl(buildPrintingsSearchUrl(name, pageNum, { setCodes }), {
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
-    if (pageNum === 1 && opts?.defaultScryfallId) {
-      const one = await fetchCardById(opts.defaultScryfallId, { fetchImpl });
+    const allowPinFallback = pageNum === 1 && Boolean(opts?.defaultScryfallId) && !setCodes.length;
+    if (allowPinFallback) {
+      const one = await fetchCardById(opts!.defaultScryfallId!, { fetchImpl });
       if (one) {
         return { data: [one], has_more: false, next_page: null };
       }
+    }
+    if (res.status === 404) {
+      return { data: [], has_more: false, next_page: null };
     }
     throw await parseError(res, `Scryfall lookup failed for ${name}`);
   }

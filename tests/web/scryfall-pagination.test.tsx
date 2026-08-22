@@ -188,6 +188,88 @@ describe('PrintingPickerModal pagination', () => {
     );
     expect(fetchCardById).toHaveBeenCalledWith('sf-pinned');
   });
+
+  it('refetches printings when set codes are applied and cleared', async () => {
+    const user = userEvent.setup();
+    const onSetCodesChange = vi.fn();
+    fetchPrintingsPage.mockImplementation(async (_name, _page, opts?: { setCodes?: string[] }) => {
+      const codes = opts?.setCodes || [];
+      if (codes.includes('UNF')) {
+        return { data: [page2Print], has_more: false, next_page: null };
+      }
+      return { data: [page1Print], has_more: false, next_page: null };
+    });
+
+    render(
+      <PrintingPickerModal
+        cardName="Forest"
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+        onSetCodesChange={onSetCodesChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /LEA #294/i })).toBeInTheDocument();
+    });
+    expect(fetchPrintingsPage).toHaveBeenCalledWith('Forest', 1, {
+      defaultScryfallId: null,
+      setCodes: [],
+    });
+
+    await user.type(screen.getByLabelText('Set codes'), 'unf');
+    await user.click(screen.getByRole('button', { name: 'Apply set filter' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /UNF #262/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('option', { name: /LEA #294/i })).not.toBeInTheDocument();
+    expect(onSetCodesChange).toHaveBeenCalledWith(['UNF']);
+    expect(fetchPrintingsPage).toHaveBeenCalledWith('Forest', 1, {
+      defaultScryfallId: null,
+      setCodes: ['UNF'],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Clear set filter' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /LEA #294/i })).toBeInTheDocument();
+    });
+    expect(onSetCodesChange).toHaveBeenCalledWith([]);
+    expect(fetchPrintingsPage).toHaveBeenLastCalledWith('Forest', 1, {
+      defaultScryfallId: null,
+      setCodes: [],
+    });
+  });
+
+  it('loads with host setCodes and does not pin a printing from another set', async () => {
+    fetchPrintingsPage.mockResolvedValue({
+      data: [page2Print],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <PrintingPickerModal
+        cardName="Forest"
+        setCodes={['UNF']}
+        selectedScryfallId="sf-pinned"
+        defaultScryfallId="sf-pinned"
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /UNF #262/i })).toBeInTheDocument();
+    });
+    expect(fetchPrintingsPage).toHaveBeenCalledWith('Forest', 1, {
+      defaultScryfallId: null,
+      setCodes: ['UNF'],
+    });
+    expect(fetchCardById).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Set codes')).toHaveValue('UNF');
+  });
 });
 
 describe('ScryfallSearchModal infinite scroll', () => {

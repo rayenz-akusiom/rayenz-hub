@@ -71,6 +71,14 @@ describe('scryfall URL builders', () => {
     expect(url).toContain('unique=prints');
     expect(url).toMatch(/q=%21%22Sol[+%20]Ring%22/);
   });
+
+  it('builds printings search with set: clauses', () => {
+    const url = buildPrintingsSearchUrl('Forest', 1, { setCodes: ['UNF', 'sld'] });
+    expect(url).toContain('unique=prints');
+    expect(decodeURIComponent(new URL(url).searchParams.get('q') || '')).toBe(
+      '!"Forest" (set:unf OR set:sld)',
+    );
+  });
 });
 
 describe('scoped syntax queries', () => {
@@ -382,6 +390,43 @@ describe('searchCards / fetchPrintings', () => {
     }));
     await fetchPrintingsPage('Forest', 2, { fetchImpl, delayMs: 0 });
     expect(String(fetchImpl.mock.calls[0]![0])).toContain('page=2');
+  });
+
+  it('fetchPrintingsPage passes set codes into the search URL', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [sampleCard], has_more: false, next_page: null }),
+    }));
+    await fetchPrintingsPage('Forest', 1, { fetchImpl, setCodes: ['UNF'] });
+    expect(String(fetchImpl.mock.calls[0]![0])).toContain('set%3Aunf');
+  });
+
+  it('fetchPrintingsPage returns empty on 404 when set-filtered', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    const page = await fetchPrintingsPage('Forest', 1, {
+      fetchImpl,
+      setCodes: ['zzz'],
+      defaultScryfallId: 'sf-sol',
+    });
+    expect(page.data).toEqual([]);
+    expect(page.has_more).toBe(false);
+    expect(page.next_page).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetchPrintingsPage treats unfiltered 404 as empty when nothing to pin', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    const page = await fetchPrintingsPage('Forest', 1, { fetchImpl });
+    expect(page.data).toEqual([]);
+    expect(page.has_more).toBe(false);
   });
 
   it('fetchCardById returns a card or null', async () => {

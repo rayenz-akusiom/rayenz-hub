@@ -1051,11 +1051,6 @@
 
    /* .dr-swap-pair mobile — see hub-mtg-ui.css */
 
-   .dr-never-btn {
-      font-size: 0.7rem;
-      padding: 4px 6px;
-   }
-
    .dr-suggestion-card {
       padding-left: 16px;
       padding-right: 16px;
@@ -1268,12 +1263,6 @@
    .dr-swap-summaries {
       grid-template-columns: 1fr;
    }
-}
-
-.dr-never-btn {
-   width: 100%;
-   font-size: 0.78rem;
-   padding: 6px 10px;
 }
 
 .dr-profile-status,

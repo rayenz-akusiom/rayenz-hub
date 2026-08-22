@@ -42,6 +42,11 @@
    color: #4a5568;
 }
 
+.or-status-slot {
+   margin: 0 20px 0;
+   max-width: 960px;
+}
+
 .or-body {
    width: 100%;
    max-width: 960px;

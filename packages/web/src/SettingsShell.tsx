@@ -5,6 +5,7 @@ import { DeckSuggestSettingsPage } from './pages/DeckSuggestSettingsPage';
 import { HubInvitesPage } from './pages/HubInvitesPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 import { SwapQueueSettingsPage } from './pages/SwapQueueSettingsPage';
+import { OrderReconcileSettingsPage } from './pages/OrderReconcileSettingsPage';
 import { navigateHub } from './lib/hub-storage';
 import {
   HUB_AUTH_CHANGED_EVENT,
@@ -111,6 +112,9 @@ export function SettingsShell({ tab: tabProp }: { tab?: SettingsTab } = {}) {
               </section>
               <section className="hub-web-swimlane">
                 <SwapQueueSettingsPage />
+              </section>
+              <section className="hub-web-swimlane">
+                <OrderReconcileSettingsPage />
               </section>
             </div>
           ) : (

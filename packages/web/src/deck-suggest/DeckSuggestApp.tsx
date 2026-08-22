@@ -475,6 +475,16 @@ export function DeckSuggestApp() {
                 <div className="dr-chrome-actions">
                   <button
                     type="button"
+                    className="dr-btn dr-btn-primary"
+                    id="ds-generate"
+                    disabled={!readiness.ok || suggest.generating}
+                    title={!readiness.ok ? blockedReason : ''}
+                    onClick={() => void handleGenerate()}
+                  >
+                    Generate
+                  </button>
+                  <button
+                    type="button"
                     className="dr-btn dr-btn-ghost"
                     id="ds-upload-btn"
                     onClick={() => fileInputRef.current?.click()}
@@ -495,16 +505,6 @@ export function DeckSuggestApp() {
                       e.target.value = '';
                     }}
                   />
-                  <button
-                    type="button"
-                    className="dr-btn dr-btn-primary"
-                    id="ds-generate"
-                    disabled={!readiness.ok || suggest.generating}
-                    title={!readiness.ok ? blockedReason : ''}
-                    onClick={() => void handleGenerate()}
-                  >
-                    Generate
-                  </button>
                 </div>
               )}
             </header>

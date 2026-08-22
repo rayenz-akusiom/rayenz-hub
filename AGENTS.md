@@ -55,7 +55,7 @@ Reports land under `coverage/` (gitignored). Gate → `coverage/web-gate/`; full
 3. Prefer exercising real child components with tiny fixtures; mock a child only when it pulls an entire subsystem.
 4. Cover at least: empty/loading/error, primary happy path, and one settings/API-off vs API-on branch per major app.
 5. HubShell may still mock app children when testing chrome alone; app-level suites must import the real `*App` under test.
-6. If a control moved into an overflow menu, query `menuitem` after opening the named trigger (`Deck actions`, `Swap Queue actions`), not a top-level `button`.
+6. If a control moved into an overflow menu, query `menuitem` after opening the named trigger (`Deck actions`, `Swap Queue actions`, Suggest `More`), not a top-level `button`.
 
 ### Where to put tests
 
@@ -83,7 +83,7 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 4. **Mock heavy children when testing shells** — e.g. `HubShell` should mock `DeckBuilderApp` / `OrderReconcileApp` / etc. so coverage stays focused and tests stay fast.
 5. **Reset storage and hub globals** between tests — use `resetHubModules`, `resetHubGlobalsInstalled`, `installHubGlobals` from existing helpers.
 6. **Extend existing suites** before adding parallel files for the same module.
-7. **RTL:** query by role/label; use `user-event` for clicks; assert visible outcomes. Overflow actions are `menuitem`s after opening `Deck actions` / `Swap Queue actions`.
+7. **RTL:** query by role/label; use `user-event` for clicks; assert visible outcomes. Overflow actions are `menuitem`s after opening `Deck actions` / `Swap Queue actions` / Suggest `More`.
 8. **Keep fixtures small** — reuse `tests/fixtures/` slices; do not snapshot entire Scryfall dumps into unit tests.
 
 ### Best practices (don't)
@@ -144,9 +144,10 @@ Packing algorithms: [`docs/glance-layout.md`](docs/glance-layout.md). Scoped Cur
 
 Scoped rule: [`.cursor/rules/hub-spa-chrome.mdc`](.cursor/rules/hub-spa-chrome.mdc). Sticky / progress details: [`.cursor/rules/hub-sticky-header.mdc`](.cursor/rules/hub-sticky-header.mdc), [`.cursor/rules/hub-progress-bar.mdc`](.cursor/rules/hub-progress-bar.mdc).
 
-- Shared chrome: `.hub-sticky-chrome`, `.hub-progress-host`, `--hub-*` / `.hub-btn` aliases, `DbMenu`, `FiltersMenu`, `ActiveFilterChips`, `CardSizePicker`.
+- Shared chrome: `.hub-sticky-chrome`, `.hub-progress-host`, `--hub-*` / `.hub-btn` aliases, `DbMenu`, `FiltersMenu`, `ActiveFilterChips`, `CardSizePicker`. One status slot under sticky chrome (do not stack muted/warn/error lines).
 - Primary strip = view / layout / sort / filters / size. Secondary actions (Categories, Basics, Trim, Glance, export) go in the overflow (`DeckActionsMenu` / hamburger).
 - Empty states: `.db-empty-state` (or `.hub-empty`) with a short explanation and one CTA. Do not also show an identical FAB while that CTA is visible.
+- Wishlist is a named Swap Queue mode (`#/wishlist`); Swap Queue nav stays active. Keep share URLs.
 - Settings should use `--hub-accent`, not a second blue. Do not restyle Dailies to match MTG.
 - Do not start Hub UI work with dark mode, `dr-*`/`or-*` renames, or `position: fixed` headers.
 

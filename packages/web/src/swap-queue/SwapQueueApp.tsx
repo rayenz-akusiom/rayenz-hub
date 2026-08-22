@@ -100,6 +100,32 @@ const LAYOUT_LABELS: Record<SwapQueueLayoutMode, string> = {
   grid: 'Grid',
 };
 
+function SqStatusSlot({
+  error,
+  apiWarning,
+  filterError,
+  status,
+  loadingFilters,
+}: {
+  error: string;
+  apiWarning: string;
+  filterError: string;
+  status: string;
+  loadingFilters: boolean;
+}) {
+  const text =
+    error || filterError || apiWarning || (loadingFilters ? 'Loading filters…' : '') || status;
+  if (!text) return null;
+  const kind = error || filterError ? 'error' : apiWarning ? 'warn' : 'muted';
+  const className =
+    kind === 'error' ? 'hub-banner-error' : kind === 'warn' ? 'hub-warn' : 'hub-muted';
+  return (
+    <p className={`sq-status-slot ${className}`} role={kind === 'error' ? 'alert' : 'status'}>
+      {text}
+    </p>
+  );
+}
+
 function HamburgerIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -1103,6 +1129,15 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     ['--db-swap-card-w']: `${cardWidthPx}px`,
   } as CSSProperties;
 
+  function switchQueueMode(next: SwapQueueEntryPath) {
+    if (next === entryPath) return;
+    navigateHub(swapQueueHash(routeUserSlug, next));
+  }
+
+  const queueTitle = entryPath === 'wishlist' ? 'Wishlist' : 'Swap Queue';
+  const titlePerson = shareUsername || routeUserSlug;
+  const filterError = setFilter.error || syntaxFilter.error || '';
+
   return (
     <div
       className="hub-app swap-queue-app"
@@ -1114,15 +1149,33 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     >
       <div className="hub-sticky-chrome">
         <div className="sq-chrome-title">
-          <h1>{readOnly && (shareUsername || routeUserSlug)
-            ? `${shareUsername || routeUserSlug}'s Swap Queue`
-            : 'Swap Queue'}</h1>
+          <div className="sq-title-row">
+            <h1>{readOnly && titlePerson ? `${titlePerson}'s ${queueTitle}` : queueTitle}</h1>
+            <div className="sq-mode" role="group" aria-label="Queue mode">
+              <button
+                type="button"
+                className={`sq-mode-btn${entryPath === 'swap-queue' ? ' is-active' : ''}`}
+                aria-pressed={entryPath === 'swap-queue'}
+                onClick={() => switchQueueMode('swap-queue')}
+              >
+                Swap Queue
+              </button>
+              <button
+                type="button"
+                className={`sq-mode-btn${entryPath === 'wishlist' ? ' is-active' : ''}`}
+                aria-pressed={entryPath === 'wishlist'}
+                onClick={() => switchQueueMode('wishlist')}
+              >
+                Wishlist
+              </button>
+            </div>
+          </div>
           <p className="hub-muted">
             {readOnly
               ? 'Read-only view of Seeking, Queued In, and Out.'
-              : `Manage your swap queues across all of your decks${
-                  entryPath === 'wishlist' ? ' (Wishlist alias)' : ''
-                }.`}
+              : entryPath === 'wishlist'
+                ? 'Same Seeking, Queued In, and Out queues, shown as a grid by default.'
+                : 'Manage Seeking, Queued In, and Out across your decks.'}
           </p>
         </div>
 
@@ -1219,15 +1272,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       </div>
 
       <div className="sq-body">
-      {status ? <p className="hub-muted" role="status">{status}</p> : null}
-      {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
-      {setFilter.error ? <p className="hub-banner-error">{setFilter.error}</p> : null}
-      {syntaxFilter.error ? <p className="hub-banner-error">{syntaxFilter.error}</p> : null}
-      {setFilter.loading || syntaxFilter.loading ? (
-        <p className="hub-muted">Loading filters…</p>
-      ) : null}
-      {error ? <p className="hub-banner-error">{error}</p> : null}
-      {loading ? <p className="hub-muted">Loading library…</p> : null}
+      <SqStatusSlot
+        error={error}
+        apiWarning={apiWarning}
+        filterError={filterError}
+        status={status}
+        loadingFilters={setFilter.loading || syntaxFilter.loading}
+      />
 
       {!loading && !error && !hasAny ? (
         <div className="db-empty-state" data-testid="swap-queue-empty">

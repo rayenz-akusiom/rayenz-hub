@@ -9,8 +9,8 @@
   position: relative;
   height: 100%;
   min-height: 100%;
-  background: #f4f4f5;
-  color: #1a202c;
+  background: var(--hub-bg, #f4f6f8);
+  color: var(--hub-ink, #1a1f24);
 }
 
 .hub-legacy-root,
@@ -27,8 +27,8 @@
   max-width: 48rem;
   margin: 0 auto;
   padding: 1.25rem 1rem 2.5rem;
-  color: #18181b;
-  background: #f4f4f5;
+  color: var(--hub-ink, #1a1f24);
+  background: var(--hub-bg, #f4f6f8);
 }
 
 .hub-web-page {
@@ -51,9 +51,9 @@
 
 .hub-web-swimlane {
   padding: 1rem 1.1rem 1.15rem;
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--hub-border, #d0d7de);
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--hub-panel, #fff);
 }
 
 .hub-web-swimlane .hub-web-page--tab {
@@ -72,13 +72,13 @@
 
 .hub-web-lead {
   margin: 0;
-  color: #52525b;
+  color: var(--hub-muted, #5c6770);
   font-size: 0.95rem;
 }
 
 .hub-web-hint {
   margin: 0.35rem 0 0.75rem;
-  color: #71717a;
+  color: var(--hub-muted, #5c6770);
   font-size: 0.85rem;
 }
 
@@ -87,7 +87,7 @@
   flex-wrap: wrap;
   gap: 0.35rem;
   margin: 1.25rem 0 0.75rem;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--hub-border, #d0d7de);
   padding-bottom: 0.5rem;
 }
 
@@ -96,7 +96,7 @@
   border: 1px solid transparent;
   border-radius: 0.375rem;
   background: transparent;
-  color: #52525b;
+  color: var(--hub-muted, #5c6770);
   font: inherit;
   font-weight: 600;
   font-size: 0.9rem;
@@ -104,20 +104,20 @@
 }
 
 .hub-web-tab:hover {
-  background: #e4e4e7;
-  color: #18181b;
+  background: var(--hub-ghost-bg, #edf2f7);
+  color: var(--hub-ink, #1a1f24);
 }
 
 .hub-web-tab--active {
-  background: #fff;
-  border-color: #d4d4d8;
-  color: #18181b;
+  background: var(--hub-panel, #fff);
+  border-color: var(--hub-border, #d0d7de);
+  color: var(--hub-ink, #1a1f24);
 }
 
 .hub-web-status {
   padding: 1.5rem;
   text-align: center;
-  color: #52525b;
+  color: var(--hub-muted, #5c6770);
 }
 
 .hub-web-banner {
@@ -128,26 +128,26 @@
 }
 
 .hub-web-banner--warn {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--hub-warn-bg, #fff6e0);
+  color: var(--hub-warn-fg, #8a6116);
 }
 
 .hub-web-banner--error {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--hub-error-bg, #fed7d7);
+  color: var(--hub-error-fg, #9b2c2c);
 }
 
 .hub-web-banner--ok {
   background: #dcfce7;
-  color: #166534;
+  color: var(--hub-success, #166534);
 }
 
 .hub-web-form fieldset {
   margin: 1.25rem 0 0;
   padding: 1rem;
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--hub-border, #d0d7de);
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--hub-panel, #fff);
   overflow: visible;
   min-inline-size: 0;
 }
@@ -160,7 +160,7 @@
   margin: 0 0 0.5rem;
   font-weight: 600;
   line-height: 1.3;
-  color: #18181b;
+  color: var(--hub-ink, #1a1f24);
 }
 
 .hub-web-form legend + * {
@@ -206,7 +206,7 @@
   width: 100%;
   margin-top: 0.25rem;
   padding: 0.5rem 0.6rem;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--hub-border, #d0d7de);
   border-radius: 0.375rem;
   font: inherit;
   box-sizing: border-box;
@@ -249,7 +249,7 @@
   padding: 0.6rem 1.1rem;
   border: 0;
   border-radius: 0.375rem;
-  background: #2563eb;
+  background: var(--hub-accent, #1f6feb);
   color: #fff;
   font: inherit;
   font-weight: 600;
@@ -257,8 +257,8 @@
 }
 
 .hub-web-button--secondary {
-  background: #e4e4e7;
-  color: #18181b;
+  background: var(--hub-ghost-bg, #edf2f7);
+  color: var(--hub-ink, #1a1f24);
   margin-right: 0.4rem;
   margin-top: 0.35rem;
 }
@@ -274,7 +274,7 @@
 
 .hub-web-pet-preview img {
   border-radius: 0.5rem;
-  background: #e4e4e7;
+  background: var(--hub-ghost-bg, #edf2f7);
 }
 
 .hub-web-wishlist-actions {
@@ -284,7 +284,7 @@
 .hub-web-wishlist-row {
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #f4f4f5;
+  border-top: 1px solid var(--hub-bg, #f4f6f8);
 }
 
 .hub-web-wishlist-row-actions {

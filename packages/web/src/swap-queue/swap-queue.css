@@ -8,9 +8,43 @@
   padding: 1rem 1.25rem 0.35rem;
 }
 
+.swap-queue-app .sq-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
 .swap-queue-app .sq-chrome-title h1 {
-  margin: 0 0 0.35rem;
+  margin: 0;
   font-size: 1.5rem;
+}
+
+.sq-mode {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.sq-mode-btn {
+  padding: 0.22rem 0.7rem;
+  border: 1px solid var(--hub-border);
+  border-radius: 999px;
+  background: var(--hub-ghost-bg);
+  color: var(--hub-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sq-mode-btn.is-active {
+  background: var(--hub-panel);
+  border-color: var(--hub-accent);
+  color: var(--hub-accent);
+}
+
+.sq-status-slot {
+  margin: 0 0 0.75rem;
 }
 
 .swap-queue-app .sq-body {

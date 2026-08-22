@@ -54,7 +54,7 @@ describe('SwapQueueApp browse / layout', () => {
       expect(screen.getByRole('button', { name: /Browse/i })).toHaveTextContent('Default');
     });
     expect(screen.getByRole('button', { name: /Layout/i })).toHaveTextContent('Tiles');
-    expect(screen.getByText(/Manage your swap queues across all of your decks/)).toBeInTheDocument();
+    expect(screen.getByText(/Manage Seeking, Queued In, and Out across your decks/)).toBeInTheDocument();
   });
 
   it('defaults to Default + Grid for wishlist path', async () => {
@@ -63,6 +63,12 @@ describe('SwapQueueApp browse / layout', () => {
       expect(screen.getByRole('button', { name: /Layout/i })).toHaveTextContent('Grid');
     });
     expect(screen.getByRole('button', { name: /Browse/i })).toHaveTextContent('Default');
+    expect(screen.getByRole('heading', { name: 'Wishlist' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wishlist' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Swap Queue' })).toHaveAttribute('aria-pressed', 'false');
+    expect(
+      screen.getByText(/Same Seeking, Queued In, and Out queues, shown as a grid by default/),
+    ).toBeInTheDocument();
   });
 
   it('Tiles layout shows Swaps + Seeking swimlanes and pair chrome', async () => {

@@ -281,14 +281,17 @@ export function OrderReconcileApp() {
             <header className="or-header">
               <h2>Order Reconcile</h2>
               <div className="or-meta">Match acquired cards to swap queues and Seeking, then save to Hub.</div>
-              {state.statusMessage ? <div className="or-meta">{state.statusMessage}</div> : null}
             </header>
             <div className="hub-progress-host" ref={progressHostRef} id="or-progress-host" />
           </div>
-          {error ? (
-            <div className="or-error" id="or-error">
-              {error}
-            </div>
+          {error || state.statusMessage ? (
+            <p
+              className={error ? 'or-error or-status-slot' : 'hub-muted or-status-slot'}
+              id={error ? 'or-error' : undefined}
+              role={error ? 'alert' : 'status'}
+            >
+              {error || state.statusMessage}
+            </p>
           ) : null}
           <div className="or-body">
             <div id="or-content">

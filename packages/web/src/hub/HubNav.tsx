@@ -7,6 +7,7 @@ type NavItem = {
   path: HubPath;
   label: string;
   prefix?: string;
+  alsoPrefixes?: string[];
   icon: ReactNode;
 };
 
@@ -53,6 +54,7 @@ const MTG: NavItem[] = [
   {
     path: '/swap-queue',
     prefix: '/swap-queue',
+    alsoPrefixes: ['/wishlist'],
     label: 'Swap Queue',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -88,8 +90,11 @@ const MTG: NavItem[] = [
 ];
 
 function linkActive(item: NavItem, path: string): boolean {
-  if (item.prefix) {
-    return path === item.prefix || path.startsWith(`${item.prefix}/`);
+  const prefixes = [item.prefix, ...(item.alsoPrefixes || [])].filter(
+    (p): p is string => Boolean(p),
+  );
+  if (prefixes.length) {
+    return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
   }
   return item.path === path;
 }

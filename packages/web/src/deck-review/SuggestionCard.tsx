@@ -40,6 +40,7 @@ import {
   selectedInCardName,
 } from './profiles';
 import { persistAcceptedSuggestion } from '../deck-suggest/accept';
+import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import type { AcceptKind, ReviewDecision, ScryfallPrint } from './types';
 
 const GROUP_LABELS = {
@@ -446,28 +447,10 @@ export function SuggestionCard({
             <div className="dr-swap-summaries">
               <div className="dr-swap-summary-col">
                 <p className="dr-picker-summary">{printSummaryLabel(printId, prints, suggestion, finish)}</p>
-                <button
-                  type="button"
-                  className="dr-btn dr-btn-ghost dr-never-btn"
-                  disabled={!canWrite}
-                  title={neverBtnTitle}
-                  onClick={() => void handleNever('in')}
-                >
-                  Never suggest again
-                </button>
               </div>
               {!seekingMode ? (
                 <div className="dr-swap-summary-col">
                   <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
-                  <button
-                    type="button"
-                    className="dr-btn dr-btn-ghost dr-never-btn"
-                    disabled={!canNeverOut}
-                    title={neverOutBtnTitle}
-                    onClick={() => void handleNever('out')}
-                  >
-                    Never suggest again
-                  </button>
                 </div>
               ) : null}
             </div>
@@ -505,6 +488,24 @@ export function SuggestionCard({
       <div className="dr-actions-bar">
         {progressLabel && advanceOnAction ? <p className="dr-actions-progress">{progressLabel}</p> : null}
         <div className="dr-actions">
+          <DbMenu label="More" ariaLabel="More" triggerClassName="dr-btn dr-btn-ghost">
+            <DbMenuItem
+              disabled={!canWrite}
+              title={neverBtnTitle}
+              onSelect={() => void handleNever('in')}
+            >
+              Never suggest this card
+            </DbMenuItem>
+            {seekingMode ? null : (
+              <DbMenuItem
+                disabled={!canNeverOut}
+                title={neverOutBtnTitle}
+                onSelect={() => void handleNever('out')}
+              >
+                Never suggest this cut
+              </DbMenuItem>
+            )}
+          </DbMenu>
           <button type="button" className="dr-btn dr-btn-ghost" onClick={() => handleSkipReject('skipped')}>
             Skip
           </button>

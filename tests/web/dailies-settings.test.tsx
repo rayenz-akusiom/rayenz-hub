@@ -104,6 +104,7 @@ describe('SettingsShell', () => {
     });
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Swap Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Order Reconcile' })).toBeInTheDocument();
   });
 
   it('shows Invites when signed in', () => {

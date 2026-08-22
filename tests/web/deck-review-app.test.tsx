@@ -153,6 +153,11 @@ describe('DeckSuggestApp empty state', () => {
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Generate' }).compareDocumentPosition(
+        screen.getByRole('button', { name: 'Upload JSON' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
@@ -327,6 +332,19 @@ describe('DeckSuggestApp suggestion panel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reject' }));
     expect(screen.getAllByText('Rejected').length).toBeGreaterThan(0);
+  });
+
+  it('folds Never suggest under More', async () => {
+    const user = await loadSuggestionsViaUpload(handoffPayload());
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: 'Never suggest again' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitem', { name: 'Never suggest this card' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Never suggest this cut' })).toBeInTheDocument();
   });
 
   it('shows a denser show-all grid of compact suggestion tiles', async () => {

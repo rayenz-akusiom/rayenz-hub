@@ -127,10 +127,10 @@ describe('Pendragon type and commons legality', () => {
 });
 
 describe('Pendragon import remap and unique slots', () => {
-  it('maps Commander / Lieutenant(s) onto Arthur / Excalibur', () => {
+  it('maps Commander onto Arthur and leaves Lieutenants in place', () => {
     expect(remapPendragonImportCategory('Commander', 'pendragon')).toBe('Arthur');
-    expect(remapPendragonImportCategory('Lieutenants', 'pendragon')).toBe('Excalibur');
-    expect(remapPendragonImportCategory('Lieutenant', 'pendragon')).toBe('Excalibur');
+    expect(remapPendragonImportCategory('Lieutenants', 'pendragon')).toBe('Lieutenants');
+    expect(remapPendragonImportCategory('Lieutenant', 'pendragon')).toBe('Lieutenant');
     const remapped = remapPendragonDocumentHeaders(
       DeckDocumentSchema.parse({
         schemaVersion: 1,
@@ -143,7 +143,7 @@ describe('Pendragon import remap and unique slots', () => {
         ],
         cards: [
           card({ instanceId: 'a', name: 'Arthur', primaryCategory: 'Commander' }),
-          card({ instanceId: 'e', name: 'Excalibur', primaryCategory: 'Lieutenants' }),
+          card({ instanceId: 'lt', name: 'Knight', primaryCategory: 'Lieutenants' }),
         ],
         oracle: {},
         formalSwapEntries: [],
@@ -151,8 +151,8 @@ describe('Pendragon import remap and unique slots', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
       }),
     );
-    expect(remapped.cards.map((c) => c.primaryCategory)).toEqual(['Arthur', 'Excalibur']);
-    expect(remapped.categories.map((c) => c.name)).toEqual(['Arthur', 'Excalibur']);
+    expect(remapped.cards.map((c) => c.primaryCategory)).toEqual(['Arthur', 'Lieutenants']);
+    expect(remapped.categories.map((c) => c.name)).toEqual(['Arthur', 'Lieutenants']);
   });
 
   it('displaces the previous unique-slot occupant to Other', () => {

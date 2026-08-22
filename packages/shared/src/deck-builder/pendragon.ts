@@ -115,7 +115,6 @@ export function isPendragonAddLegal(
 export function remapPendragonImportCategory(name: string, format: DeckFormat): string {
   if (format !== 'pendragon') return name;
   if (name === 'Commander') return PENDRAGON_ARTHUR;
-  if (name === 'Lieutenant' || name === 'Lieutenants') return PENDRAGON_EXCALIBUR;
   return name;
 }
 

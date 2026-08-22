@@ -4,7 +4,12 @@ import { categoryIncluded, COMMANDER_DECK_TARGET, sortCategoryKeys } from '../br
 import { canonicalizeCategoryName } from '../category-names.js';
 import { normalizeCardQuantities } from '../quantities.js';
 import { formalSwapInIds, syncCardsWithFormalSwaps } from '../formal-swaps.js';
-import { pickCommanderLeaders, collectCommanderGalleryExtraIds } from '../partner.js';
+import {
+  collectCommanderGalleryExtraIds,
+  isArthurCategory,
+  isExcaliburCategory,
+  pickCommanderLeaders,
+} from '../partner.js';
 import { sortLands, sortNonLands } from './colour-sort.js';
 import { toGlanceCard } from './card-from-instance.js';
 import type {
@@ -44,8 +49,8 @@ function isExcludedFromInclude(
 
 function roleKey(name: string): 'commander' | 'lieutenant' | null {
   const key = canonicalizeCategoryName(name).toLowerCase();
-  if (key === 'commander' || key === 'arthur') return 'commander';
-  if (key === 'lieutenant' || key === 'lieutenants' || key === 'excalibur') return 'lieutenant';
+  if (key === 'commander' || key === 'arthur' || key === 'excalibur') return 'commander';
+  if (key === 'lieutenant' || key === 'lieutenants') return 'lieutenant';
   return null;
 }
 
@@ -76,6 +81,13 @@ function pickCommanderHighlights(
   coverInstanceId?: string | null,
 ): GlanceCard[] {
   const commanders = roleCards(cards, 'commander');
+  const arthur = commanders.find((c) => isArthurCategory(c.primaryCategory));
+  const excalibur = commanders.find((c) => isExcaliburCategory(c.primaryCategory));
+  if (arthur || excalibur) {
+    return [arthur, excalibur]
+      .filter((c): c is GlanceCard => Boolean(c))
+      .slice(0, GLANCE_ROLE_HIGHLIGHT_LIMIT);
+  }
   const leaders = pickCommanderLeaders(commanders, coverInstanceId);
   if (leaders.kind === 'none') return [];
   if (leaders.kind === 'many') {

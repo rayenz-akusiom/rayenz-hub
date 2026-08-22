@@ -6,6 +6,7 @@ import {
 } from '@rayenz-hub/shared';
 import {
   buildEligibleCommanderDeck,
+  buildEligiblePendragonDeck,
   buildGlanceSwapCommanderDeck,
   buildMultiLieutenantCommanderDeck,
 } from '../../fixtures/deck-builder/glance-eligible.ts';
@@ -100,6 +101,22 @@ describe('deck-builder glance roles and quantities', () => {
     expect(include.includeSet.quantitySum).toBe(100);
     expect(include.includeSet.cards.some((c) => c.instanceId === 'swap-in-1')).toBe(true);
     expect(include.includeSet.cards.some((c) => c.instanceId === 'spell-0')).toBe(false);
+  });
+
+  it('highlights Arthur and Excalibur as commanders and Lieutenants as lieutenants', () => {
+    const deck = buildEligiblePendragonDeck();
+    const include = buildGlanceIncludeSet(deck);
+    expect(include.ok).toBe(true);
+    if (!include.ok) return;
+    expect(include.includeSet.commanders.map((c) => c.instanceId)).toEqual(['cmd-1', 'spell-0']);
+    expect(include.includeSet.commanders.map((c) => c.primaryCategory)).toEqual([
+      'Arthur',
+      'Excalibur',
+    ]);
+    expect(include.includeSet.lieutenants.map((c) => c.instanceId)).toEqual(['spell-1', 'spell-2']);
+    expect(include.includeSet.lieutenants.every((c) => c.primaryCategory === 'Lieutenants')).toBe(
+      true,
+    );
   });
 
   it('highlights only the primary printing from a same-name commander gallery', () => {

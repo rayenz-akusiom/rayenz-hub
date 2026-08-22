@@ -421,6 +421,168 @@ describe('DeckHeaderRow', () => {
     expect(screen.getByRole('button', { name: 'Rename Untitled Cube' })).toBeInTheDocument();
   });
 
+  it('fills empty Pendragon lieutenant space with an editable description', () => {
+    const arthur = asHeaderCard({
+      instanceId: 'art-1',
+      name: 'Young Knight',
+      primaryCategory: 'Arthur',
+    });
+    render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{ Arthur: [arthur], Excalibur: [], Lieutenants: [] }}
+        headerKeys={['Arthur']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon Deck"
+      />,
+    );
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+    expect(screen.getByLabelText('Deck description')).toBeInTheDocument();
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+  });
+
+  it('shows Pendragon lieutenants when present', () => {
+    const arthur = asHeaderCard({
+      instanceId: 'art-1',
+      name: 'Young Knight',
+      primaryCategory: 'Arthur',
+    });
+    const lt = asHeaderCard({
+      instanceId: 'lt-1',
+      name: 'Test Lieutenant',
+      primaryCategory: 'Lieutenants',
+    });
+    render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{ Arthur: [arthur], Excalibur: [], Lieutenants: [lt] }}
+        headerKeys={['Arthur', 'Lieutenants']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon With Lieutenants"
+      />,
+    );
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Test Lieutenant/i })).toBeInTheDocument();
+  });
+
+  it('reveals the lieutenant drop target on Pendragon header hover, not Arthur or Excalibur again', () => {
+    const arthur = asHeaderCard({
+      instanceId: 'art-1',
+      name: 'Young Knight',
+      primaryCategory: 'Arthur',
+    });
+    const excalibur = asHeaderCard({
+      instanceId: 'exc-1',
+      name: 'Legendary Sword',
+      primaryCategory: 'Excalibur',
+    });
+    render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{ Arthur: [arthur], Excalibur: [excalibur], Lieutenants: [] }}
+        headerKeys={['Arthur', 'Excalibur']}
+        onDropCard={vi.fn()}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon Hover Deck"
+      />,
+    );
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+
+    const tile = screen.getByRole('button', { name: /Young Knight/i });
+    fireEvent.dragStart(tile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData: vi.fn(),
+        effectAllowed: 'move',
+      },
+    });
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+
+    fireEvent.dragOver(screen.getByLabelText('Deck leaders'), {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    expect(screen.getByText(/Lieutenants/)).toBeInTheDocument();
+    const headerCatTitles = [...document.querySelectorAll('.db-header-cat-title')].map(
+      (el) => el.textContent || '',
+    );
+    expect(headerCatTitles.some((t) => t.includes('Lieutenants'))).toBe(true);
+    expect(headerCatTitles.some((t) => t.includes('Arthur'))).toBe(false);
+    expect(headerCatTitles.some((t) => t.includes('Excalibur'))).toBe(false);
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+
+    fireEvent.dragEnd(tile);
+    expect(screen.queryByText(/Lieutenants/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Deck description')).toBeInTheDocument();
+  });
+
+  it('keeps the Pendragon lieutenant view after a drop into Lieutenants', () => {
+    const arthur = asHeaderCard({
+      instanceId: 'art-1',
+      name: 'Young Knight',
+      primaryCategory: 'Arthur',
+    });
+    const lt = asHeaderCard({
+      instanceId: 'lt-1',
+      name: 'Dropped Lieutenant',
+      primaryCategory: 'Lieutenants',
+    });
+    const onDropCard = vi.fn();
+    const { rerender } = render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{ Arthur: [arthur], Excalibur: [], Lieutenants: [] }}
+        headerKeys={['Arthur']}
+        onDropCard={onDropCard}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon Drop Deck"
+      />,
+    );
+
+    const tile = screen.getByRole('button', { name: /Young Knight/i });
+    fireEvent.dragStart(tile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData: vi.fn(),
+        effectAllowed: 'move',
+      },
+    });
+    fireEvent.dragOver(screen.getByLabelText('Deck leaders'), {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        dropEffect: 'move',
+        setData: vi.fn(),
+        getData: vi.fn(),
+      },
+    });
+    const ltSection = screen.getByText(/Lieutenants/).closest('section')!;
+    fireEvent.drop(ltSection, {
+      dataTransfer: {
+        getData: (type: string) => (type === DRAG_MIME || type === 'text/plain' ? 'art-1' : ''),
+      },
+    });
+    expect(onDropCard).toHaveBeenCalledWith(['art-1'], 'Lieutenants');
+
+    rerender(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{ Arthur: [arthur], Excalibur: [], Lieutenants: [lt] }}
+        headerKeys={['Arthur', 'Lieutenants']}
+        onDropCard={onDropCard}
+        onSetDescription={vi.fn()}
+        deckName="Pendragon Drop Deck"
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Dropped Lieutenant/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+  });
+
   it('fills empty lieutenant space with an editable description', () => {
     const commander = asHeaderCard({
       instanceId: 'cmd-1',

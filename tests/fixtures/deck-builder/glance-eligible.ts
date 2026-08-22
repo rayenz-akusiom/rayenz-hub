@@ -136,6 +136,46 @@ export function buildEligibleCommanderDeck(overrides: Partial<DeckDocument> = {}
   };
 }
 
+/** 100-card Pendragon deck with Arthur, Excalibur, and two Lieutenants. */
+export function buildEligiblePendragonDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
+  const base = buildEligibleCommanderDeck();
+  const cards = base.cards.map((c) => {
+    if (c.instanceId === 'cmd-1') {
+      return { ...c, primaryCategory: 'Arthur', categories: ['Arthur'] };
+    }
+    if (c.instanceId === 'spell-0') {
+      return {
+        ...c,
+        name: 'Excalibur',
+        primaryCategory: 'Excalibur',
+        categories: ['Excalibur'],
+      };
+    }
+    if (c.instanceId === 'spell-1' || c.instanceId === 'spell-2') {
+      return {
+        ...c,
+        name: c.instanceId === 'spell-1' ? 'Lieutenant 1' : 'Lieutenant 2',
+        primaryCategory: 'Lieutenants',
+        categories: ['Lieutenants'],
+      };
+    }
+    return { ...c };
+  });
+  return buildEligibleCommanderDeck({
+    ...base,
+    format: 'pendragon',
+    deckId: 'glance-pendragon',
+    categories: [
+      { name: 'Arthur', includedInDeck: true, includedInPrice: true },
+      { name: 'Excalibur', includedInDeck: true, includedInPrice: true },
+      { name: 'Lieutenants', includedInDeck: true, includedInPrice: true },
+      ...base.categories.filter((c) => c.name !== 'Commander'),
+    ],
+    cards,
+    ...overrides,
+  });
+}
+
 /** 100-card deck whose lieutenant count exceeds the glance highlight limit. */
 export function buildMultiLieutenantCommanderDeck(
   lieutenantCount = 4,

@@ -38,6 +38,7 @@ import {
   categoryKeySortFor,
   DECK_DESCRIPTION_SPLIT_MIN_REM,
   headerRemainderMode,
+  isCommandZoneFormat,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
@@ -943,12 +944,9 @@ export function DeckHeaderRow({
   const arthur = (header['Arthur'] || [])[0] ?? null;
   const excalibur = (header['Excalibur'] || [])[0] ?? null;
   const headerDragHover = useDeckBuilderHeaderDragHover(leadersRef);
-  const remainderLeaderCount =
-    format === 'commander'
-      ? lieutenants.length
-      : format === 'pendragon'
-        ? 0
-        : headerKeys.reduce((n, key) => n + (header[key]?.length || 0), 0);
+  const remainderLeaderCount = isCommandZoneFormat(format)
+    ? lieutenants.length
+    : headerKeys.reduce((n, key) => n + (header[key]?.length || 0), 0);
   const showDescription = Boolean(onSetDescription) || Boolean(description.trim());
   const showRemainderLeaders = remainderLeaderCount > 0 || headerDragHover;
   const needsRemainder = showRemainderLeaders || showDescription;
@@ -1004,7 +1002,7 @@ export function DeckHeaderRow({
 
   const leaderSections = (contentSized: boolean) => {
     const slotClass = `db-header-slot${contentSized ? ' is-leaders-content' : ' is-lieutenants'}`;
-    if (format === 'commander') {
+    if (isCommandZoneFormat(format)) {
       return <div className={slotClass}>{dropSection('Lieutenants', lieutenants)}</div>;
     }
     if (!headerKeys.length) return null;
@@ -1094,7 +1092,7 @@ export function DeckHeaderRow({
 
   if (!deckName && !slots) return null;
 
-  const leadersTabLabel = format === 'commander' ? 'Lieutenants' : 'Leaders';
+  const leadersTabLabel = isCommandZoneFormat(format) ? 'Lieutenants' : 'Leaders';
 
   return (
     <div className="db-deck-leaders" ref={leadersRef} aria-label="Deck leaders">

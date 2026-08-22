@@ -93,7 +93,6 @@ function LibraryGrid({
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 onContextMenu={(e) => {
-                  if (isSample) return;
                   e.preventDefault();
                   onContextMenu(d, e.clientX, e.clientY);
                 }}
@@ -174,9 +173,12 @@ export function FormatFilteredLibrary({
   sampleDeck = null,
   loading,
   error,
+  atDeckCap = false,
+  capMessage,
   onOpen,
   onAdd,
   onDelete,
+  onDuplicate,
   onSetOwnership,
   onSetVisibility,
   onRefreshRemote,
@@ -189,9 +191,12 @@ export function FormatFilteredLibrary({
   sampleDeck?: DeckSummary | null;
   loading?: boolean;
   error?: string | null;
+  atDeckCap?: boolean;
+  capMessage?: string;
   onOpen: (deckId: string) => void;
   onAdd: () => void;
   onDelete: (deckId: string) => void;
+  onDuplicate?: (deckId: string) => void;
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
   onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
   onRefreshRemote?: () => void;
@@ -260,6 +265,18 @@ export function FormatFilteredLibrary({
 
   const showEmptyOnboarding = !decks.length;
   const showSample = Boolean(sampleDeck && showEmptyOnboarding);
+  const addDisabled = atDeckCap;
+
+  function openOwnershipMenu(d: DeckSummary, x: number, y: number) {
+    setMenu({
+      x,
+      y,
+      deckId: d.deckId,
+      current: deckOwnership(d),
+      visibility: deckVisibility(d),
+      isSample: sampleIds.has(d.deckId),
+    });
+  }
 
   return (
     <div className="db-library" style={libraryStyle}>
@@ -274,12 +291,19 @@ export function FormatFilteredLibrary({
               Sync from API
             </button>
           ) : null}
-          <button type="button" className="db-btn is-active" onClick={onAdd}>
+          <button
+            type="button"
+            className={`db-btn${addDisabled ? '' : ' is-active'}`}
+            onClick={onAdd}
+            disabled={addDisabled}
+            title={addDisabled ? capMessage : undefined}
+          >
             {addLabel}
           </button>
         </div>
       </header>
       {error ? <p className="db-error">{error}</p> : null}
+      {atDeckCap && capMessage ? <p className="hub-muted">{capMessage}</p> : null}
       {loading ? (
         <LibrarySkeleton />
       ) : (
@@ -292,7 +316,7 @@ export function FormatFilteredLibrary({
                 decks={[sampleDeck]}
                 onOpen={onOpen}
                 onDelete={onDelete}
-                onContextMenu={() => {}}
+                onContextMenu={openOwnershipMenu}
                 sampleIds={sampleIds}
                 dropActive={false}
                 onDragOverLane={() => {}}
@@ -310,7 +334,13 @@ export function FormatFilteredLibrary({
                   Or open the sample deck above to explore Hub — changes stay on this device.
                 </p>
               ) : null}
-              <button type="button" className="db-btn is-active" onClick={onAdd}>
+              <button
+                type="button"
+                className={`db-btn${addDisabled ? '' : ' is-active'}`}
+                onClick={onAdd}
+                disabled={addDisabled}
+                title={addDisabled ? capMessage : undefined}
+              >
                 {addLabel}
               </button>
             </div>
@@ -322,15 +352,7 @@ export function FormatFilteredLibrary({
                 decks={owned}
                 onOpen={onOpen}
                 onDelete={onDelete}
-                onContextMenu={(d, x, y) =>
-                  setMenu({
-                    x,
-                    y,
-                    deckId: d.deckId,
-                    current: deckOwnership(d),
-                    visibility: deckVisibility(d),
-                  })
-                }
+                onContextMenu={openOwnershipMenu}
                 dropActive={dropTarget === 'owned'}
                 onDragOverLane={(e) => onDragOverLane(e, 'owned')}
                 onDragLeaveLane={onDragLeaveLane}
@@ -342,15 +364,7 @@ export function FormatFilteredLibrary({
                 decks={theory}
                 onOpen={onOpen}
                 onDelete={onDelete}
-                onContextMenu={(d, x, y) =>
-                  setMenu({
-                    x,
-                    y,
-                    deckId: d.deckId,
-                    current: deckOwnership(d),
-                    visibility: deckVisibility(d),
-                  })
-                }
+                onContextMenu={openOwnershipMenu}
                 dropActive={dropTarget === 'theory'}
                 onDragOverLane={(e) => onDragOverLane(e, 'theory')}
                 onDragLeaveLane={onDragLeaveLane}
@@ -360,12 +374,14 @@ export function FormatFilteredLibrary({
           )}
         </>
       )}
-      {menu && (onSetOwnership || onSetVisibility) ? (
+      {menu && (onDuplicate || (!menu.isSample && (onSetOwnership || onSetVisibility))) ? (
         <DeckOwnershipContextMenu
           state={menu}
           onClose={() => setMenu(null)}
-          onSetOwnership={onSetOwnership}
-          onSetVisibility={onSetVisibility}
+          onDuplicate={onDuplicate}
+          duplicateDisabled={atDeckCap}
+          onSetOwnership={menu.isSample ? undefined : onSetOwnership}
+          onSetVisibility={menu.isSample ? undefined : onSetVisibility}
         />
       ) : null}
     </div>

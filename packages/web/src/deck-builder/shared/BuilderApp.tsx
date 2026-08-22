@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type { DeckDocument, DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
-import { filterLibraryByFormat } from '@rayenz-hub/shared';
+import { filterLibraryByFormat, libraryDeckCapMessage, MAX_LIBRARY_DECKS } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import {
   builderHash,
@@ -40,6 +40,7 @@ import {
   isSampleDismissed,
   shouldOfferSampleCommander,
 } from '../sample/sample-deck';
+import { duplicateDeckDocument } from '../import-export/import-deck';
 
 export type CreateDialogProps = {
   onClose: () => void;
@@ -544,6 +545,40 @@ export function BuilderApp({
     await refreshLibrary({ applyRoute: false });
   }
 
+  async function duplicateDeck(source: DeckDocument | string) {
+    const realCount = decksRef.current.filter((d) => !isSampleDeckId(d.deckId)).length;
+    if (realCount >= MAX_LIBRARY_DECKS) {
+      setError(libraryDeckCapMessage());
+      return;
+    }
+    setApiWarning(null);
+    const doc = typeof source === 'string' ? await resolveLibraryDocument(source) : source;
+    if (!doc) {
+      setError('Deck not found');
+      return;
+    }
+    const existingNames = decksRef.current
+      .filter((d) => d.format === doc.format)
+      .map((d) => d.name);
+    const copy = duplicateDeckDocument(doc, existingNames);
+    const { saved, apiError, uploaded } = await saveDualMode(copy);
+    if (apiError) {
+      setApiWarning(apiError);
+      if (isApiConfigured()) setSyncStatus('error');
+    } else if (uploaded) {
+      setSyncStatus('synced');
+    } else if (isApiConfigured() && getHubAuthSession()) {
+      setSyncStatus('local');
+    }
+    if (redirectToCorrectBuilder(saved)) return;
+    setReadOnly(false);
+    readOnlyRef.current = false;
+    activeRef.current = saved;
+    setActive(saved);
+    syncDeckHash(saved);
+    await refreshLibrary({ applyRoute: false });
+  }
+
   if (active) {
     return (
       <div className="db-app">
@@ -552,6 +587,8 @@ export function BuilderApp({
           deck={active}
           syncStatus={syncStatus}
           readOnly={readOnly}
+          onDuplicate={(doc) => void duplicateDeck(doc)}
+          duplicateDisabled={decks.length >= MAX_LIBRARY_DECKS}
           onBack={() => {
             invalidatePersist();
             setActive(null);
@@ -582,6 +619,8 @@ export function BuilderApp({
     );
   }
 
+  const atDeckCap = decks.length >= MAX_LIBRARY_DECKS;
+
   return (
     <div className="db-app">
       <FormatFilteredLibrary
@@ -592,9 +631,15 @@ export function BuilderApp({
         sampleDeck={builderFormat === 'commander' ? sampleDeck : null}
         loading={loading}
         error={error}
+        atDeckCap={atDeckCap}
+        capMessage={libraryDeckCapMessage()}
         onOpen={(id) => void openDeck(id)}
-        onAdd={() => setAddOpen(true)}
+        onAdd={() => {
+          if (atDeckCap) return;
+          setAddOpen(true);
+        }}
         onDelete={(id) => void removeDeck(id)}
+        onDuplicate={(id) => void duplicateDeck(id)}
         onSetOwnership={(id, ownership) => void setDeckOwnership(id, ownership)}
         onSetVisibility={(id, visibility) => void setDeckVisibility(id, visibility)}
         onRefreshRemote={isApiConfigured() ? () => void refreshLibrary() : undefined}

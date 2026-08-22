@@ -7,17 +7,22 @@ export type DeckOwnershipMenuState = {
   deckId: string;
   current: DeckOwnership;
   visibility: DeckVisibility;
+  isSample?: boolean;
 };
 
-/** Right-click menu to mark a deck Owned/Theory and Public/Private (no toggles). */
+/** Right-click menu to duplicate a deck and mark Owned/Theory and Public/Private. */
 export function DeckOwnershipContextMenu({
   state,
   onClose,
+  onDuplicate,
+  duplicateDisabled,
   onSetOwnership,
   onSetVisibility,
 }: {
   state: DeckOwnershipMenuState;
   onClose: () => void;
+  onDuplicate?: (deckId: string) => void;
+  duplicateDisabled?: boolean;
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
   onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
 }) {
@@ -26,6 +31,7 @@ export function DeckOwnershipContextMenu({
   const ownershipLabel = nextOwnership === 'theory' ? 'Mark as Theory' : 'Mark as Owned';
   const nextVisibility: DeckVisibility = state.visibility === 'private' ? 'public' : 'private';
   const visibilityLabel = nextVisibility === 'private' ? 'Mark as Private' : 'Mark as Public';
+  const showMeta = !state.isSample;
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -45,7 +51,7 @@ export function DeckOwnershipContextMenu({
 
   const style = {
     left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 200 : state.x),
-    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 120 : state.y),
+    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 160 : state.y),
   };
 
   return (
@@ -56,7 +62,22 @@ export function DeckOwnershipContextMenu({
       role="menu"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {onSetOwnership ? (
+      {onDuplicate ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-context-menu-item"
+          disabled={duplicateDisabled}
+          onClick={() => {
+            if (duplicateDisabled) return;
+            onDuplicate(state.deckId);
+            onClose();
+          }}
+        >
+          Duplicate
+        </button>
+      ) : null}
+      {showMeta && onSetOwnership ? (
         <button
           type="button"
           role="menuitem"
@@ -69,7 +90,7 @@ export function DeckOwnershipContextMenu({
           {ownershipLabel}
         </button>
       ) : null}
-      {onSetVisibility ? (
+      {showMeta && onSetVisibility ? (
         <button
           type="button"
           role="menuitem"

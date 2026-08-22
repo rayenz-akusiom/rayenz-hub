@@ -27,6 +27,10 @@ import { deckSize, totalCardQuantity } from '../../../packages/shared/src/deck-b
 import { oracleKey } from '../../../packages/shared/src/deck-builder/card-oracle.ts';
 
 import commander from '../../fixtures/deck-builder/commander-slice.json';
+import {
+  duplicateDeckDocument,
+  uniqueCopyName,
+} from '../../../packages/web/src/deck-builder/import-export/import-deck.ts';
 
 
 
@@ -631,6 +635,48 @@ describe('applyForcedFormat', () => {
     } else {
       expect(formatMismatchWarning).toBeNull();
     }
+  });
+});
+
+describe('duplicateDeckDocument', () => {
+  it('mints a new id and Copy of name, clears Archidekt identity, and keeps queues', () => {
+    const src = documentFromImportText(
+      '[Queued In]\n1 In Card\n[Queued Out]\n1 Out Card\n[Creature]\n1 Bear',
+      { name: 'Swaps' },
+    );
+    src.archidektId = 99;
+    src.archidektUrl = 'https://archidekt.com/decks/99/swaps';
+    src.lastArchidektSyncAt = '2020-01-01T00:00:00.000Z';
+    src.lastArchidektImportAt = '2020-01-01T00:00:00.000Z';
+    src.ownership = 'theory';
+    src.visibility = 'private';
+
+    const copy = duplicateDeckDocument(src, ['Swaps']);
+
+    expect(copy.deckId).not.toBe(src.deckId);
+    expect(copy.name).toBe('Copy of Swaps');
+    expect(copy.archidektId).toBeNull();
+    expect(copy.archidektUrl).toBeNull();
+    expect(copy.lastArchidektSyncAt).toBeNull();
+    expect(copy.lastArchidektImportAt).toBeNull();
+    expect(copy.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(copy.updatedAt).toBe(copy.createdAt);
+    expect(copy.formalSwapEntries).toEqual(src.formalSwapEntries);
+    expect(copy.lookingForEntries).toEqual(src.lookingForEntries);
+    expect(copy.cards.map((c) => c.instanceId)).toEqual(src.cards.map((c) => c.instanceId));
+    expect(copy.ownership).toBe('theory');
+    expect(copy.visibility).toBe('private');
+  });
+
+  it('disambiguates copy names when the slug is already taken', () => {
+    expect(uniqueCopyName('Swaps', ['Swaps'])).toBe('Copy of Swaps');
+    expect(uniqueCopyName('Swaps', ['Swaps', 'Copy of Swaps'])).toBe('Copy of Swaps 2');
+    expect(uniqueCopyName('Swaps', ['Swaps', 'copy of swaps'])).toBe('Copy of Swaps 2');
+    expect(duplicateDeckDocument(documentFromImportText('[Creature]\n1 Bear', { name: 'Swaps' }), [
+      'Swaps',
+      'Copy of Swaps',
+      'Copy of Swaps 2',
+    ]).name).toBe('Copy of Swaps 3');
   });
 });
 

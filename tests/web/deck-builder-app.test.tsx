@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
-import { toDeckSummary } from '@rayenz-hub/shared';
+import { libraryDeckCapMessage, MAX_LIBRARY_DECKS, toDeckSummary } from '@rayenz-hub/shared';
 import { CommanderBuilderApp } from '../../packages/web/src/deck-builder/commander/CommanderBuilderApp';
 import {
   SAMPLE_COMMANDER_DECK_ID,
@@ -1216,5 +1216,109 @@ describe('CommanderBuilderApp', () => {
     expect(sampleMainDeckCardCount(sampleDoc)).toBeGreaterThanOrEqual(100);
     expect(sampleDoc.formalSwapEntries.length).toBeGreaterThanOrEqual(1);
     expect(sampleDoc.lookingForEntries.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('duplicates a library deck from the context menu and opens the copy', async () => {
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    const ownedTile = screen
+      .getByText('Fixture Commander', { selector: '.db-library-tile-name' })
+      .closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: ownedTile });
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+
+    await waitFor(() => {
+      expect(saveDeck).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Copy of Fixture Commander',
+          archidektId: null,
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Copy of Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
+    const saved = saveDeck.mock.calls.at(-1)?.[0] as DeckDocument;
+    expect(saved.deckId).not.toBe(commanderDoc.deckId);
+  });
+
+  it('duplicates the open deck from deck actions', async () => {
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+    await user.click(deckOpenButton('Fixture Commander'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Fixture Commander/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate deck' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Copy of Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(saveDeck).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Copy of Fixture Commander' }),
+    );
+  });
+
+  it('duplicates the sample deck into a real library deck', async () => {
+    listDecks.mockResolvedValue([]);
+    readLibraryIndex.mockReturnValue([]);
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    const sampleTile = screen
+      .getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })
+      .closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: sampleTile });
+    expect(screen.queryByRole('menuitem', { name: 'Mark as Theory' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: new RegExp(`Copy of ${SAMPLE_COMMANDER_DECK_NAME}`, 'i') })).toBeInTheDocument();
+    });
+    const saved = saveDeck.mock.calls.find(
+      (call) => (call[0] as DeckDocument).name === `Copy of ${SAMPLE_COMMANDER_DECK_NAME}`,
+    )?.[0] as DeckDocument | undefined;
+    expect(saved?.deckId).not.toBe(SAMPLE_COMMANDER_DECK_ID);
+  });
+
+  it('disables add and duplicate at the 50-deck cap', async () => {
+    const capped = Array.from({ length: MAX_LIBRARY_DECKS }, (_, i) => ({
+      ...commanderSummary,
+      deckId: `cap-${i}`,
+      name: `Capped ${i}`,
+    }));
+    listDecks.mockResolvedValue(capped);
+    readLibraryIndex.mockReturnValue(capped);
+    getDeck.mockImplementation(async (id) =>
+      id.startsWith('cap-') ? { ...commanderDoc, deckId: id, name: id } : commanderDoc,
+    );
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Capped 0', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+    expect(headerAddDeckButton()).toBeDisabled();
+    expect(screen.getByText(libraryDeckCapMessage())).toBeInTheDocument();
+
+    const tile = screen.getByText('Capped 0', { selector: '.db-library-tile-name' }).closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: tile });
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDisabled();
   });
 });

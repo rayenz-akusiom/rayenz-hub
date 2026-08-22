@@ -6,6 +6,8 @@ import {
   deckCoverImageUrlSecondary,
   pickCoverPartnerStatus,
   deckSk,
+  libraryDeckCapMessage,
+  MAX_LIBRARY_DECKS,
   resolveUserId,
   toKebabCase,
   userPk,
@@ -15,7 +17,7 @@ import {
   type DeckPatch,
   type DeckSummary,
 } from '@rayenz-hub/shared';
-import { NotFoundError, type ApiEnv } from '../lib/auth.js';
+import { ConflictError, NotFoundError, type ApiEnv } from '../lib/auth.js';
 import type { BlobStore } from './s3-blob-store.js';
 
 type DocClient = Pick<import('@aws-sdk/lib-dynamodb').DynamoDBDocumentClient, 'send'>;
@@ -94,6 +96,11 @@ export class DeckRepository {
 
   async put(auth: AuthContext, env: ApiEnv, deckId: string, input: DeckDocument): Promise<DeckDocument> {
     const userId = resolveUserId(auth, env);
+    const summaries = await this.listByUserId(userId);
+    const exists = summaries.some((s) => s.deckId === deckId);
+    if (!exists && summaries.length >= MAX_LIBRARY_DECKS) {
+      throw new ConflictError(libraryDeckCapMessage());
+    }
     const now = new Date().toISOString();
     const doc = DeckDocumentSchema.parse({
       ...input,

@@ -14,8 +14,17 @@ function HamburgerIcon() {
   );
 }
 
-/** Top-right overflow menu for Archidekt export actions. */
-export function DeckActionsMenu({ deck }: { deck: DeckDocument; onDeckChange: (next: DeckDocument) => void }) {
+/** Top-right overflow menu for duplicate and Archidekt export actions. */
+export function DeckActionsMenu({
+  deck,
+  onDuplicate,
+  duplicateDisabled,
+}: {
+  deck: DeckDocument;
+  onDeckChange: (next: DeckDocument) => void;
+  onDuplicate?: () => void;
+  duplicateDisabled?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const text = buildArchidektImportText(deck);
 
@@ -32,6 +41,11 @@ export function DeckActionsMenu({ deck }: { deck: DeckDocument; onDeckChange: (n
       align="end"
       triggerClassName="db-btn db-menu-icon-btn"
     >
+      {onDuplicate ? (
+        <DbMenuItem disabled={duplicateDisabled} onSelect={() => onDuplicate()}>
+          Duplicate deck
+        </DbMenuItem>
+      ) : null}
       <DbMenuItem onSelect={() => void copy()}>{copied ? 'Copied' : 'Copy Archidekt import'}</DbMenuItem>
     </DbMenu>
   );

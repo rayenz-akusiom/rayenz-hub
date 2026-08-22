@@ -20,6 +20,7 @@ import {
   canonicalizeCategoryName,
   isLookingForCategory,
   isSwapQueueCategoryName,
+  toKebabCase,
   PROXIES_CATEGORY,
   type BrowseView,
   type CardInstance,
@@ -137,6 +138,36 @@ export function emptyDeckDocument(opts: {
     cubeTargetSize: opts.cubeTargetSize ?? null,
     description: '',
   };
+}
+
+/** Unique `Copy of {name}` (then ` 2`, ` 3`, …) so slug routes do not collide within a format. */
+export function uniqueCopyName(sourceName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames.map((n) => toKebabCase(n)));
+  const base = `Copy of ${sourceName}`;
+  if (!taken.has(toKebabCase(base))) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(toKebabCase(candidate))) return candidate;
+  }
+  return `${base} ${Date.now()}`;
+}
+
+/** Independent Hub copy: new id/name/timestamps, Archidekt identity cleared, queues kept. */
+export function duplicateDeckDocument(
+  source: DeckDocument,
+  existingNames: string[],
+): DeckDocument {
+  const now = new Date().toISOString();
+  const copy = structuredClone(source);
+  copy.deckId = nextId('deck');
+  copy.name = uniqueCopyName(source.name, existingNames);
+  copy.archidektId = null;
+  copy.archidektUrl = null;
+  copy.lastArchidektSyncAt = null;
+  copy.lastArchidektImportAt = null;
+  copy.createdAt = now;
+  copy.updatedAt = now;
+  return copy;
 }
 
 function withForcedFormat(

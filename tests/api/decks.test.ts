@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handleDeck, handleListDecks } from '../../packages/api/src/handlers/decks.ts';
+import { MAX_LIBRARY_DECKS } from '../../packages/shared/src/schemas/deck-builder.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 import commander from '../fixtures/deck-builder/commander-slice.json';
 
@@ -119,5 +120,40 @@ describe('decks API', () => {
     );
     expect(unknown.statusCode).toBe(400);
     expect(JSON.parse(String(unknown.body)).code).toBe('UNKNOWN_INSTANCE');
+  });
+
+  it('rejects a 51st new deck and still allows updating an existing one', async () => {
+    const { services } = createMemoryStores();
+    for (let i = 0; i < MAX_LIBRARY_DECKS; i++) {
+      const id = `deck-${i}`;
+      const put = await handleDeck(
+        'PUT',
+        id,
+        TEST_AUTH_HEADERS,
+        JSON.stringify({ ...commander, deckId: id, name: `Deck ${i}` }),
+        services,
+      );
+      expect(put.statusCode).toBe(200);
+    }
+
+    const blocked = await handleDeck(
+      'PUT',
+      'deck-extra',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ ...commander, deckId: 'deck-extra', name: 'Extra' }),
+      services,
+    );
+    expect(blocked.statusCode).toBe(409);
+    expect(JSON.parse(String(blocked.body)).code).toBe('CONFLICT');
+
+    const update = await handleDeck(
+      'PUT',
+      'deck-0',
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ ...commander, deckId: 'deck-0', name: 'Updated' }),
+      services,
+    );
+    expect(update.statusCode).toBe(200);
+    expect(JSON.parse(String(update.body)).name).toBe('Updated');
   });
 });

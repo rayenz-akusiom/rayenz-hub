@@ -11,6 +11,13 @@ import { DeckDescriptionSchema } from '../deck-builder/deck-description.js';
 export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
+/** Account / sandbox library size cap (sample decks excluded). */
+export const MAX_LIBRARY_DECKS = 50;
+
+export function libraryDeckCapMessage(max = MAX_LIBRARY_DECKS): string {
+  return `Library is at the ${max}-deck maximum`;
+}
+
 /** Physical collection vs speculative list (no acquire/trade pipeline). */
 export const DeckOwnershipSchema = z.enum(['owned', 'theory']);
 export type DeckOwnership = z.infer<typeof DeckOwnershipSchema>;

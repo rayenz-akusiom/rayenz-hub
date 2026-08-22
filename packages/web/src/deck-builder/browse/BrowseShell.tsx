@@ -155,12 +155,16 @@ export function BrowseShell({
   onBack,
   syncStatus = null,
   readOnly = false,
+  onDuplicate,
+  duplicateDisabled = false,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   onBack: () => void;
   syncStatus?: DeckSyncStatus | null;
   readOnly?: boolean;
+  onDuplicate?: (deck: DeckDocument) => void;
+  duplicateDisabled?: boolean;
 }) {
   const [view, setView] = useState<BrowseView>(
     deck.browseViewDefault || defaultBrowseView(deck.format),
@@ -878,6 +882,8 @@ export function BrowseShell({
                 });
               }
             }}
+            onDuplicate={onDuplicate ? () => onDuplicate(liveDeck) : undefined}
+            duplicateDisabled={duplicateDisabled}
           />
         )}
         {liveDeck.format === 'commander' && !readOnly ? (

@@ -1,4 +1,4 @@
-import { cardMatchesSetMembership } from '../deck-builder/scryfall-api.js';
+import { cardMatchesNameMembership, cardMatchesSetMembership } from '../deck-builder/scryfall-api.js';
 import type { FormalSwapEntry } from '../schemas/deck-builder.js';
 import { unifyWantSources, type WantSource } from './wants-aggregate.js';
 
@@ -23,6 +23,11 @@ export type WantsPriceFilter = {
    * Incomplete Out-only pairs drop when Out matches.
    */
   setExcludeMembership?: ReadonlySet<string> | null;
+  /**
+   * Scryfall syntax membership (normalized card names). null/empty = filter off.
+   * Pair filtering uses the same either-side rule as {@link setMembership}.
+   */
+  syntaxMembership?: ReadonlySet<string> | null;
 };
 
 /**
@@ -59,7 +64,16 @@ export function passesSetFilter(
   return cardMatchesSetMembership(source.cardName, membership);
 }
 
-/** True when the face name is in the exclude membership set. */
+/** True when the face name is in the syntax membership set. Null = off; empty = no matches. */
+export function passesSyntaxFilter(
+  source: WantSource,
+  membership: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (membership == null) return true;
+  if (cardMatchesNameMembership(source.mergeKey, membership)) return true;
+  return cardMatchesNameMembership(source.cardName, membership);
+}
+
 export function matchesSetExclude(
   source: WantSource,
   exclude: ReadonlySet<string> | null | undefined,
@@ -78,9 +92,9 @@ function pairKey(source: WantSource): string {
 }
 
 /**
- * Filter wants by price/deck, then by Scryfall set include and exclude.
- * Include: for queued_in/queued_out pairs, keep **both** sides when either face matches.
- * Seeking rows must match include individually.
+ * Filter wants by price/deck, then by Scryfall set include/exclude and syntax.
+ * Include / syntax: for queued_in/queued_out pairs, keep **both** sides when either face matches.
+ * Seeking rows must match include and syntax individually.
  * Exclude: drop pairs when the acquire face (queued_in) matches; if no In, apply to Out.
  * Seeking drops when the face matches exclude.
  */
@@ -91,9 +105,11 @@ export function filterWantSources(
   const base = (sources || []).filter((s) => passesBaseFilters(s, filter));
   const membership = filter.setMembership;
   const exclude = filter.setExcludeMembership;
+  const syntax = filter.syntaxMembership;
   const includeOn = membership != null && membership.size > 0;
   const excludeOn = exclude != null && exclude.size > 0;
-  if (!includeOn && !excludeOn) return base;
+  const syntaxOn = syntax != null;
+  if (!includeOn && !excludeOn && !syntaxOn) return base;
 
   const keepKeys = new Set<string>();
   const pairSides = new Map<string, { in?: WantSource; out?: WantSource }>();
@@ -102,6 +118,7 @@ export function filterWantSources(
     if (s.kind === 'seeking') {
       const seekingKey = `seeking:${pairKey(s)}`;
       if (includeOn && !passesSetFilter(s, membership)) continue;
+      if (syntaxOn && !passesSyntaxFilter(s, syntax)) continue;
       if (excludeOn && matchesSetExclude(s, exclude)) continue;
       keepKeys.add(seekingKey);
       continue;
@@ -123,6 +140,11 @@ export function filterWantSources(
 
     if (includeOn) {
       const eitherMatches = faces.some((f) => passesSetFilter(f, membership));
+      if (!eitherMatches) continue;
+    }
+
+    if (syntaxOn) {
+      const eitherMatches = faces.some((f) => passesSyntaxFilter(f, syntax));
       if (!eitherMatches) continue;
     }
 

@@ -4,23 +4,31 @@ import {
   applyPrintingToCard,
   buildInSetQuery,
   buildPrintingsSearchUrl,
+  buildScopedSearchQueries,
   buildSearchUrl,
+  cardMatchesSyntaxMembership,
   changeCardPrinting,
   clearInSetMembershipCache,
+  clearOracleIdCache,
   clearScryfallPrintCache,
   collectionIdentifierForCard,
   defaultAddCategory,
+  exactNameClause,
   fetchCardsCollection,
   fetchInSetMembership,
   fetchPrintings,
   fetchPrintingsPage,
   fetchCardById,
+  fetchSyntaxMembership,
   getOracle,
   mapScryfallCardToPrinting,
+  oracleIdClause,
   oracleKey,
   removeCardFromDeck,
+  SCRYFALL_Q_MAX,
   searchCards,
   searchCardsNextPage,
+  syntaxScopeKey,
 } from '../../../packages/shared/src/index.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 
@@ -37,6 +45,7 @@ const sampleCard = {
 beforeEach(() => {
   clearScryfallPrintCache();
   clearInSetMembershipCache();
+  clearOracleIdCache();
 });
 
 afterEach(() => {
@@ -61,6 +70,147 @@ describe('scryfall URL builders', () => {
     const url = buildPrintingsSearchUrl('Sol Ring');
     expect(url).toContain('unique=prints');
     expect(url).toMatch(/q=%21%22Sol[+%20]Ring%22/);
+  });
+});
+
+describe('scoped syntax queries', () => {
+  it('builds exact-name and oracleid clauses', () => {
+    expect(exactNameClause('Sol Ring')).toBe('!"Sol Ring"');
+    expect(exactNameClause('A "quoted" Name')).toBe('!"A quoted Name"');
+    expect(oracleIdClause('e43e06fb-52b7-4f38-8fac-f31973b043f7')).toBe(
+      'oracleid:e43e06fb-52b7-4f38-8fac-f31973b043f7',
+    );
+  });
+
+  it('batches collection-scoped queries under the Scryfall q cap', () => {
+    const clauses = Array.from({ length: 40 }, (_, i) =>
+      oracleIdClause(`00000000-0000-0000-0000-${String(i).padStart(12, '0')}`),
+    );
+    const queries = buildScopedSearchQueries('t:creature', clauses);
+    expect(queries.length).toBeGreaterThan(1);
+    for (const q of queries) {
+      expect(q.length).toBeLessThanOrEqual(SCRYFALL_Q_MAX);
+      expect(q.startsWith('(t:creature) (')).toBe(true);
+      expect(q.endsWith(')')).toBe(true);
+    }
+    expect(queries.join(' ')).toContain('oracleid:00000000-0000-0000-0000-000000000000');
+  });
+
+  it('returns no queries when the user query or clauses are empty', () => {
+    expect(buildScopedSearchQueries('', ['!"Sol Ring"'])).toEqual([]);
+    expect(buildScopedSearchQueries('t:instant', [])).toEqual([]);
+  });
+
+  it('builds a stable scope key from ids then names', () => {
+    expect(
+      syntaxScopeKey([
+        { name: 'Ponder', scryfallId: 'b' },
+        { name: 'Sol Ring', scryfallId: 'a' },
+        { name: 'Forest' },
+      ]),
+    ).toBe('a,b|forest');
+  });
+});
+
+describe('cardMatchesSyntaxMembership', () => {
+  it('treats null as off and empty as no matches', () => {
+    expect(cardMatchesSyntaxMembership('Ponder', null)).toBe(true);
+    expect(cardMatchesSyntaxMembership('Ponder', new Set())).toBe(false);
+    expect(cardMatchesSyntaxMembership('Ponder', new Set(['ponder']))).toBe(true);
+    expect(cardMatchesSyntaxMembership('Sol Ring', new Set(['ponder']))).toBe(false);
+  });
+});
+
+describe('fetchSyntaxMembership', () => {
+  it('resolves printing ids via collection then searches oracleid clauses', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (String(url).includes('/cards/collection')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              {
+                id: 'print-1',
+                oracle_id: 'oracle-ponder',
+                name: 'Ponder',
+                set: 'cmm',
+                collector_number: '1',
+              },
+            ],
+            not_found: [],
+          }),
+        };
+      }
+      const q = new URL(String(url)).searchParams.get('q') || '';
+      expect(q).toContain('t:instant');
+      expect(q).toContain('oracleid:oracle-ponder');
+      expect(q).not.toContain('!"Ponder"');
+      return {
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'print-1', name: 'Ponder', set: 'cmm', collector_number: '1' }],
+          has_more: false,
+          next_page: null,
+        }),
+      };
+    });
+
+    const names = await fetchSyntaxMembership(
+      't:instant',
+      [{ name: 'Ponder', scryfallId: 'print-1' }],
+      { fetchImpl, delayMs: 0 },
+    );
+    expect(names.has('ponder')).toBe(true);
+    expect(names.has('sol ring')).toBe(false);
+    expect(fetchImpl.mock.calls.some((c) => String(c[0]).includes('/cards/collection'))).toBe(
+      true,
+    );
+
+    await fetchSyntaxMembership('t:instant', [{ name: 'Ponder', scryfallId: 'print-1' }], {
+      fetchImpl,
+      delayMs: 0,
+    });
+    const collectionCalls = fetchImpl.mock.calls.filter((c) =>
+      String(c[0]).includes('/cards/collection'),
+    );
+    expect(collectionCalls).toHaveLength(1);
+  });
+
+  it('uses exact-name clauses when cards have no scryfall id', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(String(url)).toContain('/cards/search');
+      const q = new URL(String(url)).searchParams.get('q') || '';
+      expect(q).toContain('!"Ponder"');
+      return {
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'x', name: 'Ponder', set: 'cmm', collector_number: '1' }],
+          has_more: false,
+        }),
+      };
+    });
+    const names = await fetchSyntaxMembership('o:draw', [{ name: 'Ponder' }], {
+      fetchImpl,
+      delayMs: 0,
+    });
+    expect(names.has('ponder')).toBe(true);
+    expect(fetchImpl.mock.calls.some((c) => String(c[0]).includes('/cards/collection'))).toBe(
+      false,
+    );
+  });
+
+  it('treats search 404 as an empty membership set', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    const names = await fetchSyntaxMembership('t:instant', [{ name: 'Ponder' }], {
+      fetchImpl,
+      delayMs: 0,
+    });
+    expect(names.size).toBe(0);
   });
 });
 

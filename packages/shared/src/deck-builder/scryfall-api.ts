@@ -6,12 +6,16 @@ import { scryfallImageFromId } from './scryfall-images.js';
 const SCYFALL_API = 'https://api.scryfall.com';
 const PAGE_DELAY_MS = 90;
 
+/** Scryfall `/cards/search` `q` max length (Unicode characters). */
+export const SCRYFALL_Q_MAX = 1000;
+
 /** Minimal Scryfall card fields we use for search / printings. */
 export type ScryfallCard = {
   id: string;
   name: string;
   set: string;
   collector_number: string;
+  oracle_id?: string;
   type_line?: string;
   color_identity?: string[];
   finishes?: string[];
@@ -21,6 +25,12 @@ export type ScryfallCard = {
   printed_name?: string;
   flavor_name?: string;
   cmc?: number;
+};
+
+/** Local card identity for collection-scoped syntax search. */
+export type SyntaxMembershipCard = {
+  name: string;
+  scryfallId?: string | null;
 };
 
 /** Identifier shapes accepted by POST /cards/collection (max 75 per request). */
@@ -65,6 +75,8 @@ export type PrintingFields = {
 
 const printCache: Record<string, ScryfallCard[]> = {};
 const inSetMembershipCache = new Map<string, ReadonlySet<string>>();
+/** Printing Scryfall id → oracle_id (session). */
+const oracleIdByPrintingId = new Map<string, string>();
 
 export function clearScryfallPrintCache(): void {
   for (const key of Object.keys(printCache)) {
@@ -74,6 +86,10 @@ export function clearScryfallPrintCache(): void {
 
 export function clearInSetMembershipCache(): void {
   inSetMembershipCache.clear();
+}
+
+export function clearOracleIdCache(): void {
+  oracleIdByPrintingId.clear();
 }
 
 /** Parse comma/whitespace set codes → uppercase unique list. */
@@ -118,6 +134,21 @@ export function normalizeCardNameForSetMatch(name: string): string {
 }
 
 /**
+ * True when the card's English name (or DFC front face) is in the name set.
+ * Empty set matches nothing.
+ */
+export function cardMatchesNameMembership(
+  cardName: string,
+  membership: ReadonlySet<string>,
+): boolean {
+  const full = normalizeCardNameForSetMatch(cardName);
+  if (!full) return false;
+  if (membership.has(full)) return true;
+  const front = full.split(' // ')[0]?.trim() || '';
+  return Boolean(front && membership.has(front));
+}
+
+/**
  * True when filter is off, or when the card's English name (or DFC front face)
  * appears in the Scryfall set-membership name set (`in:` ∪ `set:`).
  * Basic lands never match — they appear in nearly every set, so they are not useful.
@@ -128,11 +159,19 @@ export function cardMatchesSetMembership(
 ): boolean {
   if (membership == null || membership.size === 0) return true;
   if (isBasicLand({ name: cardName })) return false;
-  const full = normalizeCardNameForSetMatch(cardName);
-  if (!full) return false;
-  if (membership.has(full)) return true;
-  const front = full.split(' // ')[0]?.trim() || '';
-  return Boolean(front && membership.has(front));
+  return cardMatchesNameMembership(cardName, membership);
+}
+
+/**
+ * Syntax filter: null = off; empty set = no Scryfall hits (hide all).
+ * Basics are not special-cased — `t:land` should keep Forests.
+ */
+export function cardMatchesSyntaxMembership(
+  cardName: string,
+  membership: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (membership == null) return true;
+  return cardMatchesNameMembership(cardName, membership);
 }
 
 export function buildSearchUrl(
@@ -187,6 +226,7 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
     name: c.name,
     set: typeof c.set === 'string' ? c.set : '',
     collector_number: c.collector_number != null ? String(c.collector_number) : '',
+    oracle_id: typeof c.oracle_id === 'string' && c.oracle_id.trim() ? c.oracle_id : undefined,
     type_line: typeof c.type_line === 'string' ? c.type_line : undefined,
     color_identity: Array.isArray(c.color_identity)
       ? (c.color_identity as string[])
@@ -317,6 +357,9 @@ export async function searchCards(
     fetchImpl?: typeof fetch;
     delayMs?: number;
     unique?: 'cards' | 'prints' | 'art';
+    signal?: AbortSignal;
+    /** When true, HTTP 404 is an empty page instead of an error. */
+    emptyOnNotFound?: boolean;
   },
 ): Promise<ScryfallSearchPage> {
   const q = String(query || '').trim();
@@ -329,8 +372,12 @@ export async function searchCards(
   }
   const res = await fetchImpl(buildSearchUrl(q, page, { unique: opts?.unique }), {
     headers: { Accept: 'application/json' },
+    signal: opts?.signal,
   });
   if (!res.ok) {
+    if (opts?.emptyOnNotFound && res.status === 404) {
+      return { data: [], has_more: false, next_page: null, total_cards: 0 };
+    }
     throw await parseError(res, 'No cards matched that search.');
   }
   const json = (await res.json()) as {
@@ -405,14 +452,220 @@ export async function fetchInSetMembership(
   return names;
 }
 
+/** Exact-name Scryfall clause (`!"Sol Ring"`). Strips embedded quotes. */
+export function exactNameClause(name: string): string {
+  const cleaned = String(name || '')
+    .trim()
+    .replace(/"/g, '');
+  if (!cleaned) return '';
+  return `!"${cleaned}"`;
+}
+
+/** Undocumented Scryfall operator used by printings search URIs. */
+export function oracleIdClause(oracleId: string): string {
+  const id = String(oracleId || '').trim();
+  return id ? `oracleid:${id}` : '';
+}
+
+/**
+ * Stable key for the in-scope card list so syntax membership can refetch
+ * when printings/names change without re-running on unrelated deck edits.
+ */
+export function syntaxScopeKey(cards: SyntaxMembershipCard[]): string {
+  const ids: string[] = [];
+  const names: string[] = [];
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+  for (const card of cards || []) {
+    const id = String(card.scryfallId || '').trim();
+    if (id) {
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        ids.push(id);
+      }
+      continue;
+    }
+    const name = normalizeCardNameForSetMatch(card.name);
+    if (name && !seenNames.has(name)) {
+      seenNames.add(name);
+      names.push(name);
+    }
+  }
+  ids.sort();
+  names.sort();
+  return `${ids.join(',')}|${names.join('\n')}`;
+}
+
+/**
+ * Batch `(userQuery) (clause or clause …)` queries under Scryfall's `q` length cap.
+ */
+export function buildScopedSearchQueries(
+  userQuery: string,
+  clauses: string[],
+  maxQ = SCRYFALL_Q_MAX,
+): string[] {
+  const q = String(userQuery || '').trim();
+  const usable = (clauses || []).map((c) => String(c || '').trim()).filter(Boolean);
+  if (!q || !usable.length) return [];
+  const prefix = `(${q}) (`;
+  const suffix = ')';
+  const overhead = prefix.length + suffix.length;
+  const queries: string[] = [];
+  let batch: string[] = [];
+  let batchLen = overhead;
+
+  for (const clause of usable) {
+    const extra = batch.length === 0 ? clause.length : 4 + clause.length;
+    if (batch.length && batchLen + extra > maxQ) {
+      queries.push(`${prefix}${batch.join(' or ')}${suffix}`);
+      batch = [clause];
+      batchLen = overhead + clause.length;
+    } else {
+      batch.push(clause);
+      batchLen += extra;
+    }
+  }
+  if (batch.length) {
+    queries.push(`${prefix}${batch.join(' or ')}${suffix}`);
+  }
+  return queries;
+}
+
+function collectSyntaxClauses(
+  cards: SyntaxMembershipCard[],
+): { ids: string[]; nameById: Map<string, string>; namesWithoutId: string[] } {
+  const ids: string[] = [];
+  const seenIds = new Set<string>();
+  const nameById = new Map<string, string>();
+  const namesWithoutId: string[] = [];
+  const seenNames = new Set<string>();
+
+  for (const card of cards || []) {
+    const name = String(card.name || '').trim();
+    const id = String(card.scryfallId || '').trim();
+    if (id) {
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        ids.push(id);
+        if (name) nameById.set(id, name);
+      }
+      continue;
+    }
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seenNames.has(key)) continue;
+    seenNames.add(key);
+    namesWithoutId.push(name);
+  }
+
+  return { ids, nameById, namesWithoutId };
+}
+
+function clausesForResolvedCards(
+  ids: string[],
+  nameById: Map<string, string>,
+  namesWithoutId: string[],
+): string[] {
+  const clauses: string[] = [];
+  const seen = new Set<string>();
+  function add(clause: string) {
+    if (!clause || seen.has(clause)) return;
+    seen.add(clause);
+    clauses.push(clause);
+  }
+  for (const id of ids) {
+    const oracle = oracleIdByPrintingId.get(id);
+    if (oracle) add(oracleIdClause(oracle));
+    else {
+      const name = nameById.get(id);
+      if (name) add(exactNameClause(name));
+    }
+  }
+  for (const name of namesWithoutId) add(exactNameClause(name));
+  return clauses;
+}
+
+/**
+ * Collection-scoped Scryfall syntax search: resolve printing ids to `oracleid:`,
+ * fall back to `!"name"`, then AND the user query in batches under the `q` cap.
+ * HTTP 404 (no matches) yields an empty membership set.
+ */
+export async function fetchSyntaxMembership(
+  userQuery: string,
+  cards: SyntaxMembershipCard[],
+  opts?: {
+    fetchImpl?: typeof fetch;
+    delayMs?: number;
+    signal?: AbortSignal;
+  },
+): Promise<ReadonlySet<string>> {
+  const q = String(userQuery || '').trim();
+  if (!q) return new Set();
+
+  const { ids, nameById, namesWithoutId } = collectSyntaxClauses(cards);
+  const unresolved = ids.filter((id) => !oracleIdByPrintingId.has(id));
+  if (unresolved.length) {
+    const result = await fetchCardsCollection(
+      unresolved.map((id) => ({ id })),
+      {
+        fetchImpl: opts?.fetchImpl,
+        delayMs: opts?.delayMs,
+        signal: opts?.signal,
+      },
+    );
+    if (opts?.signal?.aborted) {
+      throw new Error('Syntax membership fetch aborted.');
+    }
+    for (const card of result.data) {
+      if (card.oracle_id) oracleIdByPrintingId.set(card.id, card.oracle_id);
+    }
+  }
+
+  const clauses = clausesForResolvedCards(ids, nameById, namesWithoutId);
+  if (!clauses.length) return new Set();
+
+  const queries = buildScopedSearchQueries(q, clauses);
+  const names = new Set<string>();
+  const searchOpts = {
+    fetchImpl: opts?.fetchImpl,
+    delayMs: opts?.delayMs,
+    unique: 'cards' as const,
+    signal: opts?.signal,
+    emptyOnNotFound: true,
+  };
+
+  for (let i = 0; i < queries.length; i++) {
+    if (opts?.signal?.aborted) {
+      throw new Error('Syntax membership fetch aborted.');
+    }
+    if (i > 0) await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
+    let page = await searchCards(queries[i]!, 1, searchOpts);
+    for (const card of page.data) addNameToMembership(names, card.name);
+    while (page.has_more && page.next_page) {
+      if (opts?.signal?.aborted) {
+        throw new Error('Syntax membership fetch aborted.');
+      }
+      page = await searchCardsNextPage(page.next_page, {
+        fetchImpl: opts?.fetchImpl,
+        delayMs: opts?.delayMs,
+        signal: opts?.signal,
+      });
+      for (const card of page.data) addNameToMembership(names, card.name);
+    }
+  }
+
+  return names;
+}
+
 export async function searchCardsNextPage(
   nextPageUrl: string,
-  opts?: { fetchImpl?: typeof fetch; delayMs?: number },
+  opts?: { fetchImpl?: typeof fetch; delayMs?: number; signal?: AbortSignal },
 ): Promise<ScryfallSearchPage> {
   const fetchImpl = opts?.fetchImpl || fetch;
   await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
   const res = await fetchImpl(nextPageUrl, {
     headers: { Accept: 'application/json' },
+    signal: opts?.signal,
   });
   if (!res.ok) {
     throw await parseError(res, 'Failed to load more results.');

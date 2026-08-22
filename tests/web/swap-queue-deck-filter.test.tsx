@@ -39,7 +39,7 @@ describe('SwapQueueApp by-deck filter', () => {
     await waitFor(() => expect(screen.getByText(/Alpha Card/)).toBeInTheDocument());
     expect(screen.getByText(/Bravo Card/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Deck/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     const filterGroup = screen.getByRole('group', { name: 'Filter by deck' });
     await user.click(within(filterGroup).getByLabelText('Alpha Deck'));
 
@@ -48,7 +48,7 @@ describe('SwapQueueApp by-deck filter', () => {
     });
     expect(screen.getByText(/Alpha Card/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Clear/i }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
 
     await waitFor(() => {
       expect(screen.getByText(/Bravo Card/)).toBeInTheDocument();
@@ -84,11 +84,10 @@ describe('SwapQueueApp by-deck filter', () => {
 
     await waitFor(() => expect(screen.getByText(/Alpha Card/)).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: /Deck/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     const filterGroup = screen.getByRole('group', { name: 'Filter by deck' });
     await user.click(within(filterGroup).getByLabelText('Alpha Deck'));
 
-    await user.click(screen.getByRole('button', { name: /Price filter/i }));
     const minInput = screen.getByLabelText('Min USD');
     await user.clear(minInput);
     await user.type(minInput, '5');

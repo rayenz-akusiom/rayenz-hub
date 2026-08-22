@@ -24,7 +24,9 @@ import commander from '../../fixtures/deck-builder/commander-slice.json';
 import cube from '../../fixtures/deck-builder/cube-slice.json';
 import { colourIdentitySection } from '../../../packages/shared/src/deck-builder/colour-identity.ts';
 import { cardMatchesFlagFilter } from '../../../packages/web/src/deck-builder/ui/FlagFilterControl';
+import { filtersMenuLabel } from '../../../packages/web/src/deck-builder/ui/FiltersMenu';
 import { setFilterLabel } from '../../../packages/web/src/deck-builder/ui/SetFilterControl';
+import { syntaxFilterLabel } from '../../../packages/web/src/deck-builder/ui/SyntaxFilterControl';
 
 describe('browse grouping', () => {
   it('groups by primary category', () => {
@@ -513,5 +515,19 @@ describe('setFilterLabel', () => {
     { include: ['MH2'], exclude: ['LEA'], label: 'MH2 −LEA' },
   ])('$include / $exclude → $label', ({ include, exclude, label }) => {
     expect(setFilterLabel(include, exclude)).toBe(label);
+  });
+});
+
+describe('filtersMenuLabel / syntaxFilterLabel', () => {
+  it('joins active parts or All', () => {
+    expect(filtersMenuLabel([])).toBe('All');
+    expect(filtersMenuLabel(['t:instant', 'MH3', 'Proxy Hide'])).toBe(
+      't:instant · MH3 · Proxy Hide',
+    );
+  });
+
+  it('truncates long syntax queries', () => {
+    expect(syntaxFilterLabel('t:instant')).toBe('t:instant');
+    expect(syntaxFilterLabel('o:"draw a card" t:instant cmc<=2', 12)).toBe('o:"draw a c…');
   });
 });

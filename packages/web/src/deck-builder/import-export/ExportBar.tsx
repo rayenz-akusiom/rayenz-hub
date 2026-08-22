@@ -4,10 +4,16 @@ import { CardSizePicker } from '../CardSizePicker';
 import type { CardSizeKey } from '../card-size';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import {
-  FlagFilterMenu,
+  FlagFilterRow,
+  FLAG_FILTER_MODE_LABELS,
   type FlagFilterMode,
 } from '../ui/FlagFilterControl';
-import { SetFilterMenu, type SetMembershipFilterState } from '../ui/SetFilterControl';
+import { FiltersMenu, filtersMenuLabel } from '../ui/FiltersMenu';
+import { SetFilterMenuControl, type SetMembershipFilterState } from '../ui/SetFilterControl';
+import {
+  SyntaxFilterControl,
+  type ScryfallSyntaxFilterState,
+} from '../ui/SyntaxFilterControl';
 
 const VIEW_LABELS: Record<BrowseView, string> = {
   category: 'Categories',
@@ -43,6 +49,7 @@ export function ExportBar({
   onOpenCategories,
   onOpenBasics,
   setFilter,
+  syntaxFilter,
   proxyFilter,
   onProxyFilterChange,
   foilFilter,
@@ -59,11 +66,40 @@ export function ExportBar({
   onOpenCategories?: () => void;
   onOpenBasics?: () => void;
   setFilter?: SetMembershipFilterState;
+  syntaxFilter?: ScryfallSyntaxFilterState;
   proxyFilter?: FlagFilterMode;
   onProxyFilterChange?: (next: FlagFilterMode) => void;
   foilFilter?: FlagFilterMode;
   onFoilFilterChange?: (next: FlagFilterMode) => void;
 }) {
+  const hasFilters =
+    Boolean(setFilter) ||
+    Boolean(syntaxFilter) ||
+    (proxyFilter != null && onProxyFilterChange != null) ||
+    (foilFilter != null && onFoilFilterChange != null);
+  const filtersLoading = Boolean(setFilter?.loading || syntaxFilter?.loading);
+  const filtersValue = filtersMenuLabel([
+    syntaxFilter?.active ? syntaxFilter.label : '',
+    setFilter?.active ? setFilter.label : '',
+    proxyFilter && proxyFilter !== 'all'
+      ? `Proxy ${FLAG_FILTER_MODE_LABELS[proxyFilter]}`
+      : '',
+    foilFilter && foilFilter !== 'all' ? `Foil ${FLAG_FILTER_MODE_LABELS[foilFilter]}` : '',
+  ]);
+
+  function applyNetworkFilters() {
+    void Promise.all([
+      setFilter ? setFilter.apply() : Promise.resolve(),
+      syntaxFilter ? syntaxFilter.apply() : Promise.resolve(),
+    ]);
+  }
+
+  function clearAllFilters() {
+    setFilter?.clear();
+    syntaxFilter?.clear();
+    onProxyFilterChange?.('all');
+    onFoilFilterChange?.('all');
+  }
   return (
     <div className="db-toolbar-controls">
       <DbMenu label="Browse" value={VIEW_LABELS[view]}>
@@ -117,16 +153,45 @@ export function ExportBar({
           </DbMenuItem>
         ))}
       </DbMenu>
-      {setFilter ? <SetFilterMenu filter={setFilter} /> : null}
-      {proxyFilter != null && onProxyFilterChange ? (
-        <FlagFilterMenu
-          label="Proxy"
-          mode={proxyFilter}
-          onModeChange={onProxyFilterChange}
-        />
-      ) : null}
-      {foilFilter != null && onFoilFilterChange ? (
-        <FlagFilterMenu label="Foil" mode={foilFilter} onModeChange={onFoilFilterChange} />
+      {hasFilters ? (
+        <FiltersMenu
+          value={filtersValue}
+          loading={filtersLoading}
+          ariaDetail={filtersValue !== 'All' ? filtersValue : undefined}
+          onApply={applyNetworkFilters}
+          onClear={clearAllFilters}
+          applyLoading={filtersLoading}
+        >
+          {syntaxFilter ? (
+            <SyntaxFilterControl
+              value={syntaxFilter.queryInput}
+              onChange={syntaxFilter.setQueryInput}
+              onApply={applyNetworkFilters}
+              error={syntaxFilter.error}
+            />
+          ) : null}
+          {setFilter ? (
+            <SetFilterMenuControl
+              value={setFilter.setCodesInput}
+              onChange={setFilter.setSetCodesInput}
+              onApply={applyNetworkFilters}
+              onClear={setFilter.clear}
+              loading={setFilter.loading}
+              error={setFilter.error}
+              hideActions
+            />
+          ) : null}
+          {proxyFilter != null && onProxyFilterChange ? (
+            <FlagFilterRow
+              label="Proxy"
+              mode={proxyFilter}
+              onModeChange={onProxyFilterChange}
+            />
+          ) : null}
+          {foilFilter != null && onFoilFilterChange ? (
+            <FlagFilterRow label="Foil" mode={foilFilter} onModeChange={onFoilFilterChange} />
+          ) : null}
+        </FiltersMenu>
       ) : null}
       <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
       {onOpenCategories ? (

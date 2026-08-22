@@ -1,5 +1,3 @@
-import { DbMenu, DbMenuItem } from './DbMenu';
-
 /** Session browse filter for a boolean card flag (proxy / foil). */
 export type FlagFilterMode = 'all' | 'hide' | 'only';
 
@@ -18,7 +16,8 @@ export function cardMatchesFlagFilter(flag: boolean, mode: FlagFilterMode): bool
   return flag;
 }
 
-export function FlagFilterMenu({
+/** All/Hide/Only radios for the merged Filters panel. */
+export function FlagFilterRow({
   label,
   mode,
   onModeChange,
@@ -27,17 +26,21 @@ export function FlagFilterMenu({
   mode: FlagFilterMode;
   onModeChange: (next: FlagFilterMode) => void;
 }) {
+  const name = `flag-filter-${label.toLowerCase()}`;
   return (
-    <DbMenu
-      label={label}
-      value={FLAG_FILTER_MODE_LABELS[mode]}
-      ariaLabel={`${label} filter`}
-    >
+    <fieldset className="db-flag-filter" aria-label={`${label} filter`}>
+      <legend>{label}</legend>
       {FLAG_FILTER_MODES.map((m) => (
-        <DbMenuItem key={m} active={mode === m} onSelect={() => onModeChange(m)}>
+        <label key={m} className="db-flag-filter-option">
+          <input
+            type="radio"
+            name={name}
+            checked={mode === m}
+            onChange={() => onModeChange(m)}
+          />
           {FLAG_FILTER_MODE_LABELS[m]}
-        </DbMenuItem>
+        </label>
       ))}
-    </DbMenu>
+    </fieldset>
   );
 }

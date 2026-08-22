@@ -49,8 +49,13 @@ import {
 import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
 import { listFallbackLibrary, pullRemoteLibraryUpdates } from '../deck-builder/store/library-sync';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
+import { FiltersMenu, filtersMenuLabel } from '../deck-builder/ui/FiltersMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
-import { SetFilterMenu, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
+import { SetFilterMenuControl, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
+import {
+  SyntaxFilterControl,
+  useScryfallSyntaxFilter,
+} from '../deck-builder/ui/SyntaxFilterControl';
 import {
   getHubAuthSession,
   HUB_AUTH_CHANGED_EVENT,
@@ -325,7 +330,7 @@ function DeckFilterMenuControl({
           className="sq-menu-deck-action"
           onClick={() => onChange([])}
         >
-          Clear
+          Clear decks
         </button>
       </div>
       <ul className="sq-menu-deck-list" role="group" aria-label="Filter by deck">
@@ -375,6 +380,19 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [maxInput, setMaxInput] = useState('');
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>([]);
   const setFilter = useSetMembershipFilter();
+  const syntaxCards = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { name: string }[] = [];
+    for (const s of sources) {
+      const name = String(s.cardName || '').trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name });
+    }
+    return out;
+  }, [sources]);
+  const syntaxFilter = useScryfallSyntaxFilter(syntaxCards);
   const {
     currency,
     setCurrency,
@@ -588,6 +606,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           setFilter.appliedExcludeCodes.length && setFilter.excludeMembership
             ? setFilter.excludeMembership
             : null,
+        syntaxMembership: syntaxFilter.active ? syntaxFilter.membership : null,
       }),
     [
       sources,
@@ -598,6 +617,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       setFilter.membership,
       setFilter.appliedExcludeCodes.length,
       setFilter.excludeMembership,
+      syntaxFilter.active,
+      syntaxFilter.membership,
     ],
   );
 
@@ -992,7 +1013,31 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     lanes.seeking.length + lanes.queued_in.length + lanes.queued_out.length > 0;
   const hasUnfiltered = sources.length > 0;
   const filtersActive =
-    priceFilterActive || selectedDeckIds.length > 0 || setFilter.active;
+    priceFilterActive ||
+    selectedDeckIds.length > 0 ||
+    setFilter.active ||
+    syntaxFilter.active;
+
+  function applyNetworkFilters() {
+    void Promise.all([setFilter.apply(), syntaxFilter.apply()]);
+  }
+
+  function clearAllFilters() {
+    setFilter.clear();
+    syntaxFilter.clear();
+    setSelectedDeckIds([]);
+    setMinAmount(null);
+    setMaxAmount(null);
+    setMinInput('');
+    setMaxInput('');
+  }
+
+  const filtersValue = filtersMenuLabel([
+    syntaxFilter.active ? syntaxFilter.label : '',
+    selectedDeckIds.length ? deckFilterLabel(selectedDeckIds, deckOptions) : '',
+    setFilter.active ? setFilter.label : '',
+    priceFilterActive ? priceMenuLabel(minAmount, maxAmount, effectiveCurrency) : '',
+  ]);
 
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
@@ -1040,19 +1085,37 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               Grid
             </DbMenuItem>
           </DbMenu>
-          <DbMenu label="Deck" value={deckFilterLabel(selectedDeckIds, deckOptions)}>
+          <FiltersMenu
+            value={filtersValue}
+            loading={setFilter.loading || syntaxFilter.loading}
+            ariaDetail={filtersValue !== 'All' ? filtersValue : undefined}
+            onApply={applyNetworkFilters}
+            onClear={clearAllFilters}
+            applyLoading={setFilter.loading || syntaxFilter.loading}
+          >
+            <SyntaxFilterControl
+              value={syntaxFilter.queryInput}
+              onChange={syntaxFilter.setQueryInput}
+              onApply={applyNetworkFilters}
+              error={syntaxFilter.error}
+            />
             <DeckFilterMenuControl
               options={deckOptions}
               selectedIds={selectedDeckIds}
               onChange={setSelectedDeckIds}
             />
-          </DbMenu>
-          <SetFilterMenu filter={setFilter} showExclude />
-          <DbMenu
-            label="Price"
-            value={priceMenuLabel(minAmount, maxAmount, effectiveCurrency)}
-            ariaLabel={`Price filter: ${priceMenuLabel(minAmount, maxAmount, effectiveCurrency)}`}
-          >
+            <SetFilterMenuControl
+              value={setFilter.setCodesInput}
+              onChange={setFilter.setSetCodesInput}
+              excludeValue={setFilter.excludeCodesInput}
+              onExcludeChange={setFilter.setExcludeCodesInput}
+              showExclude
+              hideActions
+              onApply={applyNetworkFilters}
+              onClear={setFilter.clear}
+              loading={setFilter.loading}
+              error={setFilter.error}
+            />
             <PriceMenuControl
               currency={currency}
               onCurrencyChange={setCurrency}
@@ -1071,7 +1134,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               fxDate={fx?.date ?? null}
               fxUnavailable={fxUnavailable}
             />
-          </DbMenu>
+          </FiltersMenu>
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
         </div>
         <DbMenu
@@ -1093,7 +1156,10 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       {status ? <p className="hub-muted" role="status">{status}</p> : null}
       {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
       {setFilter.error ? <p className="hub-banner-error">{setFilter.error}</p> : null}
-      {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
+      {syntaxFilter.error ? <p className="hub-banner-error">{syntaxFilter.error}</p> : null}
+      {setFilter.loading || syntaxFilter.loading ? (
+        <p className="hub-muted">Loading filters…</p>
+      ) : null}
       {error ? <p className="hub-banner-error">{error}</p> : null}
       {loading ? <p className="hub-muted">Loading library…</p> : null}
 

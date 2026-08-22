@@ -55,7 +55,7 @@ describe('SwapQueueApp price filter', () => {
     expect(screen.getByText(/Pricey Card/)).toBeInTheDocument();
     expect(screen.getByText(/Unpriced Card/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Price filter/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     const minInput = screen.getByLabelText('Min USD');
     await user.clear(minInput);
     await user.type(minInput, '5');
@@ -94,7 +94,7 @@ describe('SwapQueueApp price filter', () => {
     await waitFor(() => expect(screen.getByText(/Cheap Card/)).toBeInTheDocument());
     expect(screen.queryByText('$1.00')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Price filter/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     await user.type(screen.getByLabelText('Max USD'), '5');
 
     await waitFor(() => {
@@ -135,9 +135,9 @@ describe('SwapQueueApp price filter', () => {
     render(<SwapQueueApp entryPath="swap-queue" />);
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Price filter/i })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /^Filters/ })).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole('button', { name: /Price filter/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
     expect(screen.getByLabelText('Min CAD')).toBeInTheDocument();
     expect(screen.getByLabelText('Max CAD')).toBeInTheDocument();
   });

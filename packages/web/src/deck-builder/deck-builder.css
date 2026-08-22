@@ -2112,6 +2112,63 @@ body,
   color: var(--db-danger, #b00020);
 }
 
+.db-filters {
+  min-width: 16rem;
+  max-width: 22rem;
+  max-height: min(70vh, 32rem);
+  overflow: auto;
+  padding: 0.45rem 0.55rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.db-filters-actions {
+  display: flex;
+  gap: 0.4rem;
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.25rem;
+  background: var(--db-panel);
+}
+
+.db-filters .db-set-filter,
+.db-filters .sq-menu-price,
+.db-filters .sq-menu-deck-filter {
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+}
+
+.db-syntax-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.db-flag-filter {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.db-flag-filter legend {
+  padding: 0;
+  margin: 0 0.35rem 0 0;
+  font-weight: 600;
+}
+
+.db-flag-filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .db-selection-bar {
   display: flex;
   gap: 0.5rem;

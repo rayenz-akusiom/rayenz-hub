@@ -134,6 +134,7 @@ export function SetFilterMenuControl({
   excludeValue,
   onExcludeChange,
   showExclude = false,
+  hideActions = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -145,6 +146,8 @@ export function SetFilterMenuControl({
   onExcludeChange?: (next: string) => void;
   /** When true, show exclude codes field (Swap Queue shopping). */
   showExclude?: boolean;
+  /** When true, omit Apply/Clear (parent Filters menu owns them). */
+  hideActions?: boolean;
 }) {
   return (
     <div
@@ -199,14 +202,16 @@ export function SetFilterMenuControl({
           <p className="db-set-filter-hint">Hide cards that appear in these sets</p>
         </>
       ) : null}
-      <div className="db-set-filter-actions">
-        <button type="button" className="db-btn" disabled={loading} onClick={onApply}>
-          {loading ? 'Loading…' : 'Apply'}
-        </button>
-        <button type="button" className="db-btn" disabled={loading} onClick={onClear}>
-          Clear
-        </button>
-      </div>
+      {hideActions ? null : (
+        <div className="db-set-filter-actions">
+          <button type="button" className="db-btn" disabled={loading} onClick={onApply}>
+            {loading ? 'Loading…' : 'Apply'}
+          </button>
+          <button type="button" className="db-btn" disabled={loading} onClick={onClear}>
+            Clear
+          </button>
+        </div>
+      )}
       {error ? (
         <p className="db-set-filter-error" role="alert">
           {error}

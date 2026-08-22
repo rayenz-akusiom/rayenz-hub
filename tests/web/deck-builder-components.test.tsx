@@ -19,12 +19,14 @@ import { CategoryBrowse } from '../../packages/web/src/deck-builder/browse/Categ
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
 const mockFetchInSetMembership = vi.hoisted(() => vi.fn());
+const mockFetchSyntaxMembership = vi.hoisted(() => vi.fn());
 
 vi.mock('@rayenz-hub/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rayenz-hub/shared')>();
   return {
     ...actual,
     fetchInSetMembership: (...args: unknown[]) => mockFetchInSetMembership(...args),
+    fetchSyntaxMembership: (...args: unknown[]) => mockFetchSyntaxMembership(...args),
   };
 });
 
@@ -48,10 +50,18 @@ const commanderDoc = commanderFixture as DeckDocument;
 
 const noop = () => {};
 
+async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+  const btn = screen.getByRole('button', { name: /^Filters/ });
+  if (btn.getAttribute('aria-expanded') !== 'true') {
+    await user.click(btn);
+  }
+}
+
 afterEach(() => {
   cleanup();
   localStorage.removeItem('rayenzHubPickerCardSize');
   mockFetchInSetMembership.mockReset();
+  mockFetchSyntaxMembership.mockReset();
 });
 
 describe('FormatBadge', () => {
@@ -595,13 +605,14 @@ describe('BrowseShell selection and context menu', () => {
     );
 
     expect(screen.getByRole('button', { name: /Proxy Bird/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Proxy filter' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    await openFilters(user);
+    const proxy = screen.getByRole('group', { name: 'Proxy filter' });
+    await user.click(within(proxy).getByRole('radio', { name: 'Hide' }));
     expect(screen.queryByRole('button', { name: /Proxy Bird/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Proxy filter' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Only' }));
+    await openFilters(user);
+    await user.click(within(screen.getByRole('group', { name: 'Proxy filter' })).getByRole('radio', { name: 'Only' }));
     expect(screen.getByRole('button', { name: /Proxy Bird/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: new RegExp(`^${normal.name}$`, 'i') })).not.toBeInTheDocument();
   });
@@ -626,20 +637,60 @@ describe('BrowseShell selection and context menu', () => {
     );
 
     expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    await openFilters(user);
+    const foil = screen.getByRole('group', { name: 'Foil filter' });
+    await user.click(within(foil).getByRole('radio', { name: 'Hide' }));
     expect(screen.queryByRole('button', { name: /Foil Bird/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Only' }));
+    await openFilters(user);
+    await user.click(
+      within(screen.getByRole('group', { name: 'Foil filter' })).getByRole('radio', { name: 'Only' }),
+    );
     expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: new RegExp(`^${normal.name}$`, 'i') })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Foil filter' }));
-    await user.click(screen.getByRole('menuitem', { name: 'All' }));
+    await openFilters(user);
+    await user.click(
+      within(screen.getByRole('group', { name: 'Foil filter' })).getByRole('radio', { name: 'All' }),
+    );
     expect(screen.getByRole('button', { name: /Foil Bird/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: new RegExp(normal.name, 'i') })).toBeInTheDocument();
+  });
+
+  it('filters browse cards by Scryfall syntax membership and Clear restores them', async () => {
+    const user = userEvent.setup();
+    const deck = foilDeck();
+    const keep = { ...deck.cards[0]!, instanceId: 'keep', name: 'Ponder', proxy: false, foil: false };
+    const drop = { ...deck.cards[1]!, instanceId: 'drop', name: 'Sol Ring', proxy: false, foil: false };
+    mockFetchSyntaxMembership.mockResolvedValue(new Set(['ponder']));
+    render(
+      <BrowseShell
+        deck={{ ...deck, cards: [keep, drop] }}
+        onChange={noop}
+        onBack={noop}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Ponder/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sol Ring/i })).toBeInTheDocument();
+
+    await openFilters(user);
+    await user.type(screen.getByLabelText('Scryfall syntax'), 't:instant');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => {
+      expect(mockFetchSyntaxMembership).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Sol Ring/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /Ponder/i })).toBeInTheDocument();
+
+    await openFilters(user);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByRole('button', { name: /Sol Ring/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ponder/i })).toBeInTheDocument();
   });
 
   it('adds the selected card to the swap queue from the context menu', async () => {

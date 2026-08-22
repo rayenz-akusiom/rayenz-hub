@@ -187,6 +187,55 @@ describe('wants-export', () => {
     ]);
   });
 
+  it('keeps both sides of a swap when either face matches syntax membership', () => {
+    const syntax = new Set(['sol ring']);
+    const queuedIn = src({
+      kind: 'queued_in',
+      entryId: 'pair-1',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const queuedOut = src({
+      kind: 'queued_out',
+      entryId: 'pair-1',
+      cardName: 'Worn Powerstone',
+      mergeKey: 'worn powerstone',
+      quantity: 1,
+      cardInstanceId: 'out1',
+      inInstanceId: 'in1',
+      outInstanceId: 'out1',
+    });
+    const other = src({
+      kind: 'seeking',
+      entryId: 's1',
+      cardName: 'Island',
+      mergeKey: 'island',
+      quantity: 1,
+    });
+    const visible = filterWantSources([queuedIn, queuedOut, other], {
+      minUsd: null,
+      syntaxMembership: syntax,
+    });
+    expect(visible.map((s) => `${s.kind}:${s.cardName}`).sort()).toEqual([
+      'queued_in:Sol Ring',
+      'queued_out:Worn Powerstone',
+    ]);
+  });
+
+  it('hides seeking when syntax membership is empty (no hits)', () => {
+    const a = src({
+      kind: 'seeking',
+      cardName: 'Ponder',
+      mergeKey: 'ponder',
+      quantity: 1,
+      entryId: 's1',
+    });
+    expect(filterWantSources([a], { minUsd: null, syntaxMembership: new Set() })).toEqual([]);
+  });
+
   it('filters seeking individually by set membership', () => {
     const membership = new Set(['counterspell']);
     const a = src({

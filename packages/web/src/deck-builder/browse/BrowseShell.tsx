@@ -14,6 +14,7 @@ import {
   addSecondaryCategory,
   cardDisplayName,
   cardMatchesSetMembership,
+  cardMatchesSyntaxMembership,
   cardSupportsFoilToggle,
   categoryIncluded,
   categoryTargetsMismatchCubeSize,
@@ -91,6 +92,7 @@ import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { useSetMembershipFilter } from '../ui/SetFilterControl';
+import { useScryfallSyntaxFilter } from '../ui/SyntaxFilterControl';
 import {
   cardMatchesFlagFilter,
   type FlagFilterMode,
@@ -218,6 +220,12 @@ export function BrowseShell({
 
   const liveDeck = useMemo(() => projectLiveFormalSwaps(deck), [deck]);
 
+  const syntaxCards = useMemo(
+    () => liveDeck.cards.map((c) => ({ name: c.name, scryfallId: c.scryfallId })),
+    [liveDeck.cards],
+  );
+  const syntaxFilter = useScryfallSyntaxFilter(syntaxCards);
+
   const selectedCards = useMemo(
     () => liveDeck.cards.filter((c) => selectedIds.has(c.instanceId)),
     [liveDeck.cards, selectedIds],
@@ -226,16 +234,21 @@ export function BrowseShell({
   const multi = selectionCount > 1;
   const primarySelected = selectedCards[0] || null;
 
-  /** Browse-only view with set / proxy / foil filters; mutations still use full `liveDeck`. */
+  /** Browse-only view with set / syntax / proxy / foil filters; mutations still use full `liveDeck`. */
   const browseDeck = useMemo((): DeckDocument => {
     const setActive = setFilter.active && setFilter.membership;
     const membership = setFilter.membership;
+    const syntaxActive = syntaxFilter.active;
+    const syntaxMembership = syntaxFilter.membership;
     const flagActive = proxyFilter !== 'all' || foilFilter !== 'all';
-    if (!setActive && !flagActive) return liveDeck;
+    if (!setActive && !syntaxActive && !flagActive) return liveDeck;
     return {
       ...liveDeck,
       cards: liveDeck.cards.filter((c) => {
         if (setActive && membership && !cardMatchesSetMembership(c.name, membership)) {
+          return false;
+        }
+        if (syntaxActive && !cardMatchesSyntaxMembership(c.name, syntaxMembership)) {
           return false;
         }
         if (!cardMatchesFlagFilter(Boolean(c.proxy), proxyFilter)) return false;
@@ -247,6 +260,8 @@ export function BrowseShell({
     liveDeck,
     setFilter.active,
     setFilter.membership,
+    syntaxFilter.active,
+    syntaxFilter.membership,
     proxyFilter,
     foilFilter,
   ]);
@@ -844,6 +859,7 @@ export function BrowseShell({
           onOpenCategories={readOnly ? undefined : () => setCategoriesOpen(true)}
           onOpenBasics={readOnly ? undefined : () => setBasicsOpen(true)}
           setFilter={setFilter}
+          syntaxFilter={syntaxFilter}
           proxyFilter={proxyFilter}
           onProxyFilterChange={setProxyFilter}
           foilFilter={foilFilter}
@@ -938,7 +954,10 @@ export function BrowseShell({
             </div>
           ) : null}
           {setFilter.error ? <p className="hub-warn">{setFilter.error}</p> : null}
-          {setFilter.loading ? <p className="hub-muted">Loading set filter…</p> : null}
+          {syntaxFilter.error ? <p className="hub-warn">{syntaxFilter.error}</p> : null}
+          {setFilter.loading || syntaxFilter.loading ? (
+            <p className="hub-muted">Loading filters…</p>
+          ) : null}
           {isUnifiedListView ? (
             <UnifiedListBrowse
               deck={browseDeck}

@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import {
   cardHasBackFace,
@@ -33,6 +34,10 @@ import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
 import { DbMenu } from '../ui/DbMenu';
 import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
+import {
+  loadScryfallSearchExpanded,
+  saveScryfallSearchExpanded,
+} from './search-expanded';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 
 const LONG_PRESS_MS = 450;
@@ -159,6 +164,9 @@ export function ScryfallSearchModal({
   const [quickAdd, setQuickAdd] = useState(false);
   const [showBackToSearch, setShowBackToSearch] = useState(false);
   const [resolvingPrinting, setResolvingPrinting] = useState(false);
+  const [expanded, setExpanded] = useState(() =>
+    embedded ? false : loadScryfallSearchExpanded(),
+  );
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const longPressPosRef = useRef<PickerMenuPosition>({ x: 0, y: 0 });
@@ -196,6 +204,14 @@ export function ScryfallSearchModal({
       }
     : null;
   const defaultCat = defaultCategory || defaultAddCategory(deck, printingHint);
+
+  function toggleExpanded() {
+    setExpanded((prev) => {
+      const next = !prev;
+      saveScryfallSearchExpanded(next);
+      return next;
+    });
+  }
 
   function clearLongPressTimer() {
     if (longPressTimerRef.current != null) {
@@ -423,10 +439,40 @@ export function ScryfallSearchModal({
     },
   });
 
-  if (pending) {
+  const expandButton = embedded ? null : (
+    <button
+      type="button"
+      className={`db-btn${expanded ? ' is-active' : ''}`}
+      aria-pressed={expanded}
+      title={
+        expanded ? 'Collapse to compact picker' : 'Expand to fill deck builder'
+      }
+      onClick={toggleExpanded}
+    >
+      {expanded ? 'Collapse' : 'Expand'}
+    </button>
+  );
+
+  function wrapOverlay(inner: ReactNode) {
+    if (embedded) return inner;
     return (
+      <div
+        className={`db-modal${expanded ? ' is-expanded' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  if (pending) {
+    return wrapOverlay(
       <PrintingPickerModal
-        embedded={embedded}
+        embedded
+        expanded={expanded}
+        onToggleExpand={embedded ? undefined : toggleExpanded}
         cardName={pending.name}
         defaultScryfallId={pending.id}
         selectedScryfallId={pending.id}
@@ -439,7 +485,7 @@ export function ScryfallSearchModal({
         onConfirm={(printing, category, meta) => {
           emitAdd(printing, category || defaultCat, meta);
         }}
-      />
+      />,
     );
   }
 
@@ -457,7 +503,7 @@ export function ScryfallSearchModal({
         : `${foundCount} cards found`;
 
   const card = (
-    <div className="db-modal-card db-modal-picker">
+    <div className={`db-modal-card db-modal-picker${expanded ? ' is-expanded' : ''}`}>
       <div className="db-picker-header">
         <h3>{title}</h3>
         <div className="db-picker-header-controls">
@@ -481,6 +527,7 @@ export function ScryfallSearchModal({
             </button>
           ) : null}
           <CardSizePicker />
+          {expandButton}
           <button type="button" className="db-btn" onClick={onClose}>
             {embedded ? 'Back' : 'Close'}
           </button>
@@ -654,11 +701,5 @@ export function ScryfallSearchModal({
     </div>
   );
 
-  if (embedded) return card;
-
-  return (
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label={title}>
-      {card}
-    </div>
-  );
+  return wrapOverlay(card);
 }

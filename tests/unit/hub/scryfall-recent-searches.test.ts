@@ -3,11 +3,17 @@ import {
   loadRecentScryfallSearches,
   rememberScryfallSearch,
 } from '../../../packages/web/src/deck-builder/scryfall/recent-searches.ts';
+import {
+  loadScryfallSearchExpanded,
+  saveScryfallSearchExpanded,
+} from '../../../packages/web/src/deck-builder/scryfall/search-expanded.ts';
 
 const KEY = 'rayenz-scryfall-recent-searches';
+const EXPANDED_KEY = 'rayenz-scryfall-search-expanded';
 
 afterEach(() => {
   localStorage.removeItem(KEY);
+  localStorage.removeItem(EXPANDED_KEY);
 });
 
 describe('recent Scryfall searches', () => {
@@ -25,5 +31,15 @@ describe('recent Scryfall searches', () => {
     expect(loadRecentScryfallSearches()).toHaveLength(10);
     expect(loadRecentScryfallSearches()[0]).toBe('q11');
     expect(loadRecentScryfallSearches()).not.toContain('q0');
+  });
+});
+
+describe('Scryfall search expanded preference', () => {
+  it('defaults to collapsed and round-trips', () => {
+    expect(loadScryfallSearchExpanded()).toBe(false);
+    saveScryfallSearchExpanded(true);
+    expect(loadScryfallSearchExpanded()).toBe(true);
+    saveScryfallSearchExpanded(false);
+    expect(loadScryfallSearchExpanded()).toBe(false);
   });
 });

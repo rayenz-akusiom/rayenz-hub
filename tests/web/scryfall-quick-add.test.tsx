@@ -796,3 +796,82 @@ describe('ScryfallSearchModal back to search', () => {
     expect(input).toHaveFocus();
   });
 });
+
+describe('ScryfallSearchModal expand', () => {
+  it('expands and collapses the overlay', async () => {
+    const user = userEvent.setup();
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    const dialog = screen.getByRole('dialog', { name: 'Add card from Scryfall' });
+    expect(dialog).not.toHaveClass('is-expanded');
+    const expand = screen.getByRole('button', { name: 'Expand' });
+    expect(expand).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(expand);
+    expect(dialog).toHaveClass('is-expanded');
+    const collapse = screen.getByRole('button', { name: 'Collapse' });
+    expect(collapse).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(collapse);
+    expect(dialog).not.toHaveClass('is-expanded');
+    expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('persists expand preference across remount', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Expand' }));
+    unmount();
+
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Add card from Scryfall' })).toHaveClass(
+      'is-expanded',
+    );
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
+  });
+
+  it('does not show Expand when embedded', () => {
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} embedded />,
+    );
+    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps expand after opening the printing step', async () => {
+    const user = userEvent.setup();
+    const solAlt: ScryfallCard = {
+      ...solRing,
+      id: 'sf-sol-alt',
+      set: 'cmr',
+      collector_number: '2',
+    };
+    fetchPrintingsPage.mockResolvedValue({
+      data: [solRing, solAlt],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(<ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Expand' }));
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Add — Sol Ring' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('dialog', { name: 'Add card from Scryfall' })).toHaveClass(
+      'is-expanded',
+    );
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
+  });
+});

@@ -2404,7 +2404,8 @@ body,
   width: min(48rem, 100%);
 }
 
-.db-glance-overlay {
+.db-glance-overlay,
+.db-modal.is-expanded {
   /* Match .hub-nav width; leave nav visible on desktop. */
   inset: 0 0 0 200px;
   /* Prefer dynamic/small viewport units so iPad Safari chrome does not clip the footer. */
@@ -2601,7 +2602,8 @@ body,
 }
 
 @media (max-width: 768px) {
-  .db-glance-overlay {
+  .db-glance-overlay,
+  .db-modal.is-expanded {
     inset: 0;
   }
 }
@@ -2795,6 +2797,13 @@ body,
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.db-modal-picker.is-expanded {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
 }
 
 .db-picker-back-to-search {

@@ -54,6 +54,8 @@ export function PrintingPickerModal({
   onClose,
   onBack,
   embedded = false,
+  expanded = false,
+  onToggleExpand,
 }: {
   cardName: string;
   defaultScryfallId?: string | null;
@@ -77,6 +79,9 @@ export function PrintingPickerModal({
   onBack?: () => void;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
+  /** Fill layout when hosted in an expanded Scryfall search overlay. */
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const initialCodes = normalizeSetCodes(setCodesProp);
   const [codesInput, setCodesInput] = useState(() => initialCodes.join(','));
@@ -214,11 +219,24 @@ export function PrintingPickerModal({
   }
 
   const card = (
-    <div className="db-modal-card db-modal-picker">
+    <div className={`db-modal-card db-modal-picker${expanded ? ' is-expanded' : ''}`}>
       <div className="db-picker-header">
         <h3>{title || `Printing — ${cardName}`}</h3>
         <div className="db-picker-header-controls">
           <CardSizePicker />
+          {onToggleExpand ? (
+            <button
+              type="button"
+              className={`db-btn${expanded ? ' is-active' : ''}`}
+              aria-pressed={expanded}
+              title={
+                expanded ? 'Collapse to compact picker' : 'Expand to fill deck builder'
+              }
+              onClick={onToggleExpand}
+            >
+              {expanded ? 'Collapse' : 'Expand'}
+            </button>
+          ) : null}
           <label className="db-check">
             <input
               type="checkbox"

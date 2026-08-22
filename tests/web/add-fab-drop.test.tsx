@@ -46,11 +46,12 @@ function startDeckBuilderDrag() {
 }
 
 describe('AddCardFab drag target', () => {
-  it('morphs into Default and New Category zones while dragging', () => {
+  it('morphs into Default, Maybeboard, and New Category zones while dragging', () => {
     render(
       <AddCardFab
         onAddClick={() => {}}
         onDropDefault={() => {}}
+        onDropMaybeboard={() => {}}
         onDropNewCategory={() => {}}
       />,
     );
@@ -62,18 +63,22 @@ describe('AddCardFab drag target', () => {
 
     expect(screen.queryByRole('button', { name: 'Add card' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Default category')).toBeInTheDocument();
+    expect(screen.getByLabelText('Maybeboard category')).toBeInTheDocument();
     expect(screen.getByLabelText('New category')).toBeInTheDocument();
     expect(screen.getByText('Default')).toBeInTheDocument();
+    expect(screen.getByText('Maybeboard')).toBeInTheDocument();
     expect(screen.getByText('New Category')).toBeInTheDocument();
   });
 
-  it('invokes Default and New Category drop handlers with instance ids', () => {
+  it('invokes Default, Maybeboard, and New Category drop handlers with instance ids', () => {
     const onDropDefault = vi.fn();
+    const onDropMaybeboard = vi.fn();
     const onDropNewCategory = vi.fn();
     render(
       <AddCardFab
         onAddClick={() => {}}
         onDropDefault={onDropDefault}
+        onDropMaybeboard={onDropMaybeboard}
         onDropNewCategory={onDropNewCategory}
       />,
     );
@@ -84,6 +89,12 @@ describe('AddCardFab drag target', () => {
       dataTransfer: dragDataTransfer('c1'),
     });
     expect(onDropDefault).toHaveBeenCalledWith(['c1']);
+
+    startDeckBuilderDrag();
+    fireEvent.drop(screen.getByLabelText('Maybeboard category'), {
+      dataTransfer: dragDataTransfer('c3'),
+    });
+    expect(onDropMaybeboard).toHaveBeenCalledWith(['c3']);
 
     startDeckBuilderDrag();
     fireEvent.drop(screen.getByLabelText('New category'), {
@@ -124,6 +135,23 @@ describe('BrowseShell FAB category drops', () => {
     const next = onChange.mock.calls[0]![0] as DeckDocument;
     const bird = next.cards.find((c) => c.instanceId === 'c1');
     expect(bird?.primaryCategory).toBe('Creature');
+  });
+
+  it('moves a main-deck card to Maybeboard when dropped on Maybeboard', () => {
+    const onChange = vi.fn();
+    const deck: DeckDocument = { ...commanderDoc, cardLayoutDefault: 'grid' };
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={() => {}} />);
+
+    startDeckBuilderDrag();
+    fireEvent.drop(screen.getByLabelText('Maybeboard category'), {
+      dataTransfer: dragDataTransfer('c1'),
+    });
+
+    expect(onChange).toHaveBeenCalled();
+    const next = onChange.mock.calls[0]![0] as DeckDocument;
+    const bird = next.cards.find((c) => c.instanceId === 'c1');
+    expect(bird?.primaryCategory).toBe('Maybeboard');
+    expect(next.categories.some((c) => c.name === 'Maybeboard')).toBe(true);
   });
 
   it('opens MoveSheet in new-category mode when dropped on New Category', () => {

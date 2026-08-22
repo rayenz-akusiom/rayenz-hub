@@ -5,17 +5,21 @@ import {
 } from './CardTile';
 import { useDeckBuilderDragging } from './useDeckBuilderDragging';
 
+type DropZone = 'default' | 'maybeboard' | 'new';
+
 export function AddCardFab({
   onAddClick,
   onDropDefault,
+  onDropMaybeboard,
   onDropNewCategory,
 }: {
   onAddClick: () => void;
   onDropDefault: (instanceIds: string[]) => void;
+  onDropMaybeboard: (instanceIds: string[]) => void;
   onDropNewCategory: (instanceIds: string[]) => void;
 }) {
   const dragging = useDeckBuilderDragging();
-  const [overZone, setOverZone] = useState<'default' | 'new' | null>(null);
+  const [overZone, setOverZone] = useState<DropZone | null>(null);
 
   if (!dragging) {
     return (
@@ -39,15 +43,13 @@ export function AddCardFab({
     e.dataTransfer.dropEffect = 'move';
   }
 
-  function handleDrop(
-    e: DragEvent,
-    zone: 'default' | 'new',
-  ) {
+  function handleDrop(e: DragEvent, zone: DropZone) {
     e.preventDefault();
     setOverZone(null);
     const ids = readDragInstanceIds(e.dataTransfer);
     if (!ids.length) return;
     if (zone === 'default') onDropDefault(ids);
+    else if (zone === 'maybeboard') onDropMaybeboard(ids);
     else onDropNewCategory(ids);
   }
 
@@ -68,6 +70,18 @@ export function AddCardFab({
         onDrop={(e) => handleDrop(e, 'default')}
       >
         Default
+      </div>
+      <div
+        className={`db-add-fab-zone${overZone === 'maybeboard' ? ' is-drop-target' : ''}`}
+        aria-label="Maybeboard category"
+        onDragOver={(e) => {
+          allowDrop(e);
+          setOverZone('maybeboard');
+        }}
+        onDragLeave={() => setOverZone((z) => (z === 'maybeboard' ? null : z))}
+        onDrop={(e) => handleDrop(e, 'maybeboard')}
+      >
+        Maybeboard
       </div>
       <div
         className={`db-add-fab-zone${overZone === 'new' ? ' is-drop-target' : ''}`}

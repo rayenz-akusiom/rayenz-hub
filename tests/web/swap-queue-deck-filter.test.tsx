@@ -47,6 +47,7 @@ describe('SwapQueueApp by-deck filter', () => {
       expect(screen.queryByText(/Bravo Card/)).not.toBeInTheDocument();
     });
     expect(screen.getByText(/Alpha Card/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove filter: Alpha Deck' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 
@@ -97,5 +98,44 @@ describe('SwapQueueApp by-deck filter', () => {
         'No queue items match the current filters.',
       );
     });
+  });
+
+  it('dismisses the deck filter from an active chip', async () => {
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [],
+      sources: [
+        wantSource({
+          deckId: 'd1',
+          deckName: 'Alpha Deck',
+          entryId: 'e1',
+          cardName: 'Alpha Card',
+          mergeKey: 'alpha',
+        }),
+        wantSource({
+          deckId: 'd2',
+          deckName: 'Bravo Deck',
+          entryId: 'e2',
+          cardName: 'Bravo Card',
+          mergeKey: 'bravo',
+        }),
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SwapQueueApp entryPath="wishlist" />);
+
+    await waitFor(() => expect(screen.getByText(/Alpha Card/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
+    const filterGroup = screen.getByRole('group', { name: 'Filter by deck' });
+    await user.click(within(filterGroup).getByLabelText('Alpha Deck'));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Bravo Card/)).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter: Alpha Deck' }));
+    await waitFor(() => {
+      expect(screen.getByText(/Bravo Card/)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Remove filter: Alpha Deck' })).not.toBeInTheDocument();
   });
 });

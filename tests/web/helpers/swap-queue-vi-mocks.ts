@@ -31,6 +31,7 @@ vi.mock('../../../packages/web/src/deck-builder/store/deck-store', () => ({
 
 vi.mock('../../../packages/web/src/deck-builder/store/library-sync', () => ({
   pullRemoteLibraryUpdates: () => mockPullRemoteLibraryUpdates(),
+  listFallbackLibrary: async () => [],
 }));
 
 vi.mock('../../../packages/web/src/swap-queue/enrich-prices', () => ({

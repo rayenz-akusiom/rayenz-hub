@@ -1,7 +1,26 @@
 .swap-queue-app {
-  padding: 1rem 1.25rem 2rem;
+  padding: 0;
   /* Wide enough for ≥3 Medium pair tiles (2.45×213 + pad + gaps). */
+  max-width: none;
+}
+
+.swap-queue-app .hub-sticky-chrome {
+  padding: 1rem 1.25rem 0.35rem;
+}
+
+.swap-queue-app .sq-chrome-title h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+}
+
+.swap-queue-app .sq-body {
+  padding: 0.5rem 1.25rem 2rem;
   max-width: 105rem;
+}
+
+.swap-queue-app .db-filter-chips {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .swap-queue-app h1 {
@@ -10,7 +29,7 @@
 }
 
 .swap-queue-app .sq-header {
-  margin: 0.75rem 0 1rem;
+  margin: 0.75rem 0 0.5rem;
   padding: 0;
   background: transparent;
   border: none;

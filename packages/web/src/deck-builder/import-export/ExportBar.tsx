@@ -46,8 +46,6 @@ export function ExportBar({
   onCardSortChange,
   cardSize,
   onCardSizeChange,
-  onOpenCategories,
-  onOpenBasics,
   setFilter,
   syntaxFilter,
   proxyFilter,
@@ -63,8 +61,6 @@ export function ExportBar({
   onCardSortChange: (next: CardSortMode) => void;
   cardSize: CardSizeKey;
   onCardSizeChange: (next: CardSizeKey) => void;
-  onOpenCategories?: () => void;
-  onOpenBasics?: () => void;
   setFilter?: SetMembershipFilterState;
   syntaxFilter?: ScryfallSyntaxFilterState;
   proxyFilter?: FlagFilterMode;
@@ -194,16 +190,6 @@ export function ExportBar({
         </FiltersMenu>
       ) : null}
       <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
-      {onOpenCategories ? (
-        <button type="button" className="db-btn" onClick={onOpenCategories}>
-          Categories…
-        </button>
-      ) : null}
-      {onOpenBasics ? (
-        <button type="button" className="db-btn" onClick={onOpenBasics}>
-          Basics…
-        </button>
-      ) : null}
     </div>
   );
 }

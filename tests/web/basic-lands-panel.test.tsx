@@ -93,7 +93,8 @@ describe('BrowseShell Basics panel', () => {
     const user = userEvent.setup();
     render(<BrowseShell deck={basicsDeck()} onChange={vi.fn()} onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Basics…' }));
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Basics…' }));
     expect(screen.getByRole('dialog', { name: 'Basic lands' })).toBeInTheDocument();
     expect(screen.getByText(/Total basics:/i)).toBeInTheDocument();
   });

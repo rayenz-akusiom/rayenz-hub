@@ -51,6 +51,7 @@ import { listFallbackLibrary, pullRemoteLibraryUpdates } from '../deck-builder/s
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import { FiltersMenu, filtersMenuLabel } from '../deck-builder/ui/FiltersMenu';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
+import { ActiveFilterChips, type ActiveFilterChip } from '../deck-builder/ui/ActiveFilterChips';
 import { SetFilterMenuControl, useSetMembershipFilter } from '../deck-builder/ui/SetFilterControl';
 import {
   SyntaxFilterControl,
@@ -63,6 +64,7 @@ import {
   useIsHubOwner,
 } from '../lib/hub-auth-session';
 import { navigateHub } from '../lib/hub-storage';
+import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import '../deck-builder/deck-builder.css';
 import { findDeck, loadPublicSwapWantSources, loadSwapWantSources } from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
@@ -418,6 +420,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const originDeckWorkingRef = useRef(originDeckWorking);
   const decksRef = useRef(decks);
   const autosaveTimerRef = useRef(0);
+  const progressHostRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HubProgressController | null>(null);
   editingDeckRef.current = editingDeck;
   pairDraftRef.current = pairDraft;
   pairOriginDeckIdRef.current = pairOriginDeckId;
@@ -459,6 +463,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setLoading(true);
     setError('');
     setApiWarning('');
+    const progress = progressRef.current;
+    progress?.start({ label: 'Loading library…', indeterminate: true });
     const parsedSlug = parseSwapQueueRoute()?.userSlug ?? null;
     const userSlug = parsedSlug ? rewriteRetiredUserSlug(parsedSlug) : null;
     const viewingOther = isForeignUserSlug(userSlug);
@@ -470,6 +476,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           setDecks([]);
           setSources([]);
           setError(`Unknown user “${userSlug}”`);
+          progress?.finish({ label: 'Could not load library.', variant: 'error' });
           return;
         }
         setShareUsername(result.username || result.slug);
@@ -478,6 +485,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         void enrichWantSourcesUsd(result.sources).then((enriched) => {
           setSources(enriched);
         });
+        progress?.dismiss();
         return;
       }
       setShareUsername(null);
@@ -486,13 +494,21 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         list = await pullRemoteLibraryUpdates();
       } catch (e) {
         setApiWarning(e instanceof Error ? e.message : String(e));
-        if (getHubAuthSession()?.accessToken) {
-          setError('Could not load library from Hub API.');
+        try {
+          list = await listFallbackLibrary();
+        } catch {
+          setError(
+            getHubAuthSession()?.accessToken
+              ? 'Could not load library from Hub API.'
+              : e instanceof Error
+                ? e.message
+                : String(e),
+          );
           setDecks([]);
           setSources([]);
+          progress?.finish({ label: 'Could not load library.', variant: 'error' });
           return;
         }
-        list = await listFallbackLibrary();
       }
       const result = await loadSwapWantSources(list);
       setDecks(result.decks);
@@ -500,12 +516,20 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       void enrichWantSourcesUsd(result.sources).then((enriched) => {
         setSources(enriched);
       });
+      progress?.dismiss();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      progress?.finish({ label: 'Could not load library.', variant: 'error' });
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (progressHostRef.current && !progressRef.current) {
+      progressRef.current = HubProgress.mount(progressHostRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -1039,6 +1063,41 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     priceFilterActive ? priceMenuLabel(minAmount, maxAmount, effectiveCurrency) : '',
   ]);
 
+  const filterChips: ActiveFilterChip[] = [];
+  if (syntaxFilter.active && syntaxFilter.label) {
+    filterChips.push({
+      id: 'syntax',
+      label: syntaxFilter.label,
+      onDismiss: () => syntaxFilter.clear(),
+    });
+  }
+  if (selectedDeckIds.length) {
+    filterChips.push({
+      id: 'decks',
+      label: deckFilterLabel(selectedDeckIds, deckOptions),
+      onDismiss: () => setSelectedDeckIds([]),
+    });
+  }
+  if (setFilter.active && setFilter.label) {
+    filterChips.push({
+      id: 'set',
+      label: setFilter.label,
+      onDismiss: () => setFilter.clear(),
+    });
+  }
+  if (priceFilterActive) {
+    filterChips.push({
+      id: 'price',
+      label: priceMenuLabel(minAmount, maxAmount, effectiveCurrency),
+      onDismiss: () => {
+        setMinAmount(null);
+        setMaxAmount(null);
+        setMinInput('');
+        setMaxInput('');
+      },
+    });
+  }
+
   const shellStyle = {
     ['--db-card-w']: `${cardWidthPx}px`,
     ['--db-swap-card-w']: `${cardWidthPx}px`,
@@ -1053,18 +1112,21 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       data-readonly={readOnly ? 'true' : undefined}
       style={shellStyle}
     >
-      <h1>{readOnly && (shareUsername || routeUserSlug)
-        ? `${shareUsername || routeUserSlug}'s Swap Queue`
-        : 'Swap Queue'}</h1>
-      <p className="hub-muted">
-        {readOnly
-          ? 'Read-only view of Seeking, Queued In, and Out.'
-          : `Manage your swap queues across all of your decks${
-              entryPath === 'wishlist' ? ' (Wishlist alias)' : ''
-            }.`}
-      </p>
+      <div className="hub-sticky-chrome">
+        <div className="sq-chrome-title">
+          <h1>{readOnly && (shareUsername || routeUserSlug)
+            ? `${shareUsername || routeUserSlug}'s Swap Queue`
+            : 'Swap Queue'}</h1>
+          <p className="hub-muted">
+            {readOnly
+              ? 'Read-only view of Seeking, Queued In, and Out.'
+              : `Manage your swap queues across all of your decks${
+                  entryPath === 'wishlist' ? ' (Wishlist alias)' : ''
+                }.`}
+          </p>
+        </div>
 
-      <header className="db-header sq-header" role="toolbar" aria-label="Swap Queue controls">
+        <header className="db-header sq-header" role="toolbar" aria-label="Swap Queue controls">
         <div className="db-toolbar-controls">
           <DbMenu label="Browse" value={BROWSE_LABELS[browse]}>
             <DbMenuItem active={browse === 'default'} onSelect={() => setBrowseMode('default')}>
@@ -1152,7 +1214,11 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
         </DbMenu>
       </header>
+        <div className="hub-progress-host" ref={progressHostRef} id="sq-progress-host" />
+        <ActiveFilterChips chips={filterChips} onClearAll={clearAllFilters} />
+      </div>
 
+      <div className="sq-body">
       {status ? <p className="hub-muted" role="status">{status}</p> : null}
       {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
       {setFilter.error ? <p className="hub-banner-error">{setFilter.error}</p> : null}
@@ -1164,13 +1230,42 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       {loading ? <p className="hub-muted">Loading library…</p> : null}
 
       {!loading && !error && !hasAny ? (
-        <p className="hub-muted" data-testid="swap-queue-empty">
-          {hasUnfiltered && filtersActive
-            ? 'No queue items match the current filters.'
-            : readOnly
-              ? 'No Queued In, Out, or Seeking cards in this library yet.'
-              : 'No Queued In, Out, or Seeking cards in your library yet.'}
-        </p>
+        <div className="db-empty-state" data-testid="swap-queue-empty">
+          {hasUnfiltered && filtersActive ? (
+            <p>No queue items match the current filters.</p>
+          ) : (
+            <>
+              <p>
+                {readOnly
+                  ? 'No Queued In, Out, or Seeking cards in this library yet.'
+                  : 'No Queued In, Out, or Seeking cards in your library yet.'}
+              </p>
+              {readOnly ? null : (
+                <>
+                  <p>
+                    Seeking is cards you want. Queued In and Out are planned swaps. Add a swap
+                    to get started.
+                  </p>
+                  <div className="hub-empty-actions">
+                    <button
+                      type="button"
+                      className="db-btn"
+                      disabled={!libraryDeckOptions.length}
+                      title={
+                        libraryDeckOptions.length
+                          ? undefined
+                          : 'Open a deck in Commander or Cube Builder first'
+                      }
+                      onClick={() => setAddPickerOpen(true)}
+                    >
+                      Add swap
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
       ) : null}
 
       {!loading && hasAny ? (
@@ -1189,6 +1284,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           priceTitle={(usd) => priceBadgeTitle(usd, effectiveCurrency, fxRate)}
         />
       ) : null}
+      </div>
 
       {interstitial ? (
         <SourceInterstitial
@@ -1290,7 +1386,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         />
       ) : null}
 
-      {readOnly ? null : (
+      {readOnly || (!loading && !error && !hasAny && !(hasUnfiltered && filtersActive)) ? null : (
       <button
         type="button"
         className="db-add-fab"

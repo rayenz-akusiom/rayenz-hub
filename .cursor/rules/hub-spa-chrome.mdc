@@ -1,0 +1,45 @@
+---
+description: Hub SPA chrome — sticky header, overflow menus, chips, empty states, Hub tokens
+globs: packages/web/src/**/*.{tsx,css},rayenz-hub/shared/hub-mtg-ui.css,rayenz-hub/shared/hub-app-chrome.css,rayenz-hub/shared/hub-progress.css,tests/web/**/*.tsx
+alwaysApply: false
+---
+
+# Hub SPA chrome
+
+Prefer existing Hub primitives before adding a parallel toolbar, token, or empty-state dialect. Pointer in `AGENTS.md` (SPA chrome / UX). Sticky / progress details: [`hub-sticky-header.mdc`](hub-sticky-header.mdc), [`hub-progress-bar.mdc`](hub-progress-bar.mdc).
+
+## Share
+
+- Sticky chrome: wrap header + `.hub-progress-host` in `.hub-sticky-chrome`; body (`.db-body`, `.sq-body`, `.dr-body`, `.or-body`) scrolls underneath.
+- React progress: `HubProgress.mount(hostEl)` in `useEffect` (`packages/web/src/lib/hub-progress.ts`).
+- Tokens / buttons: `--hub-*` and `.hub-btn` aliases in `rayenz-hub/shared/hub-mtg-ui.css`. Settings `packages/web/src/styles.css` should use `--hub-accent`, not a second blue.
+- Menus: `DbMenu` / `FiltersMenu`. Active filters: dismissible `ActiveFilterChips` in sticky chrome when Filters ≠ All (`packages/web/src/deck-builder/ui/ActiveFilterChips.tsx`).
+- Card density: `CardSizePicker`.
+- Empty: dashed `.db-empty-state` (or `.hub-empty`) with a short explanation and **one** CTA. Library (`FormatFilteredLibrary`) and Swap Queue are the templates.
+
+## Toolbar hierarchy
+
+Keep on the strip: Browse / Layout / Sort / Filters / size.
+
+Overflow (hamburger): Categories, Basics, Trim, Glance, copy/export.
+
+- Builder: `packages/web/src/deck-builder/import-export/DeckActionsMenu.tsx`
+- Swap Queue: existing actions hamburger
+
+## Nav drawer
+
+`#hub-nav-toggle` in `packages/web/src/hub/HubShell.tsx`: `aria-expanded`, Open/Close `aria-label`, Escape closes and focuses the toggle.
+
+## Keep separate
+
+- Dailies / Neopets More tile canvas (do not restyle to match MTG)
+- Suggest / Order Reconcile may keep `dr-*` / `or-*` class names
+- Glance packers and product dialogs (see `glance.mdc`)
+
+## Avoid
+
+- Equal-weight primary toolbars (Categories / Trim / Glance as same-weight `db-btn`s beside Browse)
+- A second identical FAB while an empty-state CTA is showing
+- `HubProgress.finish()` on uneventful list refresh — `dismiss()` on success; `finish({ variant: 'error' })` when the user must see failure
+- `position: fixed` headers (use `.hub-sticky-chrome`)
+- Dark mode, renaming `dr-*` / `or-*` for consistency, making Dailies look like MTG

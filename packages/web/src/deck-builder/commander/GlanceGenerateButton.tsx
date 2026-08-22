@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
 import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/shared';
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
@@ -13,8 +13,12 @@ import {
   GlanceStatusLine,
 } from '../../lib/glance-ui';
 
+export type GlanceGenerateHandle = { open: () => void };
+
 type Props = {
   deck: DeckDocument;
+  hideTrigger?: boolean;
+  openRef?: MutableRefObject<GlanceGenerateHandle | null>;
 };
 
 type Phase = 'pick' | 'options';
@@ -30,7 +34,7 @@ function cacheKey(mode: GlanceLayoutMode, lieutenantInstanceIds: string[]): stri
   return `${mode}|${lieutenantInstanceIds.slice().sort().join(',')}`;
 }
 
-export function GlanceGenerateButton({ deck }: Props) {
+export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('options');
   const [mode, setMode] = useState<GlanceLayoutMode>('type_line');
@@ -201,6 +205,14 @@ export function GlanceGenerateButton({ deck }: Props) {
     needsPick,
   ]);
 
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = { open: onOpen };
+    return () => {
+      openRef.current = null;
+    };
+  }, [openRef, onOpen]);
+
   const togglePicked = useCallback((instanceId: string) => {
     setPicked((prev) => {
       if (prev.includes(instanceId)) return prev.filter((id) => id !== instanceId);
@@ -235,23 +247,25 @@ export function GlanceGenerateButton({ deck }: Props) {
 
   return (
     <>
-      <button
-        type="button"
-        className="db-btn db-glance-generate"
-        disabled={!enabled}
-        title={
-          !apiReady
-            ? 'Sign in from the left nav to generate glance images'
-            : !ownerReady
-              ? OWNER_ONLY_EXPENSIVE_MESSAGE
-              : !hasDeckId
-                ? 'Save deck to Hub API first'
-                : 'Generate deck glance image'
-        }
-        onClick={onOpen}
-      >
-        Generate glance
-      </button>
+      {hideTrigger ? null : (
+        <button
+          type="button"
+          className="db-btn db-glance-generate"
+          disabled={!enabled}
+          title={
+            !apiReady
+              ? 'Sign in from the left nav to generate glance images'
+              : !ownerReady
+                ? OWNER_ONLY_EXPENSIVE_MESSAGE
+                : !hasDeckId
+                  ? 'Save deck to Hub API first'
+                  : 'Generate deck glance image'
+          }
+          onClick={onOpen}
+        >
+          Generate glance
+        </button>
+      )}
 
       {open ? (
         <div

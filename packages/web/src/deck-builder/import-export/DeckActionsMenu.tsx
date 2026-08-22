@@ -14,16 +14,26 @@ function HamburgerIcon() {
   );
 }
 
-/** Top-right overflow menu for duplicate and Archidekt export actions. */
+/** Top-right overflow menu for browse actions, duplicate, and Archidekt export. */
 export function DeckActionsMenu({
   deck,
   onDuplicate,
   duplicateDisabled,
+  onOpenCategories,
+  onOpenBasics,
+  trimMode,
+  onToggleTrim,
+  onGenerateGlance,
 }: {
   deck: DeckDocument;
   onDeckChange: (next: DeckDocument) => void;
   onDuplicate?: () => void;
   duplicateDisabled?: boolean;
+  onOpenCategories?: () => void;
+  onOpenBasics?: () => void;
+  trimMode?: boolean;
+  onToggleTrim?: () => void;
+  onGenerateGlance?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const text = buildArchidektImportText(deck);
@@ -41,6 +51,24 @@ export function DeckActionsMenu({
       align="end"
       triggerClassName="db-btn db-menu-icon-btn"
     >
+      {onToggleTrim ? (
+        <DbMenuItem
+          active={trimMode}
+          onSelect={onToggleTrim}
+          title="Click cards to move to Maybeboard or delete"
+        >
+          {trimMode ? 'Exit trim' : 'Trim'}
+        </DbMenuItem>
+      ) : null}
+      {onOpenCategories ? (
+        <DbMenuItem onSelect={onOpenCategories}>Categories…</DbMenuItem>
+      ) : null}
+      {onOpenBasics ? (
+        <DbMenuItem onSelect={onOpenBasics}>Basics…</DbMenuItem>
+      ) : null}
+      {onGenerateGlance ? (
+        <DbMenuItem onSelect={onGenerateGlance}>Generate glance</DbMenuItem>
+      ) : null}
       {onDuplicate ? (
         <DbMenuItem disabled={duplicateDisabled} onSelect={() => onDuplicate()}>
           Duplicate deck

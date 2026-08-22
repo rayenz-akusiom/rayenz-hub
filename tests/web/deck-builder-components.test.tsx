@@ -57,6 +57,11 @@ async function openFilters(user: ReturnType<typeof userEvent.setup>) {
   }
 }
 
+async function enterTrim(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Trim' }));
+}
+
 afterEach(() => {
   cleanup();
   localStorage.removeItem('rayenzHubPickerCardSize');
@@ -618,6 +623,36 @@ describe('BrowseShell selection and context menu', () => {
     expect(screen.queryByRole('button', { name: new RegExp(`^${normal.name}$`, 'i') })).not.toBeInTheDocument();
   });
 
+  it('shows a dismissible chip for an active proxy filter', async () => {
+    const user = userEvent.setup();
+    const deck = foilDeck();
+    const proxied = {
+      ...deck.cards[0]!,
+      instanceId: 'proxy-card',
+      name: 'Proxy Bird',
+      proxy: true,
+      foil: false,
+    };
+    const normal = { ...deck.cards[1]!, proxy: false, foil: false };
+    render(
+      <BrowseShell
+        deck={{ ...deck, cards: [proxied, normal] }}
+        onChange={noop}
+        onBack={noop}
+      />,
+    );
+
+    await openFilters(user);
+    await user.click(within(screen.getByRole('group', { name: 'Proxy filter' })).getByRole('radio', { name: 'Hide' }));
+    expect(screen.queryByRole('button', { name: /Proxy Bird/i })).not.toBeInTheDocument();
+
+    const chip = screen.getByRole('button', { name: 'Remove filter: Proxy Hide' });
+    expect(chip).toBeInTheDocument();
+    await user.click(chip);
+    expect(screen.getByRole('button', { name: /Proxy Bird/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove filter: Proxy Hide' })).not.toBeInTheDocument();
+  });
+
   it('hides foiled cards when the Foil filter is Hide', async () => {
     const user = userEvent.setup();
     const deck = foilDeck();
@@ -849,6 +884,24 @@ describe('BrowseShell trim mode', () => {
     };
   }
 
+  it('pins browse chrome while the body scrolls', () => {
+    const { container } = render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} />);
+    expect(container.querySelector('.hub-sticky-chrome')).toBeTruthy();
+    expect(container.querySelector('#db-progress-host')).toBeTruthy();
+  });
+
+  it('moves overflow actions into the deck menu', async () => {
+    const user = userEvent.setup();
+    render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} />);
+    expect(screen.queryByRole('button', { name: 'Trim' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Categories…' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Categories…' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Basics…' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Generate glance' })).toBeInTheDocument();
+  });
+
   it('moves a clicked card to Maybeboard', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -856,7 +909,7 @@ describe('BrowseShell trim mode', () => {
     const card = deck.cards[0]!;
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
-    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await enterTrim(user);
     await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
 
     expect(onChange).toHaveBeenCalledWith(
@@ -876,7 +929,7 @@ describe('BrowseShell trim mode', () => {
     const card = deck.cards[0]!;
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
-    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await enterTrim(user);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
 
@@ -910,7 +963,7 @@ describe('BrowseShell trim mode', () => {
     });
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
-    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await enterTrim(user);
     await user.click(screen.getByRole('button', { name: /^Stash Me$/i }));
 
     expect(onChange).not.toHaveBeenCalled();
@@ -922,12 +975,14 @@ describe('BrowseShell trim mode', () => {
     const card = deck.cards[0]!;
 
     render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
-    await user.click(screen.getByRole('button', { name: 'Trim' }));
+    await enterTrim(user);
     expect(screen.getByText('Click a card to move it to Maybeboard')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByText('Click a card to move it to Maybeboard')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Trim' })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();
@@ -935,6 +990,7 @@ describe('BrowseShell trim mode', () => {
 
   it('hides Trim when read-only', () => {
     render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} readOnly />);
+    expect(screen.queryByRole('button', { name: 'Deck actions' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Trim' })).not.toBeInTheDocument();
   });
 });

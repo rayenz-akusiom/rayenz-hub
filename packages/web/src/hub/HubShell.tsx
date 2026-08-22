@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DailiesApp } from '../dailies/DailiesApp';
 import { LegacyDeckBuilderRedirect } from '../deck-builder/LegacyDeckBuilderRedirect';
 import { CommanderBuilderApp } from '../deck-builder/commander/CommanderBuilderApp';
@@ -58,6 +58,7 @@ function AppOutlet({ path }: { path: string }) {
 export function HubShell() {
   const { path } = useHubRoute();
   const [navOpen, setNavOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     installHubCardPickerBridge();
@@ -68,13 +69,27 @@ export function HubShell() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setNavOpen(false);
+      toggleRef.current?.focus();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
     <>
       <button
         type="button"
         id="hub-nav-toggle"
+        ref={toggleRef}
         className="hub-nav-toggle"
-        aria-label="Open menu"
+        aria-label={navOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={navOpen}
+        aria-controls="hub-nav"
         onClick={() => setNavOpen((o) => !o)}
       >
         &#9776;
@@ -82,7 +97,10 @@ export function HubShell() {
       <div
         id="hub-nav-backdrop"
         className={`hub-nav-backdrop${navOpen ? ' open' : ''}`}
-        onClick={() => setNavOpen(false)}
+        onClick={() => {
+          setNavOpen(false);
+          toggleRef.current?.focus();
+        }}
       />
       <div className="hub-layout">
         <HubNav path={path} open={navOpen} onClose={() => setNavOpen(false)} />

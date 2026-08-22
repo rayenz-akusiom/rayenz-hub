@@ -1,6 +1,6 @@
 ---
 description: Hub app headers must be sticky by default (sticky chrome under scroll)
-globs: rayenz-hub/apps/**/*.{js,css,html},rayenz-hub/shared/**/*.{js,css}
+globs: rayenz-hub/apps/**/*.{js,css,html},rayenz-hub/shared/**/*.{js,css},packages/web/src/**/*.{tsx,css}
 alwaysApply: false
 ---
 
@@ -11,8 +11,8 @@ Hub apps keep the **title/actions header pinned** while body content scrolls.
 ## Default pattern
 
 1. Wrap the app header and the progress host in `.hub-sticky-chrome` (see `rayenz-hub/shared/hub-app-chrome.css`).
-2. Header element uses the app class (`.ds-header`, `.dr-header`, `.or-header`, `.site-header`).
-3. Scrollable content lives **below** the sticky chrome (e.g. `.ds-body`, `.dr-body`, `.or-body`, dailies collapsibles).
+2. Header element uses the app class (`.ds-header`, `.dr-header`, `.or-header`, `.site-header`, `.db-header`, `.sq-header`).
+3. Scrollable content lives **below** the sticky chrome (e.g. `.ds-body`, `.dr-body`, `.or-body`, `.db-body`, `.sq-body`, dailies collapsibles).
 4. New apps must use this wrapper unless added to **Documented overrides** first.
 
 ```html
@@ -22,6 +22,8 @@ Hub apps keep the **title/actions header pinned** while body content scrolls.
 </div>
 <div class="ds-body">…</div>
 ```
+
+React: same wrapper. References: `BrowseShell` (Builder browse), `SwapQueueApp`, Deck Suggest, Order Reconcile, Dailies.
 
 Do **not** use `position: fixed` for app headers unless listed under **Documented overrides**.
 
@@ -44,4 +46,4 @@ _(none)_
 
 - New Hub apps must use `.hub-sticky-chrome` unless listed above.
 - New override: edit this `.mdc` file in the same PR; do not add silent exceptions in code only.
-- When reviewing diffs under `apps/**`, check header layout against **Documented overrides**.
+- When reviewing diffs under `packages/web/src/**`, check header layout against **Documented overrides**. Vanilla `rayenz-hub/apps/` is legacy.

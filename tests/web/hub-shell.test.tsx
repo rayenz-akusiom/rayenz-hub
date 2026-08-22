@@ -143,6 +143,8 @@ describe('HubShell nav toggle', () => {
     await user.click(toggle);
     expect(nav).toHaveClass('open');
     expect(backdrop).toHaveClass('open');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-label', 'Close menu');
 
     await user.click(toggle);
     expect(nav).not.toHaveClass('open');
@@ -174,6 +176,22 @@ describe('HubShell nav toggle', () => {
 
     await user.click(navLink('Commander Builder'));
     expect(nav).not.toHaveClass('open');
+  });
+
+  it('closes the nav drawer on Escape and restores focus to the toggle', async () => {
+    const user = userEvent.setup();
+    render(<HubShell />);
+
+    const nav = screen.getByRole('navigation', { name: 'Apps' });
+    const toggle = screen.getByRole('button', { name: 'Open menu' });
+    await user.click(toggle);
+    expect(nav).toHaveClass('open');
+
+    await user.keyboard('{Escape}');
+    expect(nav).not.toHaveClass('open');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveAttribute('aria-label', 'Open menu');
+    expect(toggle).toHaveFocus();
   });
 });
 

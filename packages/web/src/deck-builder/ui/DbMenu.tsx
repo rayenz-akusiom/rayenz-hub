@@ -84,11 +84,13 @@ export function DbMenuItem({
   children,
   active,
   disabled,
+  title,
   onSelect,
 }: {
   children: ReactNode;
   active?: boolean;
   disabled?: boolean;
+  title?: string;
   onSelect?: () => void;
 }) {
   return (
@@ -97,6 +99,7 @@ export function DbMenuItem({
       role="menuitem"
       className={`db-menu-item${active ? ' is-active' : ''}`}
       disabled={disabled}
+      title={title}
       onClick={() => onSelect?.()}
     >
       {children}

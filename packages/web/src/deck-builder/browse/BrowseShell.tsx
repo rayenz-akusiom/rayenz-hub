@@ -86,7 +86,10 @@ import { CategoryEditDialog } from '../edit/CategoryEditDialog';
 import { BasicLandsPanel } from '../edit/BasicLandsPanel';
 import { ExportBar } from '../import-export/ExportBar';
 import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
-import { GlanceGenerateButton } from '../commander/GlanceGenerateButton';
+import {
+  GlanceGenerateButton,
+  type GlanceGenerateHandle,
+} from '../commander/GlanceGenerateButton';
 import { useScryfallEnrich } from '../scryfall/useScryfallEnrich';
 import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
@@ -103,10 +106,13 @@ import { useSetMembershipFilter } from '../ui/SetFilterControl';
 import { useScryfallSyntaxFilter } from '../ui/SyntaxFilterControl';
 import {
   cardMatchesFlagFilter,
+  FLAG_FILTER_MODE_LABELS,
   type FlagFilterMode,
 } from '../ui/FlagFilterControl';
+import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChips';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import { useDeckEditHistory } from '../useDeckEditHistory';
+import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
 
 /** Main / Seeking / Queued — still confirm before Remove. */
 function removeNeedsConfirm(
@@ -208,6 +214,9 @@ export function BrowseShell({
   const [foilFilter, setFoilFilter] = useState<FlagFilterMode>('all');
   useDragAutoScroll();
   const shellRef = useRef<HTMLDivElement>(null);
+  const progressHostRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HubProgressController | null>(null);
+  const glanceOpenRef = useRef<GlanceGenerateHandle | null>(null);
   const cardSizeReady = useRef(false);
   const visibleOrder = useMemo(
     () => [...mainVisibleOrder, ...asideVisibleOrder],
@@ -238,6 +247,12 @@ export function BrowseShell({
       el.removeAttribute('data-card-size-resizing');
     };
   }, [cardWidthPx]);
+
+  useEffect(() => {
+    if (progressHostRef.current && !progressRef.current) {
+      progressRef.current = HubProgress.mount(progressHostRef.current);
+    }
+  }, []);
 
   const liveDeck = useMemo(() => projectLiveFormalSwaps(deck), [deck]);
 
@@ -928,66 +943,101 @@ export function BrowseShell({
       ? liveDeck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
       : null;
 
+  const showGlance = liveDeck.format === 'commander' || liveDeck.format === 'pendragon';
+  const filterChips: ActiveFilterChip[] = [];
+  if (syntaxFilter.active && syntaxFilter.label) {
+    filterChips.push({
+      id: 'syntax',
+      label: syntaxFilter.label,
+      onDismiss: () => syntaxFilter.clear(),
+    });
+  }
+  if (setFilter.active && setFilter.label) {
+    filterChips.push({
+      id: 'set',
+      label: setFilter.label,
+      onDismiss: () => setFilter.clear(),
+    });
+  }
+  if (proxyFilter !== 'all') {
+    filterChips.push({
+      id: 'proxy',
+      label: `Proxy ${FLAG_FILTER_MODE_LABELS[proxyFilter]}`,
+      onDismiss: () => setProxyFilter('all'),
+    });
+  }
+  if (foilFilter !== 'all') {
+    filterChips.push({
+      id: 'foil',
+      label: `Foil ${FLAG_FILTER_MODE_LABELS[foilFilter]}`,
+      onDismiss: () => setFoilFilter('all'),
+    });
+  }
+
   return (
     <div
       ref={shellRef}
       className={`db-shell${draft ? ' is-swap-editing' : ''}${trimMode ? ' is-trimming' : ''}`}
       style={shellStyle}
     >
-      <header className="db-header">
-        <button type="button" className="db-btn db-library-back" onClick={onBack} aria-label="Library" title="Library">
-          <BookIcon />
-        </button>
-        <ExportBar
-          view={view}
-          onViewChange={setViewAndPersist}
-          layout={layout}
-          onLayoutChange={setLayoutAndPersist}
-          cardSort={cardSort}
-          onCardSortChange={setCardSortAndPersist}
-          cardSize={cardSize}
-          onCardSizeChange={setCardSize}
-          onOpenCategories={readOnly ? undefined : () => setCategoriesOpen(true)}
-          onOpenBasics={readOnly ? undefined : () => setBasicsOpen(true)}
-          setFilter={setFilter}
-          syntaxFilter={syntaxFilter}
-          proxyFilter={proxyFilter}
-          onProxyFilterChange={setProxyFilter}
-          foilFilter={foilFilter}
-          onFoilFilterChange={setFoilFilter}
-        />
-        {readOnly ? null : (
-          <button
-            type="button"
-            className={`db-btn${trimMode ? ' is-active' : ''}`}
-            aria-pressed={trimMode}
-            title="Click cards to move to Maybeboard or delete"
-            onClick={() => (trimMode ? exitTrim() : enterTrim())}
-          >
-            Trim
+      <div className="hub-sticky-chrome">
+        <header className="db-header">
+          <button type="button" className="db-btn db-library-back" onClick={onBack} aria-label="Library" title="Library">
+            <BookIcon />
           </button>
-        )}
-        {readOnly ? null : (
-          <DeckActionsMenu
-            deck={liveDeck}
-            onDeckChange={(next) => {
-              // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
-              if (next.cards !== liveDeck.cards || next.categories !== liveDeck.categories) {
-                commit(next);
-              } else {
-                commitPatch({
-                  lastArchidektSyncAt: next.lastArchidektSyncAt,
-                });
-              }
-            }}
-            onDuplicate={onDuplicate ? () => onDuplicate(liveDeck) : undefined}
-            duplicateDisabled={duplicateDisabled}
+          <ExportBar
+            view={view}
+            onViewChange={setViewAndPersist}
+            layout={layout}
+            onLayoutChange={setLayoutAndPersist}
+            cardSort={cardSort}
+            onCardSortChange={setCardSortAndPersist}
+            cardSize={cardSize}
+            onCardSizeChange={setCardSize}
+            setFilter={setFilter}
+            syntaxFilter={syntaxFilter}
+            proxyFilter={proxyFilter}
+            onProxyFilterChange={setProxyFilter}
+            foilFilter={foilFilter}
+            onFoilFilterChange={setFoilFilter}
           />
-        )}
-        {(liveDeck.format === 'commander' || liveDeck.format === 'pendragon') && !readOnly ? (
-          <GlanceGenerateButton deck={liveDeck} />
-        ) : null}
-      </header>
+          {readOnly ? null : (
+            <DeckActionsMenu
+              deck={liveDeck}
+              onDeckChange={(next) => {
+                // Refresh replaces the doc (import preserves Hub targets); other actions patch sync time.
+                if (next.cards !== liveDeck.cards || next.categories !== liveDeck.categories) {
+                  commit(next);
+                } else {
+                  commitPatch({
+                    lastArchidektSyncAt: next.lastArchidektSyncAt,
+                  });
+                }
+              }}
+              onDuplicate={onDuplicate ? () => onDuplicate(liveDeck) : undefined}
+              duplicateDisabled={duplicateDisabled}
+              onOpenCategories={() => setCategoriesOpen(true)}
+              onOpenBasics={() => setBasicsOpen(true)}
+              trimMode={trimMode}
+              onToggleTrim={() => (trimMode ? exitTrim() : enterTrim())}
+              onGenerateGlance={showGlance ? () => glanceOpenRef.current?.open() : undefined}
+            />
+          )}
+          {showGlance && !readOnly ? (
+            <GlanceGenerateButton deck={liveDeck} hideTrigger openRef={glanceOpenRef} />
+          ) : null}
+        </header>
+        <div className="hub-progress-host" ref={progressHostRef} id="db-progress-host" />
+        <ActiveFilterChips
+          chips={filterChips}
+          onClearAll={() => {
+            setFilter.clear();
+            syntaxFilter.clear();
+            setProxyFilter('all');
+            setFoilFilter('all');
+          }}
+        />
+      </div>
 
       <div className="db-body">
         <main className="db-main">

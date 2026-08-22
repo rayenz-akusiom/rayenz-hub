@@ -53,6 +53,16 @@ body,
   margin-bottom: 0.75rem;
 }
 
+.db-shell > .hub-sticky-chrome {
+  margin: -0.75rem -0.75rem 0.75rem;
+}
+
+.db-shell > .hub-sticky-chrome .db-header {
+  padding: 0.75rem;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
 .db-header h2 {
   margin: 0;
   font-size: 1.25rem;

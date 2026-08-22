@@ -1,28 +1,38 @@
 ---
 description: Long-running Hub work uses shared HubProgress under the sticky header
-globs: rayenz-hub/apps/**/*.{js,css,html},rayenz-hub/shared/**/*.{js,css}
+globs: rayenz-hub/apps/**/*.{js,css,html},rayenz-hub/shared/**/*.{js,css},packages/web/src/**/*.{tsx,ts}
 alwaysApply: false
 ---
 
 # Shared progress bar (default)
 
-Multi-step or long-running operations use `HubProgress` (`rayenz-hub/shared/hub-progress.js`), mounted on a `.hub-progress-host` **directly under the app header** inside `.hub-sticky-chrome`.
+Multi-step or long-running operations use `HubProgress` (`packages/web/src/lib/hub-progress.ts`), mounted on a `.hub-progress-host` **directly under the app header** inside `.hub-sticky-chrome`.
 
 ## Default pattern
 
-1. Shell template includes `<div class="hub-progress-host" id="…-progress-host"></div>` after the header.
-2. On app load: `state.ui.progress = HubUtils.mountAppProgress(hostEl, appName)`.
-3. Use `start` → `update` (with `current` / `total` when known) → `finish` → user `dismiss`.
-4. **Multi-step / long-running** primary progress must use `HubProgress`. Complementary one-line status in-panel (validation, idle Ready, copy feedback) is fine when listed under **Documented overrides**.
+1. Shell includes `<div class="hub-progress-host" id="…-progress-host"></div>` after the header.
+2. React: `HubProgress.mount(hostEl)` in `useEffect` once the host is in the DOM. (Legacy vanilla: `HubUtils.mountAppProgress`.)
+3. **Job** (generate, multi-step): `start` → `update` (with `current` / `total` when known) → `finish` → user `dismiss`.
+4. **Routine list/sync** (Swap Queue refresh): `start` while loading → `dismiss()` on success. `finish({ variant: 'error' })` only when the user must acknowledge failure. Do **not** `finish()` success on every page load — the bar stays until dismiss and reads as a stuck job.
+5. **Multi-step / long-running** primary progress must use `HubProgress`. Complementary one-line status in-panel (validation, idle Ready, copy feedback) is fine when listed under **Documented overrides**.
 
-```javascript
-var progress = state.ui.progress;
+```ts
+progress.start({ label: 'Loading library…', indeterminate: true });
+// success:
+progress.dismiss();
+// failure the user should see:
+progress.finish({ label: 'Could not load library.', variant: 'error' });
+```
+
+Job example (Suggest generate, Reconcile Hub load):
+
+```ts
 progress.start({ label: 'Loading…' });
 progress.update({ current: 2, total: 5, label: 'Step 2 of 5…' });
 progress.finish({ label: 'Done.', variant: 'success' });
 ```
 
-Reference: Deck Suggest generate, Order Reconcile Hub library load, Dailies batch automation.
+Reference: Deck Suggest generate, Order Reconcile Hub library load, Dailies batch automation, Swap Queue library refresh (`dismiss` on success), Deck Builder browse host.
 
 ## Overrides
 
@@ -39,9 +49,10 @@ Row format:
 
 - **Deck Suggest** — profile status in the review panel — long-running generate uses `HubProgress` (added: 2026-06-30)
 - **Order Reconcile** — `#or-status` / in-panel status — ephemeral feedback (copy applied, Scryfall miss) — Hub library load uses `HubProgress` (added: 2026-06-30)
+- **Swap Queue** — stacked in-body muted / warn / error for copy, share, and filter load — library refresh uses `HubProgress` (`dismiss` on success) (added: 2026-08-22)
 
 ## Enforcement
 
 - New long-running flows must use `HubProgress` unless listed above.
 - New override: edit this `.mdc` file in the same PR; do not add silent exceptions in code only.
-- When reviewing diffs under `apps/**`, check progress patterns against **Documented overrides**.
+- When reviewing diffs under `packages/web/src/**`, check progress patterns against **Documented overrides**. Vanilla `rayenz-hub/apps/` is legacy.

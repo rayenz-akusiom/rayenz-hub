@@ -54,7 +54,7 @@ export async function loadHubLibraryDecksForReconcile(): Promise<OrderReconcileD
   }
   const decks: OrderReconcileDeck[] = [];
   for (const s of summaries) {
-    if (s.format !== 'commander' && s.format !== 'cube') continue;
+    if (s.format !== 'commander' && s.format !== 'cube' && s.format !== 'pendragon') continue;
     if (isTheoryDeck(s)) continue;
     const doc = await resolveLibraryDocument(s.deckId);
     if (!doc || isTheoryDeck(doc)) continue;

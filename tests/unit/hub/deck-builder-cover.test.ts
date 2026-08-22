@@ -207,6 +207,33 @@ describe('deck cover partners', () => {
     expect(pickCoverPartnerStatus(d)).toBeNull();
   });
 
+  it('uses Arthur then Excalibur faces for Pendragon without partner-illegal styling', () => {
+    const d = doc(
+      [
+        card({
+          instanceId: 'a',
+          name: 'Knight of the White Orchid',
+          primaryCategory: 'Arthur',
+        }),
+        card({
+          instanceId: 'e',
+          name: 'Sword of Feast and Famine',
+          primaryCategory: 'Excalibur',
+        }),
+        card({ instanceId: 'c', name: 'Sol Ring', primaryCategory: 'Ramp' }),
+      ],
+      'pendragon',
+    );
+    expect(pickDeckCoverCards(d).map((c) => c.name)).toEqual([
+      'Knight of the White Orchid',
+      'Sword of Feast and Famine',
+    ]);
+    expect(deckCoverImageUrl(d)).toContain('a-scryfall-id');
+    expect(deckCoverImageUrlSecondary(d)).toContain('e-scryfall-id');
+    expect(pickCoverPartnerStatus(d)).toBeNull();
+    expect(toDeckSummary(d).coverPartnerStatus).toBeNull();
+  });
+
   it('soft-selects a commander cover among partners without collapsing the pair', () => {
     const d = DeckDocumentSchema.parse({
       ...doc([

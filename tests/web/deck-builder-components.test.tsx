@@ -68,6 +68,7 @@ describe('FormatBadge', () => {
   it.each([
     ['commander', 'Commander'],
     ['cube', 'Cube'],
+    ['pendragon', 'Pendragon'],
     ['other', 'Other'],
   ] as const)('renders %s label', (format, label) => {
     render(<FormatBadge format={format} showLabel />);

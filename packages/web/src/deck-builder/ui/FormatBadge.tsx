@@ -6,6 +6,7 @@ const CM1_SET_ICON = 'https://svgs.scryfall.io/sets/cm1.svg';
 const FORMAT_LABEL: Record<DeckFormat, string> = {
   commander: 'Commander',
   cube: 'Cube',
+  pendragon: 'Pendragon',
   other: 'Other',
 };
 
@@ -20,6 +21,22 @@ function CubeIcon() {
       <path
         fill="currentColor"
         d="M8 1.2 14.2 4.5 8 7.8 1.8 4.5 8 1.2zm0 6.6 6.2-3.3v7L8 14.8V7.8zm0 0L1.8 4.5v7L8 14.8V7.8z"
+      />
+    </svg>
+  );
+}
+
+function PendragonIcon() {
+  return (
+    <svg className="db-format-icon-svg" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M8.2 1.2 9.6 5.4h4.4l-3.6 2.6 1.4 4.3L8.2 9.8 4.2 12.3l1.4-4.3L2 5.4h4.4L8.2 1.2z"
+        opacity="0.35"
+      />
+      <path
+        fill="currentColor"
+        d="M7.5 1.4h1v9.2h-1zM5.2 11.2h5.6v1.1H5.2zm-1 1.6h7.6v1.2H4.2z"
       />
     </svg>
   );
@@ -63,6 +80,8 @@ export function FormatBadge({
         />
       ) : format === 'cube' ? (
         <CubeIcon />
+      ) : format === 'pendragon' ? (
+        <PendragonIcon />
       ) : (
         <OtherIcon />
       )}

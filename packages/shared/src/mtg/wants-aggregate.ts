@@ -114,7 +114,7 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
   const sources: WantSource[] = [];
 
   for (const deck of decks || []) {
-    if (deck.format !== 'commander' && deck.format !== 'cube') continue;
+    if (deck.format !== 'commander' && deck.format !== 'cube' && deck.format !== 'pendragon') continue;
     // Theory decks are speculative — queues are not acquire/trade intent.
     if (isTheoryDeck(deck)) continue;
     const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));

@@ -1,6 +1,7 @@
 import type { DeckDocument } from '../schemas/deck-builder.js';
 import { resolveDeckCards } from './card-oracle.js';
-import { collectCommanders } from './partner.js';
+import { collectCommandZoneCards } from './partner.js';
+import { isCommandZoneFormat } from './format.js';
 
 const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
 
@@ -11,9 +12,9 @@ const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
 export function commanderIdentityScryfallQuery(
   doc: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string | null {
-  if (doc.format !== 'commander') return null;
+  if (!isCommandZoneFormat(doc.format)) return null;
 
-  const commanders = collectCommanders(resolveDeckCards(doc));
+  const commanders = collectCommandZoneCards(resolveDeckCards(doc), doc.format);
   if (!commanders.length) return null;
 
   const set = new Set<string>();

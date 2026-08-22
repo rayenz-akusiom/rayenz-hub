@@ -14,8 +14,11 @@ import {
   defaultCategoryForCard,
   deckCategoryOptions,
   fetchPrintingsPage,
+  formatScryfallClause,
   isBasicLand,
+  isCommandZoneFormat,
   mapScryfallCardToPrinting,
+  pendragonRoleForCategory,
   scryfallCardImageUrl,
   scryfallImageFromId,
   searchCards,
@@ -71,11 +74,19 @@ export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<strin
 /** Freeform query plus optional Include clauses (kept out of the input). */
 export function composeScryfallQuery(
   freeform: string,
-  opts: { includeIdentity?: boolean; includeFormatCommander?: boolean },
+  opts: {
+    includeIdentity?: boolean;
+    includeFormatCommander?: boolean;
+    extraQuery?: string | null;
+  },
   deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string {
   const parts = [freeform.trim()];
-  if (opts.includeFormatCommander) parts.push('format:commander');
+  if (opts.extraQuery) parts.push(opts.extraQuery.trim());
+  if (opts.includeFormatCommander && !opts.extraQuery) {
+    const clause = formatScryfallClause(deck.format);
+    if (clause) parts.push(clause);
+  }
   if (opts.includeIdentity) {
     const clause = commanderIdentityScryfallQuery(deck);
     if (clause) parts.push(clause);
@@ -104,6 +115,7 @@ export function ScryfallSearchModal({
   printingTitle,
   defaultCategory,
   categoryOptions,
+  extraQuery,
   embedded = false,
   allowQuickAdd = false,
   onRemoveInDeckCard,
@@ -119,6 +131,8 @@ export function ScryfallSearchModal({
   defaultCategory?: string;
   /** When set, limits the printing-picker category list (e.g. swap Place In). */
   categoryOptions?: string[];
+  /** Always appended (slot role query). Replaces Include Format when set. */
+  extraQuery?: string;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
   /** Show session Quick add toggle (deck FAB add flow). */
@@ -128,10 +142,10 @@ export function ScryfallSearchModal({
   /** Long-press on an in-deck result opens the builder card context menu. */
   onInDeckContextMenu?: (card: ScryfallCard, pos: PickerMenuPosition) => void;
 }) {
-  const isCommander = deck.format === 'commander';
+  const isCommandZone = isCommandZoneFormat(deck.format);
   const [query, setQuery] = useState('');
-  const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommander);
-  const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommander);
+  const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommandZone);
+  const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommandZone);
   const [results, setResults] = useState<ScryfallCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextPage, setNextPage] = useState<string | null>(null);
@@ -208,6 +222,21 @@ export function ScryfallSearchModal({
     });
   }
 
+  function stampCommonPrinting(printing: PrintingFields, category: string): PrintingFields {
+    if (deck.format !== 'pendragon') return printing;
+    if (pendragonRoleForCategory(category) === 'excalibur') return printing;
+    if (!includeFormatCommander && !extraQuery) return printing;
+    return { ...printing, hasCommonPrinting: true };
+  }
+
+  function emitAdd(
+    printing: PrintingFields,
+    category: string,
+    meta?: ScryfallAddMeta,
+  ) {
+    onAdd(stampCommonPrinting(printing, category), category, meta);
+  }
+
   function quickAddCard(cardResult: ScryfallCard) {
     if (
       deckEditPicker &&
@@ -216,7 +245,7 @@ export function ScryfallSearchModal({
       return;
     }
     const printing = mapScryfallCardToPrinting(cardResult);
-    onAdd(printing, categoryForPrinting(printing), { proxy: false, keepOpen: true });
+    emitAdd(printing, categoryForPrinting(printing), { proxy: false, keepOpen: true });
   }
 
   /** Prefetch printings; add immediately when there is only one, else open the picker. */
@@ -231,7 +260,7 @@ export function ScryfallSearchModal({
       if (reqId !== resolvePrintingReqRef.current) return;
       if (isSolePrintingPage(page)) {
         const printing = mapScryfallCardToPrinting(page.data[0]!);
-        onAdd(printing, categoryForPrinting(printing), { proxy: false });
+        emitAdd(printing, categoryForPrinting(printing), { proxy: false });
         return;
       }
       openPrintingPicker(cardResult);
@@ -305,19 +334,20 @@ export function ScryfallSearchModal({
   async function runSearch(e?: FormEvent, overrideQuery?: string) {
     e?.preventDefault();
     const freeform = (overrideQuery ?? query).trim();
-    if (!freeform) {
-      setError('Enter a Scryfall search query.');
-      return;
-    }
     if (overrideQuery != null) setQuery(freeform);
     const composed = composeScryfallQuery(
       freeform,
       {
         includeIdentity: includeCommanderIdentity,
         includeFormatCommander,
+        extraQuery,
       },
       deck,
     );
+    if (!composed) {
+      setError('Enter a Scryfall search query.');
+      return;
+    }
     lastComposedQueryRef.current = composed;
     setLoading(true);
     setLoadingMore(false);
@@ -330,7 +360,7 @@ export function ScryfallSearchModal({
       setHasMore(page1.has_more);
       setNextPage(page1.next_page);
       setPage(1);
-      setRecent(rememberScryfallSearch(freeform));
+      setRecent(freeform ? rememberScryfallSearch(freeform) : loadRecentScryfallSearches());
       if (!page1.data.length) {
         setError('No cards matched that search.');
       }
@@ -359,6 +389,7 @@ export function ScryfallSearchModal({
                 {
                   includeIdentity: includeCommanderIdentity,
                   includeFormatCommander,
+                  extraQuery,
                 },
                 deck,
               ),
@@ -378,7 +409,7 @@ export function ScryfallSearchModal({
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [hasMore, page, query, includeCommanderIdentity, includeFormatCommander, deck]);
+  }, [hasMore, page, query, includeCommanderIdentity, includeFormatCommander, extraQuery, deck]);
 
   const sentinelRef = useInfiniteScrollSentinel({
     rootRef: scrollRef,
@@ -403,7 +434,7 @@ export function ScryfallSearchModal({
         onBack={() => setPending(null)}
         onClose={onClose}
         onConfirm={(printing, category, meta) => {
-          onAdd(printing, category || defaultCat, meta);
+          emitAdd(printing, category || defaultCat, meta);
         }}
       />
     );
@@ -456,7 +487,7 @@ export function ScryfallSearchModal({
               spellCheck={false}
             />
           </label>
-          {isCommander ? (
+          {isCommandZone ? (
             <div className="db-search-include">
               <DbMenu
                 label="Include"
@@ -477,14 +508,16 @@ export function ScryfallSearchModal({
                     />
                     Commander identity
                   </label>
+                  {extraQuery ? null : (
                   <label className="db-check">
                     <input
                       type="checkbox"
                       checked={includeFormatCommander}
                       onChange={(e) => setIncludeFormatCommander(e.target.checked)}
                     />
-                    Commander format
+                    {deck.format === 'pendragon' ? 'Pendragon format' : 'Commander format'}
                   </label>
+                  )}
                 </div>
               </DbMenu>
             </div>

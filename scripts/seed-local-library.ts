@@ -259,7 +259,7 @@ function documentFromSnapshot(
   const archidektId = Number(snapshot.deck_id) || null;
   const format = detectDeckFormat({
     name: opts.name,
-    format: opts.formatHint === 'commander' || opts.formatHint === 'cube' || opts.formatHint === 'other'
+    format: opts.formatHint === 'commander' || opts.formatHint === 'cube' || opts.formatHint === 'pendragon' || opts.formatHint === 'other'
       ? opts.formatHint === 'other'
         ? undefined
         : opts.formatHint

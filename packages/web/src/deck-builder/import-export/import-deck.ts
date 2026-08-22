@@ -152,6 +152,17 @@ export function uniqueCopyName(sourceName: string, existingNames: string[]): str
   return `${base} ${Date.now()}`;
 }
 
+/** Unique `{base}` (then ` 2`, ` 3`, …) so slug routes do not collide. */
+export function uniqueDeckName(base: string, existingNames: string[]): string {
+  const taken = new Set(existingNames.map((n) => toKebabCase(n)));
+  if (!taken.has(toKebabCase(base))) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(toKebabCase(candidate))) return candidate;
+  }
+  return `${base} ${Date.now()}`;
+}
+
 /** Independent Hub copy: new id/name/timestamps, Archidekt identity cleared, queues kept. */
 export function duplicateDeckDocument(
   source: DeckDocument,

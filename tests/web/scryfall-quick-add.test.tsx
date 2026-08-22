@@ -660,6 +660,44 @@ describe('ScryfallSearchModal commander Include options', () => {
       ),
     ).toBe('t:instant format:commander');
   });
+
+  it('uses r:c legal:commander as Include Format for Pendragon 98 searches', async () => {
+    const user = userEvent.setup();
+    const deck = { ...baseDeck, format: 'pendragon' as const };
+    render(<ScryfallSearchModal deck={deck} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    expect(screen.getByRole('checkbox', { name: /Pendragon format/i })).toBeChecked();
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol ring');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith('sol ring r:c legal:commander', 1);
+    });
+  });
+
+  it('composeScryfallQuery uses slot extraQuery instead of the 98 format clause', () => {
+    const deck = { ...baseDeck, format: 'pendragon' as const };
+    expect(
+      composeScryfallQuery(
+        '',
+        {
+          includeIdentity: false,
+          includeFormatCommander: true,
+          extraQuery: 't:creature r:c legal:commander',
+        },
+        deck,
+      ),
+    ).toBe('t:creature r:c legal:commander');
+    expect(
+      composeScryfallQuery(
+        'sol ring',
+        { includeIdentity: false, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('sol ring r:c legal:commander');
+  });
 });
 
 describe('ScryfallSearchModal back to search', () => {

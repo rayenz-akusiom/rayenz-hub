@@ -148,4 +148,34 @@ describe('commanderIdentityScryfallQuery', () => {
     });
     expect(commanderIdentityScryfallQuery(deck({ cards: [cmd] }))).toBeNull();
   });
+
+  it('unions Arthur and Excalibur colour identity for Pendragon', () => {
+    const arthur = withOracle(
+      card({
+        instanceId: 'art',
+        name: 'Knight of the White Orchid',
+        primaryCategory: 'Arthur',
+        scryfallId: 'sf-knight',
+      }),
+      { colourIdentity: ['W'], typeLine: 'Creature — Human Knight' },
+    );
+    const excalibur = withOracle(
+      card({
+        instanceId: 'exc',
+        name: 'Sword of Feast and Famine',
+        primaryCategory: 'Excalibur',
+        scryfallId: 'sf-sword',
+      }),
+      { colourIdentity: ['B', 'G'], typeLine: 'Legendary Artifact — Equipment' },
+    );
+    expect(
+      commanderIdentityScryfallQuery(
+        deck({
+          format: 'pendragon',
+          cards: [arthur.card, excalibur.card],
+          oracle: Object.fromEntries([arthur.entry, excalibur.entry]),
+        }),
+      ),
+    ).toBe('id:wbg');
+  });
 });

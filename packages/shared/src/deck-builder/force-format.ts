@@ -1,7 +1,7 @@
 import type { DeckDocument } from '../schemas/deck-builder.js';
 import { detectDeckFormat } from './format.js';
 
-export type ForcedFormat = 'commander' | 'cube';
+export type ForcedFormat = 'commander' | 'cube' | 'pendragon';
 
 export function applyForcedFormat(
   doc: DeckDocument,

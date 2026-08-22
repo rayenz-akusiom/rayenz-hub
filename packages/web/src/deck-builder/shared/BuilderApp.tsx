@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type { DeckDocument, DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
-import { filterLibraryByFormat, libraryDeckCapMessage, MAX_LIBRARY_DECKS } from '@rayenz-hub/shared';
+import { filterLibraryByFormat, libraryDeckCapMessage, MAX_LIBRARY_DECKS, builderFormatForDeck, deckBelongsToBuilder, defaultPendragonCategoryDefs } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import {
   builderHash,
@@ -40,13 +40,14 @@ import {
   isSampleDismissed,
   shouldOfferSampleCommander,
 } from '../sample/sample-deck';
-import { duplicateDeckDocument } from '../import-export/import-deck';
+import { duplicateDeckDocument, emptyDeckDocument, uniqueDeckName } from '../import-export/import-deck';
 
 export type CreateDialogProps = {
   onClose: () => void;
   onSave: (doc: DeckDocument) => Promise<void>;
   formatMismatchWarning?: string | null;
   onMismatchWarning?: (message: string | null) => void;
+  forcedFormat?: 'commander' | 'pendragon';
 };
 
 function otherBuilderFormat(format: BuilderFormat): BuilderFormat {
@@ -73,7 +74,7 @@ function deepLinkIndexMatch(builderFormat: BuilderFormat): DeckSummary | null {
   const match = store.readLibraryIndex().find(
     (d) => toKebabCase(d.name) === route.deckSlug && indexMatchesRouteScope(d.deckId, route.userSlug),
   );
-  if (match && match.format === builderFormat) {
+  if (match && deckBelongsToBuilder(match.format, builderFormat)) {
     if (isSampleDeckId(match.deckId) && isSampleDismissed()) return null;
     return match;
   }
@@ -103,6 +104,7 @@ export function BuilderApp({
   const [sampleDeck, setSampleDeck] = useState<DeckSummary | null>(null);
   const [active, setActive] = useState<DeckDocument | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [importFormat, setImportFormat] = useState<'commander' | 'pendragon'>('commander');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiWarning, setApiWarning] = useState<string | null>(null);
@@ -146,7 +148,7 @@ export function BuilderApp({
   );
 
   const redirectToCorrectBuilder = useCallback((doc: DeckDocument) => {
-    const targetFormat: BuilderFormat = doc.format === 'cube' ? 'cube' : 'commander';
+    const targetFormat = builderFormatForDeck(doc.format);
     if (targetFormat === builderFormat) return false;
     navigateHub(builderHash(targetFormat, hubUserSlug(), toKebabCase(doc.name)));
     return true;
@@ -266,7 +268,7 @@ export function BuilderApp({
             readOnlyRef.current = false;
             return;
           }
-          const targetFormat: BuilderFormat = doc.format === 'cube' ? 'cube' : 'commander';
+          const targetFormat = builderFormatForDeck(doc.format);
           if (targetFormat !== builderFormat) {
             navigateHub(builderHash(targetFormat, route.userSlug, route.deckSlug));
             return;
@@ -319,10 +321,10 @@ export function BuilderApp({
         readOnlyRef.current = false;
         return;
       }
-      if (match.format !== builderFormat) {
+      if (!deckBelongsToBuilder(match.format, builderFormat)) {
         navigateHub(
           builderHash(
-            match.format === 'cube' ? 'cube' : 'commander',
+            builderFormatForDeck(match.format),
             route.userSlug,
             route.deckSlug,
           ),
@@ -397,10 +399,10 @@ export function BuilderApp({
             toKebabCase(d.name) === route.deckSlug &&
             indexMatchesRouteScope(d.deckId, route.userSlug),
         );
-        if (other && other.format !== builderFormat) {
+        if (other && !deckBelongsToBuilder(other.format, builderFormat)) {
           navigateHub(
             builderHash(
-              other.format === 'cube' ? 'cube' : 'commander',
+              builderFormatForDeck(other.format),
               route.userSlug,
               route.deckSlug,
             ),
@@ -483,6 +485,37 @@ export function BuilderApp({
     setActive(saved);
     syncDeckHash(saved);
     await refreshLibrary({ applyRoute: false });
+  }
+
+  async function openSavedDeck(doc: DeckDocument) {
+    await refreshLibrary({ applyRoute: false });
+    const saved =
+      activeRef.current?.deckId === doc.deckId
+        ? activeRef.current
+        : await resolveLibraryDocument(doc.deckId);
+    if (saved && redirectToCorrectBuilder(saved)) return;
+    activeRef.current = saved;
+    setActive(saved);
+    if (saved) syncDeckHash(saved);
+  }
+
+  async function createEmptyDeck(format: 'commander' | 'pendragon') {
+    const realCount = decksRef.current.filter((d) => !isSampleDeckId(d.deckId)).length;
+    if (realCount >= MAX_LIBRARY_DECKS) {
+      setError(libraryDeckCapMessage());
+      return;
+    }
+    const existingNames = decksRef.current
+      .filter((d) => d.format === format)
+      .map((d) => d.name);
+    const base = format === 'pendragon' ? 'New Pendragon deck' : 'New Commander deck';
+    const doc = emptyDeckDocument({
+      name: uniqueDeckName(base, existingNames),
+      format,
+      categories: format === 'pendragon' ? defaultPendragonCategoryDefs() : [],
+    });
+    await persist(doc);
+    await openSavedDeck(doc);
   }
 
   async function removeDeck(deckId: string) {
@@ -636,6 +669,20 @@ export function BuilderApp({
         onOpen={(id) => void openDeck(id)}
         onAdd={() => {
           if (atDeckCap) return;
+          if (builderFormat === 'commander') {
+            void createEmptyDeck('commander');
+            return;
+          }
+          setImportFormat('commander');
+          setAddOpen(true);
+        }}
+        onAddVariant={(kind) => {
+          if (atDeckCap) return;
+          if (kind === 'pendragon') {
+            void createEmptyDeck('pendragon');
+            return;
+          }
+          setImportFormat(kind === 'import-pendragon' ? 'pendragon' : 'commander');
           setAddOpen(true);
         }}
         onDelete={(id) => void removeDeck(id)}
@@ -652,17 +699,10 @@ export function BuilderApp({
           }}
           formatMismatchWarning={mismatchWarning}
           onMismatchWarning={setMismatchWarning}
+          forcedFormat={builderFormat === 'commander' ? importFormat : undefined}
           onSave={async (doc) => {
             await persist(doc);
-            await refreshLibrary({ applyRoute: false });
-            const saved =
-              activeRef.current?.deckId === doc.deckId
-                ? activeRef.current
-                : await resolveLibraryDocument(doc.deckId);
-            if (saved && redirectToCorrectBuilder(saved)) return;
-            activeRef.current = saved;
-            setActive(saved);
-            if (saved) syncDeckHash(saved);
+            await openSavedDeck(doc);
           }}
         />
       ) : null}

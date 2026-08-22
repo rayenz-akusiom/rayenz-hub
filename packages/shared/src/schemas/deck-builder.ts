@@ -8,7 +8,7 @@ import {
 } from '../deck-builder/deck-cover.js';
 import { DeckDescriptionSchema } from '../deck-builder/deck-description.js';
 
-export const DeckFormatSchema = z.enum(['commander', 'cube', 'other']);
+export const DeckFormatSchema = z.enum(['commander', 'cube', 'pendragon', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
 /** Account / sandbox library size cap (sample decks excluded). */
@@ -81,6 +81,11 @@ export const CardOracleSchema = z.object({
   colours: z.array(ColourLetterSchema).nullable().default(null),
   /** Scryfall finishes for this printing (e.g. nonfoil, foil); null = not enriched. */
   finishes: z.array(z.string()).nullable().default(null),
+  /**
+   * Oracle has been printed at common at least once (Pendragon 98 / Arthur).
+   * Independent of this printing’s rarity; never infer false from a reprint.
+   */
+  hasCommonPrinting: z.boolean().nullable().optional().default(null),
   updatedAt: z.string().nullable().default(null),
 });
 export type CardOracle = z.infer<typeof CardOracleSchema>;

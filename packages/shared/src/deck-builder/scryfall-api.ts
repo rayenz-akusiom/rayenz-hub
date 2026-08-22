@@ -71,6 +71,8 @@ export type PrintingFields = {
   manaValue: number | null;
   /** Scryfall finishes for this printing when known. */
   finishes?: string[] | null;
+  /** Oracle has a common printing (Pendragon); independent of this copy’s rarity. */
+  hasCommonPrinting?: boolean | null;
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};

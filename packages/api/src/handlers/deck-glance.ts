@@ -80,8 +80,8 @@ export async function handleDeckGlance(
     }
 
     const deck = record as DeckDocument;
-    if (deck.format !== 'commander') {
-      return errorResponse(400, 'Glance is supported for Commander decks only.', 'GLANCE_UNSUPPORTED_FORMAT');
+    if (deck.format !== 'commander' && deck.format !== 'pendragon') {
+      return errorResponse(400, 'Glance is supported for Commander and Pendragon decks only.', 'GLANCE_UNSUPPORTED_FORMAT');
     }
 
     const parsed = parseGlanceRequest(body);

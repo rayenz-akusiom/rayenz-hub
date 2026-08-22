@@ -268,6 +268,15 @@ describe('upsertOracle layout merge', () => {
     });
     expect(oracle[key].layout).toBe('transform');
   });
+
+  it('keeps hasCommonPrinting true across reprint merges', () => {
+    const key = 'id:sol-ring';
+    let oracle = upsertOracle({}, key, { hasCommonPrinting: true, typeLine: 'Artifact' });
+    oracle = upsertOracle(oracle, key, { hasCommonPrinting: null, typeLine: 'Artifact' });
+    expect(oracle[key].hasCommonPrinting).toBe(true);
+    oracle = upsertOracle(oracle, key, { hasCommonPrinting: false, typeLine: 'Artifact' });
+    expect(oracle[key].hasCommonPrinting).toBe(true);
+  });
 });
 
 describe('needsOracleEnrich', () => {

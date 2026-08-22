@@ -28,6 +28,11 @@ import {
   incompleteEntryCount,
   isCategoryBrowseView,
   isCommanderCategory,
+  isPendragonAddLegal,
+  pendragonRoleForCategory,
+  formatScryfallClause,
+  PENDRAGON_ARTHUR,
+  PENDRAGON_EXCALIBUR,
   isSeekingCategory,
   isSwapQueueCategoryName,
   markCardsSeekingSecondary,
@@ -35,6 +40,7 @@ import {
   moveCardsCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
+  placeCardInUniqueHeaderSlot,
   projectLiveFormalSwaps,
   queueCardsAsOut,
   reconcileLookingForFromCards,
@@ -178,6 +184,7 @@ export function BrowseShell({
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveCreatingNew, setMoveCreatingNew] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [pickSlotCategory, setPickSlotCategory] = useState<string | null>(null);
   const [printingOpen, setPrintingOpen] = useState(false);
   const [draft, setDraft] = useState<SwapEditDraft | null>(null);
   const [asideTab, setAsideTab] = useState<'deck' | 'profile'>('deck');
@@ -608,6 +615,18 @@ export function BrowseShell({
       return;
     }
 
+    if (
+      (category === PENDRAGON_ARTHUR || category === PENDRAGON_EXCALIBUR) &&
+      ids.length === 1
+    ) {
+      const instanceId = ids[0]!;
+      commitPatch({
+        cards: placeCardInUniqueHeaderSlot(current.cards, instanceId, category),
+        categories: ensureCategoryDef(current.categories || [], category),
+      });
+      return;
+    }
+
     if (category === 'Commander' && opts?.commanderSlot == null && ids.length === 1) {
       const instanceId = ids[0]!;
       const card = current.cards.find((c) => c.instanceId === instanceId);
@@ -716,15 +735,33 @@ export function BrowseShell({
     meta?: { proxy: boolean; keepOpen?: boolean },
   ) {
     const current = deckRef.current;
+    if (current.format === 'pendragon' && !isPendragonAddLegal(category, {
+      typeLine: printing.typeLine,
+      hasCommonPrinting: printing.hasCommonPrinting,
+    })) {
+      return;
+    }
     const before = new Set(current.cards.map((c) => c.instanceId));
-    const next = addCardToDeck(current, printing, category, { proxy: meta?.proxy });
+    let next = addCardToDeck(current, printing, category, { proxy: meta?.proxy });
+    if (category === PENDRAGON_ARTHUR || category === PENDRAGON_EXCALIBUR) {
+      const added = next.cards.find((c) => !before.has(c.instanceId));
+      if (added) {
+        next = {
+          ...next,
+          cards: placeCardInUniqueHeaderSlot(next.cards, added.instanceId, category),
+        };
+      }
+    }
     const added = next.cards.find((c) => !before.has(c.instanceId));
     commit(next);
     if (added) {
       setSelectedIds(new Set([added.instanceId]));
       setSelectionAnchorId(added.instanceId);
     }
-    if (!meta?.keepOpen) setAddOpen(false);
+    if (!meta?.keepOpen) {
+      setAddOpen(false);
+      setPickSlotCategory(null);
+    }
   }
 
   function onRemoveInDeckCardFromPicker(card: ScryfallCard) {
@@ -886,7 +923,7 @@ export function BrowseShell({
             duplicateDisabled={duplicateDisabled}
           />
         )}
-        {liveDeck.format === 'commander' && !readOnly ? (
+        {(liveDeck.format === 'commander' || liveDeck.format === 'pendragon') && !readOnly ? (
           <GlanceGenerateButton deck={liveDeck} />
         ) : null}
       </header>
@@ -982,6 +1019,14 @@ export function BrowseShell({
               separateLands={view === 'colour_identity_spells'}
               onDropCard={readOnly ? () => {} : onDropCard}
               onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
+              onPickSlot={
+                readOnly
+                  ? undefined
+                  : (category) => {
+                      setPickSlotCategory(category);
+                      setAddOpen(true);
+                    }
+              }
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={readOnly ? undefined : onSetOwnership}
               onSetVisibility={readOnly ? undefined : onSetVisibility}
@@ -1002,6 +1047,14 @@ export function BrowseShell({
               cardSort={cardSort}
               onDropCard={readOnly ? () => {} : onDropCard}
               onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
+              onPickSlot={
+                readOnly
+                  ? undefined
+                  : (category) => {
+                      setPickSlotCategory(category);
+                      setAddOpen(true);
+                    }
+              }
               onVisibleOrderChange={onMainVisibleOrderChange}
               onSetOwnership={readOnly ? undefined : onSetOwnership}
               onSetVisibility={readOnly ? undefined : onSetVisibility}
@@ -1118,11 +1171,22 @@ export function BrowseShell({
       {addOpen ? (
         <ScryfallSearchModal
           deck={liveDeck}
-          onClose={() => setAddOpen(false)}
+          onClose={() => {
+            setAddOpen(false);
+            setPickSlotCategory(null);
+          }}
           onAdd={onAddCard}
-          allowQuickAdd
-          onRemoveInDeckCard={onRemoveInDeckCardFromPicker}
-          onInDeckContextMenu={onInDeckContextMenuFromPicker}
+          title={pickSlotCategory ? `Choose ${pickSlotCategory}` : undefined}
+          defaultCategory={pickSlotCategory || undefined}
+          categoryOptions={pickSlotCategory ? [pickSlotCategory] : undefined}
+          extraQuery={
+            liveDeck.format === 'pendragon' && pickSlotCategory
+              ? formatScryfallClause('pendragon', pendragonRoleForCategory(pickSlotCategory))
+              : undefined
+          }
+          allowQuickAdd={!pickSlotCategory}
+          onRemoveInDeckCard={pickSlotCategory ? undefined : onRemoveInDeckCardFromPicker}
+          onInDeckContextMenu={pickSlotCategory ? undefined : onInDeckContextMenuFromPicker}
         />
       ) : null}
 
@@ -1255,7 +1319,10 @@ export function BrowseShell({
 
       {readOnly ? null : (
         <AddCardFab
-          onAddClick={() => setAddOpen(true)}
+          onAddClick={() => {
+            setPickSlotCategory(null);
+            setAddOpen(true);
+          }}
           onDropDefault={(ids) => {
             commit(moveCardsToDefaultCategories(deckRef.current, ids));
           }}

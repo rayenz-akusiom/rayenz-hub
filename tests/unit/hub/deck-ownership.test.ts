@@ -95,8 +95,20 @@ describe('deck ownership', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
         archidektId: null,
       },
+      {
+        deckId: 'p1',
+        name: 'Pendragon A',
+        format: 'pendragon',
+        ownership: 'owned',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
     ];
-    expect(filterLibraryByFormat(summaries, 'commander').map((d) => d.deckId)).toEqual(['c1', 'c2']);
+    expect(filterLibraryByFormat(summaries, 'commander').map((d) => d.deckId)).toEqual([
+      'c1',
+      'c2',
+      'p1',
+    ]);
     expect(filterLibraryByFormat(summaries, 'cube').map((d) => d.name)).toEqual(['Cube A']);
     expect(filterLibraryByFormat([summaries[2]!], 'commander')).toEqual([]);
   });

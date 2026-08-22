@@ -3,12 +3,13 @@ import {
   type DeckOwnership,
   type DeckSummary,
 } from '../schemas/deck-builder.js';
+import { deckBelongsToBuilder, type BuilderFormat } from './format.js';
 
 export function filterLibraryByFormat(
   summaries: DeckSummary[],
-  format: 'commander' | 'cube',
+  format: BuilderFormat,
 ): DeckSummary[] {
-  return summaries.filter((s) => s.format === format);
+  return summaries.filter((s) => deckBelongsToBuilder(s.format, format));
 }
 
 /** Partition library summaries into Owned then Theory (for swimlanes). */

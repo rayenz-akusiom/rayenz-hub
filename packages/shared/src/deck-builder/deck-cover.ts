@@ -1,6 +1,12 @@
 import type { DeckDocument } from '../schemas/deck-builder.js';
 import { cardImageUrl } from './scryfall-images.js';
-import { isCommanderCategory, pickCommanderLeaders } from './partner.js';
+import {
+  isArthurCategory,
+  isCommanderCategory,
+  isExcaliburCategory,
+  isPendragonLeaderCategory,
+  pickCommanderLeaders,
+} from './partner.js';
 import { resolveDeckCards, type CardView } from './card-oracle.js';
 
 type CoverDoc = Pick<DeckDocument, 'format' | 'cards' | 'coverInstanceId' | 'oracle'>;
@@ -11,6 +17,10 @@ function resolveCoverOverride(doc: CoverDoc): CardView | null {
   return resolveDeckCards(doc).find((c) => c.instanceId === id) ?? null;
 }
 
+function isLeaderCoverCategory(name: string | null | undefined): boolean {
+  return isCommanderCategory(name) || isPendragonLeaderCategory(name);
+}
+
 /** Commander face for commander decks; first card for cubes (and other fallbacks). */
 export function pickDeckCoverCard(doc: CoverDoc): CardView | null {
   const cards = pickDeckCoverCards(doc);
@@ -19,17 +29,29 @@ export function pickDeckCoverCard(doc: CoverDoc): CardView | null {
 
 /**
  * Cover faces for library tiles.
- * - Non-commander `coverInstanceId` → that face only.
+ * - Non-leader `coverInstanceId` → that face only.
  * - Commander override soft-selects the primary within its name group (partner
  *   secondary still shown when there are two distinct commander names).
  * - Same-name commander gallery → single primary face.
  * - Two distinct names → both primaries (+ partner status elsewhere).
+ * - Pendragon → Arthur then Excalibur (no partner legality).
  */
 export function pickDeckCoverCards(doc: CoverDoc): CardView[] {
   const cards = resolveDeckCards(doc);
   const override = resolveCoverOverride(doc);
-  if (override && !isCommanderCategory(override.primaryCategory)) {
+  if (override && !isLeaderCoverCategory(override.primaryCategory)) {
     return [override];
+  }
+
+  if (doc.format === 'pendragon') {
+    const arthur = cards.find((c) => isArthurCategory(c.primaryCategory));
+    const excalibur = cards.find((c) => isExcaliburCategory(c.primaryCategory));
+    const faces = [arthur, excalibur].filter((c): c is CardView => Boolean(c));
+    if (override && isPendragonLeaderCategory(override.primaryCategory)) {
+      const rest = faces.filter((c) => c.instanceId !== override.instanceId);
+      return [override, ...rest];
+    }
+    return faces;
   }
 
   if (doc.format === 'commander') {

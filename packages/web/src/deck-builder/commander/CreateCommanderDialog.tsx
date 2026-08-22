@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { applyForcedFormat, type DeckDocument } from '@rayenz-hub/shared';
+import {
+  applyForcedFormat,
+  remapPendragonDocumentHeaders,
+  type DeckDocument,
+} from '@rayenz-hub/shared';
 import { documentFromImportText } from '../import-export/import-deck';
 import type { CreateDialogProps } from '../shared/BuilderApp';
 
@@ -8,16 +12,21 @@ export function CreateCommanderDialog({
   onSave,
   formatMismatchWarning,
   onMismatchWarning,
+  forcedFormat = 'commander',
 }: CreateDialogProps) {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const formatLabel = forcedFormat === 'pendragon' ? 'Pendragon' : 'Commander';
 
   async function finalize(doc: DeckDocument) {
-    const { document, formatMismatchWarning: warning } = applyForcedFormat(doc, 'commander');
+    const forced = forcedFormat === 'pendragon' ? 'pendragon' : 'commander';
+    const { document, formatMismatchWarning: warning } = applyForcedFormat(doc, forced);
+    const next =
+      forced === 'pendragon' ? remapPendragonDocumentHeaders(document) : document;
     onMismatchWarning?.(warning);
-    await onSave(document);
+    await onSave(next);
     onClose();
   }
 
@@ -35,9 +44,9 @@ export function CreateCommanderDialog({
   }
 
   return (
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label="Create Commander deck">
+    <div className="db-modal" role="dialog" aria-modal="true" aria-label={`Import ${formatLabel} deck`}>
       <div className="db-modal-card db-modal-wide">
-        <h3>Create Commander deck</h3>
+        <h3>Import {formatLabel} deck</h3>
         {formatMismatchWarning ? <p className="db-warn">{formatMismatchWarning}</p> : null}
         {error ? <p className="db-error">{error}</p> : null}
         <label>

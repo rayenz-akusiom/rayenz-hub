@@ -10,7 +10,7 @@ import { listFallbackLibrary, resolveLibraryDocument } from '../deck-builder/sto
 async function documentsForSummaries(summaries: DeckSummary[]): Promise<DeckDocument[]> {
   const decks: DeckDocument[] = [];
   for (const s of summaries) {
-    if (s.format !== 'commander' && s.format !== 'cube') continue;
+    if (s.format !== 'commander' && s.format !== 'cube' && s.format !== 'pendragon') continue;
     const doc = await resolveLibraryDocument(s.deckId);
     if (doc) decks.push(doc);
   }

@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type DragEvent } from 'react';
-import type { DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
+import type { DeckFormat, DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
 import {
   deckOwnership,
   deckVisibility,
@@ -16,6 +16,7 @@ import {
   type DeckOwnershipMenuState,
 } from '../../library/DeckOwnershipContextMenu';
 import { FormatBadge } from '../../ui/FormatBadge';
+import { SplitAddButton, type CommanderAddVariant } from '../../ui/SplitAddButton';
 import { LibrarySkeleton, LibrarySortSelect } from '../../library/library-chrome';
 import {
   persistLibrarySort,
@@ -165,6 +166,68 @@ function LibraryGrid({
   );
 }
 
+function laneKey(format: DeckFormat, ownership: DeckOwnership): string {
+  return `${format}:${ownership}`;
+}
+
+function FormatOwnershipGroup({
+  format,
+  builderFormat,
+  decks,
+  dropTarget,
+  onOpen,
+  onDelete,
+  onContextMenu,
+  onDragOverLane,
+  onDragLeaveLane,
+  onDropLane,
+}: {
+  format: DeckFormat;
+  builderFormat: BuilderFormat;
+  decks: DeckSummary[];
+  dropTarget: string | null;
+  onOpen: (deckId: string) => void;
+  onDelete: (deckId: string) => void;
+  onContextMenu: (deck: DeckSummary, x: number, y: number) => void;
+  onDragOverLane: (e: DragEvent, laneKey: string) => void;
+  onDragLeaveLane: (e: DragEvent) => void;
+  onDropLane: (e: DragEvent, ownership: DeckOwnership) => void;
+}) {
+  const { owned, theory } = partitionLibraryByOwnership(decks);
+  return (
+    <section className="db-library-format-group" aria-label={format === 'pendragon' ? 'Pendragon' : 'Commander'}>
+      <h3 className="db-library-format-title">
+        <FormatBadge format={format} showLabel />
+        <span className="db-count">({decks.length})</span>
+      </h3>
+      <LibraryGrid
+        builderFormat={builderFormat}
+        ownership="owned"
+        decks={owned}
+        onOpen={onOpen}
+        onDelete={onDelete}
+        onContextMenu={onContextMenu}
+        dropActive={dropTarget === laneKey(format, 'owned')}
+        onDragOverLane={(e) => onDragOverLane(e, laneKey(format, 'owned'))}
+        onDragLeaveLane={onDragLeaveLane}
+        onDropLane={onDropLane}
+      />
+      <LibraryGrid
+        builderFormat={builderFormat}
+        ownership="theory"
+        decks={theory}
+        onOpen={onOpen}
+        onDelete={onDelete}
+        onContextMenu={onContextMenu}
+        dropActive={dropTarget === laneKey(format, 'theory')}
+        onDragOverLane={(e) => onDragOverLane(e, laneKey(format, 'theory'))}
+        onDragLeaveLane={onDragLeaveLane}
+        onDropLane={onDropLane}
+      />
+    </section>
+  );
+}
+
 export function FormatFilteredLibrary({
   builderFormat,
   title,
@@ -177,6 +240,7 @@ export function FormatFilteredLibrary({
   capMessage,
   onOpen,
   onAdd,
+  onAddVariant,
   onDelete,
   onDuplicate,
   onSetOwnership,
@@ -195,6 +259,7 @@ export function FormatFilteredLibrary({
   capMessage?: string;
   onOpen: (deckId: string) => void;
   onAdd: () => void;
+  onAddVariant?: (kind: CommanderAddVariant) => void;
   onDelete: (deckId: string) => void;
   onDuplicate?: (deckId: string) => void;
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
@@ -202,11 +267,19 @@ export function FormatFilteredLibrary({
   onRefreshRemote?: () => void;
 }) {
   const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort());
-  const [dropTarget, setDropTarget] = useState<DeckOwnership | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [menu, setMenu] = useState<DeckOwnershipMenuState | null>(null);
 
   const sorted = useMemo(() => sortLibraryDecks(decks, sort), [decks, sort]);
   const { owned, theory } = useMemo(() => partitionLibraryByOwnership(sorted), [sorted]);
+  const commanderDecks = useMemo(
+    () => sorted.filter((d) => d.format === 'commander'),
+    [sorted],
+  );
+  const pendragonDecks = useMemo(
+    () => sorted.filter((d) => d.format === 'pendragon'),
+    [sorted],
+  );
   const sampleIds = useMemo(
     () => (sampleDeck ? new Set([sampleDeck.deckId]) : new Set<string>()),
     [sampleDeck],
@@ -217,7 +290,7 @@ export function FormatFilteredLibrary({
     persistLibrarySort(next);
   }
 
-  function onDragOverLane(e: DragEvent, ownership: DeckOwnership) {
+  function onDragOverLane(e: DragEvent, laneKey: string) {
     if (!onSetOwnership) return;
     if (
       !e.dataTransfer.types.includes(OWNERSHIP_DRAG_TYPE) &&
@@ -227,7 +300,7 @@ export function FormatFilteredLibrary({
     }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDropTarget(ownership);
+    setDropTarget(laneKey);
   }
 
   function onDragLeaveLane(e: DragEvent) {
@@ -255,8 +328,8 @@ export function FormatFilteredLibrary({
   const emptyCopy =
     builderFormat === 'commander'
       ? {
-          lead: 'No Commander decks saved in Hub yet.',
-          hint: 'Create or import a Commander deck by pasting Archidekt import text.',
+          lead: 'No Commander or Pendragon decks saved in Hub yet.',
+          hint: 'Add a Commander deck, or use the menu to create Pendragon or import paste.',
         }
       : {
           lead: 'No cube decks saved in Hub yet.',
@@ -291,15 +364,13 @@ export function FormatFilteredLibrary({
               Sync from API
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`db-btn${addDisabled ? '' : ' is-active'}`}
-            onClick={onAdd}
+          <SplitAddButton
+            addLabel={addLabel}
             disabled={addDisabled}
-            title={addDisabled ? capMessage : undefined}
-          >
-            {addLabel}
-          </button>
+            disabledTitle={capMessage}
+            onAdd={onAdd}
+            onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
+          />
         </div>
       </header>
       {error ? <p className="db-error">{error}</p> : null}
@@ -334,42 +405,71 @@ export function FormatFilteredLibrary({
                   Or open the sample deck above to explore Hub — changes stay on this device.
                 </p>
               ) : null}
-              <button
-                type="button"
-                className={`db-btn${addDisabled ? '' : ' is-active'}`}
-                onClick={onAdd}
+              <SplitAddButton
+                addLabel={addLabel}
                 disabled={addDisabled}
-                title={addDisabled ? capMessage : undefined}
-              >
-                {addLabel}
-              </button>
+                disabledTitle={capMessage}
+                onAdd={onAdd}
+                onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
+              />
             </div>
           ) : (
             <div className="db-library-sections">
-              <LibraryGrid
-                builderFormat={builderFormat}
-                ownership="owned"
-                decks={owned}
-                onOpen={onOpen}
-                onDelete={onDelete}
-                onContextMenu={openOwnershipMenu}
-                dropActive={dropTarget === 'owned'}
-                onDragOverLane={(e) => onDragOverLane(e, 'owned')}
-                onDragLeaveLane={onDragLeaveLane}
-                onDropLane={onDropLane}
-              />
-              <LibraryGrid
-                builderFormat={builderFormat}
-                ownership="theory"
-                decks={theory}
-                onOpen={onOpen}
-                onDelete={onDelete}
-                onContextMenu={openOwnershipMenu}
-                dropActive={dropTarget === 'theory'}
-                onDragOverLane={(e) => onDragOverLane(e, 'theory')}
-                onDragLeaveLane={onDragLeaveLane}
-                onDropLane={onDropLane}
-              />
+              {builderFormat === 'commander' ? (
+                <>
+                  <FormatOwnershipGroup
+                    format="commander"
+                    builderFormat={builderFormat}
+                    decks={commanderDecks}
+                    dropTarget={dropTarget}
+                    onOpen={onOpen}
+                    onDelete={onDelete}
+                    onContextMenu={openOwnershipMenu}
+                    onDragOverLane={onDragOverLane}
+                    onDragLeaveLane={onDragLeaveLane}
+                    onDropLane={onDropLane}
+                  />
+                  <FormatOwnershipGroup
+                    format="pendragon"
+                    builderFormat={builderFormat}
+                    decks={pendragonDecks}
+                    dropTarget={dropTarget}
+                    onOpen={onOpen}
+                    onDelete={onDelete}
+                    onContextMenu={openOwnershipMenu}
+                    onDragOverLane={onDragOverLane}
+                    onDragLeaveLane={onDragLeaveLane}
+                    onDropLane={onDropLane}
+                  />
+                </>
+              ) : (
+                <>
+                  <LibraryGrid
+                    builderFormat={builderFormat}
+                    ownership="owned"
+                    decks={owned}
+                    onOpen={onOpen}
+                    onDelete={onDelete}
+                    onContextMenu={openOwnershipMenu}
+                    dropActive={dropTarget === 'owned'}
+                    onDragOverLane={(e) => onDragOverLane(e, 'owned')}
+                    onDragLeaveLane={onDragLeaveLane}
+                    onDropLane={onDropLane}
+                  />
+                  <LibraryGrid
+                    builderFormat={builderFormat}
+                    ownership="theory"
+                    decks={theory}
+                    onOpen={onOpen}
+                    onDelete={onDelete}
+                    onContextMenu={openOwnershipMenu}
+                    dropActive={dropTarget === 'theory'}
+                    onDragOverLane={(e) => onDragOverLane(e, 'theory')}
+                    onDragLeaveLane={onDragLeaveLane}
+                    onDropLane={onDropLane}
+                  />
+                </>
+              )}
             </div>
           )}
         </>

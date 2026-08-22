@@ -336,6 +336,9 @@ function CommanderSlot({
   onCardContextMenu,
   draggable,
   isPrimary = false,
+  dropCategory = 'Commander',
+  emptyLabel = 'Drop commander',
+  onPickSlot,
 }: {
   slot: 0 | 1;
   card: CardView | null;
@@ -346,6 +349,9 @@ function CommanderSlot({
   onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
   isPrimary?: boolean;
+  dropCategory?: string;
+  emptyLabel?: string;
+  onPickSlot?: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -364,10 +370,9 @@ function CommanderSlot({
         if (!onDropCard) return;
         e.preventDefault();
         setDragOver(false);
-        // Commander slots always take the primary dragged card only.
         const ids = readDragInstanceIds(e.dataTransfer);
         const id = ids[0];
-        if (id) onDropCard([id], 'Commander', { commanderSlot: slot });
+        if (id) onDropCard([id], dropCategory, dropCategory === 'Commander' ? { commanderSlot: slot } : undefined);
       }}
     >
       {card ? (
@@ -386,8 +391,17 @@ function CommanderSlot({
             onContextMenu={onCardContextMenu}
           />
         </>
+      ) : onPickSlot ? (
+        <button
+          type="button"
+          className="db-commander-slot-empty"
+          aria-label={emptyLabel}
+          onClick={onPickSlot}
+        >
+          {emptyLabel}
+        </button>
       ) : (
-        <span className="db-commander-slot-placeholder">Drop commander</span>
+        <span className="db-commander-slot-placeholder">{emptyLabel}</span>
       )}
     </div>
   );
@@ -437,6 +451,7 @@ function CommanderSlots({
   onSelectCard,
   onDropCard,
   onCardContextMenu,
+  onPickSlot,
 }: {
   commanders: CardView[];
   coverInstanceId?: string | null;
@@ -445,6 +460,7 @@ function CommanderSlots({
   onSelectCard?: SelectCardHandler;
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
+  onPickSlot?: (category: string) => void;
 }) {
   const canDrop = Boolean(onDropCard);
   const leaders = pickCommanderLeaders(commanders, coverInstanceId);
@@ -693,6 +709,8 @@ function CommanderSlots({
           onDropCard={onDropCard}
           onCardContextMenu={onCardContextMenu}
           draggable={canDrop}
+          emptyLabel={!slot0 && onPickSlot ? 'Choose commander' : 'Drop commander'}
+          onPickSlot={!slot0 && onPickSlot ? () => onPickSlot('Commander') : undefined}
         />
         {showPartnerSlot ? (
           <>
@@ -706,9 +724,66 @@ function CommanderSlots({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
+              emptyLabel="Drop commander"
             />
           </>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PendragonSlots({
+  arthur,
+  excalibur,
+  selectedId,
+  selectedIds,
+  onSelectCard,
+  onDropCard,
+  onCardContextMenu,
+  onPickSlot,
+}: {
+  arthur: CardView | null;
+  excalibur: CardView | null;
+  selectedId?: string | null;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
+  onDropCard?: DropCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
+  onPickSlot?: (category: string) => void;
+}) {
+  const canDrop = Boolean(onDropCard);
+  return (
+    <div className="db-partner-pair" aria-label="Arthur and Excalibur">
+      <h3 className="db-partner-pair-title">Arthur & Excalibur</h3>
+      <div className="db-partner-pair-row">
+        <CommanderSlot
+          slot={0}
+          card={arthur}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onSelectCard={onSelectCard}
+          onDropCard={onDropCard}
+          onCardContextMenu={onCardContextMenu}
+          draggable={canDrop}
+          dropCategory="Arthur"
+          emptyLabel="Choose Arthur"
+          onPickSlot={!arthur && onPickSlot ? () => onPickSlot('Arthur') : undefined}
+        />
+        <PartnerTie />
+        <CommanderSlot
+          slot={1}
+          card={excalibur}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onSelectCard={onSelectCard}
+          onDropCard={onDropCard}
+          onCardContextMenu={onCardContextMenu}
+          draggable={canDrop}
+          dropCategory="Excalibur"
+          emptyLabel="Choose Excalibur"
+          onPickSlot={!excalibur && onPickSlot ? () => onPickSlot('Excalibur') : undefined}
+        />
       </div>
     </div>
   );
@@ -828,6 +903,7 @@ export function DeckHeaderRow({
   syncStatus,
   swapInIds,
   coverInstanceId = null,
+  onPickSlot,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -853,6 +929,7 @@ export function DeckHeaderRow({
   syncStatus?: DeckSyncStatus | null;
   swapInIds?: ReadonlySet<string> | null;
   coverInstanceId?: string | null;
+  onPickSlot?: (category: string) => void;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const [headerTab, setHeaderTab] = useState<'leaders' | 'description'>('leaders');
@@ -863,11 +940,15 @@ export function DeckHeaderRow({
   const remainderRef = useRef<HTMLDivElement>(null);
   const commanders = header['Commander'] || [];
   const lieutenants = header['Lieutenants'] || [];
+  const arthur = (header['Arthur'] || [])[0] ?? null;
+  const excalibur = (header['Excalibur'] || [])[0] ?? null;
   const headerDragHover = useDeckBuilderHeaderDragHover(leadersRef);
   const remainderLeaderCount =
     format === 'commander'
       ? lieutenants.length
-      : headerKeys.reduce((n, key) => n + (header[key]?.length || 0), 0);
+      : format === 'pendragon'
+        ? 0
+        : headerKeys.reduce((n, key) => n + (header[key]?.length || 0), 0);
   const showDescription = Boolean(onSetDescription) || Boolean(description.trim());
   const showRemainderLeaders = remainderLeaderCount > 0 || headerDragHover;
   const needsRemainder = showRemainderLeaders || showDescription;
@@ -879,7 +960,8 @@ export function DeckHeaderRow({
   });
   const useTabs = mode === 'tabs' && remainderLeaderCount > 0 && showDescription;
   const activeTab: 'leaders' | 'description' = headerDragHover ? 'leaders' : headerTab;
-  const badgeFormat: DeckFormat = format === 'commander' || format === 'cube' ? format : 'other';
+  const badgeFormat: DeckFormat =
+    format === 'commander' || format === 'cube' || format === 'pendragon' ? format : 'other';
   const resolvedOwnership = deckOwnership({ ownership });
   const theory = resolvedOwnership === 'theory';
   const resolvedVisibility = deckVisibility({ visibility });
@@ -964,10 +1046,25 @@ export function DeckHeaderRow({
   }
 
   const hasCommander = format === 'commander';
-  const hasOtherLeaders = format !== 'commander' && headerKeys.length > 0;
+  const hasPendragon = format === 'pendragon';
+  const hasOtherLeaders = format !== 'commander' && format !== 'pendragon' && headerKeys.length > 0;
   const slots =
-    hasCommander || needsRemainder || hasOtherLeaders ? (
+    hasCommander || hasPendragon || needsRemainder || hasOtherLeaders ? (
       <div className="db-header-row">
+        {hasPendragon ? (
+          <div className="db-header-slot is-commander">
+            <PendragonSlots
+              arthur={arthur}
+              excalibur={excalibur}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onDropCard={onDropCard}
+              onCardContextMenu={onCardContextMenu}
+              onPickSlot={onPickSlot}
+            />
+          </div>
+        ) : null}
         {hasCommander ? (
           <div className="db-header-slot is-commander">
             <CommanderSlots
@@ -978,6 +1075,7 @@ export function DeckHeaderRow({
               onSelectCard={onSelectCard}
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
+              onPickSlot={onPickSlot}
             />
           </div>
         ) : null}
@@ -1095,6 +1193,7 @@ export function CategoryBrowse({
   onSetVisibility,
   onRename,
   onSetDescription,
+  onPickSlot,
   queuesReadOnly = false,
   mode = 'main',
   deckMeta,
@@ -1146,6 +1245,7 @@ export function CategoryBrowse({
   onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
   onSetDescription?: (description: string) => void;
+  onPickSlot?: (category: string) => void;
   /** Theory decks: Seeking actions stay visible but disabled. */
   queuesReadOnly?: boolean;
   mode?: 'main' | 'aside';
@@ -1317,6 +1417,7 @@ export function CategoryBrowse({
         onDropCard={dropHandler}
         onCardContextMenu={onCardContextMenu}
         onEditCategory={onEditCategory}
+        onPickSlot={onPickSlot}
         format={format}
         cardSort={cardSort}
         deckName={deckName}

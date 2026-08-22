@@ -44,8 +44,8 @@ function isExcludedFromInclude(
 
 function roleKey(name: string): 'commander' | 'lieutenant' | null {
   const key = canonicalizeCategoryName(name).toLowerCase();
-  if (key === 'commander') return 'commander';
-  if (key === 'lieutenant' || key === 'lieutenants') return 'lieutenant';
+  if (key === 'commander' || key === 'arthur') return 'commander';
+  if (key === 'lieutenant' || key === 'lieutenants' || key === 'excalibur') return 'lieutenant';
   return null;
 }
 

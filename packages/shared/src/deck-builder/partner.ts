@@ -1,6 +1,10 @@
 /** Categories that appear in the deck header (not all are commanders). */
 export const HEADER_LEADER_CATEGORIES = ['Commander', 'Lieutenants'] as const;
 
+export const PENDRAGON_ARTHUR = 'Arthur';
+export const PENDRAGON_EXCALIBUR = 'Excalibur';
+export const PENDRAGON_HEADER_CATEGORIES = [PENDRAGON_ARTHUR, PENDRAGON_EXCALIBUR] as const;
+
 /** Minimal card shape for partner checks (lean card + oracle fields). */
 export type PartnerCard = {
   instanceId?: string;
@@ -31,6 +35,18 @@ export function isCommanderCategory(name: string | null | undefined): boolean {
   return String(name || '') === 'Commander';
 }
 
+export function isArthurCategory(name: string | null | undefined): boolean {
+  return String(name || '') === PENDRAGON_ARTHUR;
+}
+
+export function isExcaliburCategory(name: string | null | undefined): boolean {
+  return String(name || '') === PENDRAGON_EXCALIBUR;
+}
+
+export function isPendragonLeaderCategory(name: string | null | undefined): boolean {
+  return isArthurCategory(name) || isExcaliburCategory(name);
+}
+
 /** Header categories that may need keyword enrich (Commander + Lieutenants). */
 export function isHeaderLeaderCategory(name: string | null | undefined): boolean {
   return (HEADER_LEADER_CATEGORIES as readonly string[]).includes(String(name || ''));
@@ -45,6 +61,17 @@ export function collectCommanders<T extends PartnerCard & { primaryCategory?: st
   cards: T[],
 ): T[] {
   return (cards || []).filter((c) => isCommanderCategory(c.primaryCategory));
+}
+
+/** Command-zone cards for colour identity: Commander, or Arthur + Excalibur. */
+export function collectCommandZoneCards<T extends PartnerCard & { primaryCategory?: string }>(
+  cards: T[],
+  format?: string | null,
+): T[] {
+  if (format === 'pendragon') {
+    return (cards || []).filter((c) => isPendragonLeaderCategory(c.primaryCategory));
+  }
+  return collectCommanders(cards);
 }
 
 /** Normalized key for grouping commander printings by oracle name. */

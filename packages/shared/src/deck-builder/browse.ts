@@ -9,8 +9,14 @@ import { SEEKING, isSeekingCategory, isSwapQueueCategoryName } from '../mtg/swap
 import { canonicalizeCategoryName } from './category-names.js';
 import { cubeCategorySectionsOrder } from './colour-identity.js';
 import { collectCommanderGalleryExtraIds } from './partner.js';
+import { isCommandZoneFormat } from './format.js';
 
-export const HEADER_CATEGORIES = ['Commander', 'Lieutenants'] as const;
+export const HEADER_CATEGORIES = [
+  'Commander',
+  'Lieutenants',
+  'Arthur',
+  'Excalibur',
+] as const;
 
 export const COMMANDER_DECK_TARGET = 100;
 
@@ -233,6 +239,36 @@ export function placeCardInCommanderSlot(
   return result;
 }
 
+function asPrimaryCategory(card: CardInstance, category: string): CardInstance {
+  if (card.primaryCategory === category) return card;
+  return {
+    ...card,
+    primaryCategory: category,
+    categories: [
+      ...new Set([
+        category,
+        ...(card.categories || []).filter((x) => x !== card.primaryCategory),
+      ]),
+    ],
+  };
+}
+
+/** Place a card into a unique header slot (Arthur / Excalibur); displace the previous occupant to Other. */
+export function placeCardInUniqueHeaderSlot(
+  cards: CardInstance[],
+  instanceId: string,
+  category: string,
+): CardInstance[] {
+  const dropped = cards.find((c) => c.instanceId === instanceId);
+  if (!dropped) return cards;
+  const incoming = asPrimaryCategory(dropped, category);
+  return cards.map((c) => {
+    if (c.instanceId === instanceId) return incoming;
+    if (c.primaryCategory === category) return asPrimaryCategory(c, 'Other');
+    return c;
+  });
+}
+
 export function categoryIncluded(categories: CategoryDef[], name: string): boolean {
   const def = (categories || []).find((c) => c.name === name);
   if (!def) return true;
@@ -318,13 +354,13 @@ export function sumIncludedCategoryTargets(categories: CategoryDef[]): number | 
 
 /**
  * Header denominator for size display.
- * - Commander: never shown (use COMMANDER_DECK_TARGET for warnings only).
+ * - Command-zone formats: never shown (use COMMANDER_DECK_TARGET for warnings only).
  * - Cube: sum of included category targets if any are set, else cubeTargetSize.
  */
 export function deckHeaderTarget(
   deck: Pick<DeckDocument, 'format' | 'categories' | 'cubeTargetSize'>,
 ): number | null {
-  if (deck.format === 'commander') return null;
+  if (isCommandZoneFormat(deck.format)) return null;
   if (deck.format === 'cube') {
     const fromCats = sumIncludedCategoryTargets(deck.categories || []);
     if (fromCats != null) return fromCats;
@@ -338,7 +374,7 @@ export function deckSizeMismatch(
   deck: Pick<DeckDocument, 'format' | 'cards' | 'categories' | 'cubeTargetSize' | 'coverInstanceId'>,
 ): boolean {
   const size = deckSize(deck);
-  if (deck.format === 'commander') return size !== COMMANDER_DECK_TARGET;
+  if (isCommandZoneFormat(deck.format)) return size !== COMMANDER_DECK_TARGET;
   const target = deckHeaderTarget(deck);
   return target != null && size !== target;
 }

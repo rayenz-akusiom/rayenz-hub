@@ -23,7 +23,8 @@ import {
   upsertOracle,
 } from './card-oracle.js';
 import { commanderTypeCategory } from './card-types.js';
-import { collectCommanders } from './partner.js';
+import { collectCommandZoneCards } from './partner.js';
+import { isCommandZoneFormat } from './format.js';
 import {
   BASIC_LAND_TYPE_ORDER,
   basicLandDisplayName,
@@ -224,6 +225,7 @@ export function oracleFromPrinting(printing: PrintingFields): CardOracle {
     manaValue: printing.manaValue ?? null,
     imageUrl: printing.scryfallId ? scryfallImageFromId(printing.scryfallId) : null,
     finishes: printing.finishes?.length ? [...printing.finishes] : null,
+    hasCommonPrinting: printing.hasCommonPrinting ?? null,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -619,8 +621,8 @@ const BASIC_CI_LETTER: Record<string, string | null> = {
 export function deckCommanderColourLetters(
   deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string[] {
-  if (deck.format !== 'commander') return [];
-  const commanders = collectCommanders(resolveDeckCards(deck));
+  if (!isCommandZoneFormat(deck.format)) return [];
+  const commanders = collectCommandZoneCards(resolveDeckCards(deck), deck.format);
   const set = new Set<string>();
   for (const cmd of commanders) {
     for (const c of cmd.colourIdentity || []) {
@@ -645,10 +647,11 @@ export function basicLandTypesForPanel(
   }
   const letters = deckCommanderColourLetters(deck);
   const letterSet = new Set(letters);
-  const commanders =
-    deck.format === 'commander' ? collectCommanders(resolveDeckCards(deck)) : [];
+  const commanders = isCommandZoneFormat(deck.format)
+    ? collectCommandZoneCards(resolveDeckCards(deck), deck.format)
+    : [];
   const colourlessKnown =
-    deck.format === 'commander' &&
+    isCommandZoneFormat(deck.format) &&
     letters.length === 0 &&
     commanders.some((c) => Boolean(c.scryfallId || c.typeLine));
 

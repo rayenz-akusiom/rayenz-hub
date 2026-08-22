@@ -427,6 +427,12 @@ describe('category targets', () => {
     expect(deckHeaderTarget(commander)).toBeNull();
   });
 
+  it('pendragon size mismatch uses the same hidden 100 target', () => {
+    const pendragon = { ...commander, format: 'pendragon' as const };
+    expect(deckSizeMismatch(pendragon)).toBe(true);
+    expect(deckHeaderTarget(pendragon)).toBeNull();
+  });
+
   it('defaultAddCategory for cube uses colour identity section', () => {
     expect(
       defaultAddCategory(

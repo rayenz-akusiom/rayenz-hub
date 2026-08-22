@@ -58,6 +58,12 @@ describe('FormatBadge', () => {
     render(<FormatBadge format="other" showLabel />);
     expect(screen.getByLabelText('Other')).toBeInTheDocument();
   });
+
+  it('renders Pendragon format badge', () => {
+    render(<FormatBadge format="pendragon" showLabel />);
+    expect(screen.getByLabelText('Pendragon')).toBeInTheDocument();
+    expect(screen.getByText('Pendragon')).toBeInTheDocument();
+  });
 });
 
 describe('CardTile', () => {

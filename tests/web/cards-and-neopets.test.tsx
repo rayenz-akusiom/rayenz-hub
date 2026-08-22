@@ -103,5 +103,7 @@ describe('FormatBadge', () => {
     expect(screen.getByText(/commander/i)).toBeInTheDocument();
     rerender(<FormatBadge format="cube" showLabel />);
     expect(screen.getByText(/cube/i)).toBeInTheDocument();
+    rerender(<FormatBadge format="pendragon" showLabel />);
+    expect(screen.getByText(/pendragon/i)).toBeInTheDocument();
   });
 });

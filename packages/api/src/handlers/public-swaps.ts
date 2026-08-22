@@ -19,7 +19,7 @@ export async function handlePublicUserSwaps(
     const summaries = await services.deckRepository.listByUserId(record.sub);
     const decks = [];
     for (const summary of summaries) {
-      if (summary.format !== 'commander' && summary.format !== 'cube') continue;
+      if (summary.format !== 'commander' && summary.format !== 'cube' && summary.format !== 'pendragon') continue;
       if (isTheoryDeck(summary)) continue;
       if (summary.visibility === 'private') continue;
       const doc = await services.deckRepository.getByUserId(record.sub, summary.deckId);

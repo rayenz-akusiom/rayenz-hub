@@ -23,7 +23,7 @@ function LeaderFace({ card }: { card: LeaderSnapshotCard }) {
 }
 
 function badgeFormat(format: string | undefined): DeckFormat {
-  if (format === 'commander' || format === 'cube') return format;
+  if (format === 'commander' || format === 'cube' || format === 'pendragon') return format;
   return 'commander';
 }
 

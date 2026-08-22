@@ -47,6 +47,7 @@ export function ColourIdentityBrowse({
   onSetVisibility,
   onRename,
   onSetDescription,
+  onPickSlot,
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
@@ -92,6 +93,7 @@ export function ColourIdentityBrowse({
   onSetVisibility?: (visibility: DeckVisibility) => void;
   onRename?: (name: string) => void;
   onSetDescription?: (description: string) => void;
+  onPickSlot?: (category: string) => void;
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
@@ -206,6 +208,7 @@ export function ColourIdentityBrowse({
         onSelectCard={onSelectCard}
         onDropCard={onDropCard}
         onCardContextMenu={onCardContextMenu}
+        onPickSlot={onPickSlot}
         format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
         cardSort={cardSort}
         deckName={deckName}

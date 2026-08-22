@@ -50,6 +50,7 @@ export function emptyCardOracle(over: Partial<CardOracle> = {}): CardOracle {
     manaValue: null,
     imageUrl: null,
     finishes: null,
+    hasCommonPrinting: null,
     updatedAt: null,
     ...over,
   };
@@ -197,6 +198,11 @@ function mergeOraclePreferExisting(
         ? scryfallImageFromId(base.scryfallId || incoming.scryfallId)
         : null),
     finishes: base.finishes ?? incoming.finishes ?? null,
+    hasCommonPrinting:
+      base.hasCommonPrinting === true || incoming.hasCommonPrinting === true
+        ? true
+        : base.hasCommonPrinting ?? incoming.hasCommonPrinting ?? null,
+    colours: base.colours ?? incoming.colours ?? null,
     updatedAt: base.updatedAt || incoming.updatedAt || now,
   };
 }

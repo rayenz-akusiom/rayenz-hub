@@ -19,7 +19,7 @@ export function LegacyDeckBuilderRedirect() {
       const lookupFormat = (deckSlug: string) => {
         const match = summaries.find((d) => toKebabCase(d.name) === deckSlug);
         if (match?.format === 'cube') return 'cube';
-        if (match?.format === 'commander') return 'commander';
+        if (match?.format === 'commander' || match?.format === 'pendragon') return 'commander';
         return null;
       };
 

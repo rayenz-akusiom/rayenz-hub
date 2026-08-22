@@ -1,5 +1,5 @@
 ---
-description: Commander vs Lieutenants categories in deck builder
+description: Commander vs Lieutenants vs Pendragon leaders in deck builder
 globs: packages/{web/src/deck-builder,shared/src/deck-builder,shared/src/schemas/deck-builder*}/**/*.{ts,tsx,css,mdc}
 alwaysApply: false
 ---
@@ -20,6 +20,12 @@ alwaysApply: false
 - Never use a Lieutenant as the secondary library cover for a partner pair.
 - Do **not** treat `Commander` + `Lieutenants` as a partner pair.
 
+## Pendragon
+
+- Format `pendragon` lives in Commander Builder. Categories **`Arthur`** and **`Excalibur`** are required command-zone slots (not Commander / Lieutenants).
+- Colour identity and dual library cover use Arthur + Excalibur. No partner legality check.
+- Commons legality is oracle-level (`r:c` / `hasCommonPrinting`): a rare reprint of a common oracle is legal. Excalibur has no commons requirement.
+
 ## Import note
 
-Archidekt’s singular `Lieutenant` still aliases to Hub `Lieutenants` on import. That does not make those cards commanders.
+Archidekt’s singular `Lieutenant` still aliases to Hub `Lieutenants` on import. That does not make those cards commanders. Pendragon import maps Commander → Arthur and Lieutenant(s) → Excalibur.

@@ -210,6 +210,39 @@ describe('DeckHeaderRow', () => {
     expect(screen.getByText('3 cards')).toBeInTheDocument();
   });
 
+  it('lets empty commander slots call onPickSlot', async () => {
+    const user = userEvent.setup();
+    const onPickSlot = vi.fn();
+    render(
+      <DeckHeaderRow
+        format="commander"
+        header={{}}
+        headerKeys={[]}
+        onPickSlot={onPickSlot}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Choose commander' }));
+    expect(onPickSlot).toHaveBeenCalledWith('Commander');
+  });
+
+  it('always shows empty Arthur and Excalibur slots for Pendragon', async () => {
+    const user = userEvent.setup();
+    const onPickSlot = vi.fn();
+    render(
+      <DeckHeaderRow
+        format="pendragon"
+        header={{}}
+        headerKeys={[]}
+        onPickSlot={onPickSlot}
+      />,
+    );
+    expect(screen.getByLabelText('Arthur and Excalibur')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose Arthur' }));
+    expect(onPickSlot).toHaveBeenCalledWith('Arthur');
+    await user.click(screen.getByRole('button', { name: 'Choose Excalibur' }));
+    expect(onPickSlot).toHaveBeenCalledWith('Excalibur');
+  });
+
   it('keeps a solo commander as one slot until the partner row is drag-targeted', () => {
     const commander = asHeaderCard({
       instanceId: 'cmd-1',

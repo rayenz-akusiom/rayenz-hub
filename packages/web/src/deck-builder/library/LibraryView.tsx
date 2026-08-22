@@ -3,7 +3,7 @@ import type { DeckFormat, DeckSummary } from '@rayenz-hub/shared';
 import { builderHash, hubUserSlug } from '../../hub/routes';
 import { toKebabCase } from '../../lib/string-utils';
 import { CARD_SIZE_PX } from '../card-size';
-import { FormatBadge } from '../ui/FormatBadge';
+import { FormatBadge, formatDisplayName } from '../ui/FormatBadge';
 import { LibraryCoverArt } from './LibraryCoverArt';
 import { LibrarySkeleton, LibrarySortSelect } from './library-chrome';
 import {
@@ -32,8 +32,7 @@ function LibrarySection({
   onDelete: (deckId: string) => void;
 }) {
   if (!decks.length) return null;
-  const label =
-    format === 'commander' ? 'Commander' : format === 'cube' ? 'Cube' : 'Other';
+  const label = formatDisplayName(format);
 
   return (
     <section className="db-library-section" aria-label={label}>
@@ -118,8 +117,11 @@ export function LibraryView({
 
   const sorted = useMemo(() => sortLibraryDecks(decks, sort), [decks, sort]);
   const commanders = sorted.filter((d) => d.format === 'commander');
+  const pendragons = sorted.filter((d) => d.format === 'pendragon');
   const cubes = sorted.filter((d) => d.format === 'cube');
-  const other = sorted.filter((d) => d.format !== 'commander' && d.format !== 'cube');
+  const other = sorted.filter(
+    (d) => d.format !== 'commander' && d.format !== 'cube' && d.format !== 'pendragon',
+  );
 
   function onSortChange(next: LibrarySort) {
     setSort(next);
@@ -162,6 +164,7 @@ export function LibraryView({
       ) : (
         <div className="db-library-sections">
           <LibrarySection format="commander" decks={commanders} onOpen={onOpen} onDelete={onDelete} />
+          <LibrarySection format="pendragon" decks={pendragons} onOpen={onOpen} onDelete={onDelete} />
           <LibrarySection format="cube" decks={cubes} onOpen={onOpen} onDelete={onDelete} />
           <LibrarySection format="other" decks={other} onOpen={onOpen} onDelete={onDelete} />
         </div>

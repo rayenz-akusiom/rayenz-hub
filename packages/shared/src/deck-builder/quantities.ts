@@ -1,4 +1,5 @@
 import type { CardInstance, DeckFormat } from '../schemas/deck-builder.js';
+import { isCommandZoneFormat } from './format.js';
 
 /** Canonical display order for basic land types in the Basics panel. */
 export const BASIC_LAND_TYPE_ORDER = [
@@ -51,7 +52,7 @@ export function normalizeCardQuantities(
   format: DeckFormat,
   nextId: (prefix: string) => string = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`,
 ): CardInstance[] {
-  if (format !== 'commander') {
+  if (!isCommandZoneFormat(format)) {
     return cards.map((c) => ({
       ...c,
       quantity: Number(c.quantity) || 1,
@@ -80,4 +81,4 @@ export function normalizeCardQuantities(
   }
   return out;
 }
-
+

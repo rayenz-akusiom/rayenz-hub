@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import { CreateCommanderDialog } from '../../packages/web/src/deck-builder/commander/CreateCommanderDialog';
@@ -42,6 +42,36 @@ describe('CreateCommanderDialog', () => {
     expect(saved.format).toBe('commander');
     expect(onMismatchWarning).toHaveBeenCalledWith(expect.stringMatching(/cube.*commander/i));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('forces pendragon format and remaps Commander / Lieutenant headers', async () => {
+    const user = userEvent.setup();
+    render(
+      <CreateCommanderDialog
+        onClose={onClose}
+        onSave={onSave}
+        onMismatchWarning={onMismatchWarning}
+        forcedFormat="pendragon"
+      />,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Import Pendragon deck' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Archidekt import text'), {
+      target: {
+        value:
+          '[Commander]\n1 Knight of the White Orchid\n[Lieutenant]\n1 Sword of Feast and Famine',
+      },
+    });
+    await user.click(screen.getByRole('button', { name: 'Import paste' }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalled();
+    });
+    const saved = onSave.mock.calls[0][0] as DeckDocument;
+    expect(saved.format).toBe('pendragon');
+    expect(saved.cards.some((c) => c.primaryCategory === 'Arthur')).toBe(true);
+    expect(saved.cards.some((c) => c.primaryCategory === 'Excalibur')).toBe(true);
+    expect(saved.cards.some((c) => c.primaryCategory === 'Commander')).toBe(false);
   });
 });
 

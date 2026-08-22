@@ -21,6 +21,7 @@ export * from './deck-builder/deck-cover';
 export * from './deck-builder/partner';
 export * from './deck-builder/commander-identity-query';
 export * from './deck-builder/format';
+export * from './deck-builder/pendragon';
 export * from './deck-builder/force-format';
 export * from './deck-builder/library-filter';
 export * from './deck-builder/browse';

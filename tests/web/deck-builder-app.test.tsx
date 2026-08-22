@@ -114,6 +114,33 @@ function headerAddDeckButton() {
   return within(header).getByRole('button', { name: 'Add Commander deck' });
 }
 
+function headerAddMenuButton() {
+  const header = screen.getByRole('heading', { name: /Commander Builder/ }).parentElement!;
+  return within(header).getByRole('button', { name: 'Add a different format deck' });
+}
+
+function formatRegion(name: 'Commander' | 'Pendragon') {
+  return screen.getByRole('region', { name });
+}
+
+function ownershipLane(format: 'Commander' | 'Pendragon', ownership: 'Owned' | 'Theory') {
+  return within(formatRegion(format)).getByRole('region', { name: ownership });
+}
+
+function rememberSavedDecks(seed: DeckDocument[] = []) {
+  const byId = new Map(seed.map((d) => [d.deckId, d]));
+  saveDeck.mockImplementation(async (doc) => {
+    const saved = { ...doc, updatedAt: new Date().toISOString() };
+    byId.set(saved.deckId, saved);
+    return saved;
+  });
+  getDeck.mockImplementation(async (id) => byId.get(id) ?? null);
+  const summaries = () => [...byId.values()].map((d) => toDeckSummary(d));
+  listDecks.mockImplementation(async () => summaries());
+  readLibraryIndex.mockImplementation(() => summaries());
+  return byId;
+}
+
 function deckOpenButton(deckName: string) {
   const tile = screen.getByText(deckName, { selector: '.db-library-tile-name' }).closest('li')!;
   return within(tile).getByRole('link');
@@ -206,7 +233,7 @@ describe('CommanderBuilderApp', () => {
 
     resolveList([]);
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
     expect(screen.queryByLabelText(/loading library/i)).not.toBeInTheDocument();
     expect(screen.getByText(SAMPLE_COMMANDER_DECK_NAME, { selector: '.db-library-tile-name' })).toBeInTheDocument();
@@ -224,9 +251,13 @@ describe('CommanderBuilderApp', () => {
     });
     expect(screen.queryByText('Vintage Cube')).not.toBeInTheDocument();
     expect(screen.queryByText(SAMPLE_COMMANDER_DECK_NAME)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No Commander decks saved/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Owned' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Theory' })).toBeInTheDocument();
+    expect(screen.queryByText(/No Commander or Pendragon decks saved/i)).not.toBeInTheDocument();
+    expect(formatRegion('Commander')).toBeInTheDocument();
+    expect(formatRegion('Pendragon')).toBeInTheDocument();
+    expect(ownershipLane('Commander', 'Owned')).toBeInTheDocument();
+    expect(ownershipLane('Commander', 'Theory')).toBeInTheDocument();
+    expect(ownershipLane('Pendragon', 'Owned')).toBeInTheDocument();
+    expect(ownershipLane('Pendragon', 'Theory')).toBeInTheDocument();
   });
 
   it('splits Owned and Theory swimlanes and marks Theory via context menu', async () => {
@@ -250,8 +281,8 @@ describe('CommanderBuilderApp', () => {
     });
     expect(screen.getByText('Theory Brew', { selector: '.db-library-tile-name' })).toBeInTheDocument();
 
-    const ownedLane = screen.getByRole('region', { name: 'Owned' });
-    const theoryLane = screen.getByRole('region', { name: 'Theory' });
+    const ownedLane = ownershipLane('Commander', 'Owned');
+    const theoryLane = ownershipLane('Commander', 'Theory');
     expect(
       within(ownedLane).getByText('Fixture Commander', { selector: '.db-library-tile-name' }),
     ).toBeInTheDocument();
@@ -282,7 +313,7 @@ describe('CommanderBuilderApp', () => {
       expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
-    const ownedLane = screen.getByRole('region', { name: 'Owned' });
+    const ownedLane = ownershipLane('Commander', 'Owned');
     const ownedTile = within(ownedLane)
       .getByText('Fixture Commander', { selector: '.db-library-tile-name' })
       .closest('li')!;
@@ -327,17 +358,82 @@ describe('CommanderBuilderApp', () => {
     });
   });
 
-  it('opens Add deck dialog from header', async () => {
-    listDecks.mockResolvedValue([]);
+  it('creates an empty commander deck from the primary add button', async () => {
+    rememberSavedDecks();
     const user = userEvent.setup();
 
     render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
 
     await user.click(headerAddDeckButton());
-    expect(screen.getByRole('dialog', { name: 'Create Commander deck' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /New Commander deck/i })).toBeInTheDocument();
+    });
+    expect(saveDeck).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'commander', name: 'New Commander deck', cards: [] }),
+    );
+    expect(screen.getByRole('button', { name: 'Choose commander' })).toBeInTheDocument();
+  });
+
+  it('creates an empty Pendragon deck from the caret menu', async () => {
+    rememberSavedDecks();
+    const user = userEvent.setup();
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
+    });
+
+    await user.click(headerAddMenuButton());
+    await user.click(screen.getByRole('menuitem', { name: 'Pendragon deck' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /New Pendragon deck/i })).toBeInTheDocument();
+    });
+    expect(saveDeck).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: 'pendragon',
+        name: 'New Pendragon deck',
+        cards: [],
+      }),
+    );
+    expect(screen.getByRole('button', { name: 'Choose Arthur' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose Excalibur' })).toBeInTheDocument();
+  });
+
+  it('nests Pendragon decks under the Pendragon format group', async () => {
+    const pendragonDoc = {
+      ...commanderDoc,
+      deckId: 'pendragon-1',
+      name: 'Pendragon Brew',
+      format: 'pendragon' as const,
+    };
+    const commanderSummaryNow = toDeckSummary(commanderDoc);
+    const pendragonSummary = toDeckSummary(pendragonDoc);
+    listDecks.mockResolvedValue([commanderSummaryNow, pendragonSummary]);
+    readLibraryIndex.mockReturnValue([commanderSummaryNow, pendragonSummary]);
+    getDeck.mockImplementation(async (id) => {
+      if (id === pendragonDoc.deckId) return pendragonDoc;
+      if (id === commanderDoc.deckId) return commanderDoc;
+      return null;
+    });
+
+    render(<CommanderBuilderApp />);
+    await waitFor(() => {
+      expect(screen.getByText('Pendragon Brew', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    expect(
+      within(ownershipLane('Commander', 'Owned')).getByText('Fixture Commander', {
+        selector: '.db-library-tile-name',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(ownershipLane('Pendragon', 'Owned')).getByText('Pendragon Brew', {
+        selector: '.db-library-tile-name',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('opens BrowseShell when a deck tile is selected', async () => {
@@ -565,7 +661,7 @@ describe('CommanderBuilderApp', () => {
     render(<CommanderBuilderApp />);
 
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
     expect(screen.queryByText('Fixture Commander', { selector: '.db-library-tile-name' })).not.toBeInTheDocument();
   });
@@ -987,11 +1083,12 @@ describe('CommanderBuilderApp', () => {
 
     render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
 
-    await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
+    await user.click(headerAddMenuButton());
+    await user.click(screen.getByRole('menuitem', { name: 'Import Commander…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Import Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -1013,11 +1110,12 @@ describe('CommanderBuilderApp', () => {
 
     render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
 
-    await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
+    await user.click(headerAddMenuButton());
+    await user.click(screen.getByRole('menuitem', { name: 'Import Commander…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Import Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -1043,11 +1141,12 @@ describe('CommanderBuilderApp', () => {
 
     render(<CommanderBuilderApp />);
     await waitFor(() => {
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
 
-    await user.click(headerAddDeckButton());
-    const dialog = screen.getByRole('dialog', { name: 'Create Commander deck' });
+    await user.click(headerAddMenuButton());
+    await user.click(screen.getByRole('menuitem', { name: 'Import Commander…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Import Commander deck' });
     await user.type(within(dialog).getByLabelText('Archidekt import text'), '[Creature]\n1 Sol Ring');
     await user.click(within(dialog).getByRole('button', { name: 'Import paste' }));
 
@@ -1207,7 +1306,7 @@ describe('CommanderBuilderApp', () => {
 
     await waitFor(() => {
       expect(screen.queryByText(SAMPLE_COMMANDER_DECK_NAME)).not.toBeInTheDocument();
-      expect(screen.getByText(/No Commander decks saved/i)).toBeInTheDocument();
+      expect(screen.getByText(/No Commander or Pendragon decks saved/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/Or open the sample deck above/i)).not.toBeInTheDocument();
   });

@@ -46,10 +46,10 @@ export function GlanceGenerateButton({ deck }: Props) {
   const apiReady = isApiConfigured();
   const ownerReady = useIsHubOwner();
   const hasDeckId = Boolean(deck.deckId);
-  const enabled = apiReady && ownerReady && deck.format === 'commander';
+  const enabled = apiReady && ownerReady && (deck.format === 'commander' || deck.format === 'pendragon');
 
   const lieutenants = useMemo<GlanceCard[]>(() => {
-    if (deck.format !== 'commander') return [];
+    if (deck.format !== 'commander' && deck.format !== 'pendragon') return [];
     return listGlanceLieutenants(deck);
   }, [deck]);
   const needsPick = lieutenants.length > GLANCE_ROLE_HIGHLIGHT_LIMIT;
@@ -171,8 +171,8 @@ export function GlanceGenerateButton({ deck }: Props) {
       setPhase('options');
       return;
     }
-    if (deck.format !== 'commander') {
-      setError('Glance is supported for Commander decks only.');
+    if (deck.format !== 'commander' && deck.format !== 'pendragon') {
+      setError('Glance is supported for Commander and Pendragon decks only.');
       setOpen(true);
       setPhase('options');
       return;

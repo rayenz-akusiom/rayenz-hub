@@ -7,13 +7,20 @@ import {
   loadScryfallSearchExpanded,
   saveScryfallSearchExpanded,
 } from '../../../packages/web/src/deck-builder/scryfall/search-expanded.ts';
+import {
+  loadScryfallQuickAddPref,
+  parseScryfallQuickAddPref,
+  saveScryfallQuickAddPref,
+} from '../../../packages/web/src/deck-builder/scryfall/quick-add-pref.ts';
 
 const KEY = 'rayenz-scryfall-recent-searches';
 const EXPANDED_KEY = 'rayenz-scryfall-search-expanded';
+const QUICK_ADD_KEY = 'rayenz-scryfall-quick-add';
 
 afterEach(() => {
   localStorage.removeItem(KEY);
   localStorage.removeItem(EXPANDED_KEY);
+  localStorage.removeItem(QUICK_ADD_KEY);
 });
 
 describe('recent Scryfall searches', () => {
@@ -41,5 +48,27 @@ describe('Scryfall search expanded preference', () => {
     expect(loadScryfallSearchExpanded()).toBe(true);
     saveScryfallSearchExpanded(false);
     expect(loadScryfallSearchExpanded()).toBe(false);
+  });
+});
+
+describe('Scryfall quick add preference', () => {
+  it('defaults to Default and round-trips', () => {
+    expect(loadScryfallQuickAddPref()).toEqual({ kind: 'default' });
+    saveScryfallQuickAddPref({ kind: 'maybeboard' });
+    expect(loadScryfallQuickAddPref()).toEqual({ kind: 'maybeboard' });
+    saveScryfallQuickAddPref({ kind: 'category', name: 'Creatures' });
+    expect(loadScryfallQuickAddPref()).toEqual({ kind: 'category', name: 'Creatures' });
+    saveScryfallQuickAddPref({ kind: 'off' });
+    expect(loadScryfallQuickAddPref()).toEqual({ kind: 'off' });
+  });
+
+  it('falls back to Default for invalid storage', () => {
+    expect(parseScryfallQuickAddPref(null)).toEqual({ kind: 'default' });
+    expect(parseScryfallQuickAddPref({ kind: 'nope' })).toEqual({ kind: 'default' });
+    expect(parseScryfallQuickAddPref({ kind: 'category', name: '  ' })).toEqual({
+      kind: 'default',
+    });
+    localStorage.setItem(QUICK_ADD_KEY, 'not-json');
+    expect(loadScryfallQuickAddPref()).toEqual({ kind: 'default' });
   });
 });

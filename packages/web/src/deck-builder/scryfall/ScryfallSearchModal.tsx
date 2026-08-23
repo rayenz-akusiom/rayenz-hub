@@ -19,6 +19,7 @@ import {
   isBasicLand,
   isCommandZoneFormat,
   mapScryfallCardToPrinting,
+  MAYBEBOARD,
   pendragonRoleForCategory,
   scryfallCardImageUrl,
   scryfallImageFromId,
@@ -32,12 +33,18 @@ import {
 import { PrintingPickerModal } from './PrintingPickerModal';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
-import { DbMenu } from '../ui/DbMenu';
+import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import { loadRecentScryfallSearches, rememberScryfallSearch } from './recent-searches';
 import {
   loadScryfallSearchExpanded,
   saveScryfallSearchExpanded,
 } from './search-expanded';
+import {
+  loadScryfallQuickAddPref,
+  saveScryfallQuickAddPref,
+  scryfallQuickAddMenuValue,
+  type ScryfallQuickAddPref,
+} from './quick-add-pref';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 import { useDialogA11y } from '../../ui/useDialogA11y';
 
@@ -141,7 +148,7 @@ export function ScryfallSearchModal({
   extraQuery?: string;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
-  /** Show session Quick add toggle (deck FAB add flow). */
+  /** Show Quick add destination menu (deck FAB add flow). */
   allowQuickAdd?: boolean;
   /** Right-click on an in-deck result removes one copy (deck FAB add flow). */
   onRemoveInDeckCard?: (card: ScryfallCard) => void;
@@ -164,7 +171,10 @@ export function ScryfallSearchModal({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<ScryfallCard | null>(null);
   const [recent, setRecent] = useState(() => loadRecentScryfallSearches());
-  const [quickAdd, setQuickAdd] = useState(false);
+  const [quickAddPref, setQuickAddPref] = useState<ScryfallQuickAddPref>(() =>
+    loadScryfallQuickAddPref(),
+  );
+  const quickAdd = quickAddPref.kind !== 'off';
   const [showBackToSearch, setShowBackToSearch] = useState(false);
   const [resolvingPrinting, setResolvingPrinting] = useState(false);
   const [expanded, setExpanded] = useState(() =>
@@ -198,6 +208,7 @@ export function ScryfallSearchModal({
   }, []);
 
   const categories = categoryOptions ?? deckCategoryOptions(deck);
+  const quickAddCategoryChoices = categories.filter((name) => name !== MAYBEBOARD);
   const inDeckByName = deckCardNameCounts(deck);
   const printingHint = pending
     ? {
@@ -206,7 +217,41 @@ export function ScryfallSearchModal({
         typeLine: pending.type_line || null,
       }
     : null;
-  const defaultCat = defaultCategory || defaultAddCategory(deck, printingHint);
+
+  function typeDefaultCategory(
+    printing: Pick<PrintingFields, 'name' | 'colourIdentity' | 'typeLine'> &
+      Partial<Pick<PrintingFields, 'scryfallId' | 'setCode' | 'collectorNumber'>>,
+  ): string {
+    return defaultCategoryForCard(deck, {
+      name: printing.name,
+      scryfallId: printing.scryfallId,
+      setCode: printing.setCode,
+      collectorNumber: printing.collectorNumber,
+      colourIdentity: printing.colourIdentity,
+      typeLine: printing.typeLine,
+    });
+  }
+
+  function resolvePreferredCategory(
+    printing?: Pick<PrintingFields, 'name' | 'colourIdentity' | 'typeLine'> &
+      Partial<Pick<PrintingFields, 'scryfallId' | 'setCode' | 'collectorNumber'>> | null,
+  ): string {
+    if (defaultCategory) return defaultCategory;
+    if (quickAddPref.kind === 'maybeboard') return MAYBEBOARD;
+    if (quickAddPref.kind === 'category') return quickAddPref.name;
+    if (quickAddPref.kind === 'default' && printing) return typeDefaultCategory(printing);
+    if (quickAddPref.kind === 'default' && printingHint) {
+      return typeDefaultCategory(printingHint);
+    }
+    return defaultAddCategory(deck, printing ?? printingHint);
+  }
+
+  const defaultCat = resolvePreferredCategory(printingHint);
+
+  function selectQuickAddPref(next: ScryfallQuickAddPref) {
+    setQuickAddPref(next);
+    saveScryfallQuickAddPref(next);
+  }
 
   function toggleExpanded() {
     setExpanded((prev) => {
@@ -232,14 +277,9 @@ export function ScryfallSearchModal({
 
   function categoryForPrinting(printing: PrintingFields): string {
     if (defaultCategory) return defaultCategory;
-    return defaultCategoryForCard(deck, {
-      name: printing.name,
-      scryfallId: printing.scryfallId,
-      setCode: printing.setCode,
-      collectorNumber: printing.collectorNumber,
-      colourIdentity: printing.colourIdentity,
-      typeLine: printing.typeLine,
-    });
+    if (quickAddPref.kind === 'maybeboard') return MAYBEBOARD;
+    if (quickAddPref.kind === 'category') return quickAddPref.name;
+    return typeDefaultCategory(printing);
   }
 
   function stampCommonPrinting(printing: PrintingFields, category: string): PrintingFields {
@@ -514,23 +554,41 @@ export function ScryfallSearchModal({
         <h3>{title}</h3>
         <div className="db-picker-header-controls">
           {allowQuickAdd ? (
-            <button
-              type="button"
-              className={`db-btn${quickAdd ? ' is-active' : ''}`}
-              aria-pressed={quickAdd}
-              title={
-                quickAdd
-                  ? onRemoveInDeckCard
-                    ? 'Quick add on — tap to add once; right-click removes; long-press for menu/printing'
-                    : 'Quick add on — tap to add, long-press for printing'
-                  : onRemoveInDeckCard
-                    ? 'Quick add off — tap opens printing; right-click removes; long-press opens card menu'
-                    : 'Quick add off — tap opens printing picker'
-              }
-              onClick={() => setQuickAdd((v) => !v)}
+            <DbMenu
+              label="Quick add"
+              value={scryfallQuickAddMenuValue(quickAddPref)}
+              ariaLabel="Quick add"
+              align="end"
+              triggerClassName={`db-btn${quickAdd ? ' is-active' : ''}`}
             >
-              Quick add
-            </button>
+              <DbMenuItem
+                active={quickAddPref.kind === 'off'}
+                onSelect={() => selectQuickAddPref({ kind: 'off' })}
+              >
+                Off
+              </DbMenuItem>
+              <DbMenuItem
+                active={quickAddPref.kind === 'default'}
+                onSelect={() => selectQuickAddPref({ kind: 'default' })}
+              >
+                Default
+              </DbMenuItem>
+              <DbMenuItem
+                active={quickAddPref.kind === 'maybeboard'}
+                onSelect={() => selectQuickAddPref({ kind: 'maybeboard' })}
+              >
+                Maybeboard
+              </DbMenuItem>
+              {quickAddCategoryChoices.map((name) => (
+                <DbMenuItem
+                  key={name}
+                  active={quickAddPref.kind === 'category' && quickAddPref.name === name}
+                  onSelect={() => selectQuickAddPref({ kind: 'category', name })}
+                >
+                  {name}
+                </DbMenuItem>
+              ))}
+            </DbMenu>
           ) : null}
           <CardSizePicker />
           {expandButton}

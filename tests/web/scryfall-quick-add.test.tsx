@@ -92,6 +92,14 @@ beforeEach(() => {
   fetchCardById.mockResolvedValue(null);
 });
 
+async function selectQuickAdd(
+  user: ReturnType<typeof userEvent.setup>,
+  item: string,
+) {
+  await user.click(screen.getByRole('button', { name: 'Quick add' }));
+  await user.click(screen.getByRole('menuitem', { name: item }));
+}
+
 describe('deckCardNameCounts', () => {
   it('counts quantities case-insensitively', () => {
     const counts = deckCardNameCounts({
@@ -135,6 +143,7 @@ describe('ScryfallSearchModal sole printing skip', () => {
       <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
     );
 
+    await selectQuickAdd(user, 'Off');
     await searchSolRing(user);
     await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
 
@@ -166,6 +175,7 @@ describe('ScryfallSearchModal sole printing skip', () => {
       <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
     );
 
+    await selectQuickAdd(user, 'Off');
     await searchSolRing(user);
     await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
 
@@ -214,7 +224,6 @@ describe('ScryfallSearchModal sole printing skip', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await searchSolRing(user);
 
     const option = screen.getByRole('option', { name: /Sol Ring/i });
@@ -229,7 +238,7 @@ describe('ScryfallSearchModal sole printing skip', () => {
 });
 
 describe('ScryfallSearchModal quick add', () => {
-  it('quick-adds with type default category and keepOpen; shows in-deck badge', async () => {
+  it('defaults to Quick add Default and quick-adds with type category and keepOpen', async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     const onClose = vi.fn();
@@ -243,16 +252,7 @@ describe('ScryfallSearchModal quick add', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
-    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveTextContent(/Default/i);
 
     await user.type(screen.getByLabelText(/Scryfall query/i), 't:artifact');
     await user.click(screen.getByRole('button', { name: 'Search' }));
@@ -277,6 +277,66 @@ describe('ScryfallSearchModal quick add', () => {
     expect(screen.queryByRole('heading', { name: /Add —/i })).not.toBeInTheDocument();
   });
 
+  it('quick-adds to Maybeboard when that destination is selected', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
+    );
+
+    await selectQuickAdd(user, 'Maybeboard');
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveTextContent(/Maybeboard/i);
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd.mock.calls[0]![1]).toBe('Maybeboard');
+    expect(onAdd.mock.calls[0]![2]).toEqual({ proxy: false, keepOpen: true });
+  });
+
+  it('quick-adds to a specific category when selected', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={onAdd} allowQuickAdd />,
+    );
+
+    await selectQuickAdd(user, 'Creature');
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveTextContent(/Creature/i);
+
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Sol Ring/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('option', { name: /Sol Ring/i }));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd.mock.calls[0]![1]).toBe('Creature');
+  });
+
+  it('persists Quick add destination across remount', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} allowQuickAdd />,
+    );
+
+    await selectQuickAdd(user, 'Maybeboard');
+    unmount();
+
+    render(
+      <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} allowQuickAdd />,
+    );
+    expect(screen.getByRole('button', { name: 'Quick add' })).toHaveTextContent(/Maybeboard/i);
+  });
+
   it('long-press opens printing picker while quick add is on', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -291,7 +351,6 @@ describe('ScryfallSearchModal quick add', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await user.type(screen.getByLabelText(/Scryfall query/i), 'sol');
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
@@ -310,7 +369,7 @@ describe('ScryfallSearchModal quick add', () => {
     expect(fetchPrintingsPage).toHaveBeenCalled();
   });
 
-  it('does not show Quick add toggle when allowQuickAdd is false', () => {
+  it('does not show Quick add menu when allowQuickAdd is false', () => {
     render(
       <ScryfallSearchModal deck={baseDeck} onClose={vi.fn()} onAdd={vi.fn()} />,
     );
@@ -365,7 +424,6 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await searchWithResults(user, [birds, solRing]);
 
     await user.click(screen.getByRole('option', { name: /Birds of Paradise/i }));
@@ -387,7 +445,6 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await searchWithResults(user, [forest]);
 
     await user.click(screen.getByRole('option', { name: /Forest/i }));
@@ -477,7 +534,6 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await searchWithResults(user, [solRing]);
 
     const option = screen.getByRole('option', { name: /Sol Ring/i });
@@ -503,7 +559,6 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Quick add' }));
     await searchWithResults(user, [birds]);
 
     await user.click(screen.getByRole('option', { name: /Birds of Paradise/i }));

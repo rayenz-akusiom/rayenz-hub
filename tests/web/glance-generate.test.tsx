@@ -178,4 +178,23 @@ describe('GlanceGenerateButton', () => {
     expect(options[2]).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
   });
+
+  it('portals the overlay to document.body so sticky chrome cannot trap it above the FAB', async () => {
+    const deck = buildEligibleCommanderDeck();
+    const { container } = render(
+      <div className="hub-sticky-chrome">
+        <GlanceGenerateButton deck={deck} />
+      </div>,
+    );
+    const sticky = container.querySelector('.hub-sticky-chrome');
+    expect(sticky).toBeTruthy();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Generate glance' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Deck glance' });
+    expect(dialog.classList.contains('db-modal')).toBe(true);
+    expect(dialog.parentElement).toBe(document.body);
+    expect(sticky!.contains(dialog)).toBe(false);
+  });
 });

@@ -14,6 +14,7 @@ import {
   cancelFormalSwap,
   syncCardsWithFormalSwaps,
   toDeckSummary,
+  builderFormatForDeck,
   type DeckDocument,
   type DeckSummary,
   type PrintingFields,
@@ -21,18 +22,23 @@ import {
   type WantSource,
 } from '@rayenz-hub/shared';
 import {
+  builderPairHash,
   defaultBrowseForSwapQueuePath,
   defaultLayoutForSwapQueuePath,
+  hashForSwapQueueRoute,
   hubUserSlug,
   isForeignUserSlug,
+  normalizeHash,
   parseSwapQueueRoute,
   rewriteRetiredUserSlug,
   swapQueueHash,
+  swapQueuePairHash,
   swapQueueShareUrl,
   type SwapQueueBrowseMode,
   type SwapQueueEntryPath,
   type SwapQueueLayoutMode,
 } from '../hub/routes';
+import { toKebabCase } from '../lib/string-utils';
 import { CardSizePicker } from '../deck-builder/CardSizePicker';
 import { useCardSize, type CardSizeKey } from '../deck-builder/card-size';
 import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
@@ -114,7 +120,7 @@ function SqStatusSlot({
   loadingFilters: boolean;
 }) {
   const text =
-    error || filterError || apiWarning || (loadingFilters ? 'Loading filters…' : '') || status;
+    error || filterError || apiWarning || (loadingFilters ? 'Updating filters…' : '') || status;
   if (!text) return null;
   const kind = error || filterError ? 'error' : apiWarning ? 'warn' : 'muted';
   const className =
@@ -438,6 +444,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [originDeckWorking, setOriginDeckWorking] = useState<DeckDocument | null>(null);
   const [addPickerOpen, setAddPickerOpen] = useState(false);
   const [swapsGlanceOpen, setSwapsGlanceOpen] = useState(false);
+  const [highlightPairKey, setHighlightPairKey] = useState<string | null>(null);
   const isOwner = useIsHubOwner();
   const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
   const editingDeckRef = useRef(editingDeck);
@@ -448,6 +455,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const autosaveTimerRef = useRef(0);
   const progressHostRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HubProgressController | null>(null);
+  const openSourceRef = useRef<(source: WantSource) => void>(() => {});
+  const appliedPairOpenRef = useRef<string | null>(null);
   editingDeckRef.current = editingDeck;
   pairDraftRef.current = pairDraft;
   pairOriginDeckIdRef.current = pairOriginDeckId;
@@ -464,7 +473,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       }
       const rewritten = rewriteRetiredUserSlug(parsed.userSlug);
       if (rewritten !== parsed.userSlug) {
-        navigateHub(swapQueueHash(rewritten, entryPath));
+        navigateHub(hashForSwapQueueRoute({ ...parsed, userSlug: rewritten }, entryPath));
       }
       setRouteUserSlug(rewritten);
     }
@@ -601,6 +610,31 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     };
   }, [currency]);
 
+  useEffect(() => {
+    if (loading) return;
+    const parsed = parseSwapQueueRoute();
+    if (!parsed?.pairDeckId || !parsed.pairEntryId) return;
+    const key = `${parsed.pairDeckId}:${parsed.pairEntryId}`;
+    setHighlightPairKey(key);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-pair-key="${key}"]`)?.scrollIntoView({ block: 'nearest' });
+    });
+    if (readOnly) {
+      appliedPairOpenRef.current = key;
+      return;
+    }
+    if (appliedPairOpenRef.current === key) return;
+    const source = sources.find(
+      (s) =>
+        s.deckId === parsed.pairDeckId &&
+        s.entryId === parsed.pairEntryId &&
+        (s.kind === 'queued_in' || s.kind === 'queued_out'),
+    );
+    if (!source) return;
+    appliedPairOpenRef.current = key;
+    openSourceRef.current(source);
+  }, [loading, sources, readOnly]);
+
   const effectiveCurrency: SwapQueueCurrency =
     currency === 'CAD' && fxUnavailable ? 'USD' : currency;
   const fxRate = fx?.rate ?? null;
@@ -697,6 +731,12 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setPairOriginDeckId(null);
     setOriginDeckWorking(null);
     setAddPickerOpen(false);
+    appliedPairOpenRef.current = null;
+    setHighlightPairKey(null);
+    const parsed = parseSwapQueueRoute();
+    if (parsed?.pairDeckId) {
+      navigateHub(swapQueueHash(parsed.userSlug, entryPath));
+    }
   }
 
   function applyLocalDecks(savedDocs: DeckDocument[]) {
@@ -750,10 +790,21 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       const entry = deck.formalSwapEntries.find((e) => e.id === source.entryId);
       if (entry) setPairDraft(draftFromFormalEntry(entry));
       else setPairDraft(null);
+      const key = `${source.deckId}:${source.entryId}`;
+      appliedPairOpenRef.current = key;
+      setHighlightPairKey(key);
+      const slug = routeUserSlug;
+      if (slug) {
+        const next = swapQueuePairHash(slug, source.deckId, source.entryId, entryPath);
+        if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
+          navigateHub(next);
+        }
+      }
     } else {
       setPairDraft(null);
     }
   }
+  openSourceRef.current = openSource;
 
   function activateUnified(row: UnifiedWantRow) {
     if (row.sources.length === 1) {
@@ -1131,7 +1182,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
   function switchQueueMode(next: SwapQueueEntryPath) {
     if (next === entryPath) return;
-    navigateHub(swapQueueHash(routeUserSlug, next));
+    navigateHub(hashForSwapQueueRoute(parseSwapQueueRoute(), next, routeUserSlug));
   }
 
   const queueTitle = entryPath === 'wishlist' ? 'Wishlist' : 'Swap Queue';
@@ -1330,6 +1381,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           onSelect={readOnly ? undefined : openSource}
           onActivateUnified={readOnly ? undefined : activateUnified}
           onFinalizePair={readOnly ? undefined : (deckId, entryId) => void finalizePair(deckId, entryId)}
+          highlightPairKey={highlightPairKey}
           showPrices={showPrices}
           formatPrice={(usd) => formatPricePrimary(usd, effectiveCurrency, fxRate)}
           priceTitle={(usd) => priceBadgeTitle(usd, effectiveCurrency, fxRate)}
@@ -1422,6 +1474,18 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               ? originDeckWorking || findDeck(decks, pairOriginDeckId)
               : null
           }
+          onOpenInBuilder={() => {
+            const slug = routeUserSlug || hubUserSlug();
+            if (!slug) return;
+            navigateHub(
+              builderPairHash(
+                builderFormatForDeck(editingDeck.format),
+                slug,
+                toKebabCase(editingDeck.name),
+                pairDraft.entryId,
+              ),
+            );
+          }}
         />
       ) : null}
 

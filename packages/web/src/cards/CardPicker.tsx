@@ -4,6 +4,7 @@ import { cardHasBackFace, scryfallImageFromId, SWAP_IN, SWAP_OUT, canonicalizeSw
 import { CardFace } from './CardFace';
 import { CardSizePicker } from './CardSizePicker';
 import { useCardSize } from './card-size';
+import { useDialogA11y } from '../ui/useDialogA11y';
 
 export type CardPickerItem = {
   value: unknown;
@@ -108,6 +109,7 @@ export function CardPickerModal({
   const [filter, setFilter] = useState('');
   const [docked, setDocked] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFoil(!!config.foilDefault);
@@ -129,17 +131,7 @@ export function CardPickerModal({
     filterRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useDialogA11y(true, onClose, dialogRef);
 
   const groups = useMemo(() => {
     let items = config.items || [];
@@ -163,6 +155,7 @@ export function CardPickerModal({
 
   return (
     <div
+      ref={dialogRef}
       className={
         'hub-picker-dialog hub-picker-dialog--react' + (docked ? ' hub-picker-dialog--dock' : '')
       }

@@ -5,8 +5,10 @@ import {
   parseSwapQueueRoute,
   pathFromHash,
   swapQueueHash,
+  swapQueuePairHash,
   swapQueueShareUrl,
   rewriteRetiredUserSlug,
+  hashForSwapQueueRoute,
   KNOWN_PATHS,
 } from '../../../packages/web/src/hub/routes.ts';
 
@@ -41,6 +43,21 @@ describe('swap-queue routes', () => {
     expect(swapQueueHash()).toBe('#/swap-queue');
     expect(swapQueueHash('rayenz')).toBe('#/swap-queue/rayenz');
     expect(swapQueueHash('rayenz', 'wishlist')).toBe('#/wishlist/rayenz');
+    expect(parseSwapQueueRoute('#/swap-queue/rayenz/pair/cmd1/s1')).toEqual({
+      userSlug: 'rayenz',
+      pairDeckId: 'cmd1',
+      pairEntryId: 's1',
+    });
+    expect(swapQueuePairHash('rayenz', 'cmd1', 's1')).toBe(
+      '#/swap-queue/rayenz/pair/cmd1/s1',
+    );
+    expect(
+      hashForSwapQueueRoute(
+        { userSlug: 'rayenz', pairDeckId: 'cmd1', pairEntryId: 's1' },
+        'wishlist',
+      ),
+    ).toBe('#/wishlist/rayenz/pair/cmd1/s1');
+    expect(pathFromHash('#/swap-queue/rayenz/pair/cmd1/s1')).toBe('/swap-queue');
     expect(
       swapQueueShareUrl('rayenz', { origin: 'https://example.test', pathname: '/hub/' }),
     ).toBe('https://example.test/hub/#/swap-queue/rayenz');

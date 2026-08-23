@@ -153,6 +153,7 @@ export function SwapQueuePanel({
   onCancelEdit,
   onRemoveEdit,
   onFinalizeEdit,
+  onViewInSwapQueue,
   setMembership = null,
   readOnly = false,
 }: {
@@ -165,6 +166,7 @@ export function SwapQueuePanel({
   onCancelEdit: () => void;
   onRemoveEdit: () => void;
   onFinalizeEdit?: () => void;
+  onViewInSwapQueue?: () => void;
   /** Scryfall set membership (`in:`/`set:`); pairs show when either side matches. */
   setMembership?: ReadonlySet<string> | null;
   /** Guest or theory: queue visible but not editable. */
@@ -255,6 +257,7 @@ export function SwapQueuePanel({
           onClose={onCancelEdit}
           onRemove={onRemoveEdit}
           onFinalize={onFinalizeEdit}
+          onViewInSwapQueue={onViewInSwapQueue}
         />
       ) : null}
     </div>

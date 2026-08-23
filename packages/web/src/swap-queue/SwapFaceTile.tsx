@@ -84,6 +84,8 @@ export function SwapFaceTile({
 
 /** Full Out→In pair tile (builder chrome) + hover full-size popout. */
 export function SwapPairQueueTile({
+  pairKey,
+  highlight = false,
   outCard,
   inCard,
   incomplete,
@@ -108,6 +110,8 @@ export function SwapPairQueueTile({
   onFinalize?: () => void;
   inPriceLabel?: string | null;
   inPriceTitle?: string | null;
+  pairKey?: string;
+  highlight?: boolean;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState(false);
@@ -147,7 +151,10 @@ export function SwapPairQueueTile({
   } as CSSProperties;
 
   return (
-    <div className="sq-pair-tile">
+    <div
+      className={`sq-pair-tile${highlight ? ' is-highlight' : ''}`}
+      data-pair-key={pairKey}
+    >
       <button
         ref={triggerRef}
         type="button"

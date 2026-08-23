@@ -23,6 +23,7 @@ type Props = {
   onSelect?: (source: WantSource) => void;
   onActivateUnified?: (row: UnifiedWantRow) => void;
   onFinalizePair?: (deckId: string, entryId: string) => void;
+  highlightPairKey?: string | null;
   /** When set, show price badges on acquire faces. */
   showPrices?: boolean;
   formatPrice?: (usd: number | null) => string;
@@ -262,6 +263,7 @@ function TilesView({
   decks,
   onSelect,
   onFinalizePair,
+  highlightPairKey = null,
   showPrices,
   formatPrice,
   priceTitle,
@@ -272,6 +274,7 @@ function TilesView({
   decks: DeckDocument[];
   onSelect?: (source: WantSource) => void;
   onFinalizePair?: (deckId: string, entryId: string) => void;
+  highlightPairKey?: string | null;
   showPrices?: boolean;
   formatPrice?: (usd: number | null) => string;
   priceTitle?: (usd: number | null) => string;
@@ -315,6 +318,8 @@ function TilesView({
             return (
               <li key={unit.key}>
                 <SwapPairQueueTile
+                  pairKey={unit.key}
+                  highlight={highlightPairKey === unit.key}
                   outCard={outCard}
                   inCard={inCard}
                   incomplete={unit.incomplete}
@@ -381,6 +386,7 @@ export function QueueTilesView({
   onSelect,
   onActivateUnified,
   onFinalizePair,
+  highlightPairKey = null,
   showPrices,
   formatPrice,
   priceTitle,
@@ -394,6 +400,7 @@ export function QueueTilesView({
         decks={decks}
         onSelect={onSelect}
         onFinalizePair={onFinalizePair}
+        highlightPairKey={highlightPairKey}
         showPrices={showPrices}
         formatPrice={formatPrice}
         priceTitle={priceTitle}

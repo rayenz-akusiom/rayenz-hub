@@ -14,6 +14,7 @@ import {
 } from '../../packages/web/src/deck-builder/ui/SetFilterControl';
 import { MoveSheet } from '../../packages/web/src/deck-builder/edit/MoveSheet';
 import { SwapQueuePanel } from '../../packages/web/src/deck-builder/swaps/SwapQueuePanel';
+import { draftFromFormalEntry } from '../../packages/web/src/deck-builder/swaps/swap-edit-chrome';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
 import { CategoryBrowse } from '../../packages/web/src/deck-builder/browse/CategoryBrowse';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
@@ -993,6 +994,63 @@ describe('BrowseShell trim mode', () => {
     expect(screen.queryByRole('button', { name: 'Deck actions' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Trim' })).not.toBeInTheDocument();
   });
+
+  it('toggles Trim with T and shows a shortcut hint', async () => {
+    const user = userEvent.setup();
+    render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} />);
+    await user.keyboard('t');
+    expect(screen.getByText('Click a card to move it to Maybeboard')).toBeInTheDocument();
+    expect(screen.getByText('Esc exit trim')).toBeInTheDocument();
+    await user.keyboard('t');
+    expect(screen.queryByText('Click a card to move it to Maybeboard')).not.toBeInTheDocument();
+  });
+
+  it('removes the selection with Delete after confirm', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onChange = vi.fn();
+    const deck = trimDeck();
+    const card = deck.cards[0]!;
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+    expect(screen.getByText('Esc clear · Del remove · T trim')).toBeInTheDocument();
+    await user.keyboard('{Delete}');
+    expect(confirm).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cards: expect.not.arrayContaining([
+          expect.objectContaining({ instanceId: card.instanceId }),
+        ]),
+      }),
+    );
+    confirm.mockRestore();
+  });
+});
+
+describe('BrowseShell pair deep-link', () => {
+  it('opens the named formal pair and offers View in Swap Queue', async () => {
+    const cardIn = commanderDoc.cards[0]!;
+    const cardOut = commanderDoc.cards[1]!;
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      cardLayoutDefault: 'grid',
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: cardIn.instanceId,
+          outInstanceId: cardOut.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    render(
+      <BrowseShell deck={deck} onChange={noop} onBack={noop} focusPairEntryId="s1" />,
+    );
+    expect(await screen.findByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View in Swap Queue' })).toBeInTheDocument();
+  });
 });
 
 describe('BrowseShell swap-In ghosts on load', () => {
@@ -1254,6 +1312,35 @@ describe('SwapQueuePanel', () => {
     expect(screen.getByText('→ Creature')).toBeInTheDocument();
     await user.click(screen.getByTitle('Click to edit swap'));
     expect(onStartEdit).toHaveBeenCalledWith(deck.formalSwapEntries[0]);
+  });
+
+  it('shows View in Swap Queue from the pair editor', async () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-1',
+          inInstanceId: commanderDoc.cards[0]!.instanceId,
+          outInstanceId: commanderDoc.cards[1]!.instanceId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const onView = vi.fn();
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={draftFromFormalEntry(deck.formalSwapEntries[0]!)}
+        {...panelProps}
+        onViewInSwapQueue={onView}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: 'View in Swap Queue' });
+    await userEvent.setup().click(btn);
+    expect(onView).toHaveBeenCalled();
   });
 
   it('keeps a pair when only Out matches set membership and hides non-matching pairs', () => {

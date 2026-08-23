@@ -98,7 +98,11 @@ describe('GlanceGenerateButton', () => {
       expect(postGlance).toHaveBeenCalledWith(deck.deckId, { mode: 'type_line' }),
     );
     expect(await screen.findByRole('img', { name: 'Deck glance preview' })).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`gen ${GLANCE_GENERATION_VERSION} · cache MISS`, 'i'))).toBeInTheDocument();
+    const status = screen.getByText(/Ready · freshly rendered/i);
+    expect(status).toBeInTheDocument();
+    expect(status.getAttribute('title') || '').toMatch(
+      new RegExp(`gen ${GLANCE_GENERATION_VERSION} · cache MISS`, 'i'),
+    );
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 

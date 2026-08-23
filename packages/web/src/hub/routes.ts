@@ -59,12 +59,16 @@ export function isForeignUserSlug(slug: string | null | undefined): boolean {
 export type DeckBuilderRoute = {
   userSlug: string;
   deckSlug: string;
+  /** Formal swap entry to open after the deck loads. */
+  pairEntryId?: string;
 };
 
 export type BuilderFormat = 'commander' | 'cube';
 
 export type SwapQueueRoute = {
   userSlug: string;
+  pairDeckId?: string;
+  pairEntryId?: string;
 };
 
 export type SwapQueueEntryPath = 'swap-queue' | 'wishlist';
@@ -212,10 +216,17 @@ function parseBuilderRouteFromPrefix(path: string, prefix: string): DeckBuilderR
   if (!path.startsWith(`${prefix}/`)) return null;
   const rest = path.slice(prefix.length + 1);
   const parts = rest.split('/').filter(Boolean);
-  if (parts.length !== 2) return null;
-  const [userSlug, deckSlug] = parts;
-  if (!userSlug || !deckSlug) return null;
-  return { userSlug, deckSlug };
+  if (parts.length === 2) {
+    const [userSlug, deckSlug] = parts;
+    if (!userSlug || !deckSlug) return null;
+    return { userSlug, deckSlug };
+  }
+  if (parts.length === 4 && parts[2] === 'swap' && parts[3]) {
+    const [userSlug, deckSlug, , entryId] = parts;
+    if (!userSlug || !deckSlug) return null;
+    return { userSlug, deckSlug, pairEntryId: decodeURIComponent(entryId) };
+  }
+  return null;
 }
 
 /**
@@ -242,17 +253,30 @@ export function parseBuilderRoute(
   return null;
 }
 
-/** Build `#/{builder}` or `#/{builder}/:user/:deck`. */
+/** Build `#/{builder}` or `#/{builder}/:user/:deck` (`/swap/:entryId` when focusing a pair). */
 export function builderHash(
   format: BuilderFormat,
   userSlug?: string | null,
   deckSlug?: string | null,
+  pairEntryId?: string | null,
 ): string {
   const base = builderBasePath(format);
   if (userSlug && deckSlug) {
-    return `#${base}/${userSlug}/${deckSlug}`;
+    const deck = `#${base}/${userSlug}/${deckSlug}`;
+    if (pairEntryId) return `${deck}/swap/${encodeURIComponent(pairEntryId)}`;
+    return deck;
   }
   return `#${base}`;
+}
+
+/** Builder deep-link that opens a formal swap pair. */
+export function builderPairHash(
+  format: BuilderFormat,
+  userSlug: string,
+  deckSlug: string,
+  entryId: string,
+): string {
+  return builderHash(format, userSlug, deckSlug, entryId);
 }
 
 /** Map legacy `#/deck-builder` hashes to the split builder routes. */
@@ -266,9 +290,9 @@ export function resolveLegacyDeckBuilderHash(
   }
   const fmt = lookupFormat(route.deckSlug);
   if (fmt === 'cube') {
-    return builderHash('cube', route.userSlug, route.deckSlug);
+    return builderHash('cube', route.userSlug, route.deckSlug, route.pairEntryId);
   }
-  return builderHash('commander', route.userSlug, route.deckSlug);
+  return builderHash('commander', route.userSlug, route.deckSlug, route.pairEntryId);
 }
 
 const SWAP_QUEUE_PREFIXES = ['/swap-queue', '/wishlist'] as const;
@@ -278,10 +302,21 @@ function parseSwapQueueRouteFromPrefix(path: string, prefix: string): SwapQueueR
   if (!path.startsWith(`${prefix}/`)) return null;
   const rest = path.slice(prefix.length + 1);
   const parts = rest.split('/').filter(Boolean);
-  if (parts.length !== 1) return null;
-  const userSlug = parts[0];
-  if (!userSlug) return null;
-  return { userSlug };
+  if (parts.length === 1) {
+    const userSlug = parts[0];
+    if (!userSlug) return null;
+    return { userSlug };
+  }
+  if (parts.length === 4 && parts[1] === 'pair' && parts[2] && parts[3]) {
+    const [userSlug, , deckId, entryId] = parts;
+    if (!userSlug) return null;
+    return {
+      userSlug,
+      pairDeckId: decodeURIComponent(deckId),
+      pairEntryId: decodeURIComponent(entryId),
+    };
+  }
+  return null;
 }
 
 /**
@@ -310,6 +345,30 @@ export function swapQueueHash(
     return `#${base}/${userSlug}`;
   }
   return `#${base}`;
+}
+
+/** Swap Queue deep-link that highlights a formal pair. */
+export function swapQueuePairHash(
+  userSlug: string,
+  deckId: string,
+  entryId: string,
+  entryPath: SwapQueueEntryPath = 'swap-queue',
+): string {
+  const base = entryPath === 'wishlist' ? '/wishlist' : '/swap-queue';
+  return `#${base}/${userSlug}/pair/${encodeURIComponent(deckId)}/${encodeURIComponent(entryId)}`;
+}
+
+/** Rebuild a Swap Queue hash, preserving pair focus when present. */
+export function hashForSwapQueueRoute(
+  parsed: SwapQueueRoute | null | undefined,
+  entryPath: SwapQueueEntryPath = 'swap-queue',
+  fallbackUserSlug?: string | null,
+): string {
+  const userSlug = parsed?.userSlug || fallbackUserSlug || null;
+  if (userSlug && parsed?.pairDeckId && parsed.pairEntryId) {
+    return swapQueuePairHash(userSlug, parsed.pairDeckId, parsed.pairEntryId, entryPath);
+  }
+  return swapQueueHash(userSlug, entryPath);
 }
 
 /** Absolute share URL for a username (always `#/swap-queue/{slug}`). */

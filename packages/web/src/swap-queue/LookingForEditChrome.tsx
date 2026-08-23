@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   cardDisplayName,
@@ -10,6 +10,7 @@ import {
 } from '@rayenz-hub/shared';
 import { CardTile } from '../deck-builder/browse/CardTile';
 import { ScryfallSearchModal } from '../deck-builder/scryfall/ScryfallSearchModal';
+import { useDialogA11y } from '../ui/useDialogA11y';
 
 export type LookingForDeckOption = { deckId: string; deckName: string };
 
@@ -46,14 +47,16 @@ export function LookingForEditChrome({
   onRetarget?: (deckId: string) => void;
 }) {
   const [phase, setPhase] = useState<'edit' | 'replace'>('edit');
+  const dialogRef = useRef<HTMLDivElement>(null);
   useModalScrollLock(true);
+  useDialogA11y(true, onClose, dialogRef);
 
   const card =
     resolveDeckCards(deck).find((c) => c.instanceId === source.cardInstanceId) || null;
   const name = card ? cardDisplayName(card) : source.cardName;
 
   return createPortal(
-    <div className="db-modal" role="dialog" aria-modal="true" aria-label="Edit Seeking">
+    <div ref={dialogRef} className="db-modal" role="dialog" aria-modal="true" aria-label="Edit Seeking">
       {phase === 'replace' ? (
         <ScryfallSearchModal
           embedded

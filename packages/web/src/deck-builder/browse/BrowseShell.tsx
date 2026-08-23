@@ -113,6 +113,15 @@ import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChip
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import { useDeckEditHistory } from '../useDeckEditHistory';
 import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
+import { navigateHub } from '../../lib/hub-storage';
+import {
+  builderHash,
+  hubUserSlug,
+  parseBuilderRoute,
+  pathFromHash,
+  swapQueuePairHash,
+  type BuilderFormat,
+} from '../../hub/routes';
 
 /** Main / Seeking / Queued — still confirm before Remove. */
 function removeNeedsConfirm(
@@ -169,6 +178,20 @@ function isTrimProtectedSlot(primaryCategory: string | null | undefined): boolea
   return isCommanderCategory(primaryCategory) || isPendragonLeaderCategory(primaryCategory);
 }
 
+function overlayDialogOpen(): boolean {
+  return Boolean(document.querySelector('.db-modal, .hub-picker-dialog'));
+}
+
+function builderFormatFromLocation(): BuilderFormat {
+  return pathFromHash() === '/cube-builder' ? 'cube' : 'commander';
+}
+
+function writeBuilderPairHash(entryId: string | null) {
+  const route = parseBuilderRoute(window.location.hash);
+  if (!route) return;
+  navigateHub(builderHash(builderFormatFromLocation(), route.userSlug, route.deckSlug, entryId));
+}
+
 export function BrowseShell({
   deck,
   onChange,
@@ -177,6 +200,7 @@ export function BrowseShell({
   readOnly = false,
   onDuplicate,
   duplicateDisabled = false,
+  focusPairEntryId = null,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
@@ -185,6 +209,8 @@ export function BrowseShell({
   readOnly?: boolean;
   onDuplicate?: (deck: DeckDocument) => void;
   duplicateDisabled?: boolean;
+  /** Formal swap entry to open when the deck loads. */
+  focusPairEntryId?: string | null;
 }) {
   const [view, setView] = useState<BrowseView>(
     deck.browseViewDefault || defaultBrowseView(deck.format),
@@ -218,6 +244,8 @@ export function BrowseShell({
   const progressRef = useRef<HubProgressController | null>(null);
   const glanceOpenRef = useRef<GlanceGenerateHandle | null>(null);
   const cardSizeReady = useRef(false);
+  const removeSelectedRef = useRef<() => void>(() => {});
+  const consumedPairRef = useRef<string | null>(null);
   const visibleOrder = useMemo(
     () => [...mainVisibleOrder, ...asideVisibleOrder],
     [mainVisibleOrder, asideVisibleOrder],
@@ -313,6 +341,24 @@ export function BrowseShell({
   /** First draft autosave records history; later debounce ticks skip. */
   const swapDraftHistoryRecorded = useRef(false);
   const editHistory = useDeckEditHistory();
+
+  useEffect(() => {
+    function tryOpenPair() {
+      const id =
+        focusPairEntryId || parseBuilderRoute(window.location.hash)?.pairEntryId || null;
+      if (!id || consumedPairRef.current === id) return;
+      const entry = liveDeck.formalSwapEntries.find((e) => e.id === id);
+      if (!entry) return;
+      consumedPairRef.current = id;
+      setAsideTab('deck');
+      if (readOnly) return;
+      swapDraftHistoryRecorded.current = false;
+      setDraft(draftFromFormalEntry(entry));
+    }
+    tryOpenPair();
+    window.addEventListener('hashchange', tryOpenPair);
+    return () => window.removeEventListener('hashchange', tryOpenPair);
+  }, [focusPairEntryId, liveDeck.formalSwapEntries, readOnly]);
 
   type CommitOpts = { recordHistory?: boolean };
 
@@ -456,6 +502,7 @@ export function BrowseShell({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (overlayBlocksShortcuts) return;
+      if (overlayDialogOpen()) return;
       if (isEditableKeyboardTarget(e.target)) return;
 
       const mod = e.ctrlKey || e.metaKey;
@@ -477,6 +524,24 @@ export function BrowseShell({
         return;
       }
 
+      if (!mod && !readOnly && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        if (trimMode) exitTrim();
+        else enterTrim();
+        return;
+      }
+      if (
+        !mod &&
+        !readOnly &&
+        !trimMode &&
+        selectedIds.size &&
+        (e.key === 'Delete' || e.key === 'Backspace')
+      ) {
+        e.preventDefault();
+        removeSelectedRef.current();
+        return;
+      }
+
       if (e.key !== 'Escape') return;
       if (trimMode) {
         exitTrim();
@@ -494,6 +559,8 @@ export function BrowseShell({
     overlayBlocksShortcuts,
     commit,
     editHistory,
+    readOnly,
+    enterTrim,
   ]);
 
   // Drop selection entries that no longer exist on the deck.
@@ -716,7 +783,9 @@ export function BrowseShell({
   function clearSwapEdit() {
     window.clearTimeout(swapAutosaveTimer.current);
     swapDraftHistoryRecorded.current = false;
+    consumedPairRef.current = null;
     setDraft(null);
+    writeBuilderPairHash(null);
   }
 
   function persistSwapDraft(currentDraft: SwapEditDraft) {
@@ -913,6 +982,7 @@ export function BrowseShell({
     setMoveOpen(false);
     setPrintingOpen(false);
   }
+  removeSelectedRef.current = onRemoveSelected;
 
   function onSetCover() {
     if (!primarySelected || multi) return;
@@ -1037,6 +1107,11 @@ export function BrowseShell({
             setFoilFilter('all');
           }}
         />
+        {(trimMode || selectionCount > 0) && !readOnly ? (
+          <p className="hub-muted hub-shortcut-hint">
+            {trimMode ? 'Esc exit trim' : 'Esc clear · Del remove · T trim'}
+          </p>
+        ) : null}
       </div>
 
       <div className="db-body">
@@ -1141,7 +1216,7 @@ export function BrowseShell({
           {setFilter.error ? <p className="hub-warn">{setFilter.error}</p> : null}
           {syntaxFilter.error ? <p className="hub-warn">{syntaxFilter.error}</p> : null}
           {setFilter.loading || syntaxFilter.loading ? (
-            <p className="hub-muted">Loading filters…</p>
+            <p className="hub-muted">Updating filters…</p>
           ) : null}
           {isUnifiedListView ? (
             <UnifiedListBrowse
@@ -1254,7 +1329,9 @@ export function BrowseShell({
               draft={draft}
               onStartEdit={(entry) => {
                 swapDraftHistoryRecorded.current = false;
+                consumedPairRef.current = entry.id;
                 setDraft(draftFromFormalEntry(entry));
+                writeBuilderPairHash(entry.id);
               }}
               onDraftChange={patchSwapDraft}
               onConfirmIn={onConfirmSwapIn}
@@ -1264,6 +1341,15 @@ export function BrowseShell({
               }}
               onRemoveEdit={removeSwapEdit}
               onFinalizeEdit={finalizeSwapEdit}
+              onViewInSwapQueue={
+                queuesReadOnly || !draft
+                  ? undefined
+                  : () => {
+                      navigateHub(
+                        swapQueuePairHash(hubUserSlug(), liveDeck.deckId, draft.entryId),
+                      );
+                    }
+              }
             />
             <CategoryBrowse
               deck={browseDeck}

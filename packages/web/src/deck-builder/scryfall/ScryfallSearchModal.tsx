@@ -39,6 +39,7 @@ import {
   saveScryfallSearchExpanded,
 } from './search-expanded';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
+import { useDialogA11y } from '../../ui/useDialogA11y';
 
 const LONG_PRESS_MS = 450;
 
@@ -148,6 +149,8 @@ export function ScryfallSearchModal({
   onInDeckContextMenu?: (card: ScryfallCard, pos: PickerMenuPosition) => void;
 }) {
   const isCommandZone = isCommandZoneFormat(deck.format);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(!embedded, onClose, overlayRef);
   const [query, setQuery] = useState('');
   const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommandZone);
   const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommandZone);
@@ -457,6 +460,7 @@ export function ScryfallSearchModal({
     if (embedded) return inner;
     return (
       <div
+        ref={overlayRef}
         className={`db-modal${expanded ? ' is-expanded' : ''}`}
         role="dialog"
         aria-modal="true"

@@ -148,6 +148,9 @@ Scoped rule: [`.cursor/rules/hub-spa-chrome.mdc`](.cursor/rules/hub-spa-chrome.m
 - Primary strip = view / layout / sort / filters / size. Secondary actions (Categories, Basics, Trim, Glance, export) go in the overflow (`DeckActionsMenu` / hamburger).
 - Empty states: `.db-empty-state` (or `.hub-empty`) with a short explanation and one CTA. Do not also show an identical FAB while that CTA is visible.
 - Wishlist is a named Swap Queue mode (`#/wishlist`); Swap Queue nav stays active. Keep share URLs.
+- Pair deep-links: Builder `#/{builder}/{user}/{deck}/swap/{entryId}`; Swap Queue `#/swap-queue/{user}/pair/{deckId}/{entryId}` (wishlist prefix allowed). Formal pairs only.
+- Dialogs: `useDialogA11y` (Escape, Tab cycle, restore focus) on `.db-modal` / `.hub-picker-dialog` / glance overlays. No visual restyle.
+- Builder Trim/selection shortcuts: Esc clear or exit trim, Delete removes (with confirm), T toggles Trim; hint in sticky chrome.
 - Settings should use `--hub-accent`, not a second blue. Do not restyle Dailies to match MTG.
 - Do not start Hub UI work with dark mode, `dr-*`/`or-*` renames, or `position: fixed` headers.
 

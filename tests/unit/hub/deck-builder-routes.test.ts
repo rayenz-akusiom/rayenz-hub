@@ -28,6 +28,9 @@ describe('builder routes', () => {
     expect(builderHash('cube', hubUserSlug(), 'vintage-cube')).toBe(
       `#/cube-builder/${SANDBOX_USER_SLUG}/vintage-cube`,
     );
+    expect(builderHash('commander', hubUserSlug(), 'my-deck', 's1')).toBe(
+      `#/commander-builder/${SANDBOX_USER_SLUG}/my-deck/swap/s1`,
+    );
     expect(usernameToSlug('Rayenz')).toBe('rayenz');
     expect(isLocalLibrarySlug(SANDBOX_USER_SLUG)).toBe(true);
     expect(isLocalLibrarySlug('rayenz')).toBe(false);
@@ -53,6 +56,14 @@ describe('builder routes', () => {
       deckSlug: 'legacy-deck',
     });
     expect(parseBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
+    expect(
+      parseBuilderRoute('#/commander-builder/default/my-deck/swap/entry-1'),
+    ).toEqual({
+      userSlug: 'default',
+      deckSlug: 'my-deck',
+      pairEntryId: 'entry-1',
+    });
+    expect(parseBuilderRoute('#/commander-builder/default/my-deck/swap')).toBeNull();
   });
 
   it('parseBuilderRoute respects format filter', () => {
@@ -72,6 +83,12 @@ describe('builder routes', () => {
     expect(
       resolveLegacyDeckBuilderHash(hash, (slug) => (slug === 'vintage-cube' ? 'cube' : 'commander')),
     ).toBe('#/cube-builder/default/vintage-cube');
+  });
+
+  it('resolveLegacyDeckBuilderHash preserves pair focus', () => {
+    expect(
+      resolveLegacyDeckBuilderHash('#/deck-builder/default/my-deck/swap/s1', () => 'commander'),
+    ).toBe('#/commander-builder/default/my-deck/swap/s1');
   });
 
   it('resolveLegacyDeckBuilderHash sends unknown deep links to commander builder', () => {

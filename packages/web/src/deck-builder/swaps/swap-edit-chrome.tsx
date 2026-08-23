@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   cardDisplayName,
@@ -18,6 +18,7 @@ import { ScryfallSearchModal } from '../scryfall/ScryfallSearchModal';
 import { FinalizeSwapConfirmDialog } from './FinalizeSwapConfirm';
 import { openOutCardPicker, type OutPickerFilter } from './swap-pickers';
 import { SwapArrow } from './swap-pair-faces';
+import { useDialogA11y } from '../../ui/useDialogA11y';
 
 export type SwapEditDraft = {
   entryId: string;
@@ -183,6 +184,8 @@ export function SwapEditChrome({
   outPickerFilter,
   onAcceptSwap,
   onAcceptSeeking,
+  onViewInSwapQueue,
+  onOpenInBuilder,
 }: {
   deck: DeckDocument;
   draft: SwapEditDraft;
@@ -213,6 +216,10 @@ export function SwapEditChrome({
     meta: { inTargetCategory: string | null; notes: string },
   ) => void;
   onAcceptSeeking?: (choice: SuggestAcceptPrintingChoice) => void;
+  /** Builder: jump to Swap Queue focused on this pair. */
+  onViewInSwapQueue?: () => void;
+  /** Swap Queue: open this pair on the deck in Builder. */
+  onOpenInBuilder?: () => void;
 }) {
   const isSuggestAccept = mode === 'suggest-accept';
   const [tab, setTab] = useState<'swap' | 'seeking'>('swap');
@@ -221,7 +228,9 @@ export function SwapEditChrome({
   );
   const [printingPurpose, setPrintingPurpose] = useState<'preview' | 'accept'>('preview');
   const [pendingIn, setPendingIn] = useState<SuggestAcceptPrintingChoice | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   useModalScrollLock(true);
+  useDialogA11y(true, onClose, dialogRef);
 
   const byId = new Map(resolveDeckCards(deck).map((c) => [c.instanceId, c]));
   if (inLookupDeck && inLookupDeck.deckId !== deck.deckId) {
@@ -344,6 +353,7 @@ export function SwapEditChrome({
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="db-modal"
       role="dialog"
       aria-modal="true"
@@ -505,6 +515,16 @@ export function SwapEditChrome({
                   {onRemove ? (
                     <button type="button" className="db-btn db-btn-danger" onClick={onRemove}>
                       Remove
+                    </button>
+                  ) : null}
+                  {onViewInSwapQueue ? (
+                    <button type="button" className="db-btn" onClick={onViewInSwapQueue}>
+                      View in Swap Queue
+                    </button>
+                  ) : null}
+                  {onOpenInBuilder ? (
+                    <button type="button" className="db-btn" onClick={onOpenInBuilder}>
+                      Open in Builder
                     </button>
                   ) : null}
                   {onFinalize ? (

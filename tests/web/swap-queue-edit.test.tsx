@@ -10,10 +10,12 @@ import {
   pairDeck,
 } from './helpers/swap-queue-harness';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
+import { SANDBOX_USER_SLUG } from '../../packages/web/src/hub/routes';
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  window.location.hash = '';
 });
 
 describe('SwapQueueApp edit chrome', () => {
@@ -180,5 +182,19 @@ describe('SwapQueueApp edit chrome', () => {
     expect(saved.formalSwapEntries[0]!.notes).toBe('hello notes');
     expect(screen.getByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
     vi.useRealTimers();
+  });
+
+  it('opens and highlights a pair from a deep-link hash', async () => {
+    const deck = pairDeck();
+    mockLoadSwapWantSources.mockResolvedValue({
+      decks: [deck],
+      sources: aggregateSwapWants([deck]),
+    });
+    window.location.hash = `#/swap-queue/${SANDBOX_USER_SLUG}/pair/${deck.deckId}/s1`;
+    render(<SwapQueueApp entryPath="swap-queue" />);
+
+    expect(await screen.findByRole('dialog', { name: 'Edit swap' })).toBeInTheDocument();
+    expect(document.querySelector('.sq-pair-tile.is-highlight')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open in Builder' })).toBeInTheDocument();
   });
 });

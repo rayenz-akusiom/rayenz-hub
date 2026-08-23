@@ -42,6 +42,15 @@ import {
 } from '../sample/sample-deck';
 import { duplicateDeckDocument, emptyDeckDocument, uniqueDeckName } from '../import-export/import-deck';
 
+function builderHashKeepingPair(
+  format: BuilderFormat,
+  userSlug?: string | null,
+  deckSlug?: string | null,
+): string {
+  const pair = parseBuilderRoute(window.location.hash)?.pairEntryId;
+  return builderHash(format, userSlug, deckSlug, pair);
+}
+
 export type CreateDialogProps = {
   onClose: () => void;
   onSave: (doc: DeckDocument) => Promise<void>;
@@ -138,7 +147,7 @@ export function BuilderApp({
       const userSlug =
         route?.userSlug === SANDBOX_USER_SLUG ? SANDBOX_USER_SLUG : hubUserSlug();
       const next = doc
-        ? builderHash(builderFormat, userSlug, toKebabCase(doc.name))
+        ? builderHashKeepingPair(builderFormat, userSlug, toKebabCase(doc.name))
         : builderHash(builderFormat);
       if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
         navigateHub(next);
@@ -150,7 +159,7 @@ export function BuilderApp({
   const redirectToCorrectBuilder = useCallback((doc: DeckDocument) => {
     const targetFormat = builderFormatForDeck(doc.format);
     if (targetFormat === builderFormat) return false;
-    navigateHub(builderHash(targetFormat, hubUserSlug(), toKebabCase(doc.name)));
+    navigateHub(builderHashKeepingPair(targetFormat, hubUserSlug(), toKebabCase(doc.name)));
     return true;
   }, [builderFormat]);
 
@@ -251,7 +260,14 @@ export function BuilderApp({
         return;
       }
       if (rewriteRetiredUserSlug(route.userSlug) !== route.userSlug) {
-        navigateHub(builderHash(builderFormat, rewriteRetiredUserSlug(route.userSlug), route.deckSlug));
+        navigateHub(
+          builderHash(
+            builderFormat,
+            rewriteRetiredUserSlug(route.userSlug),
+            route.deckSlug,
+            route.pairEntryId,
+          ),
+        );
         return;
       }
       if (!isLocalLibrarySlug(route.userSlug)) {
@@ -270,7 +286,9 @@ export function BuilderApp({
           }
           const targetFormat = builderFormatForDeck(doc.format);
           if (targetFormat !== builderFormat) {
-            navigateHub(builderHash(targetFormat, route.userSlug, route.deckSlug));
+            navigateHub(
+              builderHash(targetFormat, route.userSlug, route.deckSlug, route.pairEntryId),
+            );
             return;
           }
           setError(null);
@@ -327,6 +345,7 @@ export function BuilderApp({
             builderFormatForDeck(match.format),
             route.userSlug,
             route.deckSlug,
+            route.pairEntryId,
           ),
         );
         return;
@@ -390,7 +409,14 @@ export function BuilderApp({
     if (!match) {
       const route = parseBuilderRoute(window.location.hash, builderFormat);
       if (route && rewriteRetiredUserSlug(route.userSlug) !== route.userSlug) {
-        navigateHub(builderHash(builderFormat, rewriteRetiredUserSlug(route.userSlug), route.deckSlug));
+        navigateHub(
+          builderHash(
+            builderFormat,
+            rewriteRetiredUserSlug(route.userSlug),
+            route.deckSlug,
+            route.pairEntryId,
+          ),
+        );
         return;
       }
       if (route && isLocalLibrarySlug(route.userSlug)) {
@@ -405,6 +431,7 @@ export function BuilderApp({
               builderFormatForDeck(other.format),
               route.userSlug,
               route.deckSlug,
+              route.pairEntryId,
             ),
           );
         }
@@ -620,6 +647,9 @@ export function BuilderApp({
           deck={active}
           syncStatus={syncStatus}
           readOnly={readOnly}
+          focusPairEntryId={
+            parseBuilderRoute(window.location.hash, builderFormat)?.pairEntryId ?? null
+          }
           onDuplicate={(doc) => void duplicateDeck(doc)}
           duplicateDisabled={decks.length >= MAX_LIBRARY_DECKS}
           onBack={() => {

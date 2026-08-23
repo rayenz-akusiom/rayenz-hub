@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   countSwapGlanceItems,
   selectSwapGlanceItems,
@@ -7,9 +7,11 @@ import {
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../api/hub-api';
 import { OWNER_ONLY_EXPENSIVE_MESSAGE, useIsHubOwner } from '../lib/hub-auth-session';
+import { useDialogA11y } from '../ui/useDialogA11y';
 import { copyPngBlob, downloadPngBlob } from '../lib/glance-png';
 import {
   formatGlanceStatusLine,
+  formatGlanceStatusTooltip,
   GlanceModalActions,
   GlancePreviewSlot,
   GlanceStatusLine,
@@ -33,6 +35,8 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   const [pngBlobs, setPngBlobs] = useState<Blob[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [statusLine, setStatusLine] = useState<string | null>(null);
+  const [statusTitle, setStatusTitle] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const apiReady = isApiConfigured();
   const ownerReady = useIsHubOwner();
@@ -47,6 +51,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     setPngBlobs([]);
     setPageIndex(0);
     setStatusLine(null);
+    setStatusTitle(null);
   }, [previewUrls]);
 
   const close = useCallback(() => {
@@ -55,6 +60,8 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
     resetPreview();
     onClose();
   }, [onClose, resetPreview]);
+
+  useDialogA11y(open, close, dialogRef);
 
   const generate = useCallback(async () => {
     if (!apiReady || !ownerReady) {
@@ -84,15 +91,15 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
       setPngBlobs(result.blobs);
       setPreviewUrls(urls);
       setPageIndex(0);
-      setStatusLine(
-        formatGlanceStatusLine({
-          pageCount: result.pageCount,
-          generation: result.generation,
-          cache: result.cache,
-          delivery: result.delivery,
-          omittedCardCount: result.omittedCardCount,
-        }),
-      );
+      const parts = {
+        pageCount: result.pageCount,
+        generation: result.generation,
+        cache: result.cache,
+        delivery: result.delivery,
+        omittedCardCount: result.omittedCardCount,
+      };
+      setStatusLine(formatGlanceStatusLine(parts));
+      setStatusTitle(formatGlanceStatusTooltip(parts) || null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate swaps glance image.');
     } finally {
@@ -135,6 +142,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
 
   return (
     <div
+      ref={dialogRef}
       className="db-modal db-glance-overlay"
       role="dialog"
       aria-modal="true"
@@ -211,6 +219,7 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
           loadingText="Generating swaps glance image…"
           error={error}
           statusLine={statusLine}
+          statusTitle={statusTitle}
         />
         <GlancePreviewSlot
           previewUrl={currentUrl}

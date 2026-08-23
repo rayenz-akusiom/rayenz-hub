@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/shared';
 import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
 import { OWNER_ONLY_EXPENSIVE_MESSAGE, useIsHubOwner } from '../../lib/hub-auth-session';
+import { useDialogA11y } from '../../ui/useDialogA11y';
 import { apiPostDeckGlance } from '../store/deck-glance-api';
 import { copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
 import {
   formatGlanceStatusLine,
+  formatGlanceStatusTooltip,
   GlanceModalActions,
   GlancePreviewSlot,
   GlanceStatusLine,
@@ -27,6 +29,7 @@ type CachedPreview = {
   blob: Blob;
   url: string;
   statusLine: string;
+  statusTitle?: string;
   lieutenantInstanceIds: string[];
 };
 
@@ -45,7 +48,9 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pngBlob, setPngBlob] = useState<Blob | null>(null);
   const [statusLine, setStatusLine] = useState<string | null>(null);
+  const [statusTitle, setStatusTitle] = useState<string | null>(null);
   const [cache, setCache] = useState<Record<string, CachedPreview>>({});
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const apiReady = isApiConfigured();
   const ownerReady = useIsHubOwner();
@@ -62,6 +67,7 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
     setPreviewUrl(null);
     setPngBlob(null);
     setStatusLine(null);
+    setStatusTitle(null);
   }, []);
 
   const revokeAllCache = useCallback((entries: Record<string, CachedPreview>) => {
@@ -83,10 +89,13 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
     });
   }, [clearVisiblePreview, revokeAllCache]);
 
+  useDialogA11y(open, closeDialog, dialogRef);
+
   const showCached = useCallback((entry: CachedPreview) => {
     setPngBlob(entry.blob);
     setPreviewUrl(entry.url);
     setStatusLine(entry.statusLine);
+    setStatusTitle(entry.statusTitle || null);
     setError(null);
   }, []);
 
@@ -122,15 +131,18 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
           mode: layoutMode,
         });
         const url = URL.createObjectURL(result.blob);
-        const line = formatGlanceStatusLine({
+        const parts = {
           generation: result.generation,
           cache: result.cache,
           delivery: result.delivery,
-        });
+        };
+        const line = formatGlanceStatusLine(parts);
+        const title = formatGlanceStatusTooltip(parts);
         const entry: CachedPreview = {
           blob: result.blob,
           url,
           statusLine: line,
+          statusTitle: title,
           lieutenantInstanceIds: ids,
         };
         setCache((prev) => {
@@ -141,6 +153,7 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
         setPngBlob(entry.blob);
         setPreviewUrl(entry.url);
         setStatusLine(entry.statusLine);
+        setStatusTitle(entry.statusTitle || null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to generate glance image.');
       } finally {
@@ -269,6 +282,7 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
 
       {open ? (
         <div
+          ref={dialogRef}
           className="db-modal db-glance-overlay"
           role="dialog"
           aria-modal="true"
@@ -332,6 +346,7 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
               loading={loading}
               error={error}
               statusLine={!picking ? statusLine : null}
+              statusTitle={!picking ? statusTitle : null}
             >
               {!picking && !loading && !error && !hasMatchingPreview ? (
                 <p className="db-glance-status">Choose a layout, then generate.</p>

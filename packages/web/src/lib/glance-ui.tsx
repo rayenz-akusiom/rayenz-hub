@@ -9,20 +9,43 @@ export type GlanceStatusParts = {
   omittedCardCount?: number;
 };
 
+function humanCache(cache: string): string | null {
+  const key = cache.trim().toUpperCase();
+  if (key === 'HIT') return 'served from cache';
+  if (key === 'MISS') return 'freshly rendered';
+  if (key === 'PARTIAL') return 'partly from cache';
+  return null;
+}
+
+function humanDelivery(delivery: string): string | null {
+  if (delivery === 'presigned') return 'downloaded';
+  if (delivery === 'bundle') return 'bundled images';
+  return null;
+}
+
 /** Shared status-line text after a successful glance generate. */
 export function formatGlanceStatusLine(parts: GlanceStatusParts): string {
-  const out = ['Generated'];
+  const out = ['Ready'];
   if (parts.pageCount != null && parts.pageCount > 1) {
     out.push(`${parts.pageCount} images`);
   }
-  if (parts.generation) out.push(`gen ${parts.generation}`);
-  if (parts.cache) out.push(`cache ${parts.cache}`);
-  if (parts.delivery === 'presigned') out.push('presigned fetch');
-  if (parts.delivery === 'bundle') out.push('bundle');
+  const cache = parts.cache ? humanCache(parts.cache) : null;
+  if (cache) out.push(cache);
+  const delivery = parts.delivery ? humanDelivery(parts.delivery) : null;
+  if (delivery) out.push(delivery);
   if (parts.omittedCardCount != null && parts.omittedCardCount > 0) {
-    out.push(`+${parts.omittedCardCount} omitted`);
+    out.push(`${parts.omittedCardCount} cards left off`);
   }
   return out.join(' · ');
+}
+
+/** Jargon for tooltips: gen / cache / delivery. */
+export function formatGlanceStatusTooltip(parts: GlanceStatusParts): string | undefined {
+  const jargon: string[] = [];
+  if (parts.generation) jargon.push(`gen ${parts.generation}`);
+  if (parts.cache) jargon.push(`cache ${parts.cache}`);
+  if (parts.delivery && parts.delivery !== 'inline') jargon.push(parts.delivery);
+  return jargon.length ? jargon.join(' · ') : undefined;
 }
 
 type PreviewSlotProps = {
@@ -59,6 +82,7 @@ type StatusLineProps = {
   loadingText?: string;
   error?: string | null;
   statusLine?: string | null;
+  statusTitle?: string | null;
   children?: ReactNode;
 };
 
@@ -68,6 +92,7 @@ export function GlanceStatusLine({
   loadingText = 'Generating glance image…',
   error = null,
   statusLine = null,
+  statusTitle = null,
   children,
 }: StatusLineProps) {
   return (
@@ -76,7 +101,9 @@ export function GlanceStatusLine({
       {loading ? <p>{loadingText}</p> : null}
       {error ? <p className="db-error">{error}</p> : null}
       {!loading && !error && statusLine ? (
-        <p className="db-glance-status">{statusLine}</p>
+        <p className="db-glance-status" title={statusTitle || undefined}>
+          {statusLine}
+        </p>
       ) : null}
     </div>
   );

@@ -43,6 +43,11 @@ describe('hub routes', () => {
       deckSlug: 'fixture-commander',
     });
     expect(parseBuilderRoute('#/deck-builder/default/a/b')).toBeNull();
+    expect(parseBuilderRoute('#/commander-builder/default/fixture-commander/swap/s1')).toEqual({
+      userSlug: 'default',
+      deckSlug: 'fixture-commander',
+      pairEntryId: 's1',
+    });
     expect(parseBuilderRoute('#/commander-builder/default/fixture-commander')).toEqual({
       userSlug: 'default',
       deckSlug: 'fixture-commander',

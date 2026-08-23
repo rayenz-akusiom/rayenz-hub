@@ -18,6 +18,9 @@ Prefer existing Hub primitives before adding a parallel toolbar, token, or empty
 - Empty: dashed `.db-empty-state` (or `.hub-empty`) with a short explanation and **one** CTA. Library (`FormatFilteredLibrary`) and Swap Queue are the templates.
 - One status slot under sticky chrome (progress host + a single banner). Do not stack muted / warn / error lines.
 - Wishlist is a named Swap Queue mode (`#/wishlist`): mode chips in SQ chrome; Swap Queue nav stays active. Keep share URLs.
+- Pair hashes: Builder `#/{commander-builder|cube-builder}/{user}/{deck}/swap/{entryId}`; Swap Queue `#/{swap-queue|wishlist}/{user}/pair/{deckId}/{entryId}`. Secondary actions on `SwapEditChrome`: View in Swap Queue / Open in Builder.
+- Overlays: `packages/web/src/ui/useDialogA11y.ts` — Escape, focus trap, restore focus. Nested embedded Scryfall/printing does not get a second trap.
+- Builder selection/Trim: Esc, Delete (remove with confirm), T (toggle Trim); one-line hint in sticky chrome when trim or selection is active.
 
 ## Toolbar hierarchy
 

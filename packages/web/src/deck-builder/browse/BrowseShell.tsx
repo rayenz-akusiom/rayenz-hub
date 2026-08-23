@@ -111,7 +111,6 @@ import {
   type FlagFilterMode,
 } from '../ui/FlagFilterControl';
 import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChips';
-import { DbMenu, DbMenuItem } from '../ui/DbMenu';
 import { useDeckEditHistory } from '../useDeckEditHistory';
 import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
 import { navigateHub } from '../../lib/hub-storage';
@@ -1006,11 +1005,6 @@ export function BrowseShell({
   }
   removeSelectedRef.current = onRemoveSelected;
 
-  function onSetCover() {
-    if (!primarySelected || multi) return;
-    commitPatch({ coverInstanceId: primarySelected.instanceId });
-  }
-
   function onClearCover() {
     commitPatch({ coverInstanceId: null });
   }
@@ -1019,14 +1013,6 @@ export function BrowseShell({
     ['--db-card-w']: `${cardWidthPx}px`,
   } as CSSProperties;
 
-  const isCover =
-    !multi &&
-    primarySelected != null &&
-    liveDeck.coverInstanceId === primarySelected.instanceId;
-  const coverActionLabel =
-    primarySelected && isCommanderCategory(primarySelected.primaryCategory)
-      ? 'primary'
-      : 'cover';
   const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(liveDeck, c));
   const anyFoil = selectedCards.some((c) => c.foil);
   const anyProxy = selectedCards.some((c) => c.proxy);
@@ -1212,33 +1198,9 @@ export function BrowseShell({
                 <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelected}>
                   Remove
                 </button>
-                <DbMenu label="Actions" align="end" ariaLabel="Selection actions">
-                  {!multi ? (
-                    isCover ? (
-                      <DbMenuItem onSelect={onClearCover}>
-                        {coverActionLabel === 'primary' ? 'Clear primary' : 'Clear cover'}
-                      </DbMenuItem>
-                    ) : (
-                      <DbMenuItem onSelect={onSetCover}>
-                        {coverActionLabel === 'primary' ? 'Set as primary' : 'Set as cover'}
-                      </DbMenuItem>
-                    )
-                  ) : null}
-                  <DbMenuItem onSelect={() => setMoveOpen(true)}>Move…</DbMenuItem>
-                  <DbMenuItem onSelect={onMoveToDefault}>Move to default</DbMenuItem>
-                  <DbMenuItem onSelect={onAddToSwapQueue} disabled={queuesReadOnly}>
-                    {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
-                  </DbMenuItem>
-                  <DbMenuItem onSelect={onMarkSeekingInDeck} disabled={queuesReadOnly}>
-                    {multi
-                      ? `Mark ${selectionCount} Seeking (in deck)`
-                      : 'Mark Seeking (in deck)'}
-                  </DbMenuItem>
-                  {!multi ? (
-                    <DbMenuItem onSelect={() => setPrintingOpen(true)}>Change printing…</DbMenuItem>
-                  ) : null}
-                  <DbMenuItem onSelect={clearSelection}>Clear selection</DbMenuItem>
-                </DbMenu>
+                <button type="button" className="db-btn" onClick={clearSelection}>
+                  Clear
+                </button>
               </div>
             </div>
           ) : null}

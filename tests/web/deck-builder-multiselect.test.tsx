@@ -139,7 +139,8 @@ describe('BrowseShell multiselect', () => {
     expect(screen.getByText('2 selected')).toBeInTheDocument();
     expect(birds).toHaveClass('is-selected');
     expect(forest).toHaveClass('is-selected');
-    await user.click(screen.getByRole('button', { name: 'Selection actions' }));
+    expect(screen.queryByRole('button', { name: 'Selection actions' })).not.toBeInTheDocument();
+    fireEvent.contextMenu(birds);
     expect(screen.queryByRole('menuitem', { name: 'Change printing…' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Set as cover' })).not.toBeInTheDocument();
   });
@@ -186,8 +187,8 @@ describe('BrowseShell multiselect', () => {
     await user.click(forest);
     await user.keyboard('{/Control}');
 
-    await user.click(screen.getByRole('button', { name: 'Selection actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Move to default' }));
+    fireEvent.contextMenu(birds);
+    await user.click(screen.getByRole('menuitem', { name: 'Move 2 to default' }));
     expect(onChange).toHaveBeenCalled();
     const next = onChange.mock.calls.at(-1)![0] as DeckDocument;
     expect(next.cards.find((c) => c.name === 'Birds of Paradise')?.primaryCategory).toBe(
@@ -210,7 +211,7 @@ describe('BrowseShell multiselect', () => {
 
     await user.click(screen.getByRole('button', { name: 'Counterspell' }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Selection actions' }));
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Counterspell' }));
     expect(screen.getByRole('menuitem', { name: 'Change printing…' })).toBeInTheDocument();
   });
 
@@ -276,8 +277,7 @@ describe('BrowseShell multiselect', () => {
     render(<BrowseShell deck={baseDeck()} onChange={vi.fn()} onBack={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Birds of Paradise' }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Selection actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Clear selection' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
   });
 

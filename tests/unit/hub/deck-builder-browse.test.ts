@@ -17,6 +17,7 @@ import {
   moveCardCategory,
   orderedCategoryKeys,
   deckSize,
+  primaryCategoryCount,
   partitionCategories,
   removeSecondaryCategory,
 } from '../../../packages/shared/src/index.ts';
@@ -56,6 +57,29 @@ describe('browse grouping', () => {
     const ordered = orderedCategoryKeys(groups);
     expect(ordered.header).toEqual(['Commander', 'Lieutenants']);
     expect(ordered.rest).not.toContain('Commander');
+  });
+
+  it('primaryCategoryCount sums quantities for multi-qty stacks', () => {
+    const landStack = {
+      ...commander.cards[0],
+      instanceId: 'forest-1',
+      name: 'Forest',
+      primaryCategory: 'Land',
+      categories: ['Land'],
+      quantity: 12,
+    };
+    expect(primaryCategoryCount([landStack], 'Land')).toBe(12);
+
+    const twoStacks = [
+      { ...landStack, instanceId: 'forest-a', quantity: 3 },
+      { ...landStack, instanceId: 'island-a', name: 'Island', quantity: 5 },
+    ];
+    expect(primaryCategoryCount(twoStacks, 'Land')).toBe(8);
+
+    const singleton = { ...landStack, quantity: 1 };
+    expect(primaryCategoryCount([singleton], 'Land')).toBe(1);
+    const missingQty = { ...landStack, quantity: undefined as unknown as number };
+    expect(primaryCategoryCount([missingQty], 'Land')).toBe(1);
   });
 
   it('deckSize uses includedInDeck quantities', () => {

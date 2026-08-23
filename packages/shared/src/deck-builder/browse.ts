@@ -302,15 +302,16 @@ export function isHeaderCategory(name: string): boolean {
   return (HEADER_CATEGORIES as readonly string[]).includes(name);
 }
 
-/** Count of card instances whose primary category equals `name` (aliases normalized). */
+/** Sum of card quantities whose primary category equals `name` (aliases normalized). */
 export function primaryCategoryCount(
   cards: CardInstance[],
   name: string,
 ): number {
   const key = canonicalizeCategoryName(name);
-  return (cards || []).filter(
-    (c) => canonicalizeCategoryName(c.primaryCategory || 'Other') === key,
-  ).length;
+  return (cards || []).reduce((sum, c) => {
+    if (canonicalizeCategoryName(c.primaryCategory || 'Other') !== key) return sum;
+    return sum + (Number(c.quantity) || 1);
+  }, 0);
 }
 
 export function categoryTarget(

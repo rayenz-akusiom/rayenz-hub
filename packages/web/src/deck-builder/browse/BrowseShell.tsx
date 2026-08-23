@@ -49,10 +49,12 @@ import {
   reconcileLookingForFromCards,
   removeCardsFromDeck,
   removeSecondaryCategory,
+  recalculateAutoBasics,
   secondaryCategoriesOf,
   SEEKING,
   setCardsFoil,
   setCardsProxy,
+  shouldRecalculateAutoBasics,
   syncCardsWithFormalSwaps,
   cancelFormalSwap,
   finalizeFormalSwap,
@@ -368,11 +370,15 @@ export function BrowseShell({
   const commit = useCallback(
     (next: DeckDocument, opts?: CommitOpts) => {
       if (readOnly) return;
+      let doc = next;
+      if (shouldRecalculateAutoBasics(deckRef.current, doc)) {
+        doc = recalculateAutoBasics(doc);
+      }
       if (opts?.recordHistory !== false) {
         editHistory.recordBefore(deckRef.current);
       }
-      deckRef.current = next;
-      onChange(next);
+      deckRef.current = doc;
+      onChange(doc);
     },
     [onChange, editHistory, readOnly],
   );

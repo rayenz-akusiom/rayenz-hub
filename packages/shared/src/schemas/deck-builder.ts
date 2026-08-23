@@ -86,6 +86,13 @@ export const CardOracleSchema = z.object({
    * Independent of this printing’s rarity; never infer false from a reprint.
    */
   hasCommonPrinting: z.boolean().nullable().optional().default(null),
+  /** Scryfall mana_cost; null = not enriched; "" = known empty (e.g. lands). */
+  manaCost: z.string().nullable().optional().default(null),
+  /**
+   * Scryfall produced_mana letters (WUBRG and/or C); null = not enriched;
+   * [] = produces no mana (or not listed).
+   */
+  producedMana: z.array(z.string()).nullable().optional().default(null),
   updatedAt: z.string().nullable().default(null),
 });
 export type CardOracle = z.infer<typeof CardOracleSchema>;
@@ -155,6 +162,11 @@ const DeckDocumentObjectSchema = z.object({
   lastArchidektSyncAt: z.string().nullable().default(null),
   lastArchidektImportAt: z.string().nullable().default(null),
   cubeTargetSize: z.number().positive().nullable().optional().default(null),
+  /**
+   * When true, auto-fill basic lands to the Land category target using pip ratio.
+   * Default false so existing decks are unchanged; new commander/pendragon decks opt in.
+   */
+  autoAdjustBasics: z.boolean().optional().default(false),
 });
 
 /** Parses deck docs; migrates legacy on-card enrich fields into `oracle`. */

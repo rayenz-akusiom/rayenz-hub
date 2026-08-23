@@ -44,6 +44,8 @@ export type ScryfallCard = {
   printed_name?: string;
   flavor_name?: string;
   cmc?: number;
+  mana_cost?: string;
+  produced_mana?: string[];
 };
 
 /** Local card identity for collection-scoped syntax search. */
@@ -92,6 +94,8 @@ export type PrintingFields = {
   finishes?: string[] | null;
   /** Oracle has a common printing (Pendragon); independent of this copy’s rarity. */
   hasCommonPrinting?: boolean | null;
+  manaCost?: string | null;
+  producedMana?: string[] | null;
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};
@@ -272,6 +276,10 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
     printed_name: typeof c.printed_name === 'string' ? c.printed_name : undefined,
     flavor_name: typeof c.flavor_name === 'string' ? c.flavor_name : undefined,
     cmc: typeof c.cmc === 'number' && Number.isFinite(c.cmc) ? c.cmc : undefined,
+    mana_cost: typeof c.mana_cost === 'string' ? c.mana_cost : undefined,
+    produced_mana: Array.isArray(c.produced_mana)
+      ? (c.produced_mana as string[]).map(String)
+      : undefined,
   };
 }
 
@@ -299,6 +307,10 @@ export function mapScryfallCardToPrinting(
     flavorName: card.flavor_name?.trim() || null,
     manaValue: typeof card.cmc === 'number' && Number.isFinite(card.cmc) ? card.cmc : null,
     finishes: finishes.length ? finishes : null,
+    manaCost: typeof card.mana_cost === 'string' ? card.mana_cost : null,
+    producedMana: Array.isArray(card.produced_mana)
+      ? card.produced_mana.map((c) => String(c || '').toUpperCase()).filter(Boolean)
+      : null,
   };
 }
 

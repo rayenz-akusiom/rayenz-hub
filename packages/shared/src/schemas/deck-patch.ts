@@ -116,6 +116,7 @@ export const DeckPatchSchema = z.object({
   lastArchidektSyncAt: z.string().nullable().optional(),
   lastArchidektImportAt: z.string().nullable().optional(),
   cubeTargetSize: z.number().positive().nullable().optional(),
+  autoAdjustBasics: z.boolean().optional(),
 
   categories: z.array(CategoryDefSchema).optional(),
   oracle: z.record(z.string(), CardOracleSchema).optional(),
@@ -159,6 +160,7 @@ export function deckPatchHasMutations(patch: DeckPatch): boolean {
   if (patch.lastArchidektSyncAt !== undefined) return true;
   if (patch.lastArchidektImportAt !== undefined) return true;
   if (patch.cubeTargetSize !== undefined) return true;
+  if (patch.autoAdjustBasics !== undefined) return true;
   if (patch.categories !== undefined) return true;
   if (patch.oracle !== undefined) return true;
   if (patch.cardOps && patch.cardOps.length > 0) return true;

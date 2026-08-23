@@ -303,6 +303,8 @@ export function oracleFromPrinting(printing: PrintingFields): CardOracle {
     imageUrl: printing.scryfallId ? scryfallImageFromId(printing.scryfallId) : null,
     finishes: printing.finishes?.length ? [...printing.finishes] : null,
     hasCommonPrinting: printing.hasCommonPrinting ?? null,
+    manaCost: printing.manaCost ?? null,
+    producedMana: printing.producedMana ?? null,
     updatedAt: new Date().toISOString(),
   });
 }

@@ -308,11 +308,50 @@ describe('needsOracleEnrich', () => {
           flavorName: null,
           manaValue: 1,
           imageUrl: null,
+          manaCost: '{R}',
+          producedMana: [],
           updatedAt: null,
         },
       },
     };
     expect(needsOracleEnrich(doc, card)).toBe(false);
+  });
+
+  it('is true when manaCost / producedMana are missing', () => {
+    const card = {
+      instanceId: 'c1',
+      name: 'Bolt',
+      quantity: 1,
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      stack: null,
+      setCode: null,
+      collectorNumber: null,
+      scryfallId: null,
+      archidektCardId: null,
+      foil: false,
+    };
+    const doc = {
+      oracle: {
+        [oracleKey(card)]: {
+          scryfallId: null,
+          colourIdentity: ['R'],
+          typeLine: 'Instant',
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+          imageUrl: null,
+          manaCost: null,
+          producedMana: null,
+          updatedAt: null,
+        },
+      },
+    };
+    expect(needsOracleEnrich(doc, card)).toBe(true);
   });
 
   it('is true when manaValue is missing (backfill printed names / CMC)', () => {
@@ -376,6 +415,8 @@ describe('needsOracleEnrich', () => {
       flavorName: null,
       manaValue: 5,
       imageUrl: null,
+      manaCost: '{5}{U}',
+      producedMana: [] as string[],
       updatedAt: null,
     };
     expect(oracleSatisfiesCard(baseOracle, card)).toBe(false);

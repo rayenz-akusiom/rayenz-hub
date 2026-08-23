@@ -3,8 +3,13 @@ import {
   addOrBumpBasicPrinting,
   basicLandTypeKey,
   basicLandTypesForPanel,
+  canonicalizeCategoryName,
   changeCardPrintingMerging,
+  DEFAULT_LAND_TARGET,
+  includedLandCount,
+  landCategoryTarget,
   listBasicLandStacks,
+  recalculateAutoBasics,
   scryfallImageFromId,
   scryfallImageFromPrinting,
   setCardQuantity,
@@ -14,15 +19,29 @@ import {
 } from '@rayenz-hub/shared';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
+import { CardSizePicker } from '../../cards/CardSizePicker';
+import { useCardSize } from '../card-size';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
 
 type PickerMode =
   | { kind: 'add'; cardName: string }
   | { kind: 'change'; cardName: string; instanceId: string; card: CardInstance };
 
+const CORE_TYPES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'] as const;
+const SNOW_TYPES = [
+  'Snow-Covered Plains',
+  'Snow-Covered Island',
+  'Snow-Covered Swamp',
+  'Snow-Covered Mountain',
+  'Snow-Covered Forest',
+] as const;
+
 function printingLabel(card: CardInstance): string {
   const set = card.setCode ? String(card.setCode).toUpperCase() : '';
-  const cn = card.collectorNumber != null && card.collectorNumber !== '' ? String(card.collectorNumber) : '';
+  const cn =
+    card.collectorNumber != null && card.collectorNumber !== ''
+      ? String(card.collectorNumber)
+      : '';
   if (set && cn) return `${set} #${cn}`;
   if (set) return set;
   return 'Unspecified printing';
@@ -36,19 +55,32 @@ function stackThumb(card: CardInstance): string | null {
   );
 }
 
-function stacksForType(stacks: CardInstance[], typeName: string): CardInstance[] {
-  const key = basicLandTypeKey(typeName);
-  return stacks
-    .filter((c) => basicLandTypeKey(c.name) === key)
-    .sort((a, b) => {
-      const la = printingLabel(a);
-      const lb = printingLabel(b);
-      return la.localeCompare(lb) || a.instanceId.localeCompare(b.instanceId);
-    });
-}
-
 function typeTotal(stacks: CardInstance[]): number {
   return stacks.reduce((sum, c) => sum + Math.max(1, Number(c.quantity) || 1), 0);
+}
+
+function addTypeButtons(panelTypes: string[], snow: boolean): string[] {
+  const panel = new Set(panelTypes.map((t) => t.toLowerCase()));
+  const out: string[] = [];
+  if (snow) {
+    for (const name of SNOW_TYPES) {
+      if (panel.has(name.toLowerCase()) || panel.has(name.replace(/^Snow-Covered /i, '').toLowerCase())) {
+        out.push(name);
+      }
+    }
+  } else {
+    for (const name of CORE_TYPES) {
+      if (panel.has(name.toLowerCase())) out.push(name);
+    }
+    if (panel.has('wastes')) out.push('Wastes');
+  }
+  return out;
+}
+
+function shortTypeLabel(name: string): string {
+  if (name === 'Wastes') return 'Wastes';
+  if (name.startsWith('Snow-Covered ')) return name.slice('Snow-Covered '.length);
+  return name;
 }
 
 export function BasicLandsPanel({
@@ -62,12 +94,60 @@ export function BasicLandsPanel({
 }) {
   const [picker, setPicker] = useState<PickerMode | null>(null);
   const [pickerSetCodes, setPickerSetCodes] = useState<string[]>([]);
+  const [snow, setSnow] = useState(false);
+  const { widthPx } = useCardSize();
+
   const stacks = useMemo(() => listBasicLandStacks(deck), [deck]);
-  const types = useMemo(() => basicLandTypesForPanel(deck), [deck]);
+  const panelTypes = useMemo(() => basicLandTypesForPanel(deck), [deck]);
+  const addTypes = useMemo(() => addTypeButtons(panelTypes, snow), [panelTypes, snow]);
   const grandTotal = typeTotal(stacks);
+  const landCount = includedLandCount(deck);
+  const landTarget = landCategoryTarget(deck) ?? DEFAULT_LAND_TARGET;
+  const autoOn = Boolean(deck.autoAdjustBasics);
+
+  const sortedStacks = useMemo(() => {
+    return [...stacks].sort((a, b) => {
+      const ka = basicLandTypeKey(a.name) || a.name;
+      const kb = basicLandTypeKey(b.name) || b.name;
+      return ka.localeCompare(kb) || printingLabel(a).localeCompare(printingLabel(b));
+    });
+  }, [stacks]);
 
   function setQty(instanceId: string, quantity: number) {
     onChange(setCardQuantity(deck, instanceId, quantity));
+  }
+
+  function setLandTarget(value: number) {
+    const n = Math.max(0, Math.floor(value));
+    const cats = [...(deck.categories || [])];
+    const idx = cats.findIndex((c) => canonicalizeCategoryName(c.name) === 'Land');
+    if (idx < 0) {
+      cats.push({
+        name: 'Land',
+        includedInDeck: true,
+        includedInPrice: true,
+        target: n,
+      });
+    } else {
+      cats[idx] = { ...cats[idx]!, target: n };
+    }
+    onChange({
+      ...deck,
+      categories: cats,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function setAutoAdjust(next: boolean) {
+    onChange({
+      ...deck,
+      autoAdjustBasics: next,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function onRecalculate() {
+    onChange(recalculateAutoBasics(deck, { force: true }));
   }
 
   function onPickerConfirm(printing: PrintingFields, _category?: string, meta?: { proxy: boolean }) {
@@ -92,130 +172,164 @@ export function BasicLandsPanel({
   return (
     <>
       <div className="db-modal" role="dialog" aria-modal="true" aria-label="Basic lands">
-        <div className="db-modal-card db-basics-panel">
+        <div
+          className="db-modal-card db-basics-panel"
+          style={{ ['--db-card-w' as string]: `${widthPx}px` }}
+        >
           <div className="db-picker-header">
             <h3>Basic lands</h3>
-            <button type="button" className="db-btn" onClick={onClose}>
-              Close
+            <div className="db-basics-header-tools">
+              <CardSizePicker />
+              <button type="button" className="db-btn" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          <div className="db-basics-toolbar">
+            <label className="db-basics-field">
+              <span>Target lands</span>
+              <input
+                className="db-input db-basics-target-input"
+                type="number"
+                min={0}
+                value={landTarget}
+                aria-label="Target land count"
+                onChange={(e) => {
+                  const n = Math.floor(Number(e.target.value));
+                  if (!Number.isFinite(n)) return;
+                  setLandTarget(n);
+                }}
+              />
+            </label>
+            <label className="db-basics-check">
+              <input
+                type="checkbox"
+                checked={autoOn}
+                onChange={(e) => setAutoAdjust(e.target.checked)}
+              />
+              <span>Auto-adjust basics</span>
+            </label>
+            <button type="button" className="db-btn" onClick={onRecalculate}>
+              Recalculate
             </button>
           </div>
 
-          <p className="db-meta">
-            Set quantities per printing. Add alternate art or sets with Add printing.
-          </p>
-
-          <div className="db-basics-total" aria-live="polite">
-            Total basics: <strong>{grandTotal}</strong>
+          <div className="db-basics-status" aria-live="polite">
+            Lands {landCount} / {landTarget}
+            <span className="db-meta"> · Basics {grandTotal}</span>
+            {autoOn ? (
+              <span className="db-meta"> · Auto fills basics to target by pip ratio</span>
+            ) : null}
           </div>
 
-          <div className="db-basics-sections">
-            {types.map((typeName) => {
-              const rows = stacksForType(stacks, typeName);
-              const total = typeTotal(rows);
-              return (
-                <section
+          <div className="db-basics-add-row">
+            <label className="db-basics-check">
+              <input
+                type="checkbox"
+                checked={snow}
+                onChange={(e) => setSnow(e.target.checked)}
+              />
+              <span>Snow</span>
+            </label>
+            <div className="db-basics-add-types" role="group" aria-label="Add basic printing">
+              {addTypes.map((typeName) => (
+                <button
                   key={typeName}
-                  className="db-basics-section"
-                  aria-labelledby={`db-basics-${typeName.replace(/\s+/g, '-').toLowerCase()}`}
+                  type="button"
+                  className="db-btn"
+                  onClick={() => setPicker({ kind: 'add', cardName: typeName })}
                 >
-                  <div className="db-basics-section-header">
-                    <h4 id={`db-basics-${typeName.replace(/\s+/g, '-').toLowerCase()}`}>
-                      {typeName}
-                    </h4>
-                    <span className="db-meta">{total}</span>
-                  </div>
+                  {shortTypeLabel(typeName)}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                  {rows.length ? (
-                    <ul className="db-basics-stack-list">
-                      {rows.map((card) => {
-                        const qty = Math.max(1, Number(card.quantity) || 1);
-                        const thumb = stackThumb(card);
-                        return (
-                          <li key={card.instanceId} className="db-basics-stack-row">
-                            <span className="db-basics-thumb" aria-hidden="true">
-                              {thumb ? (
-                                <img src={thumb} alt="" />
-                              ) : (
-                                <span className="db-basics-thumb-fallback">{typeName.slice(0, 1)}</span>
-                              )}
-                            </span>
-                            <div className="db-basics-stack-meta">
-                              <span className="db-basics-printing">{printingLabel(card)}</span>
-                              <span className="db-basics-badges">
-                                {card.foil ? (
-                                  <span className="db-basics-badge" title="Foil">
-                                    <FoilIcon filled />
-                                  </span>
-                                ) : null}
-                                {card.proxy ? (
-                                  <span className="db-basics-badge" title="Proxy">
-                                    <ProxyIcon filled />
-                                  </span>
-                                ) : null}
+          <div className="db-basics-body">
+            {sortedStacks.length ? (
+              <ul className="db-basics-grid">
+                {sortedStacks.map((card) => {
+                  const qty = Math.max(1, Number(card.quantity) || 1);
+                  const thumb = stackThumb(card);
+                  const label = printingLabel(card);
+                  return (
+                    <li key={card.instanceId} className="db-basics-cell">
+                      <button
+                        type="button"
+                        className="db-basics-card-btn"
+                        aria-label={`Change printing — ${card.name} ${label}`}
+                        onClick={() =>
+                          setPicker({
+                            kind: 'change',
+                            cardName: card.name,
+                            instanceId: card.instanceId,
+                            card,
+                          })
+                        }
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt="" />
+                        ) : (
+                          <span className="db-basics-card-fallback">{card.name}</span>
+                        )}
+                        {(card.foil || card.proxy) && (
+                          <span className="db-basics-card-badges">
+                            {card.foil ? (
+                              <span title="Foil">
+                                <FoilIcon filled />
                               </span>
-                            </div>
-                            <div className="db-basics-qty" role="group" aria-label={`${typeName} ${printingLabel(card)} quantity`}>
-                              <button
-                                type="button"
-                                className="db-btn db-basics-qty-btn"
-                                aria-label="Decrease quantity"
-                                onClick={() => setQty(card.instanceId, qty - 1)}
-                              >
-                                −
-                              </button>
-                              <input
-                                className="db-input db-basics-qty-input"
-                                type="number"
-                                min={0}
-                                value={qty}
-                                aria-label="Quantity"
-                                onChange={(e) => {
-                                  const n = Math.floor(Number(e.target.value));
-                                  if (!Number.isFinite(n)) return;
-                                  setQty(card.instanceId, n);
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className="db-btn db-basics-qty-btn"
-                                aria-label="Increase quantity"
-                                onClick={() => setQty(card.instanceId, qty + 1)}
-                              >
-                                +
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              className="db-btn"
-                              onClick={() =>
-                                setPicker({
-                                  kind: 'change',
-                                  cardName: typeName,
-                                  instanceId: card.instanceId,
-                                  card,
-                                })
-                              }
-                            >
-                              Change…
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="db-meta db-basics-empty">None in deck</p>
-                  )}
-
-                  <button
-                    type="button"
-                    className="db-btn"
-                    onClick={() => setPicker({ kind: 'add', cardName: typeName })}
-                  >
-                    Add printing…
-                  </button>
-                </section>
-              );
-            })}
+                            ) : null}
+                            {card.proxy ? (
+                              <span title="Proxy">
+                                <ProxyIcon filled />
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
+                      </button>
+                      <span className="db-basics-card-label">{label}</span>
+                      <div
+                        className="db-basics-qty"
+                        role="group"
+                        aria-label={`${card.name} ${label} quantity`}
+                      >
+                        <button
+                          type="button"
+                          className="db-btn db-basics-qty-btn"
+                          aria-label="Decrease quantity"
+                          onClick={() => setQty(card.instanceId, qty - 1)}
+                        >
+                          −
+                        </button>
+                        <input
+                          className="db-input db-basics-qty-input"
+                          type="number"
+                          min={0}
+                          value={qty}
+                          aria-label="Quantity"
+                          onChange={(e) => {
+                            const n = Math.floor(Number(e.target.value));
+                            if (!Number.isFinite(n)) return;
+                            setQty(card.instanceId, n);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="db-btn db-basics-qty-btn"
+                          aria-label="Increase quantity"
+                          onClick={() => setQty(card.instanceId, qty + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="db-meta db-basics-empty">No basics in the deck yet.</p>
+            )}
           </div>
 
           <div className="db-modal-actions">

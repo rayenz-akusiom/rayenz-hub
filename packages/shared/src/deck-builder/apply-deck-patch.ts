@@ -15,6 +15,7 @@ import { normalizeFormalEntries, removeFormalSwapEntries } from './formal-swaps.
 import { syncCardsWithLookingFor } from './looking-for.js';
 import { upsertOracle } from './card-oracle.js';
 import { sanitizeDeckDescription } from './deck-description.js';
+import { recalculateAutoBasics } from './auto-basics.js';
 
 function mintId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -271,6 +272,9 @@ export function applyDeckPatch(deck: DeckDocument, patch: DeckPatch): DeckDocume
   if (patch.cubeTargetSize !== undefined) {
     next = { ...next, cubeTargetSize: patch.cubeTargetSize };
   }
+  if (patch.autoAdjustBasics !== undefined) {
+    next = { ...next, autoAdjustBasics: patch.autoAdjustBasics };
+  }
   if (patch.categories !== undefined) {
     next = { ...next, categories: patch.categories };
   }
@@ -290,6 +294,17 @@ export function applyDeckPatch(deck: DeckDocument, patch: DeckPatch): DeckDocume
   }
   if (patch.lookingForOps?.length) {
     next = applyLookingForOps(next, patch.lookingForOps);
+  }
+
+  if (
+    next.autoAdjustBasics &&
+    (patch.cardOps?.length ||
+      patch.oracle !== undefined ||
+      patch.categories !== undefined ||
+      patch.autoAdjustBasics !== undefined ||
+      patch.format !== undefined)
+  ) {
+    next = recalculateAutoBasics(next);
   }
 
   return {

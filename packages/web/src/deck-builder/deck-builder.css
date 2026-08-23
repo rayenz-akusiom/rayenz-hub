@@ -1544,128 +1544,159 @@ body,
 }
 
 .db-basics-panel {
-  max-width: 36rem;
-  width: min(36rem, 96vw);
-  max-height: min(90vh, 44rem);
+  max-width: min(96vw, 56rem);
+  width: min(96vw, 56rem);
+  max-height: min(90vh, 52rem);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-.db-basics-total {
-  margin: 0.25rem 0 0.75rem;
-}
-
-.db-basics-sections {
+.db-basics-header-tools {
   display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  overflow: auto;
-  flex: 1 1 auto;
-  padding-right: 0.15rem;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.db-basics-section {
+.db-basics-toolbar {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.db-basics-field {
+  display: inline-flex;
+  align-items: center;
   gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.db-basics-target-input {
+  width: 4rem;
+  text-align: center;
+  padding: 0.25rem 0.3rem;
+}
+
+.db-basics-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.db-basics-status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.db-basics-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
   padding-bottom: 0.65rem;
   border-bottom: 1px solid var(--db-border, #ddd);
 }
 
-.db-basics-section:last-of-type {
-  border-bottom: none;
-}
-
-.db-basics-section-header {
+.db-basics-add-types {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.db-basics-section-header h4 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.db-basics-stack-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.35rem;
 }
 
-.db-basics-stack-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 0.5rem;
-  padding: 0.35rem 0.4rem;
-  border: 1px solid var(--db-border, #ddd);
-  border-radius: 6px;
-  background: var(--db-surface, #fff);
+.db-basics-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.15rem;
 }
 
-.db-basics-thumb {
-  width: 2rem;
-  height: 2.8rem;
-  flex: 0 0 auto;
-  border-radius: 3px;
-  overflow: hidden;
-  background: var(--db-muted-bg, #eee);
+.db-basics-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  place-items: center;
+  grid-template-columns: repeat(auto-fill, var(--db-card-w));
+  gap: 0.65rem 0.75rem;
+  justify-content: start;
 }
 
-.db-basics-thumb img {
+.db-basics-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  width: var(--db-card-w);
+}
+
+.db-basics-card-btn {
+  position: relative;
+  display: block;
+  width: var(--db-card-w);
+  aspect-ratio: var(--db-card-aspect);
+  border-radius: var(--db-card-radius);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--db-border, #ddd);
+  background: var(--db-muted-bg, #eee);
+  cursor: pointer;
+}
+
+.db-basics-card-btn img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.db-basics-thumb-fallback {
+.db-basics-card-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.4rem;
   font-size: 0.75rem;
   font-weight: 600;
+  text-align: center;
   color: var(--db-muted, #888);
 }
 
-.db-basics-stack-meta {
-  flex: 1 1 6rem;
-  min-width: 5rem;
+.db-basics-card-badges {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
 }
 
-.db-basics-printing {
-  font-size: 0.85rem;
-  font-weight: 600;
+.db-basics-card-badges .db-badge-foil-icon,
+.db-basics-card-badges .db-badge-proxy-icon {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
-.db-basics-badges {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.db-basics-badge {
-  display: inline-flex;
-  width: 0.9rem;
-  height: 0.9rem;
+.db-basics-card-label {
+  font-size: 0.75rem;
   color: var(--db-muted, #666);
-}
-
-.db-basics-badge .db-badge-foil-icon,
-.db-basics-badge .db-badge-proxy-icon {
-  width: 100%;
-  height: 100%;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .db-basics-qty {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.2rem;
 }
 
@@ -1681,7 +1712,7 @@ body,
 }
 
 .db-basics-empty {
-  margin: 0;
+  margin: 0.5rem 0;
 }
 
 .db-category-cube-target {

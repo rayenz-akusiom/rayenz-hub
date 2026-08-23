@@ -305,6 +305,8 @@ describe('mapScryfallCardToPrinting', () => {
       flavorName: null,
       manaValue: null,
       finishes: ['nonfoil', 'foil'],
+      manaCost: null,
+      producedMana: null,
     });
   });
 

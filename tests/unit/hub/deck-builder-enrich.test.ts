@@ -47,6 +47,8 @@ const completeOracle = (over: Partial<CardOracle> = {}): CardOracle => ({
   flavorName: null,
   manaValue: 1,
   imageUrl: null,
+  manaCost: '{U}',
+  producedMana: [],
   updatedAt: null,
   ...over,
 });

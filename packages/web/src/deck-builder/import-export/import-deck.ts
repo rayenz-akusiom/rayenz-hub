@@ -20,6 +20,7 @@ import {
   canonicalizeCategoryName,
   isLookingForCategory,
   isSwapQueueCategoryName,
+  isCommandZoneFormat,
   toKebabCase,
   PROXIES_CATEGORY,
   type BrowseView,
@@ -113,8 +114,30 @@ export function emptyDeckDocument(opts: {
   cubeTargetSize?: number | null;
   browseViewDefault?: BrowseView | null;
   categories?: CategoryDef[];
+  autoAdjustBasics?: boolean;
 }): DeckDocument {
   const now = new Date().toISOString();
+  let categories = opts.categories ?? [];
+  let autoAdjustBasics = Boolean(opts.autoAdjustBasics);
+  if (isCommandZoneFormat(opts.format)) {
+    autoAdjustBasics = opts.autoAdjustBasics ?? true;
+    const hasLand = categories.some(
+      (c) => canonicalizeCategoryName(c.name) === 'Land',
+    );
+    if (!hasLand) {
+      categories = [
+        ...categories,
+        { name: 'Land', includedInDeck: true, includedInPrice: true, target: 36 },
+      ];
+    } else {
+      categories = categories.map((c) =>
+        canonicalizeCategoryName(c.name) === 'Land' &&
+        (c.target == null || !Number.isFinite(c.target))
+          ? { ...c, target: 36 }
+          : c,
+      );
+    }
+  }
   return {
     schemaVersion: 1,
     deckId: nextId('deck'),
@@ -122,7 +145,7 @@ export function emptyDeckDocument(opts: {
     format: opts.format,
     archidektId: null,
     archidektUrl: null,
-    categories: opts.categories ?? [],
+    categories,
     cards: [],
     oracle: {},
     formalSwapEntries: [],
@@ -136,6 +159,7 @@ export function emptyDeckDocument(opts: {
     lastArchidektSyncAt: null,
     lastArchidektImportAt: null,
     cubeTargetSize: opts.cubeTargetSize ?? null,
+    autoAdjustBasics,
     description: '',
   };
 }

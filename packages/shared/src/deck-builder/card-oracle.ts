@@ -51,6 +51,8 @@ export function emptyCardOracle(over: Partial<CardOracle> = {}): CardOracle {
     imageUrl: null,
     finishes: null,
     hasCommonPrinting: null,
+    manaCost: null,
+    producedMana: null,
     updatedAt: null,
     ...over,
   };
@@ -112,6 +114,8 @@ export function oracleSatisfiesCard(
   if (!(oracle.colourIdentity && oracle.colourIdentity.length)) return false;
   if (!oracle.typeLine) return false;
   if (oracle.manaValue == null) return false;
+  if (oracle.manaCost == null) return false;
+  if (oracle.producedMana == null) return false;
   if (typeLineNeedsLayout(oracle.typeLine) && oracle.layout == null) return false;
   if (isHeaderLeaderCategory(card.primaryCategory) && oracle.keywords == null) return false;
   return true;
@@ -203,6 +207,8 @@ function mergeOraclePreferExisting(
         ? true
         : base.hasCommonPrinting ?? incoming.hasCommonPrinting ?? null,
     colours: base.colours ?? incoming.colours ?? null,
+    manaCost: base.manaCost ?? incoming.manaCost ?? null,
+    producedMana: base.producedMana ?? incoming.producedMana ?? null,
     updatedAt: base.updatedAt || incoming.updatedAt || now,
   };
 }
@@ -295,11 +301,16 @@ export function cardOracleFromScryfall(data: {
   flavor_name?: string;
   cmc?: number;
   finishes?: string[];
+  mana_cost?: string;
+  produced_mana?: string[];
 }): CardOracle {
   const keywords = Array.isArray(data.keywords) ? data.keywords.map(String) : [];
   const scryfallId = data.id || null;
   const finishes = Array.isArray(data.finishes) ? data.finishes.map(String) : null;
   const colours = Array.isArray(data.colors) ? normalizeColourIdentity(data.colors) : null;
+  const producedMana = Array.isArray(data.produced_mana)
+    ? data.produced_mana.map((c) => String(c || '').toUpperCase()).filter(Boolean)
+    : null;
   return emptyCardOracle({
     scryfallId,
     typeLine: data.type_line || null,
@@ -314,6 +325,8 @@ export function cardOracleFromScryfall(data: {
     manaValue: typeof data.cmc === 'number' && Number.isFinite(data.cmc) ? data.cmc : null,
     imageUrl: scryfallId ? scryfallImageFromId(scryfallId) : null,
     finishes: finishes?.length ? finishes : null,
+    manaCost: typeof data.mana_cost === 'string' ? data.mana_cost : null,
+    producedMana,
     updatedAt: new Date().toISOString(),
   });
 }

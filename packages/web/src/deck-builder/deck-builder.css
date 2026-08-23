@@ -1543,15 +1543,6 @@ body,
   width: min(42rem, 96vw);
 }
 
-.db-basics-panel {
-  max-width: min(96vw, 56rem);
-  width: min(96vw, 56rem);
-  max-height: min(90vh, 52rem);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
 .db-basics-header-tools {
   display: flex;
   align-items: center;
@@ -2439,6 +2430,18 @@ body,
   width: min(28rem, 100%);
   display: grid;
   gap: 0.75rem;
+}
+
+/* Must follow .db-modal-card so width/display are not overridden by the 28rem grid card. */
+.db-modal-card.db-basics-panel {
+  display: flex;
+  flex-direction: column;
+  /* Fit 5 cards + 4 gaps + horizontal padding at current --db-card-w */
+  width: min(96vw, calc(5 * var(--db-card-w) + 4 * 0.75rem + 2rem));
+  max-width: 96vw;
+  max-height: min(90vh, 52rem);
+  min-height: 0;
+  overflow: hidden; /* only .db-basics-body scrolls */
 }
 
 .db-modal-wide {

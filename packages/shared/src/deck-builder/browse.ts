@@ -371,13 +371,24 @@ export function deckHeaderTarget(
   return null;
 }
 
+/**
+ * Canonical size target for mismatch warnings and trim auto-exit.
+ * - Command-zone formats: COMMANDER_DECK_TARGET (hidden from header).
+ * - Else: deckHeaderTarget (cube category-sum or cubeTargetSize).
+ */
+export function deckSizeTarget(
+  deck: Pick<DeckDocument, 'format' | 'categories' | 'cubeTargetSize'>,
+): number | null {
+  if (isCommandZoneFormat(deck.format)) return COMMANDER_DECK_TARGET;
+  return deckHeaderTarget(deck);
+}
+
 export function deckSizeMismatch(
   deck: Pick<DeckDocument, 'format' | 'cards' | 'categories' | 'cubeTargetSize' | 'coverInstanceId'>,
 ): boolean {
-  const size = deckSize(deck);
-  if (isCommandZoneFormat(deck.format)) return size !== COMMANDER_DECK_TARGET;
-  const target = deckHeaderTarget(deck);
-  return target != null && size !== target;
+  const target = deckSizeTarget(deck);
+  if (target == null) return false;
+  return deckSize(deck) !== target;
 }
 
 /** True when any included targets are set and their sum ≠ cubeTargetSize. */

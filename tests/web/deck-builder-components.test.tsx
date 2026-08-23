@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { moveCardCategory, syncCardsWithFormalSwaps } from '@rayenz-hub/shared';
 import { LibraryView } from '../../packages/web/src/deck-builder/library/LibraryView';
@@ -977,10 +978,10 @@ describe('BrowseShell trim mode', () => {
 
     render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
     await enterTrim(user);
-    expect(screen.getByText('Click a card to move it to Maybeboard')).toBeInTheDocument();
+    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByText('Click a card to move it to Maybeboard')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Trim mode — click a card to move it to Maybeboard/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Deck actions' }));
     expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
@@ -999,10 +1000,69 @@ describe('BrowseShell trim mode', () => {
     const user = userEvent.setup();
     render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} />);
     await user.keyboard('t');
-    expect(screen.getByText('Click a card to move it to Maybeboard')).toBeInTheDocument();
-    expect(screen.getByText('Esc exit trim')).toBeInTheDocument();
+    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
+    expect(screen.getByText('Trim mode · Esc exit')).toBeInTheDocument();
     await user.keyboard('t');
-    expect(screen.queryByText('Click a card to move it to Maybeboard')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Trim mode — click a card to move it to Maybeboard/i)).not.toBeInTheDocument();
+  });
+
+  it('auto-exits trim when size drops from over target to legal', async () => {
+    const user = userEvent.setup();
+    const base = commanderDoc.cards[0] as CardInstance;
+    const bulk: CardInstance = {
+      ...base,
+      instanceId: 'bulk',
+      name: 'Bulk Creatures',
+      quantity: 100,
+      primaryCategory: 'Creature',
+      categories: ['Creature'],
+    };
+    const extra: CardInstance = {
+      ...base,
+      instanceId: 'extra',
+      name: 'Extra Creature',
+      quantity: 1,
+      primaryCategory: 'Creature',
+      categories: ['Creature'],
+    };
+    const initial = trimDeck({ cards: [bulk, extra] });
+
+    function Harness() {
+      const [deck, setDeck] = useState(initial);
+      return <BrowseShell deck={deck} onChange={setDeck} onBack={noop} />;
+    }
+
+    render(<Harness />);
+    await enterTrim(user);
+    expect(screen.getByText(/Trim mode · 1 over/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Extra Creature$/i }));
+    await waitFor(() => {
+      expect(screen.queryByText(/Trim mode/i)).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
+  });
+
+  it('allows trim when already at legal size', async () => {
+    const user = userEvent.setup();
+    const base = commanderDoc.cards[0] as CardInstance;
+    const deck = trimDeck({
+      cards: [
+        {
+          ...base,
+          instanceId: 'legal',
+          name: 'Legal Stack',
+          quantity: 100,
+          primaryCategory: 'Creature',
+          categories: ['Creature'],
+        },
+      ],
+    });
+
+    render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
+    await enterTrim(user);
+    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
+    expect(screen.getByText('Trim mode · Esc exit')).toBeInTheDocument();
   });
 
   it('removes the selection with Delete after confirm', async () => {

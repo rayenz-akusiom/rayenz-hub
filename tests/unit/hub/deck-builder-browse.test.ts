@@ -6,6 +6,7 @@ import {
   categoryTargetsMismatchCubeSize,
   deckHeaderTarget,
   deckSizeMismatch,
+  deckSizeTarget,
   defaultAddCategory,
   defaultBrowseView,
   defaultCubeCategoryDefs,
@@ -449,12 +450,36 @@ describe('category targets', () => {
   it('commander size mismatch uses hidden 100 target', () => {
     expect(deckSizeMismatch(commander)).toBe(true);
     expect(deckHeaderTarget(commander)).toBeNull();
+    expect(deckSizeTarget(commander)).toBe(100);
   });
 
   it('pendragon size mismatch uses the same hidden 100 target', () => {
     const pendragon = { ...commander, format: 'pendragon' as const };
     expect(deckSizeMismatch(pendragon)).toBe(true);
     expect(deckHeaderTarget(pendragon)).toBeNull();
+    expect(deckSizeTarget(pendragon)).toBe(100);
+  });
+
+  it('deckSizeTarget follows cube header target and is null without one', () => {
+    expect(
+      deckSizeTarget({
+        format: 'cube',
+        cubeTargetSize: 360,
+        categories: [
+          { name: 'White', includedInDeck: true, includedInPrice: true, target: 40 },
+          { name: 'Blue', includedInDeck: true, includedInPrice: true, target: 40 },
+        ],
+      }),
+    ).toBe(80);
+    expect(
+      deckSizeTarget({
+        format: 'cube',
+        cubeTargetSize: null,
+        categories: [
+          { name: 'White', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+    ).toBeNull();
   });
 
   it('defaultAddCategory for cube uses colour identity section', () => {

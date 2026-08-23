@@ -23,6 +23,7 @@ import {
   deckHeaderTarget,
   deckSize,
   deckSizeMismatch,
+  deckSizeTarget,
   defaultBrowseView,
   ensureCategoryDef,
   incompleteEntryCount,
@@ -246,6 +247,8 @@ export function BrowseShell({
   const cardSizeReady = useRef(false);
   const removeSelectedRef = useRef<() => void>(() => {});
   const consumedPairRef = useRef<string | null>(null);
+  /** True once size was over target while this trim session was active (for auto-exit). */
+  const trimWasOverRef = useRef(false);
   const visibleOrder = useMemo(
     () => [...mainVisibleOrder, ...asideVisibleOrder],
     [mainVisibleOrder, asideVisibleOrder],
@@ -459,6 +462,7 @@ export function BrowseShell({
   const { enriching } = useScryfallEnrich(liveDeck, true, onEnrichPatch);
 
   const headerTarget = deckHeaderTarget(liveDeck);
+  const sizeTarget = deckSizeTarget(liveDeck);
   const sizeWarn = deckSizeMismatch(liveDeck);
   const targetsVsCubeWarn = categoryTargetsMismatchCubeSize(liveDeck);
   const sizeLabel =
@@ -472,6 +476,8 @@ export function BrowseShell({
   ]
     .filter(Boolean)
     .join(' · ');
+  const trimOver =
+    sizeTarget != null && size > sizeTarget ? size - sizeTarget : 0;
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -480,6 +486,7 @@ export function BrowseShell({
   }, []);
 
   const exitTrim = useCallback(() => {
+    trimWasOverRef.current = false;
     setTrimMode(false);
     setTrimEffect('maybeboard');
   }, []);
@@ -489,6 +496,21 @@ export function BrowseShell({
     setTrimEffect('maybeboard');
     setTrimMode(true);
   }, [clearSelection]);
+
+  // Exit trim after reducing from over target to at/below; allow enter at legal size.
+  useEffect(() => {
+    if (!trimMode || sizeTarget == null) {
+      trimWasOverRef.current = false;
+      return;
+    }
+    if (size > sizeTarget) {
+      trimWasOverRef.current = true;
+      return;
+    }
+    if (trimWasOverRef.current) {
+      exitTrim();
+    }
+  }, [trimMode, size, sizeTarget, exitTrim]);
 
   const overlayBlocksShortcuts =
     moveOpen ||
@@ -1047,7 +1069,7 @@ export function BrowseShell({
   return (
     <div
       ref={shellRef}
-      className={`db-shell${draft ? ' is-swap-editing' : ''}${trimMode ? ' is-trimming' : ''}`}
+      className={`db-shell${draft ? ' is-swap-editing' : ''}${trimMode ? ' is-trimming' : ''}${trimMode && trimEffect === 'delete' ? ' is-trim-delete' : ''}`}
       style={shellStyle}
     >
       <div className="hub-sticky-chrome">
@@ -1109,7 +1131,7 @@ export function BrowseShell({
         />
         {(trimMode || selectionCount > 0) && !readOnly ? (
           <p className="hub-muted hub-shortcut-hint">
-            {trimMode ? 'Esc exit trim' : 'Esc clear · Del remove · T trim'}
+            {trimMode ? 'Trim mode · Esc exit' : 'Esc clear · Del remove · T trim'}
           </p>
         ) : null}
       </div>
@@ -1121,9 +1143,16 @@ export function BrowseShell({
               className={`db-selection-bar is-pick${trimEffect === 'delete' ? ' is-trim-delete' : ''}`}
             >
               <span className="db-selection-bar-count" aria-live="polite">
-                {trimEffect === 'delete'
-                  ? 'Click a card to delete it'
-                  : 'Click a card to move it to Maybeboard'}
+                {(() => {
+                  const action =
+                    trimEffect === 'delete'
+                      ? 'click a card to delete it'
+                      : 'click a card to move it to Maybeboard';
+                  if (trimOver > 0) {
+                    return `Trim mode · ${trimOver} over — ${action}`;
+                  }
+                  return `Trim mode — ${action}`;
+                })()}
               </span>
               <div className="db-selection-bar-actions">
                 <button

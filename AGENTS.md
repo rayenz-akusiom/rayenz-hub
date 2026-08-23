@@ -1,13 +1,12 @@
 # AGENTS.md — Rayenz Hub contributor guide for AI agents
 
-This file captures conventions for automated agents working in this repo. Prefer these over inventing new patterns.
+This file is a short always-on map. Prefer these conventions over inventing new patterns; details live in scoped Cursor rules (see index below).
 
 ## Non-negotiables
 
-- **“Deploy” means Hub API then GitHub Pages** (`npm run deploy:api`, then `npm run publish:hub` / `npm run deploy:hub` subtree to `hub-prod`). Narrow to one surface when the user names Pages or API. **Cognito** (`npm run deploy:cognito`) and other AWS mutations stay named. Local SAM/`start:api` is fine.
+- **Deploy** = Hub API then GitHub Pages — see [`.cursor/rules/deploy.mdc`](.cursor/rules/deploy.mdc). Cognito and other AWS mutations stay named. Local SAM/`start:api` is fine.
 - Production Hub **browser** identity is a Cognito session (sign in from the left nav). MCP and CLI scripts sign in with `HUB_USERNAME` / `HUB_PASSWORD` (do not commit the password). See `docs/hub-api-production.md`.
 - **Do not commit or push** unless the user explicitly asks.
-- Prefer **Ask mode** for exploration; switch to Agent only when implementing.
 - Keep diffs focused: no drive-by refactors, no unsolicited markdown docs beyond what was requested.
 
 ## Repo layout (frontend)
@@ -23,93 +22,6 @@ This file captures conventions for automated agents working in this repo. Prefer
 | `tests/api/` | API contract/unit tests (node) |
 | `tests/e2e/` | Playwright |
 
-## Testing & coverage
-
-### Commands
-
-| Script | Purpose |
-|--------|---------|
-| `npm run test:unit` | Unit + API tests (default Vitest config) |
-| `npm run test:web` | React RTL suite only |
-| `npm run test:coverage` | **Gated** web coverage core: ≥80% **branches** (`coverage/web-gate`) |
-| `npm run test:coverage:full` | Full `packages/web` report, no threshold (`coverage/web-full`) |
-| `npm run test:web:coverage` | RTL-only coverage report (no branch gate) |
-| `npm run test:unit -- --coverage` | Unit/API coverage under `coverage/unit` |
-
-Reports land under `coverage/` (gitignored). Gate → `coverage/web-gate/`; full → `coverage/web-full/`. Do **not** run multiple `vitest --coverage` processes against the same `reportsDirectory` (Windows `ENOENT` races).
-
-### What we measure
-
-- **Provider:** `@vitest/coverage-v8` (pin to the same major/minor as `vitest`).
-- **Primary gate (`test:coverage`):** **branch** coverage ≥ **80%** on SPA **logic + UI** loaded by tests (`vitest.coverage.config.ts`).
-- **Full report (`test:coverage:full`):** all of `packages/web/src` with `all: true`, no threshold — find gaps outside the gate.
-- Statements/lines/functions are reported for visibility but are not the CI gate.
-- **`coverage.all: false` on the gate:** only imported files count (after excludes).
-- **Gate excludes (narrow):** bootstraps (`main.tsx`, `types.ts`, `index.ts`); non-UI giants still on the backlog (`mtg/archidekt-export.ts`, `mtg/order-reconcile-export.ts`, `mtg/profile-sync.ts`, `dailies/itemdb.ts`, `deck-suggest/generation.ts`, `pet-image-slug.ts`, `dailies/icons.ts`).
-- **Gate includes:** hub chrome, all `*App.tsx` shells, settings pages, cards UI, browse/library/modals, Suggest/Review/Reconcile panels, plus logic modules.
-
-### SPA UI testing practices
-
-1. Put RTL suites under `tests/web/*.test.tsx` (jsdom).
-2. Mock network, Hub API, IndexedDB stores, and `HubProgress.mount` — assert visible chrome and user flows, not implementation details.
-3. Prefer exercising real child components with tiny fixtures; mock a child only when it pulls an entire subsystem.
-4. Cover at least: empty/loading/error, primary happy path, and one settings/API-off vs API-on branch per major app.
-5. HubShell may still mock app children when testing chrome alone; app-level suites must import the real `*App` under test.
-6. If a control moved into an overflow menu, query `menuitem` after opening the named trigger (`Deck actions`, `Swap Queue actions`, Suggest `More`), not a top-level `button`.
-
-### Where to put tests
-
-| Kind | Location | Environment |
-|------|----------|-------------|
-| Pure logic / stores / API client | `tests/unit/hub/*.test.ts` | happy-dom |
-| React components / hooks | `tests/web/*.test.tsx` (or `tests/unit/hub/*.test.tsx` if already there) | jsdom for `tests/web` |
-| Do not mix API Lambda tests into web coverage | `tests/api/` stays on default config | node |
-
-Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` via `environmentMatchGlobs`.
-
-### Best practices (do)
-
-1. **Test behavior at module boundaries** — exportable functions, hooks, and components; avoid asserting implementation trivia.
-2. **Prefer branch-oriented cases** — empty/null input, unknown routes, 401/404/HTML API bodies, quota/localStorage failures, dual-mode API on/off.
-3. **Mock fetch with `.text()`** — `HubApiClient.clientApiFetch` reads `res.text()` then parses JSON. Mocks that only stub `.json()` will break:
-   ```ts
-   function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
-     const status = init.status ?? 200;
-     const ok = init.ok ?? (status >= 200 && status < 300);
-     const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-     return { status, ok, text: async () => text };
-   }
-   ```
-4. **Mock heavy children when testing shells** — e.g. `HubShell` should mock `DeckBuilderApp` / `OrderReconcileApp` / etc. so coverage stays focused and tests stay fast.
-5. **Reset storage and hub globals** between tests — use `resetHubModules`, `resetHubGlobalsInstalled`, `installHubGlobals` from existing helpers.
-6. **Extend existing suites** before adding parallel files for the same module.
-7. **RTL:** query by role/label; use `user-event` for clicks; assert visible outcomes. Overflow actions are `menuitem`s after opening `Deck actions` / `Swap Queue actions` / Suggest `More`.
-8. **Keep fixtures small** — reuse `tests/fixtures/` slices; do not snapshot entire Scryfall dumps into unit tests.
-
-### Best practices (don't)
-
-1. **Don't** rely on e2e alone for SPA branch coverage — RTL owns app chrome and phase transitions; Playwright owns cross-app flows.
-2. **Don't** use `istanbul ignore` / coverage ignores to hide real logic; only for truly unreachable defensive guards, and comment why.
-3. **Don't** redefine `window.location.hostname` under jsdom without a stubbed `location` object — prefer happy-dom for those tests or `vi.stubGlobal` carefully.
-4. **Don't** point Hub API URL at the Vite origin in tests or docs — `assertApiNotPageOrigin` rejects that class of misconfig.
-5. **Don't** add Playwright cases for pure function coverage — e2e is for navigation/flows.
-
-### Raising coverage when the gate fails
-
-1. Open `coverage/web-gate/index.html` (or `test:coverage:full` → `coverage/web-full/`) and sort by **missed branches**.
-2. Prioritize todo themes: deck-builder formal swaps, Suggest rules/guards, Order Reconcile assign/reconcile, dual-mode `HubStorage` / `HubApiClient`, then the **coverage backlog** exports/itemdb/generation.
-3. Add unit cases for missed conditionals; re-run `npm run test:coverage`.
-4. If a large `.tsx` app is pulled in transitively at 0%, stop importing it — mock it from the parent under test.
-
-### Config files
-
-| File | Role |
-|------|------|
-| `vitest.config.js` | Default unit + API |
-| `vitest.web.config.ts` | React RTL only |
-| `vitest.coverage.config.ts` | Combined unit+web **gated** coverage + 80% branch threshold |
-| `vitest.coverage.full.config.ts` | Full packages/web report (no threshold) |
-
 ## Dual-mode storage / API client
 
 - **MTG settings / review progress / set pools:** Hub API (DynamoDB) is required to persist; in-memory only within the tab when API is off (no durable localStorage). Order-reconcile session progress is memory-only (no API endpoint yet).
@@ -119,41 +31,29 @@ Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` v
 - Tests should cover API-off and API-on paths for persistence helpers.
 - After changing `hub-api-client.ts` response handling, update **all** fetch mocks (`.text()`).
 
-## Glance (deck + swaps) and dual-product refactors
-
-Packing algorithms: [`docs/glance-layout.md`](docs/glance-layout.md). Scoped Cursor rule: `.cursor/rules/glance.mdc`.
-
-**Share plumbing** across sibling products; **do not merge** intentional algorithm or dialog divergence.
-
-| Layer | Shared (prefer these) | Keep separate |
-|-------|----------------------|---------------|
-| Shared plate / cards | `glance/plate.ts`, `card-from-instance.ts`, `card-identity.ts` | Deck L-masonry (`glance/layout.ts`) vs swap densify/pack/masonry/planner |
-| API | `glance-pipeline.ts`, `glance-art.ts`, face compositing helpers | `glance-render-deck` vs `glance-render-swap`; handler parse/response shapes |
-| Web | `glance-http.ts`, `glance-png.ts`, `glance-ui.tsx` | Product dialogs / option UIs (lieutenants vs seeking/mode) |
-
-- Product packing gaps/margins stay local — do not equalize deck vs swap for “consistency.”
-- Bump `GLANCE_GENERATION_VERSION` / `SWAP_GLANCE_GENERATION_VERSION` when fingerprints, colours, art tier, render pixels, or delivery change. Do **not** bump for pure moves or identical-math extracts.
-- Tests: file-local builders; grow `tests/api/helpers/glance-render.ts`. Do not build a cross-layer glance test kit or merge deck/swap suites.
-
 ## TypeScript / React
 
 - New Hub UI lives under `packages/web/src/`; do not add new vanilla IIFEs under `rayenz-hub/apps/`.
 - Match existing import style (`.ts` extensions in some unit tests are intentional for Node resolution).
 
-## SPA chrome / UX
+## Pointers
 
-Scoped rule: [`.cursor/rules/hub-spa-chrome.mdc`](.cursor/rules/hub-spa-chrome.mdc). Sticky / progress details: [`.cursor/rules/hub-sticky-header.mdc`](.cursor/rules/hub-sticky-header.mdc), [`.cursor/rules/hub-progress-bar.mdc`](.cursor/rules/hub-progress-bar.mdc).
+- **Testing & coverage:** [`.cursor/rules/testing-coverage.mdc`](.cursor/rules/testing-coverage.mdc)
+- **Glance (deck + swaps):** [`.cursor/rules/glance.mdc`](.cursor/rules/glance.mdc), packing algorithms in [`docs/glance-layout.md`](docs/glance-layout.md)
+- **SPA chrome / UX:** [`.cursor/rules/hub-spa-chrome.mdc`](.cursor/rules/hub-spa-chrome.mdc); sticky / progress: [`hub-sticky-header.mdc`](.cursor/rules/hub-sticky-header.mdc), [`hub-progress-bar.mdc`](.cursor/rules/hub-progress-bar.mdc)
+- **Ideas backlog:** user's `IDEAS.md` (ideas-todo-list skill). The **Web/React coverage tracking** item is the product intent behind `test:coverage`; update that item when finishing a coverage push.
 
-- Shared chrome: `.hub-sticky-chrome`, `.hub-progress-host`, `--hub-*` / `.hub-btn` aliases, `DbMenu`, `FiltersMenu`, `ActiveFilterChips`, `CardSizePicker`. One status slot under sticky chrome (do not stack muted/warn/error lines).
-- Primary strip = view / layout / sort / filters / size. Secondary actions (Categories, Basics, Trim, Glance, export) go in the overflow (`DeckActionsMenu` / hamburger).
-- Empty states: `.db-empty-state` (or `.hub-empty`) with a short explanation and one CTA. Do not also show an identical FAB while that CTA is visible.
-- Wishlist is a named Swap Queue mode (`#/wishlist`); Swap Queue nav stays active. Keep share URLs.
-- Pair deep-links: Builder `#/{builder}/{user}/{deck}/swap/{entryId}`; Swap Queue `#/swap-queue/{user}/pair/{deckId}/{entryId}` (wishlist prefix allowed). Formal pairs only.
-- Dialogs: `useDialogA11y` (Escape, Tab cycle, restore focus) on `.db-modal` / `.hub-picker-dialog` / glance overlays. No visual restyle.
-- Builder Trim/selection shortcuts: Esc clear or exit trim, Delete removes (with confirm), T toggles Trim; hint in sticky chrome.
-- Settings should use `--hub-accent`, not a second blue. Do not restyle Dailies to match MTG.
-- Do not start Hub UI work with dark mode, `dr-*`/`or-*` renames, or `position: fixed` headers.
+## Cursor rules index
 
-## Ideas backlog
-
-Product/dev ideas live in the user's `IDEAS.md` (ideas-todo-list skill). The **Web/React coverage tracking** item is the product intent behind `test:coverage`; update that item when finishing a coverage push.
+| Rule | When |
+|------|------|
+| [`deploy.mdc`](.cursor/rules/deploy.mdc) | Always (deploy / ship / push to prod) |
+| [`testing-coverage.mdc`](.cursor/rules/testing-coverage.mdc) | Tests, vitest configs, SPA source |
+| [`hub-spa-chrome.mdc`](.cursor/rules/hub-spa-chrome.mdc) | Hub SPA chrome / web tests |
+| [`hub-sticky-header.mdc`](.cursor/rules/hub-sticky-header.mdc) | Sticky header work |
+| [`hub-progress-bar.mdc`](.cursor/rules/hub-progress-bar.mdc) | HubProgress / status overrides |
+| [`glance.mdc`](.cursor/rules/glance.mdc) | Deck + swap Glance |
+| [`api-ioc.mdc`](.cursor/rules/api-ioc.mdc) | `packages/api` Inversify |
+| [`deck-builder-commanders.mdc`](.cursor/rules/deck-builder-commanders.mdc) | Commander / lieutenant roles |
+| [`deck-builder-card-images.mdc`](.cursor/rules/deck-builder-card-images.mdc) | Scryfall card images |
+| [`greasemonkey-versioning.mdc`](.cursor/rules/greasemonkey-versioning.mdc) | `monkey-scripts` `@version` |

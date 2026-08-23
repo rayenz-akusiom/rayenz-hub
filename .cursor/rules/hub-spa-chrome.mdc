@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Hub SPA chrome
 
-Prefer existing Hub primitives before adding a parallel toolbar, token, or empty-state dialect. Pointer in `AGENTS.md` (SPA chrome / UX). Sticky / progress details: [`hub-sticky-header.mdc`](hub-sticky-header.mdc), [`hub-progress-bar.mdc`](hub-progress-bar.mdc).
+Prefer existing Hub primitives before adding a parallel toolbar, token, or empty-state dialect. Pointer in `AGENTS.md`. Sticky / progress details: [`hub-sticky-header.mdc`](hub-sticky-header.mdc), [`hub-progress-bar.mdc`](hub-progress-bar.mdc).
 
 ## Share
 
@@ -16,7 +16,7 @@ Prefer existing Hub primitives before adding a parallel toolbar, token, or empty
 - Menus: `DbMenu` / `FiltersMenu`. Active filters: dismissible `ActiveFilterChips` in sticky chrome when Filters ≠ All (`packages/web/src/deck-builder/ui/ActiveFilterChips.tsx`).
 - Card density: `CardSizePicker`.
 - Empty: dashed `.db-empty-state` (or `.hub-empty`) with a short explanation and **one** CTA. Library (`FormatFilteredLibrary`) and Swap Queue are the templates.
-- One status slot under sticky chrome (progress host + a single banner). Do not stack muted / warn / error lines.
+- Prefer one status slot under sticky chrome (progress host + a single banner). Documented stacking exceptions live under **Documented overrides** in [`hub-progress-bar.mdc`](hub-progress-bar.mdc).
 - Wishlist is a named Swap Queue mode (`#/wishlist`): mode chips in SQ chrome; Swap Queue nav stays active. Keep share URLs.
 - Pair hashes: Builder `#/{commander-builder|cube-builder}/{user}/{deck}/swap/{entryId}`; Swap Queue `#/{swap-queue|wishlist}/{user}/pair/{deckId}/{entryId}`. Secondary actions on `SwapEditChrome`: View in Swap Queue / Open in Builder.
 - Overlays: `packages/web/src/ui/useDialogA11y.ts` — Escape, focus trap, restore focus. Nested embedded Scryfall/printing does not get a second trap.

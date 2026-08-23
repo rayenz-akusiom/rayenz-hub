@@ -6,8 +6,6 @@ alwaysApply: false
 
 # API Inversion of Control (Inversify)
 
-Phase F convention — see `documents/specs/002-hub-backend-platform/research.md` Decision 7.
-
 ## Rules
 
 - **Composition root only** binds dependencies: `packages/api/src/ioc/composition-root.ts`

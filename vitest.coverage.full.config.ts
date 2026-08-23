@@ -7,7 +7,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Full packages/web coverage report (no threshold). Use to find gaps outside the gate.
- * See AGENTS.md → Testing & coverage.
+ * See .cursor/rules/testing-coverage.mdc.
  */
 export default defineConfig({
   plugins: [react()],

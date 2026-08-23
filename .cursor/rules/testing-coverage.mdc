@@ -1,0 +1,94 @@
+---
+description: Vitest commands, coverage gate (≥80% branches), RTL practices, and test placement
+globs: tests/**/*,vitest*.{js,ts},packages/web/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Testing & coverage
+
+Pointer in `AGENTS.md`. Update the **Web/React coverage tracking** item in the user's `IDEAS.md` when finishing a coverage push.
+
+## Commands
+
+| Script | Purpose |
+|--------|---------|
+| `npm run test:unit` | Unit + API tests (default Vitest config) |
+| `npm run test:web` | React RTL suite only |
+| `npm run test:coverage` | **Gated** web coverage core: ≥80% **branches** (`coverage/web-gate`) |
+| `npm run test:coverage:full` | Full `packages/web` report, no threshold (`coverage/web-full`) |
+| `npm run test:web:coverage` | RTL-only coverage report (no branch gate) |
+| `npm run test:unit -- --coverage` | Unit/API coverage under `coverage/unit` |
+
+Reports land under `coverage/` (gitignored). Gate → `coverage/web-gate/`; full → `coverage/web-full/`. Do **not** run multiple `vitest --coverage` processes against the same `reportsDirectory` (Windows `ENOENT` races).
+
+## What we measure
+
+- **Provider:** `@vitest/coverage-v8` (pin to the same major/minor as `vitest`).
+- **Primary gate (`test:coverage`):** **branch** coverage ≥ **80%** on SPA **logic + UI** loaded by tests (`vitest.coverage.config.ts`).
+- **Full report (`test:coverage:full`):** all of `packages/web/src` with `all: true`, no threshold — find gaps outside the gate.
+- Statements/lines/functions are reported for visibility but are not the CI gate.
+- **`coverage.all: false` on the gate:** only imported files count (after excludes).
+- **Gate excludes (narrow):** bootstraps (`main.tsx`, `types.ts`, `index.ts`); non-UI giants still on the backlog (`mtg/archidekt-export.ts`, `mtg/order-reconcile-export.ts`, `mtg/profile-sync.ts`, `dailies/itemdb.ts`, `deck-suggest/generation.ts`, `pet-image-slug.ts`, `dailies/icons.ts`).
+- **Gate includes:** hub chrome, all `*App.tsx` shells, settings pages, cards UI, browse/library/modals, Suggest/Review/Reconcile panels, plus logic modules.
+
+## SPA UI testing practices
+
+1. Put RTL suites under `tests/web/*.test.tsx` (jsdom).
+2. Mock network, Hub API, IndexedDB stores, and `HubProgress.mount` — assert visible chrome and user flows, not implementation details.
+3. Prefer exercising real child components with tiny fixtures; mock a child only when it pulls an entire subsystem.
+4. Cover at least: empty/loading/error, primary happy path, and one settings/API-off vs API-on branch per major app.
+5. HubShell may still mock app children when testing chrome alone; app-level suites must import the real `*App` under test.
+6. If a control moved into an overflow menu, query `menuitem` after opening the named trigger (`Deck actions`, `Swap Queue actions`, Suggest `More`), not a top-level `button`.
+
+## Where to put tests
+
+| Kind | Location | Environment |
+|------|----------|-------------|
+| Pure logic / stores / API client | `tests/unit/hub/*.test.ts` | happy-dom |
+| React components / hooks | `tests/web/*.test.tsx` (or `tests/unit/hub/*.test.tsx` if already there) | jsdom for `tests/web` |
+| Do not mix API Lambda tests into web coverage | `tests/api/` stays on default config | node |
+
+Coverage config uses **happy-dom** by default and **jsdom** for `tests/web/**` via `environmentMatchGlobs`.
+
+## Best practices (do)
+
+1. **Test behavior at module boundaries** — exportable functions, hooks, and components; avoid asserting implementation trivia.
+2. **Prefer branch-oriented cases** — empty/null input, unknown routes, 401/404/HTML API bodies, quota/localStorage failures, dual-mode API on/off.
+3. **Mock fetch with `.text()`** — `HubApiClient.clientApiFetch` reads `res.text()` then parses JSON. Mocks that only stub `.json()` will break:
+   ```ts
+   function jsonResponse(body: unknown, init: { status?: number; ok?: boolean } = {}) {
+     const status = init.status ?? 200;
+     const ok = init.ok ?? (status >= 200 && status < 300);
+     const text = body == null ? '' : typeof body === 'string' ? body : JSON.stringify(body);
+     return { status, ok, text: async () => text };
+   }
+   ```
+4. **Mock heavy children when testing shells** — e.g. `HubShell` should mock `DeckBuilderApp` / `OrderReconcileApp` / etc. so coverage stays focused and tests stay fast.
+5. **Reset storage and hub globals** between tests — use `resetHubModules`, `resetHubGlobalsInstalled`, `installHubGlobals` from existing helpers.
+6. **Extend existing suites** before adding parallel files for the same module.
+7. **RTL:** query by role/label; use `user-event` for clicks; assert visible outcomes. Overflow actions are `menuitem`s after opening `Deck actions` / `Swap Queue actions` / Suggest `More`.
+8. **Keep fixtures small** — reuse `tests/fixtures/` slices; do not snapshot entire Scryfall dumps into unit tests.
+
+## Best practices (don't)
+
+1. **Don't** rely on e2e alone for SPA branch coverage — RTL owns app chrome and phase transitions; Playwright owns cross-app flows.
+2. **Don't** use `istanbul ignore` / coverage ignores to hide real logic; only for truly unreachable defensive guards, and comment why.
+3. **Don't** redefine `window.location.hostname` under jsdom without a stubbed `location` object — prefer happy-dom for those tests or `vi.stubGlobal` carefully.
+4. **Don't** point Hub API URL at the Vite origin in tests or docs — `assertApiNotPageOrigin` rejects that class of misconfig.
+5. **Don't** add Playwright cases for pure function coverage — e2e is for navigation/flows.
+
+## Raising coverage when the gate fails
+
+1. Open `coverage/web-gate/index.html` (or `test:coverage:full` → `coverage/web-full/`) and sort by **missed branches**.
+2. Prioritize todo themes: deck-builder formal swaps, Suggest rules/guards, Order Reconcile assign/reconcile, dual-mode `HubStorage` / `HubApiClient`, then the **coverage backlog** exports/itemdb/generation.
+3. Add unit cases for missed conditionals; re-run `npm run test:coverage`.
+4. If a large `.tsx` app is pulled in transitively at 0%, stop importing it — mock it from the parent under test.
+
+## Config files
+
+| File | Role |
+|------|------|
+| `vitest.config.js` | Default unit + API |
+| `vitest.web.config.ts` | React RTL only |
+| `vitest.coverage.config.ts` | Combined unit+web **gated** coverage + 80% branch threshold |
+| `vitest.coverage.full.config.ts` | Full packages/web report (no threshold) |

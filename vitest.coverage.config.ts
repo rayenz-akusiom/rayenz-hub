@@ -7,7 +7,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Unified coverage run for packages/web (unit + React web tests).
- * Gate: ≥80% branches across SPA logic + UI (see AGENTS.md).
+ * Gate: ≥80% branches across SPA logic + UI (see .cursor/rules/testing-coverage.mdc).
  */
 export default defineConfig({
   plugins: [react()],

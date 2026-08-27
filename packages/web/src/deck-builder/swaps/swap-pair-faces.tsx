@@ -2,6 +2,7 @@ import {
   cardDisplayName,
   cardHasBackFace,
   cardImageUrl,
+  cardIsSeekingMarked,
   type CardView,
 } from '@rayenz-hub/shared';
 import { CardFace } from '../browse/CardFace';
@@ -38,9 +39,10 @@ export function MiniCard({ card }: { card: CardView | null }) {
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
   const proxy = Boolean(card.proxy);
+  const seeking = cardIsSeekingMarked(card);
   return (
     <div
-      className={`db-swap-mini${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}`}
+      className={`db-swap-mini${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${qty > 1 ? ' has-qty' : ''}`}
       onDragStart={blockDrag}
     >
       <CardFace
@@ -49,6 +51,7 @@ export function MiniCard({ card }: { card: CardView | null }) {
         name={cardDisplayName(card)}
         foil={foil}
         proxy={proxy}
+        seeking={seeking}
         quantity={qty}
         faceKey={card.instanceId}
         doubleFaced={doubleFaced}

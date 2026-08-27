@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CardInstance } from '@rayenz-hub/shared';
 import { App } from '../../packages/web/src/App';
 import { FormatBadge } from '../../packages/web/src/deck-builder/ui/FormatBadge';
 import { CardTile } from '../../packages/web/src/deck-builder/browse/CardTile';
+import { CardFlagCharmProvider } from '../../packages/web/src/deck-builder/browse/CardFlagCharmContext';
 import { ExportBar } from '../../packages/web/src/deck-builder/import-export/ExportBar';
+import { leanDeck, cardInstance } from '../unit/helpers/deck-fixtures';
 
 vi.mock('../../packages/web/src/SettingsShell', () => ({
   SettingsShell: () => <div data-testid="settings-shell">Settings shell</div>,
@@ -93,6 +95,49 @@ describe('CardTile', () => {
     });
     render(<CardTile card={bolt} selected />);
     expect(screen.getByRole('button', { name: /Shock/i })).toHaveClass('is-selected');
+  });
+
+  it('shows seeking badge when card is Seeking-marked', () => {
+    const bolt = card({
+      instanceId: 'inst-3',
+      name: 'Counterspell',
+      primaryCategory: 'Instants',
+      categories: ['Instants', 'Seeking'],
+    });
+    render(<CardTile card={bolt} />);
+    expect(screen.getByLabelText('Seeking')).toBeInTheDocument();
+  });
+
+  it('shows hover charms when provider enabled', () => {
+    const bolt = card({
+      instanceId: 'inst-4',
+      name: 'Opt',
+      primaryCategory: 'Instants',
+    });
+    const deck = leanDeck({
+      cards: [cardInstance({ instanceId: 'inst-4', name: 'Opt', primaryCategory: 'Instants' })],
+    });
+    render(
+      <CardFlagCharmProvider
+        value={{
+          enabled: true,
+          readOnly: false,
+          queuesReadOnly: false,
+          deck,
+          selectedIds: new Set(),
+          resolveTargetIds: (c) => [c.instanceId],
+          onToggleFoil: vi.fn(),
+          onToggleProxy: vi.fn(),
+          onToggleSeeking: vi.fn(),
+        }}
+      >
+        <CardTile card={bolt} />
+      </CardFlagCharmProvider>,
+    );
+    const tile = screen.getByRole('button', { name: /Opt/i });
+    expect(tile.querySelector('.db-card-charms')).toBeInTheDocument();
+    fireEvent.mouseEnter(tile);
+    expect(screen.getByRole('button', { name: 'Mark as foil' })).toBeInTheDocument();
   });
 });
 

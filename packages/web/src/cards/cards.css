@@ -105,6 +105,23 @@
   height: 0.95rem;
 }
 
+.db-badge-seeking {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: linear-gradient(135deg, #0e7490, #67e8f9 45%, #155e75);
+  color: #042f2e;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.db-badge-seeking-icon {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .db-badge-qty {
   font-size: 0.9rem;
   background: #0d1117;

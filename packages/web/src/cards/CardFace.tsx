@@ -9,6 +9,7 @@ import type { CardImageFace } from '@rayenz-hub/shared';
 import { useCardFaceSession } from './CardFaceSession';
 import { FoilIcon } from './FoilIcon';
 import { ProxyIcon } from './ProxyIcon';
+import { SeekingIcon } from './SeekingIcon';
 
 type ImgStatus = 'loading' | 'loaded' | 'error';
 
@@ -89,6 +90,7 @@ export function CardFace({
   name,
   foil = false,
   proxy = false,
+  seeking = false,
   quantity = 1,
   imgClassName = 'db-card-img',
   faceKey,
@@ -100,6 +102,7 @@ export function CardFace({
   name: string;
   foil?: boolean;
   proxy?: boolean;
+  seeking?: boolean;
   quantity?: number;
   imgClassName?: string;
   /** Session key for remembering front/back across moves (instanceId or scryfall id). */
@@ -154,7 +157,7 @@ export function CardFace({
       <CardMedia src={src} name={name} alt={name} imgClassName={imgClassName} />
     );
 
-  const showBottomBadges = canFlip || foil || proxy;
+  const showBottomBadges = canFlip || foil || proxy || seeking;
 
   return (
     <>
@@ -204,6 +207,11 @@ export function CardFace({
           {foil ? (
             <span className="db-badge db-badge-foil" title="Foil" aria-label="Foil">
               <FoilIcon filled />
+            </span>
+          ) : null}
+          {seeking ? (
+            <span className="db-badge db-badge-seeking" title="Seeking" aria-label="Seeking">
+              <SeekingIcon filled />
             </span>
           ) : null}
         </span>

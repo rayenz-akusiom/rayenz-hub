@@ -413,6 +413,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [minInput, setMinInput] = useState('');
   const [maxInput, setMaxInput] = useState('');
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>([]);
+  const [mainDeckOnly, setMainDeckOnly] = useState(false);
   const setFilter = useSetMembershipFilter();
   const syntaxCards = useMemo(() => {
     const seen = new Set<string>();
@@ -676,22 +677,29 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [decks]);
 
+  const deckById = useMemo(() => new Map(decks.map((d) => [d.deckId, d])), [decks]);
+
   const visible = useMemo(
     () =>
-      filterWantSources(sources, {
-        minUsd,
-        maxUsd,
-        deckIds: selectedDeckIds.length ? selectedDeckIds : null,
-        setMembership:
-          setFilter.appliedCodes.length && setFilter.membership
-            ? setFilter.membership
-            : null,
-        setExcludeMembership:
-          setFilter.appliedExcludeCodes.length && setFilter.excludeMembership
-            ? setFilter.excludeMembership
-            : null,
-        syntaxMembership: syntaxFilter.active ? syntaxFilter.membership : null,
-      }),
+      filterWantSources(
+        sources,
+        {
+          minUsd,
+          maxUsd,
+          deckIds: selectedDeckIds.length ? selectedDeckIds : null,
+          setMembership:
+            setFilter.appliedCodes.length && setFilter.membership
+              ? setFilter.membership
+              : null,
+          setExcludeMembership:
+            setFilter.appliedExcludeCodes.length && setFilter.excludeMembership
+              ? setFilter.excludeMembership
+              : null,
+          syntaxMembership: syntaxFilter.active ? syntaxFilter.membership : null,
+          mainDeckOnly,
+        },
+        { deckById },
+      ),
     [
       sources,
       minUsd,
@@ -703,6 +711,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       setFilter.excludeMembership,
       syntaxFilter.active,
       syntaxFilter.membership,
+      mainDeckOnly,
+      deckById,
     ],
   );
 
@@ -1117,7 +1127,8 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     priceFilterActive ||
     selectedDeckIds.length > 0 ||
     setFilter.active ||
-    syntaxFilter.active;
+    syntaxFilter.active ||
+    mainDeckOnly;
 
   function applyNetworkFilters() {
     void Promise.all([setFilter.apply(), syntaxFilter.apply()]);
@@ -1127,6 +1138,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     setFilter.clear();
     syntaxFilter.clear();
     setSelectedDeckIds([]);
+    setMainDeckOnly(false);
     setMinAmount(null);
     setMaxAmount(null);
     setMinInput('');
@@ -1138,6 +1150,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     selectedDeckIds.length ? deckFilterLabel(selectedDeckIds, deckOptions) : '',
     setFilter.active ? setFilter.label : '',
     priceFilterActive ? priceMenuLabel(minAmount, maxAmount, effectiveCurrency) : '',
+    mainDeckOnly ? 'Main deck only' : '',
   ]);
 
   const filterChips: ActiveFilterChip[] = [];
@@ -1172,6 +1185,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         setMinInput('');
         setMaxInput('');
       },
+    });
+  }
+  if (mainDeckOnly) {
+    filterChips.push({
+      id: 'main-deck',
+      label: 'Main deck only',
+      onDismiss: () => setMainDeckOnly(false),
     });
   }
 
@@ -1300,6 +1320,14 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
               fxDate={fx?.date ?? null}
               fxUnavailable={fxUnavailable}
             />
+            <label className="db-flag-filter-option">
+              <input
+                type="checkbox"
+                checked={mainDeckOnly}
+                onChange={(e) => setMainDeckOnly(e.target.checked)}
+              />
+              Main deck only
+            </label>
           </FiltersMenu>
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
         </div>

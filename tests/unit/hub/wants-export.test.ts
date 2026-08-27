@@ -4,10 +4,12 @@ import {
   buildNameQtyWantsText,
   filterWantSources,
   formalSwapMatchesSetMembership,
+  isMainDeckWantSource,
   passesDeckFilter,
   passesPriceFilter,
   passesSetFilter,
 } from '../../../packages/shared/src/mtg/wants-export.ts';
+import type { DeckDocument } from '../../../packages/shared/src/schemas/deck-builder.ts';
 import {
   buildInSetQuery,
   cardMatchesSetMembership,
@@ -397,6 +399,255 @@ describe('wants-export', () => {
         null,
       ),
     ).toBe(true);
+  });
+
+  it('isMainDeckWantSource keeps secondary Seeking on main-deck primary', () => {
+    const deck: DeckDocument = {
+      schemaVersion: 1,
+      deckId: 'd1',
+      name: 'Test',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: null,
+      categories: [{ name: 'Creature', includedInDeck: true, includedInPrice: true, target: null }],
+      cards: [
+        {
+          instanceId: 'c1',
+          name: 'Birds of Paradise',
+          primaryCategory: 'Creature',
+          categories: ['Creature', 'Seeking'],
+          quantity: 1,
+          foil: false,
+          proxy: false,
+          scryfallId: 'x',
+          setCode: 'm10',
+          collectorNumber: '1',
+          layout: 'normal',
+          typeLine: 'Creature',
+          colourIdentity: ['G'],
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+        },
+      ],
+      oracle: {},
+      formalSwapEntries: [],
+      lookingForEntries: [{ id: 'lf1', instanceId: 'c1', sortIndex: 0, notes: null }],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+    };
+    const seeking = src({
+      kind: 'seeking',
+      deckId: 'd1',
+      cardInstanceId: 'c1',
+      entryId: 'lf1',
+      cardName: 'Birds of Paradise',
+      mergeKey: 'birds of paradise',
+      quantity: 1,
+    });
+    expect(isMainDeckWantSource(seeking, deck)).toBe(true);
+  });
+
+  it('isMainDeckWantSource rejects primary Seeking, maybeboard, and swap pairs', () => {
+    const deck: DeckDocument = {
+      schemaVersion: 1,
+      deckId: 'd1',
+      name: 'Test',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: null,
+      categories: [
+        { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+      cards: [
+        {
+          instanceId: 'aside',
+          name: 'Aside Seek',
+          primaryCategory: 'Seeking',
+          categories: ['Seeking'],
+          quantity: 1,
+          foil: false,
+          proxy: false,
+          scryfallId: 'a',
+          setCode: 'm10',
+          collectorNumber: '1',
+          layout: 'normal',
+          typeLine: 'Instant',
+          colourIdentity: ['U'],
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+        },
+        {
+          instanceId: 'mb',
+          name: 'Maybe Card',
+          primaryCategory: 'Maybeboard',
+          categories: ['Maybeboard'],
+          quantity: 1,
+          foil: false,
+          proxy: false,
+          scryfallId: 'b',
+          setCode: 'm10',
+          collectorNumber: '2',
+          layout: 'normal',
+          typeLine: 'Instant',
+          colourIdentity: ['U'],
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+        },
+      ],
+      oracle: {},
+      formalSwapEntries: [],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+    };
+    expect(
+      isMainDeckWantSource(
+        src({
+          kind: 'seeking',
+          deckId: 'd1',
+          cardInstanceId: 'aside',
+          entryId: 'lf1',
+          cardName: 'Aside Seek',
+          mergeKey: 'aside seek',
+          quantity: 1,
+        }),
+        deck,
+      ),
+    ).toBe(false);
+    expect(
+      isMainDeckWantSource(
+        src({
+          kind: 'seeking',
+          deckId: 'd1',
+          cardInstanceId: 'mb',
+          entryId: 'lf2',
+          cardName: 'Maybe Card',
+          mergeKey: 'maybe card',
+          quantity: 1,
+        }),
+        deck,
+      ),
+    ).toBe(false);
+    expect(
+      isMainDeckWantSource(
+        src({
+          kind: 'queued_in',
+          deckId: 'd1',
+          cardInstanceId: 'in1',
+          entryId: 'p1',
+          cardName: 'In',
+          mergeKey: 'in',
+          quantity: 1,
+        }),
+        deck,
+      ),
+    ).toBe(false);
+  });
+
+  it('filterWantSources applies mainDeckOnly with deck context', () => {
+    const deck: DeckDocument = {
+      schemaVersion: 1,
+      deckId: 'd1',
+      name: 'Test',
+      format: 'commander',
+      archidektId: null,
+      archidektUrl: null,
+      categories: [
+        { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+        { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+      cards: [
+        {
+          instanceId: 'main',
+          name: 'Main Seek',
+          primaryCategory: 'Creature',
+          categories: ['Creature', 'Seeking'],
+          quantity: 1,
+          foil: false,
+          proxy: false,
+          scryfallId: 'm',
+          setCode: 'm10',
+          collectorNumber: '1',
+          layout: 'normal',
+          typeLine: 'Creature',
+          colourIdentity: ['G'],
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+        },
+        {
+          instanceId: 'aside',
+          name: 'Aside Seek',
+          primaryCategory: 'Seeking',
+          categories: ['Seeking'],
+          quantity: 1,
+          foil: false,
+          proxy: false,
+          scryfallId: 'a',
+          setCode: 'm10',
+          collectorNumber: '2',
+          layout: 'normal',
+          typeLine: 'Instant',
+          colourIdentity: ['U'],
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+        },
+      ],
+      oracle: {},
+      formalSwapEntries: [],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+    };
+    const main = src({
+      kind: 'seeking',
+      deckId: 'd1',
+      cardInstanceId: 'main',
+      entryId: 'lf1',
+      cardName: 'Main Seek',
+      mergeKey: 'main seek',
+      quantity: 1,
+    });
+    const aside = src({
+      kind: 'seeking',
+      deckId: 'd1',
+      cardInstanceId: 'aside',
+      entryId: 'lf2',
+      cardName: 'Aside Seek',
+      mergeKey: 'aside seek',
+      quantity: 1,
+    });
+    const pairIn = src({
+      kind: 'queued_in',
+      deckId: 'd1',
+      cardInstanceId: 'in1',
+      entryId: 'p1',
+      cardName: 'Sol Ring',
+      mergeKey: 'sol ring',
+      quantity: 1,
+    });
+    const visible = filterWantSources([main, aside, pairIn], { minUsd: null, mainDeckOnly: true }, {
+      deckById: new Map([['d1', deck]]),
+    });
+    expect(visible.map((s) => s.cardName)).toEqual(['Main Seek']);
   });
 });
 

@@ -1873,6 +1873,23 @@ body,
   height: 0.95rem;
 }
 
+.db-badge-seeking {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: linear-gradient(135deg, #0e7490, #67e8f9 45%, #155e75);
+  color: #042f2e;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.db-badge-seeking-icon {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .db-badge-qty {
   font-size: 0.9rem;
   background: #0d1117;
@@ -2250,7 +2267,8 @@ body,
 }
 
 .db-foil-toggle,
-.db-proxy-toggle {
+.db-proxy-toggle,
+.db-seeking-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2259,7 +2277,8 @@ body,
 }
 
 .db-foil-toggle .db-badge-foil-icon,
-.db-proxy-toggle .db-badge-proxy-icon {
+.db-proxy-toggle .db-badge-proxy-icon,
+.db-seeking-toggle .db-badge-seeking-icon {
   display: block;
   width: 1.05rem;
   height: 1.05rem;
@@ -2275,6 +2294,12 @@ body,
   color: #111827;
   background: linear-gradient(135deg, #6b7280, #d1d5db 45%, #4b5563);
   border-color: #4b5563;
+}
+
+.db-seeking-toggle.is-seeking {
+  color: #042f2e;
+  background: linear-gradient(135deg, #0e7490, #67e8f9 45%, #155e75);
+  border-color: #155e75;
 }
 
 .db-foil-toggle:disabled {
@@ -2341,9 +2366,126 @@ body,
 }
 
 .db-card-context-foil .db-badge-foil-icon,
-.db-card-context-proxy .db-badge-proxy-icon {
+.db-card-context-proxy .db-badge-proxy-icon,
+.db-card-context-seeking .db-badge-seeking-icon {
   width: 0.95rem;
   height: 0.95rem;
+}
+
+.db-card-context-seeking {
+  display: inline-flex;
+  color: #6b7280;
+}
+
+.db-card-context-seeking.is-seeking {
+  color: #155e75;
+}
+
+.db-card-charms {
+  position: absolute;
+  top: 0.35rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.db-card-tile:hover .db-card-charms,
+.db-card-tile:focus-within .db-card-charms,
+.db-card-tile.is-selected .db-card-charms {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.db-card-stack .db-card-charms {
+  opacity: 0;
+  transition-delay: 0s;
+}
+
+.db-card-stack-item:last-child .db-card-charms {
+  opacity: 0;
+}
+
+.db-card-stack-item:hover .db-card-charms,
+.db-card-stack-item:focus-within .db-card-charms,
+.db-card-stack-item:last-child:hover .db-card-charms,
+.db-card-stack-item:last-child:focus-within .db-card-charms {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.35s;
+}
+
+.db-card-charm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.db-card-charm:hover,
+.db-card-charm:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.65);
+  color: #fff;
+}
+
+.db-card-charm:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.db-card-charm .db-badge-foil-icon,
+.db-card-charm .db-badge-proxy-icon,
+.db-card-charm .db-badge-seeking-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.db-card-charm-foil.is-active {
+  color: #1a1508;
+  background: linear-gradient(135deg, #c9a227, #f0e6a8 40%, #9a7b1a);
+  border-color: #9a7b1a;
+}
+
+.db-card-charm-proxy.is-active {
+  color: #111827;
+  background: linear-gradient(135deg, #6b7280, #d1d5db 45%, #4b5563);
+  border-color: #4b5563;
+}
+
+.db-card-charm-seeking.is-active {
+  color: #042f2e;
+  background: linear-gradient(135deg, #0e7490, #67e8f9 45%, #155e75);
+  border-color: #155e75;
+}
+
+.db-count.is-pulse {
+  animation: db-seeking-count-pulse 0.6s ease;
+}
+
+@keyframes db-seeking-count-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.08);
+  }
 }
 
 .db-swaps-header {

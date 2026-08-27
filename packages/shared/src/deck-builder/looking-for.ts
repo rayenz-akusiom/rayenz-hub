@@ -13,7 +13,7 @@ import {
   isLookingForCategory,
   isSwapQueueCategoryName,
 } from '../mtg/swap-queue.js';
-import { categoryIncluded } from './browse.js';
+import { categoryIncluded, removeSecondaryCategory } from './browse.js';
 import { defaultAddCategory, ensureCategoryDef } from './card-edits.js';
 import { formalSwapInIds } from './formal-swaps.js';
 import { isBasicLand } from './quantities.js';
@@ -285,7 +285,36 @@ export function markCardsSeekingSecondary(
   return addSeekingSecondaryToCards(deck, ids);
 }
 
-function isMainDeckSeekingCandidate(
+function unmarkCardsSeeking(deck: DeckDocument, instanceIds: ReadonlySet<string>): DeckDocument {
+  const format = deck.format;
+  let changed = false;
+  const cards = (deck.cards || []).map((c) => {
+    if (!instanceIds.has(c.instanceId)) return c;
+    if (!cardIsSeekingMarked(c)) return c;
+    changed = true;
+    if (isSeekingCategory(c.primaryCategory)) {
+      return clearSeekingCategory(c, format);
+    }
+    return removeSecondaryCategory([c], c.instanceId, SEEKING)[0]!;
+  });
+  if (!changed) return deck;
+  return reconcileLookingForFromCards({ ...deck, cards });
+}
+
+/**
+ * Toggle Seeking on selected cards: mark as secondary when any target is unmarked,
+ * otherwise clear Seeking membership and reconcile entries.
+ */
+export function toggleCardsSeeking(deck: DeckDocument, instanceIds: string[]): DeckDocument {
+  const ids = new Set((instanceIds || []).filter(Boolean));
+  if (!ids.size) return deck;
+  const targets = (deck.cards || []).filter((c) => ids.has(c.instanceId));
+  const anyUnmarked = targets.some((c) => !cardIsSeekingMarked(c));
+  if (anyUnmarked) return markCardsSeekingSecondary(deck, [...ids]);
+  return unmarkCardsSeeking(deck, ids);
+}
+
+export function isMainDeckSeekingCandidate(
   deck: Pick<DeckDocument, 'categories'>,
   card: CardInstance,
 ): boolean {
@@ -317,4 +346,10 @@ export function markMainDeckSeekingSecondary(deck: DeckDocument): DeckDocument {
   return addSeekingSecondaryToCards(deck, ids);
 }
 
-export { SEEKING, LOOKING_FOR, isSeekingCategory, isLookingForCategory, isSwapQueueCategoryName };
+export {
+  SEEKING,
+  LOOKING_FOR,
+  isSeekingCategory,
+  isLookingForCategory,
+  isSwapQueueCategoryName,
+};

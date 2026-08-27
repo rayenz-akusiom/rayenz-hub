@@ -1,5 +1,7 @@
 import { cardMatchesNameMembership, cardMatchesSetMembership } from '../deck-builder/scryfall-api.js';
-import type { FormalSwapEntry } from '../schemas/deck-builder.js';
+import { categoryIncluded } from '../deck-builder/browse.js';
+import { isSeekingCategory, isSwapQueueCategoryName } from '../mtg/swap-queue.js';
+import type { DeckDocument, FormalSwapEntry } from '../schemas/deck-builder.js';
 import { unifyWantSources, type WantSource } from './wants-aggregate.js';
 
 // Re-export for callers that filter decks/swaps with the same membership set.
@@ -28,7 +30,26 @@ export type WantsPriceFilter = {
    * Pair filtering uses the same either-side rule as {@link setMembership}.
    */
   syntaxMembership?: ReadonlySet<string> | null;
+  /** When true, keep only wants whose deck card is in the counted main deck. */
+  mainDeckOnly?: boolean;
 };
+
+export type WantsFilterContext = {
+  deckById?: ReadonlyMap<string, DeckDocument>;
+};
+
+/** True when the want's deck card is in an included main-deck category (not aside / swap pair). */
+export function isMainDeckWantSource(source: WantSource, deck: DeckDocument): boolean {
+  if (source.kind === 'queued_in' || source.kind === 'queued_out') return false;
+  const card = (deck.cards || []).find((c) => c.instanceId === source.cardInstanceId);
+  if (!card) return false;
+  const primary = card.primaryCategory || 'Other';
+  if (primary === 'Maybeboard') return false;
+  if (isSeekingCategory(primary)) return false;
+  if (isSwapQueueCategoryName(primary)) return false;
+  if (!categoryIncluded(deck.categories || [], primary)) return false;
+  return true;
+}
 
 /**
  * Price filter: missing USD always passes (proxy targets).
@@ -101,6 +122,7 @@ function pairKey(source: WantSource): string {
 export function filterWantSources(
   sources: WantSource[],
   filter: WantsPriceFilter,
+  context?: WantsFilterContext,
 ): WantSource[] {
   const base = (sources || []).filter((s) => passesBaseFilters(s, filter));
   const membership = filter.setMembership;
@@ -109,7 +131,9 @@ export function filterWantSources(
   const includeOn = membership != null && membership.size > 0;
   const excludeOn = exclude != null && exclude.size > 0;
   const syntaxOn = syntax != null;
-  if (!includeOn && !excludeOn && !syntaxOn) return base;
+  if (!includeOn && !excludeOn && !syntaxOn) {
+    return applyMainDeckOnlyFilter(base, filter, context);
+  }
 
   const keepKeys = new Set<string>();
   const pairSides = new Map<string, { in?: WantSource; out?: WantSource }>();
@@ -156,12 +180,29 @@ export function filterWantSources(
     keepKeys.add(`pair:${key}`);
   }
 
-  return base.filter((s) => {
-    if (s.kind === 'seeking') return keepKeys.has(`seeking:${pairKey(s)}`);
-    if (s.kind === 'queued_in' || s.kind === 'queued_out') {
-      return keepKeys.has(`pair:${pairKey(s)}`);
-    }
-    return false;
+  return applyMainDeckOnlyFilter(
+    base.filter((s) => {
+      if (s.kind === 'seeking') return keepKeys.has(`seeking:${pairKey(s)}`);
+      if (s.kind === 'queued_in' || s.kind === 'queued_out') {
+        return keepKeys.has(`pair:${pairKey(s)}`);
+      }
+      return false;
+    }),
+    filter,
+    context,
+  );
+}
+
+function applyMainDeckOnlyFilter(
+  sources: WantSource[],
+  filter: WantsPriceFilter,
+  context?: WantsFilterContext,
+): WantSource[] {
+  if (!filter.mainDeckOnly || !context?.deckById?.size) return sources;
+  return sources.filter((s) => {
+    const deck = context.deckById!.get(s.deckId);
+    if (!deck) return false;
+    return isMainDeckWantSource(s, deck);
   });
 }
 

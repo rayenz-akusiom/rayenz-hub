@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { DeckFormat } from '@rayenz-hub/shared';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
+import { SeekingIcon } from '../../cards/SeekingIcon';
 import { canCopyPng } from '../../lib/glance-png';
 import { CategorySelectOptgroups } from './CategorySelectOptgroups';
 
@@ -19,6 +20,7 @@ export function CardContextMenu({
   foil,
   foilEnabled,
   proxy,
+  seeking = false,
   secondaryCategories = [],
   categoryOptions = [],
   format = 'commander',
@@ -26,6 +28,7 @@ export function CardContextMenu({
   onClose,
   onToggleFoil,
   onToggleProxy,
+  onToggleSeeking,
   onSetCover,
   onClearCover,
   onMove,
@@ -48,6 +51,7 @@ export function CardContextMenu({
   foil: boolean;
   foilEnabled: boolean;
   proxy: boolean;
+  seeking?: boolean;
   secondaryCategories?: string[];
   /** Categories available to add as secondary (excludes current memberships). */
   categoryOptions?: string[];
@@ -56,13 +60,12 @@ export function CardContextMenu({
   onClose: () => void;
   onToggleFoil: () => void;
   onToggleProxy: () => void;
+  onToggleSeeking?: () => void;
   onSetCover: () => void;
   onClearCover: () => void;
   onMove: () => void;
   onMoveToDefault?: () => void;
   onAddToSwapQueue?: () => void;
-  /** Mark selection Seeking as secondary (keep in deck). */
-  onMarkSeekingInDeck?: () => void;
   onChangePrinting: () => void;
   /** Copy front-face art to the clipboard (single selection). */
   onCopyImage?: () => void;
@@ -157,6 +160,28 @@ export function CardContextMenu({
             ? `Mark as proxy (${selectionCount})`
             : 'Mark as proxy'}
       </button>
+      {onToggleSeeking ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onToggleSeeking();
+            onClose();
+          }}
+        >
+          <span className={`db-card-context-seeking${seeking ? ' is-seeking' : ''}`}>
+            <SeekingIcon filled={seeking} />
+          </span>
+          {seeking
+            ? multi
+              ? `Unmark seeking (${selectionCount})`
+              : 'Unmark seeking'
+            : multi
+              ? `Mark as seeking (${selectionCount})`
+              : 'Mark as seeking'}
+        </button>
+      ) : null}
       {!multi ? (
         isCover ? (
           <button
@@ -219,21 +244,6 @@ export function CardContextMenu({
           }}
         >
           {multi ? `Add ${selectionCount} to swap queue` : 'Add to swap queue'}
-        </button>
-      ) : null}
-      {onMarkSeekingInDeck ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="db-card-context-item"
-          onClick={() => {
-            onMarkSeekingInDeck();
-            onClose();
-          }}
-        >
-          {multi
-            ? `Mark ${selectionCount} Seeking (in deck)`
-            : 'Mark Seeking (in deck)'}
         </button>
       ) : null}
       {!multi

@@ -22,6 +22,7 @@ import {
   formalSwapInIds,
   isSeekingCategory,
   isTheoryDeck,
+  cardIsSeekingMarked,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
   type BrowseView,
@@ -245,6 +246,8 @@ export function DropSection({
   cardSort = 'name_asc',
   target = null,
   primaryCount,
+  countOverride,
+  countPulse = false,
   warnTarget = false,
   swapInIds,
 }: {
@@ -270,6 +273,9 @@ export function DropSection({
   target?: number | null;
   /** Primary-only count for target warnings (multi browse may inflate `cards.length`). */
   primaryCount?: number;
+  /** When set, replaces the displayed section count (e.g. total Seeking across deck). */
+  countOverride?: number;
+  countPulse?: boolean;
   warnTarget?: boolean;
   swapInIds?: ReadonlySet<string> | null;
 }) {
@@ -281,7 +287,7 @@ export function DropSection({
     () => sortCardsInGroup(cards, cardSort, undefined, swapInIds),
     [cards, cardSort, swapInIds],
   );
-  const n = primaryCount != null ? primaryCount : sorted.length;
+  const n = countOverride != null ? countOverride : primaryCount != null ? primaryCount : sorted.length;
   const countLabel =
     target != null ? `(${n}/${target})` : `(${n})`;
   const mismatch = warnTarget && target != null && n !== target;
@@ -316,7 +322,7 @@ export function DropSection({
           aria-label={`Edit ${category}`}
         >
           <span className="db-section-title-text">{category}</span>
-          <span className="db-count">{countLabel}</span>
+          <span className={`db-count${countPulse ? ' is-pulse' : ''}`}>{countLabel}</span>
           <span className="db-section-title-pencil" aria-hidden="true">
             ✎
           </span>
@@ -327,7 +333,7 @@ export function DropSection({
           title={category}
         >
           <span className="db-section-title-text">{category}</span>{' '}
-          <span className="db-count">{countLabel}</span>
+          <span className={`db-count${countPulse ? ' is-pulse' : ''}`}>{countLabel}</span>
         </h3>
       )}
       {sectionAction ? (
@@ -1221,6 +1227,7 @@ export function CategoryBrowse({
   onCardContextMenu,
   onEditCategory,
   onMarkMainDeckSeeking,
+  seekingCountPulse = false,
   onVisibleOrderChange,
   onSetOwnership,
   onSetVisibility,
@@ -1272,6 +1279,7 @@ export function CategoryBrowse({
   onEditCategory?: (category: string) => void;
   /** Aside Seeking: mark included main-deck cards Seeking as secondary. */
   onMarkMainDeckSeeking?: () => void;
+  seekingCountPulse?: boolean;
   /** Flattened visible instance ids for shift-click range selection. */
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
@@ -1313,6 +1321,10 @@ export function CategoryBrowse({
   const categories = deck.categories || [];
   const dropHandler = multi ? undefined : onDropCard;
   const warnTargets = !multi;
+  const totalSeekingCount = useMemo(
+    () => resolved.filter((c) => cardIsSeekingMarked(c)).length,
+    [resolved],
+  );
 
   const visibleOrder = useMemo(() => {
     if (mode === 'aside') {
@@ -1388,6 +1400,8 @@ export function CategoryBrowse({
             cardSort={cardSort}
             target={categoryTarget(categories, cat)}
             primaryCount={primaryCategoryCount(resolved, cat)}
+            countOverride={isSeekingCategory(cat) ? totalSeekingCount : undefined}
+            countPulse={isSeekingCategory(cat) ? seekingCountPulse : false}
             warnTarget={warnTargets}
             swapInIds={swapInIds}
           />

@@ -99,6 +99,11 @@ describe('CardFace', () => {
     expect(screen.getByLabelText('Proxy')).toBeInTheDocument();
   });
 
+  it('shows seeking badge when seeking', () => {
+    render(<CardFace src="https://example.com/card.jpg" name="Seeking Card" seeking />);
+    expect(screen.getByLabelText('Seeking')).toBeInTheDocument();
+  });
+
   it('flips locally for double-faced cards without session', async () => {
     const user = userEvent.setup();
     render(

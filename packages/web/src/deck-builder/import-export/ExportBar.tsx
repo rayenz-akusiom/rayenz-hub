@@ -52,6 +52,10 @@ export function ExportBar({
   onProxyFilterChange,
   foilFilter,
   onFoilFilterChange,
+  seekingFilter,
+  onSeekingFilterChange,
+  cardCharmsEnabled,
+  onCardCharmsEnabledChange,
 }: {
   view: BrowseView;
   onViewChange: (next: BrowseView) => void;
@@ -67,12 +71,18 @@ export function ExportBar({
   onProxyFilterChange?: (next: FlagFilterMode) => void;
   foilFilter?: FlagFilterMode;
   onFoilFilterChange?: (next: FlagFilterMode) => void;
+  seekingFilter?: FlagFilterMode;
+  onSeekingFilterChange?: (next: FlagFilterMode) => void;
+  cardCharmsEnabled?: boolean;
+  onCardCharmsEnabledChange?: (enabled: boolean) => void;
 }) {
   const hasFilters =
     Boolean(setFilter) ||
     Boolean(syntaxFilter) ||
     (proxyFilter != null && onProxyFilterChange != null) ||
-    (foilFilter != null && onFoilFilterChange != null);
+    (foilFilter != null && onFoilFilterChange != null) ||
+    (seekingFilter != null && onSeekingFilterChange != null) ||
+    onCardCharmsEnabledChange != null;
   const filtersLoading = Boolean(setFilter?.loading || syntaxFilter?.loading);
   const filtersValue = filtersMenuLabel([
     syntaxFilter?.active ? syntaxFilter.label : '',
@@ -81,6 +91,10 @@ export function ExportBar({
       ? `Proxy ${FLAG_FILTER_MODE_LABELS[proxyFilter]}`
       : '',
     foilFilter && foilFilter !== 'all' ? `Foil ${FLAG_FILTER_MODE_LABELS[foilFilter]}` : '',
+    seekingFilter && seekingFilter !== 'all'
+      ? `Seeking ${FLAG_FILTER_MODE_LABELS[seekingFilter]}`
+      : '',
+    cardCharmsEnabled === false ? 'Charms off' : '',
   ]);
 
   function applyNetworkFilters() {
@@ -95,6 +109,8 @@ export function ExportBar({
     syntaxFilter?.clear();
     onProxyFilterChange?.('all');
     onFoilFilterChange?.('all');
+    onSeekingFilterChange?.('all');
+    onCardCharmsEnabledChange?.(true);
   }
   return (
     <div className="db-toolbar-controls">
@@ -186,6 +202,23 @@ export function ExportBar({
           ) : null}
           {foilFilter != null && onFoilFilterChange ? (
             <FlagFilterRow label="Foil" mode={foilFilter} onModeChange={onFoilFilterChange} />
+          ) : null}
+          {seekingFilter != null && onSeekingFilterChange ? (
+            <FlagFilterRow
+              label="Seeking"
+              mode={seekingFilter}
+              onModeChange={onSeekingFilterChange}
+            />
+          ) : null}
+          {onCardCharmsEnabledChange ? (
+            <label className="db-flag-filter-option">
+              <input
+                type="checkbox"
+                checked={cardCharmsEnabled !== false}
+                onChange={(e) => onCardCharmsEnabledChange(e.target.checked)}
+              />
+              Card hover charms
+            </label>
           ) : null}
         </FiltersMenu>
       ) : null}

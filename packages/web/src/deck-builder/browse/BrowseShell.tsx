@@ -16,6 +16,7 @@ import {
   cardMatchesSetMembership,
   cardMatchesSyntaxMembership,
   cardSupportsFoilToggle,
+  cardIsSeekingMarked,
   categoryIncluded,
   categoryTargetsMismatchCubeSize,
   changeCardPrinting,
@@ -38,8 +39,7 @@ import {
   isSeekingCategory,
   isSwapQueueCategoryName,
   MAYBEBOARD,
-  markCardsSeekingSecondary,
-  markMainDeckSeekingSecondary,
+  toggleCardsSeeking,
   moveCardsCategory,
   moveCardsToDefaultCategories,
   placeCardInCommanderSlot,
@@ -71,6 +71,7 @@ import {
   type ScryfallCard,
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from './CategoryBrowse';
+import { CardFlagCharmProvider } from './CardFlagCharmContext';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { UnifiedListBrowse } from './UnifiedListBrowse';
 import { AddCardFab } from './AddCardFab';
@@ -105,6 +106,7 @@ import { useCardSize } from '../card-size';
 import { DeckProfilePanel } from '../profile/DeckProfilePanel';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
+import { SeekingIcon } from '../../cards/SeekingIcon';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 import { useSetMembershipFilter } from '../ui/SetFilterControl';
 import { useScryfallSyntaxFilter } from '../ui/SyntaxFilterControl';
@@ -115,6 +117,7 @@ import {
 } from '../ui/FlagFilterControl';
 import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChips';
 import { useDeckEditHistory } from '../useDeckEditHistory';
+import { loadCardCharmsPref, saveCardCharmsPref } from '../card-charms-pref';
 import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
 import { navigateHub } from '../../lib/hub-storage';
 import {
@@ -241,6 +244,12 @@ export function BrowseShell({
   const setFilter = useSetMembershipFilter();
   const [proxyFilter, setProxyFilter] = useState<FlagFilterMode>('all');
   const [foilFilter, setFoilFilter] = useState<FlagFilterMode>('all');
+  const [seekingFilter, setSeekingFilter] = useState<FlagFilterMode>('all');
+  const [cardCharmsEnabled, setCardCharmsEnabled] = useState(
+    () => loadCardCharmsPref().enabled,
+  );
+  const [seekingStatus, setSeekingStatus] = useState<string | null>(null);
+  const [seekingCountPulse, setSeekingCountPulse] = useState(false);
   useDragAutoScroll();
   const shellRef = useRef<HTMLDivElement>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
@@ -248,6 +257,7 @@ export function BrowseShell({
   const glanceOpenRef = useRef<GlanceGenerateHandle | null>(null);
   const cardSizeReady = useRef(false);
   const removeSelectedRef = useRef<() => void>(() => {});
+  const toggleSeekingRef = useRef<() => void>(() => {});
   const consumedPairRef = useRef<string | null>(null);
   /** True once size was over target while this trim session was active (for auto-exit). */
   const trimWasOverRef = useRef(false);
@@ -309,7 +319,7 @@ export function BrowseShell({
     const membership = setFilter.membership;
     const syntaxActive = syntaxFilter.active;
     const syntaxMembership = syntaxFilter.membership;
-    const flagActive = proxyFilter !== 'all' || foilFilter !== 'all';
+    const flagActive = proxyFilter !== 'all' || foilFilter !== 'all' || seekingFilter !== 'all';
     if (!setActive && !syntaxActive && !flagActive) return liveDeck;
     return {
       ...liveDeck,
@@ -322,6 +332,7 @@ export function BrowseShell({
         }
         if (!cardMatchesFlagFilter(Boolean(c.proxy), proxyFilter)) return false;
         if (!cardMatchesFlagFilter(Boolean(c.foil), foilFilter)) return false;
+        if (!cardMatchesFlagFilter(cardIsSeekingMarked(c), seekingFilter)) return false;
         return true;
       }),
     };
@@ -333,6 +344,7 @@ export function BrowseShell({
     syntaxFilter.membership,
     proxyFilter,
     foilFilter,
+    seekingFilter,
   ]);
 
   const incomplete = incompleteEntryCount(liveDeck.formalSwapEntries);
@@ -569,6 +581,18 @@ export function BrowseShell({
         removeSelectedRef.current();
         return;
       }
+      if (
+        !mod &&
+        !readOnly &&
+        !queuesReadOnly &&
+        !trimMode &&
+        selectedIds.size &&
+        key === 's'
+      ) {
+        e.preventDefault();
+        toggleSeekingRef.current();
+        return;
+      }
 
       if (e.key !== 'Escape') return;
       if (trimMode) {
@@ -589,6 +613,7 @@ export function BrowseShell({
     editHistory,
     readOnly,
     enterTrim,
+    queuesReadOnly,
   ]);
 
   // Drop selection entries that no longer exist on the deck.
@@ -725,6 +750,41 @@ export function BrowseShell({
     commit(setCardsProxy(deckRef.current, selectionIdList, anyNonProxy));
   }
 
+  function onToggleSeekingFor(instanceIds: string[]) {
+    if (queuesReadOnly || !instanceIds.length) return;
+    commit(toggleCardsSeeking(deckRef.current, instanceIds));
+  }
+
+  function onToggleSeeking() {
+    if (!selectionCount) return;
+    onToggleSeekingFor(selectionIdList);
+  }
+
+  function resolveCharmTargetIds(card: CardView): string[] {
+    if (selectedIds.has(card.instanceId) && selectedIds.size > 1) {
+      return selectionIdList;
+    }
+    return [card.instanceId];
+  }
+
+  function onToggleFoilFor(instanceIds: string[]) {
+    if (!instanceIds.length) return;
+    const cards = instanceIds
+      .map((id) => deckRef.current.cards.find((c) => c.instanceId === id))
+      .filter(Boolean) as CardView[];
+    const anyNonFoil = cards.some((c) => !c.foil);
+    commit(setCardsFoil(deckRef.current, instanceIds, anyNonFoil));
+  }
+
+  function onToggleProxyFor(instanceIds: string[]) {
+    if (!instanceIds.length) return;
+    const cards = instanceIds
+      .map((id) => deckRef.current.cards.find((c) => c.instanceId === id))
+      .filter(Boolean) as CardView[];
+    const anyNonProxy = cards.some((c) => !c.proxy);
+    commit(setCardsProxy(deckRef.current, instanceIds, anyNonProxy));
+  }
+
   function onMoveToDefault() {
     if (!selectionCount) return;
     commit(moveCardsToDefaultCategories(deckRef.current, selectionIdList));
@@ -735,15 +795,38 @@ export function BrowseShell({
     commit(queueCardsAsOut(deckRef.current, selectionIdList));
   }
 
-  function onMarkSeekingInDeck() {
-    if (queuesReadOnly || !selectionCount) return;
-    commit(markCardsSeekingSecondary(deckRef.current, selectionIdList));
+  function pulseSeekingCount() {
+    setSeekingCountPulse(true);
+    window.setTimeout(() => setSeekingCountPulse(false), 650);
   }
 
   function onMarkMainDeckSeeking() {
     if (queuesReadOnly) return;
-    commit(markMainDeckSeekingSecondary(deckRef.current));
+    const before = new Set(
+      (deckRef.current.cards || []).filter((c) => cardIsSeekingMarked(c)).map((c) => c.instanceId),
+    );
+    const next = markMainDeckSeekingSecondary(deckRef.current);
+    const after = new Set(
+      (next.cards || []).filter((c) => cardIsSeekingMarked(c)).map((c) => c.instanceId),
+    );
+    let marked = 0;
+    for (const id of after) {
+      if (!before.has(id)) marked += 1;
+    }
+    commit(next);
+    if (marked > 0) {
+      setSeekingStatus(`Marked ${marked} card${marked === 1 ? '' : 's'} Seeking`);
+      pulseSeekingCount();
+    } else {
+      setSeekingStatus('Main deck already marked Seeking');
+    }
   }
+
+  useEffect(() => {
+    if (!seekingStatus) return;
+    const t = window.setTimeout(() => setSeekingStatus(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [seekingStatus]);
 
   function onSetOwnership(ownership: DeckOwnership) {
     commitPatch({ ownership });
@@ -1034,9 +1117,13 @@ export function BrowseShell({
     ['--db-card-w']: `${cardWidthPx}px`,
   } as CSSProperties;
 
+  removeSelectedRef.current = onRemoveSelected;
+  toggleSeekingRef.current = onToggleSeeking;
+
   const foilToggleEnabled = selectedCards.some((c) => cardSupportsFoilToggle(liveDeck, c));
   const anyFoil = selectedCards.some((c) => c.foil);
   const anyProxy = selectedCards.some((c) => c.proxy);
+  const anySeeking = selectedCards.some((c) => cardIsSeekingMarked(c));
   const contextCard =
     contextMenu != null
       ? liveDeck.cards.find((c) => c.instanceId === contextMenu.instanceId) || null
@@ -1072,6 +1159,35 @@ export function BrowseShell({
       onDismiss: () => setFoilFilter('all'),
     });
   }
+  if (seekingFilter !== 'all') {
+    filterChips.push({
+      id: 'seeking',
+      label: `Seeking ${FLAG_FILTER_MODE_LABELS[seekingFilter]}`,
+      onDismiss: () => setSeekingFilter('all'),
+    });
+  }
+
+  const cardFlagCharmValue = useMemo(
+    () => ({
+      enabled: cardCharmsEnabled,
+      readOnly,
+      queuesReadOnly,
+      deck: liveDeck,
+      selectedIds,
+      resolveTargetIds: resolveCharmTargetIds,
+      onToggleFoil: onToggleFoilFor,
+      onToggleProxy: onToggleProxyFor,
+      onToggleSeeking: onToggleSeekingFor,
+    }),
+    [
+      cardCharmsEnabled,
+      readOnly,
+      queuesReadOnly,
+      liveDeck,
+      selectedIds,
+      selectionIdList,
+    ],
+  );
 
   return (
     <div
@@ -1099,6 +1215,13 @@ export function BrowseShell({
             onProxyFilterChange={setProxyFilter}
             foilFilter={foilFilter}
             onFoilFilterChange={setFoilFilter}
+            seekingFilter={seekingFilter}
+            onSeekingFilterChange={setSeekingFilter}
+            cardCharmsEnabled={cardCharmsEnabled}
+            onCardCharmsEnabledChange={(enabled) => {
+              setCardCharmsEnabled(enabled);
+              saveCardCharmsPref({ enabled });
+            }}
           />
           {readOnly ? null : (
             <DeckActionsMenu
@@ -1134,11 +1257,21 @@ export function BrowseShell({
             syntaxFilter.clear();
             setProxyFilter('all');
             setFoilFilter('all');
+            setSeekingFilter('all');
           }}
         />
+        {seekingStatus ? (
+          <p className="hub-muted" aria-live="polite">
+            {seekingStatus}
+          </p>
+        ) : null}
         {(trimMode || selectionCount > 0) && !readOnly ? (
           <p className="hub-muted hub-shortcut-hint">
-            {trimMode ? 'Trim mode · Esc exit' : 'Esc clear · Del remove · T trim'}
+            {trimMode
+              ? 'Trim mode · Esc exit'
+              : queuesReadOnly
+                ? 'Esc clear · Del remove · T trim'
+                : 'Esc clear · Del remove · T trim · S seeking'}
           </p>
         ) : !readOnly ? (
           <p className="hub-muted hub-shortcut-hint hub-touch-only-hint">Long-press a card for menu</p>
@@ -1146,6 +1279,7 @@ export function BrowseShell({
       </div>
 
       <div className="db-body">
+        <CardFlagCharmProvider value={cardFlagCharmValue}>
         <main className="db-main">
           {trimMode && !readOnly ? (
             <div
@@ -1218,6 +1352,18 @@ export function BrowseShell({
                 >
                   <ProxyIcon filled={anyProxy} />
                 </button>
+                {!queuesReadOnly ? (
+                  <button
+                    type="button"
+                    className={`db-btn db-seeking-toggle${anySeeking ? ' is-seeking' : ''}`}
+                    aria-pressed={anySeeking}
+                    aria-label={anySeeking ? 'Seeking' : 'Not seeking'}
+                    title={anySeeking ? 'Seeking — click to unmark' : 'Mark as seeking'}
+                    onClick={onToggleSeeking}
+                  >
+                    <SeekingIcon filled={anySeeking} />
+                  </button>
+                ) : null}
                 <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelected}>
                   Remove
                 </button>
@@ -1375,6 +1521,7 @@ export function BrowseShell({
               onCardContextMenu={onCardContextMenu}
               onEditCategory={(cat) => setEditingCategory(cat)}
               onMarkMainDeckSeeking={onMarkMainDeckSeeking}
+              seekingCountPulse={seekingCountPulse}
               onVisibleOrderChange={onAsideVisibleOrderChange}
               queuesReadOnly={queuesReadOnly}
               mode="aside"
@@ -1391,6 +1538,7 @@ export function BrowseShell({
             {asideTab === 'profile' ? <DeckProfilePanel deck={liveDeck} /> : null}
           </div>
         </aside>
+        </CardFlagCharmProvider>
       </div>
 
       {moveOpen && selectionCount ? (
@@ -1503,6 +1651,7 @@ export function BrowseShell({
               : cardSupportsFoilToggle(liveDeck, contextCard)
           }
           proxy={Boolean(contextCard.proxy)}
+          seeking={cardIsSeekingMarked(contextCard)}
           secondaryCategories={secondaryCategoriesOf(contextCard)}
           categoryOptions={deckCategoryOptions(liveDeck).filter(
             (c) =>
@@ -1521,7 +1670,7 @@ export function BrowseShell({
           onMove={() => setMoveOpen(true)}
           onMoveToDefault={onMoveToDefault}
           onAddToSwapQueue={queuesReadOnly ? undefined : onAddToSwapQueue}
-          onMarkSeekingInDeck={queuesReadOnly ? undefined : onMarkSeekingInDeck}
+          onToggleSeeking={queuesReadOnly ? undefined : onToggleSeeking}
           onChangePrinting={() => setPrintingOpen(true)}
           onCopyImage={() => {
             void copyCardImageToClipboard(contextCard);

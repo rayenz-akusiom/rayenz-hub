@@ -2,6 +2,7 @@ import {
   cardDisplayName,
   cardHasBackFace,
   cardImageUrl,
+  cardIsSeekingMarked,
   type CardView,
   type CategoryMembership,
 } from '@rayenz-hub/shared';
@@ -12,6 +13,7 @@ import type {
 } from 'react';
 import { useLongPress } from '../useLongPress';
 import { CardFace } from './CardFace';
+import { CardFlagCharms } from './CardFlagCharms';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
 const DRAG_MIME_MULTI = 'application/x-deck-builder-instances';
@@ -92,6 +94,7 @@ export function CardTile({
   const qty = Number(card.quantity) || 1;
   const foil = Boolean(card.foil);
   const proxy = Boolean(card.proxy);
+  const seeking = cardIsSeekingMarked(card);
   const displayName = cardDisplayName(card);
   const secondary = membership === 'secondary';
 
@@ -115,7 +118,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}`}
       onClick={(e) => {
         if (longPress.consumeClick()) return;
         onSelect?.(card, e);
@@ -153,10 +156,12 @@ export function CardTile({
         name={displayName}
         foil={foil}
         proxy={proxy}
+        seeking={seeking}
         quantity={qty}
         faceKey={card.instanceId}
         doubleFaced={doubleFaced}
       />
+      <CardFlagCharms card={card} selected={selected} />
     </div>
   );
 }

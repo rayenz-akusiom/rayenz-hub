@@ -3,6 +3,8 @@ import {
   applyLookingForToCards,
   markCardsSeekingSecondary,
   markMainDeckSeekingSecondary,
+  toggleCardsSeeking,
+  cardIsSeekingMarked,
   normalizeLookingForEntries,
   reconcileLookingForFromCards,
   seedLookingForFromCategories,
@@ -301,5 +303,28 @@ describe('looking-for', () => {
     );
     expect(part.excluded.Seeking.map((c) => c.instanceId)).toEqual(['c3']);
     expect(part.included.Creature?.some((c) => c.instanceId === 'c1')).toBe(true);
+  });
+
+  it('toggleCardsSeeking marks unmarked cards as secondary Seeking', () => {
+    const deck = markCardsSeekingSecondary(baseDeck(), ['c1']);
+    const c1 = deck.cards.find((c) => c.instanceId === 'c1')!;
+    expect(cardIsSeekingMarked(c1)).toBe(true);
+    expect(c1.primaryCategory).toBe('Creature');
+  });
+
+  it('toggleCardsSeeking unmarks when all targets are Seeking', () => {
+    const marked = markCardsSeekingSecondary(baseDeck(), ['c1']);
+    const toggled = toggleCardsSeeking(marked, ['c1']);
+    const c1 = toggled.cards.find((c) => c.instanceId === 'c1')!;
+    expect(cardIsSeekingMarked(c1)).toBe(false);
+    expect(toggled.lookingForEntries).toHaveLength(0);
+  });
+
+  it('toggleCardsSeeking marks when any target is unmarked in bulk', () => {
+    const next = toggleCardsSeeking(baseDeck(), ['c1', 'c2']);
+    expect(next.cards.filter((c) => cardIsSeekingMarked(c)).map((c) => c.instanceId).sort()).toEqual([
+      'c1',
+      'c2',
+    ]);
   });
 });

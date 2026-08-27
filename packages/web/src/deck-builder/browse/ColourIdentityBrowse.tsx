@@ -25,6 +25,7 @@ import {
   type DropCardHandler,
   type SelectCardHandler,
 } from './CategoryBrowse';
+import { type ContextMenuPoint } from './CardTile';
 import { MasonryColumns } from './MasonryColumns';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
@@ -87,7 +88,7 @@ export function ColourIdentityBrowse({
   cardSort?: CardSortMode;
   separateLands?: boolean;
   onDropCard?: DropCardHandler;
-  onCardContextMenu?: (card: CardView, e: MouseEvent) => void;
+  onCardContextMenu?: (card: CardView, at: MouseEvent | ContextMenuPoint) => void;
   onVisibleOrderChange?: (ids: string[]) => void;
   onSetOwnership?: (ownership: DeckOwnership) => void;
   onSetVisibility?: (visibility: DeckVisibility) => void;

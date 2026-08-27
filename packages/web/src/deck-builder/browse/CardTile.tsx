@@ -5,13 +5,20 @@ import {
   type CardView,
   type CategoryMembership,
 } from '@rayenz-hub/shared';
-import type { DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type {
+  DragEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react';
+import { useLongPress } from '../useLongPress';
 import { CardFace } from './CardFace';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
 const DRAG_MIME_MULTI = 'application/x-deck-builder-instances';
 
 export type SelectCardHandler = (card: CardView, e?: ReactMouseEvent | ReactKeyboardEvent) => void;
+
+export type ContextMenuPoint = { clientX: number; clientY: number };
 
 /** Instance ids encoded on an HTML5 drag (multi MIME preferred). */
 export function readDragInstanceIds(dt: DataTransfer): string[] {
@@ -73,11 +80,12 @@ export function CardTile({
   draggable?: boolean;
   /** Accessible name when the tile is an action (e.g. swap Change). */
   actionLabel?: string;
-  onContextMenu?: (card: CardView, e: ReactMouseEvent) => void;
+  onContextMenu?: (card: CardView, at: ReactMouseEvent | ContextMenuPoint) => void;
   membership?: CategoryMembership;
   /** Formal swap In — temporary ghost styling in main browse. */
   swapInGhost?: boolean;
 }) {
+  const longPress = useLongPress();
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
   const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
@@ -108,7 +116,10 @@ export function CardTile({
       role="button"
       tabIndex={0}
       className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}`}
-      onClick={(e) => onSelect?.(card, e)}
+      onClick={(e) => {
+        if (longPress.consumeClick()) return;
+        onSelect?.(card, e);
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -120,6 +131,15 @@ export function CardTile({
         e.preventDefault();
         onContextMenu(card, e);
       }}
+      onPointerDown={(e) => {
+        if (!onContextMenu) return;
+        longPress.start(e, (pos) => {
+          onContextMenu(card, { clientX: pos.x, clientY: pos.y });
+        });
+      }}
+      onPointerUp={longPress.end}
+      onPointerLeave={longPress.end}
+      onPointerCancel={longPress.end}
       title={swapInGhost ? `${displayName} (swap in)` : displayName}
       aria-label={actionLabel || (swapInGhost ? `${displayName}, swap in` : displayName)}
       aria-pressed={selected}

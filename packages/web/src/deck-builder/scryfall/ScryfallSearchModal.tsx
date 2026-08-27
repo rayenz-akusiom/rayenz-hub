@@ -47,8 +47,7 @@ import {
 } from './quick-add-pref';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
 import { useDialogA11y } from '../../ui/useDialogA11y';
-
-const LONG_PRESS_MS = 450;
+import { useLongPress } from '../useLongPress';
 
 export type ScryfallAddMeta = { proxy: boolean; keepOpen?: boolean };
 
@@ -180,9 +179,7 @@ export function ScryfallSearchModal({
   const [expanded, setExpanded] = useState(() =>
     embedded ? false : loadScryfallSearchExpanded(),
   );
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFiredRef = useRef(false);
-  const longPressPosRef = useRef<PickerMenuPosition>({ x: 0, y: 0 });
+  const longPress = useLongPress();
   const lastComposedQueryRef = useRef('');
   const nextPageRef = useRef<string | null>(null);
   const loadingMoreRef = useRef(false);
@@ -261,15 +258,8 @@ export function ScryfallSearchModal({
     });
   }
 
-  function clearLongPressTimer() {
-    if (longPressTimerRef.current != null) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }
-
   function openPrintingPicker(cardResult: ScryfallCard) {
-    clearLongPressTimer();
+    longPress.clear();
     setPending(cardResult);
   }
 
@@ -335,39 +325,22 @@ export function ScryfallSearchModal({
   }
 
   function onResultPointerDown(e: ReactPointerEvent, cardResult: ScryfallCard) {
-    // Ignore non-primary mouse buttons; touch/pen often omit `button`.
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
     const inDeckCount = inDeckCountForCard(inDeckByName, cardResult);
     const canOpenInDeckMenu = Boolean(onInDeckContextMenu) && inDeckCount > 0;
     const canOpenPrintingLongPress = Boolean(allowQuickAdd && quickAdd);
     if (!canOpenInDeckMenu && !canOpenPrintingLongPress) return;
 
-    longPressFiredRef.current = false;
-    longPressPosRef.current = {
-      x: Number.isFinite(e.clientX) ? e.clientX : 0,
-      y: Number.isFinite(e.clientY) ? e.clientY : 0,
-    };
-    clearLongPressTimer();
-    longPressTimerRef.current = setTimeout(() => {
-      longPressFiredRef.current = true;
-      longPressTimerRef.current = null;
+    longPress.start(e, (pos) => {
       if (canOpenInDeckMenu && onInDeckContextMenu) {
-        onInDeckContextMenu(cardResult, longPressPosRef.current);
+        onInDeckContextMenu(cardResult, pos);
         return;
       }
       openPrintingPicker(cardResult);
-    }, LONG_PRESS_MS);
-  }
-
-  function onResultPointerEnd() {
-    clearLongPressTimer();
+    });
   }
 
   function onResultClick(cardResult: ScryfallCard) {
-    if (longPressFiredRef.current) {
-      longPressFiredRef.current = false;
-      return;
-    }
+    if (longPress.consumeClick()) return;
     if (
       deckEditPicker &&
       isPickerAddBlocked(cardResult, inDeckCountForCard(inDeckByName, cardResult))
@@ -714,9 +687,9 @@ export function ScryfallSearchModal({
                     onResultClick(cardResult);
                   }}
                   onPointerDown={(e) => onResultPointerDown(e, cardResult)}
-                  onPointerUp={onResultPointerEnd}
-                  onPointerLeave={onResultPointerEnd}
-                  onPointerCancel={onResultPointerEnd}
+                  onPointerUp={longPress.end}
+                  onPointerLeave={longPress.end}
+                  onPointerCancel={longPress.end}
                   onContextMenu={(e) => onResultContextMenu(e, cardResult)}
                 >
                   <span className="db-picker-option-face">

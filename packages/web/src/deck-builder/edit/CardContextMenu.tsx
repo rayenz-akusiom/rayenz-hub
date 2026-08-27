@@ -79,7 +79,7 @@ export function CardContextMenu({
   const multi = selectionCount > 1;
 
   useEffect(() => {
-    function onDoc(e: MouseEvent) {
+    function onDoc(e: MouseEvent | PointerEvent) {
       if (rootRef.current?.contains(e.target as Node)) return;
       onClose();
     }
@@ -87,9 +87,11 @@ export function CardContextMenu({
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('mousedown', onDoc);
+    document.addEventListener('pointerdown', onDoc);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('pointerdown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);

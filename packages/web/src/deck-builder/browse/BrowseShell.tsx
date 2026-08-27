@@ -74,6 +74,7 @@ import { CategoryBrowse } from './CategoryBrowse';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { UnifiedListBrowse } from './UnifiedListBrowse';
 import { AddCardFab } from './AddCardFab';
+import { type ContextMenuPoint } from './CardTile';
 import { useDragAutoScroll } from './useDragAutoScroll';
 import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
 import { draftFromFormalEntry, type SwapEditDraft } from '../swaps/swap-edit-chrome';
@@ -680,18 +681,34 @@ export function BrowseShell({
     setSelectionAnchorId(instanceId);
   }
 
-  function onCardContextMenu(card: CardView, e: MouseEvent) {
-    setSelectedIds((prev) => {
-      if (prev.has(card.instanceId)) return prev;
-      if (prev.size > 1) {
-        const next = new Set(prev);
-        next.add(card.instanceId);
-        return next;
-      }
-      return new Set([card.instanceId]);
-    });
+  function openCardContextMenu(
+    card: CardView,
+    x: number,
+    y: number,
+    opts?: { replaceSelection?: boolean },
+  ) {
+    if (opts?.replaceSelection) {
+      setSelectedIds(new Set([card.instanceId]));
+    } else {
+      setSelectedIds((prev) => {
+        if (prev.has(card.instanceId)) return prev;
+        if (prev.size > 1) {
+          const next = new Set(prev);
+          next.add(card.instanceId);
+          return next;
+        }
+        return new Set([card.instanceId]);
+      });
+    }
     setSelectionAnchorId(card.instanceId);
-    setContextMenu({ x: e.clientX, y: e.clientY, instanceId: card.instanceId });
+    setContextMenu({ x, y, instanceId: card.instanceId });
+  }
+
+  function onCardContextMenu(card: CardView, at: MouseEvent | ContextMenuPoint) {
+    if ('preventDefault' in at && typeof at.preventDefault === 'function') {
+      at.preventDefault();
+    }
+    openCardContextMenu(card, at.clientX, at.clientY);
   }
 
   const selectionIdList = useMemo(() => [...selectedIds], [selectedIds]);
@@ -943,9 +960,7 @@ export function BrowseShell({
       scryfallId: card.id,
     });
     if (!inst) return;
-    setSelectedIds(new Set([inst.instanceId]));
-    setSelectionAnchorId(inst.instanceId);
-    setContextMenu({ x: pos.x, y: pos.y, instanceId: inst.instanceId });
+    openCardContextMenu(inst, pos.x, pos.y, { replaceSelection: true });
   }
 
   function onConfirmSwapIn(
@@ -1125,6 +1140,8 @@ export function BrowseShell({
           <p className="hub-muted hub-shortcut-hint">
             {trimMode ? 'Trim mode · Esc exit' : 'Esc clear · Del remove · T trim'}
           </p>
+        ) : !readOnly ? (
+          <p className="hub-muted hub-shortcut-hint hub-touch-only-hint">Long-press a card for menu</p>
         ) : null}
       </div>
 

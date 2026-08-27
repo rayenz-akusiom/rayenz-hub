@@ -50,11 +50,13 @@ import {
   CardTile,
   isDeckBuilderDragTypes,
   readDragInstanceIds,
+  type ContextMenuPoint,
   type SelectCardHandler,
 } from './CardTile';
 import { DeckDescriptionField } from './DeckDescriptionField';
 import { MasonryColumns } from './MasonryColumns';
 import { useDeckBuilderHeaderDragHover } from './useDeckBuilderDragging';
+import { useLongPress } from '../useLongPress';
 
 function cssLengthPx(value: string, fallback: number): number {
   const trimmed = value.trim();
@@ -98,7 +100,46 @@ function PartnerTie({ illegal }: { illegal?: boolean }) {
   );
 }
 
-export type CardContextMenuHandler = (card: CardView, e: MouseEvent) => void;
+export type CardContextMenuHandler = (card: CardView, at: MouseEvent | ContextMenuPoint) => void;
+
+function CardStackPeek({
+  card,
+  onSelect,
+  onCardContextMenu,
+}: {
+  card: CardView;
+  onSelect?: SelectCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
+}) {
+  const longPress = useLongPress();
+  return (
+    <button
+      type="button"
+      className="db-card-stack-peek"
+      tabIndex={-1}
+      aria-hidden="true"
+      title={cardDisplayName(card)}
+      onClick={(e) => {
+        if (longPress.consumeClick()) return;
+        onSelect?.(card, e);
+      }}
+      onContextMenu={(e) => {
+        if (!onCardContextMenu) return;
+        e.preventDefault();
+        onCardContextMenu(card, e);
+      }}
+      onPointerDown={(e) => {
+        if (!onCardContextMenu) return;
+        longPress.start(e, (pos) => {
+          onCardContextMenu(card, { clientX: pos.x, clientY: pos.y });
+        });
+      }}
+      onPointerUp={longPress.end}
+      onPointerLeave={longPress.end}
+      onPointerCancel={longPress.end}
+    />
+  );
+}
 
 export function CardGroup({
   cards,
@@ -154,18 +195,10 @@ export function CardGroup({
               membership={card.membership || 'primary'}
               swapInGhost={Boolean(swapInIds?.has(card.instanceId))}
             />
-            <button
-              type="button"
-              className="db-card-stack-peek"
-              tabIndex={-1}
-              aria-hidden="true"
-              title={cardDisplayName(card)}
-              onClick={(e) => onSelectCard?.(card, e)}
-              onContextMenu={(e) => {
-                if (!onCardContextMenu) return;
-                e.preventDefault();
-                onCardContextMenu(card, e);
-              }}
+            <CardStackPeek
+              card={card}
+              onSelect={onSelectCard}
+              onCardContextMenu={onCardContextMenu}
             />
           </div>
         ))}

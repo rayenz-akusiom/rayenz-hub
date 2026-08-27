@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared';
@@ -572,6 +572,57 @@ describe('BrowseShell selection and context menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Move…' })).toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: 'Move…' }));
     expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
+  });
+
+  it('long-press on a card opens the context menu on touch', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const deck = foilDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
+
+    const tile = screen.getByRole('button', { name: new RegExp(card.name, 'i') });
+    fireEvent.pointerDown(tile, {
+      button: 0,
+      pointerType: 'touch',
+      pointerId: 1,
+      clientX: 120,
+      clientY: 80,
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Move…' })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('suppresses click after long-press on a card tile', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const deck = foilDeck();
+    const card = deck.cards[0]!;
+
+    render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
+
+    const tile = screen.getByRole('button', { name: new RegExp(card.name, 'i') });
+    fireEvent.pointerDown(tile, {
+      button: 0,
+      pointerType: 'touch',
+      pointerId: 1,
+      clientX: 120,
+      clientY: 80,
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.pointerUp(tile, { button: 0, pointerType: 'touch', pointerId: 1 });
+    await user.click(tile);
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it('toggles proxy from the selection bar', async () => {

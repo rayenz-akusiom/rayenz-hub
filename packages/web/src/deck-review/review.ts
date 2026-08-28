@@ -49,12 +49,22 @@ export function deckProgressCounts(
   return { total, reviewed, accepted };
 }
 
+function filterByScope(suggestions: Suggestion[], scopeSuggestionIds?: readonly string[] | null): Suggestion[] {
+  if (!scopeSuggestionIds?.length) {
+    return suggestions;
+  }
+  const scope = new Set(scopeSuggestionIds.map(String));
+  return suggestions.filter((s) => scope.has(String(s.suggestion_id)));
+}
+
 export function allVisibleSuggestions(
   deck: DeckEntry,
   deckPrefs: Record<string, DeckPrefs>,
+  scopeSuggestionIds?: readonly string[] | null,
 ): Suggestion[] {
   const prefs = getDeckPreferences(deck, deckPrefs);
-  return sortSuggestions(deck.suggestions || []).filter((s) => !isSuggestionFiltered(s, prefs));
+  const visible = sortSuggestions(deck.suggestions || []).filter((s) => !isSuggestionFiltered(s, prefs));
+  return filterByScope(visible, scopeSuggestionIds);
 }
 
 export function deckReviewStatusCounts(
@@ -80,15 +90,17 @@ export function pendingSuggestions(
   deck: DeckEntry,
   progress: ReviewProgress,
   deckPrefs: Record<string, DeckPrefs>,
+  scopeSuggestionIds?: readonly string[] | null,
 ): Suggestion[] {
   const prefs = getDeckPreferences(deck, deckPrefs);
-  return sortSuggestions(deck.suggestions || []).filter((s) => {
+  const pending = sortSuggestions(deck.suggestions || []).filter((s) => {
     const d = getDecision(progress, String(s.suggestion_id));
     if (d && d.status !== 'skipped') {
       return false;
     }
     return !isSuggestionFiltered(s, prefs);
   });
+  return filterByScope(pending, scopeSuggestionIds);
 }
 
 export function currentSuggestion(
@@ -96,8 +108,9 @@ export function currentSuggestion(
   progress: ReviewProgress,
   deckPrefs: Record<string, DeckPrefs>,
   suggestionIndex: number,
+  scopeSuggestionIds?: readonly string[] | null,
 ): Suggestion | null {
-  const pending = pendingSuggestions(deck, progress, deckPrefs);
+  const pending = pendingSuggestions(deck, progress, deckPrefs, scopeSuggestionIds);
   if (!pending.length) {
     return null;
   }
@@ -228,7 +241,11 @@ export function recordDecision(
   return { ...state, progress };
 }
 
-export function jumpToPendingSuggestion(state: DeckReviewState, index: number): DeckReviewState {
+export function jumpToPendingSuggestion(
+  state: DeckReviewState,
+  index: number,
+  scopeSuggestionIds?: readonly string[] | null,
+): DeckReviewState {
   if (!state.fileId || !state.activeDeckId || !state.data) {
     return state;
   }
@@ -236,7 +253,7 @@ export function jumpToPendingSuggestion(state: DeckReviewState, index: number): 
   if (!deck) {
     return state;
   }
-  const pending = pendingSuggestions(deck, state.progress, state.deckPrefs);
+  const pending = pendingSuggestions(deck, state.progress, state.deckPrefs, scopeSuggestionIds);
   if (!pending.length) {
     return state;
   }
@@ -256,8 +273,12 @@ export function jumpToPendingSuggestion(state: DeckReviewState, index: number): 
   return { ...state, progress, suggestionIndex };
 }
 
-export function navigatePendingSuggestion(state: DeckReviewState, delta: number): DeckReviewState {
-  return jumpToPendingSuggestion(state, state.suggestionIndex + delta);
+export function navigatePendingSuggestion(
+  state: DeckReviewState,
+  delta: number,
+  scopeSuggestionIds?: readonly string[] | null,
+): DeckReviewState {
+  return jumpToPendingSuggestion(state, state.suggestionIndex + delta, scopeSuggestionIds);
 }
 
 export function selectDeck(state: DeckReviewState, deckId: string): DeckReviewState {

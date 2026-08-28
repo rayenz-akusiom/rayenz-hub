@@ -38,8 +38,9 @@ import { generateSuggestions } from './generation';
 import { getGenerateReadiness } from './readiness';
 import { proposePageIds, remainingIds } from './paging';
 import { SuggestDeckLeaders } from './SuggestDeckLeaders';
+import { BudgetSpendTally } from './BudgetSpendTally';
 import { PackagePanel } from './PackagePanel';
-import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode, Suggestion } from './types';
+import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
 import './deck-suggest.css';
 
 function reviewSetCodes(
@@ -91,6 +92,7 @@ export function DeckSuggestApp() {
   const [processedIds, setProcessedIds] = useState<string[]>([]);
   const [navOpen, setNavOpen] = useState(false);
   const [bulkSeeking, setBulkSeeking] = useState(false);
+  const [activePackageId, setActivePackageId] = useState<string | null>(null);
   const { size: cardSize, setSize: setCardSize, widthPx: cardWidthPx } = useCardSize();
   const progressRef = useRef<HubProgressController | null>(null);
   const progressHostRef = useRef<HTMLDivElement>(null);
@@ -298,26 +300,29 @@ export function DeckSuggestApp() {
     return suggest.generationRun.deckResults.find((r) => String(r.deck.deck_id) === deckId) || null;
   }, [activeDeck, suggest.generationRun]);
 
-  const packageAcceptedIds = useMemo(() => {
-    const ids = new Set<string>();
-    const decisions = review.progress?.decisions || {};
-    Object.entries(decisions).forEach(([id, d]) => {
-      if (d && d.status === 'accepted') ids.add(id);
-    });
-    return ids;
-  }, [review.progress]);
+  useEffect(() => {
+    const firstPackageId = activeDeckResult?.packages?.[0]?.packageId;
+    if (firstPackageId) {
+      setActivePackageId(firstPackageId);
+    } else {
+      setActivePackageId(null);
+    }
+  }, [activeDeckResult?.packages]);
 
-  function handlePackageAccept(suggestion: Suggestion) {
-    if (!activeDeck) return;
-    const targetId = String(suggestion.suggestion_id);
-    setReview((prev) => {
-      const pending = pendingSuggestions(activeDeck, prev.progress, prev.deckPrefs);
-      const idx = pending.findIndex((s) => String(s.suggestion_id) === targetId);
-      if (idx < 0) {
-        return { ...prev, showAllMode: false };
-      }
-      return jumpToPendingSuggestion({ ...prev, showAllMode: false }, idx);
-    });
+  const activePackage = useMemo(() => {
+    if (!activeDeckResult?.packages?.length) return null;
+    return (
+      activeDeckResult.packages.find((pkg) => pkg.packageId === activePackageId) ||
+      activeDeckResult.packages[0] ||
+      null
+    );
+  }, [activeDeckResult, activePackageId]);
+
+  const packageScopeIds = activePackage?.suggestionIds ?? null;
+
+  function handleSelectPackage(packageId: string) {
+    setActivePackageId(packageId);
+    setReview((prev) => ({ ...prev, suggestionIndex: 0, showAllMode: false }));
   }
 
   async function handleAcceptAllSeeking() {
@@ -368,13 +373,19 @@ export function DeckSuggestApp() {
     }
   }
 
-  const handleNavigateSuggestion = useCallback((delta: number) => {
-    setReview((prev) => navigatePendingSuggestion(prev, delta));
-  }, []);
+  const handleNavigateSuggestion = useCallback(
+    (delta: number) => {
+      setReview((prev) => navigatePendingSuggestion(prev, delta, packageScopeIds));
+    },
+    [packageScopeIds],
+  );
 
-  const handleJumpSuggestion = useCallback((index: number) => {
-    setReview((prev) => jumpToPendingSuggestion(prev, index));
-  }, []);
+  const handleJumpSuggestion = useCallback(
+    (index: number) => {
+      setReview((prev) => jumpToPendingSuggestion(prev, index, packageScopeIds));
+    },
+    [packageScopeIds],
+  );
 
   function handleSelectDeck(deckId: string) {
     setReview((prev) => selectDeck(prev, deckId));
@@ -628,27 +639,54 @@ export function DeckSuggestApp() {
               <div id="dr-content">
                 {activeDeck ? <SuggestDeckLeaders deck={activeDeck} /> : null}
                 {activeDeckResult?.packages?.length ? (
-                  <PackagePanel
-                    packages={activeDeckResult.packages}
-                    packaging={activeDeckResult.packaging}
-                    suggestions={activeDeckResult.suggestions || []}
-                    acceptedIds={packageAcceptedIds}
-                    onAccept={handlePackageAccept}
-                  />
-                ) : null}
-                <div id="dr-suggestion-panel">
-                  <DeckReviewSuggestionPanel
-                    deck={activeDeck}
-                    state={review}
-                    onDecision={handleDecision}
-                    onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
-                    onError={setError}
-                    onNavigateSuggestion={handleNavigateSuggestion}
-                    onJumpSuggestion={handleJumpSuggestion}
-                    onToggleLozenge={handleToggleLozenge}
-                    onConfirmedProfileTags={handleConfirmedProfileTags}
-                  />
-                </div>
+                  <section className="ds-budget-review">
+                    <BudgetSpendTally
+                      budgetUsd={activeDeckResult.packaging?.budgetUsd ?? 0}
+                      suggestions={activeDeckResult.suggestions || []}
+                      progress={review.progress}
+                    />
+                    <PackagePanel
+                      packages={activeDeckResult.packages}
+                      packaging={activeDeckResult.packaging}
+                      activePackageId={activePackageId}
+                      onSelectPackage={handleSelectPackage}
+                    >
+                      <div id="dr-suggestion-panel">
+                        <DeckReviewSuggestionPanel
+                          deck={activeDeck}
+                          state={review}
+                          onDecision={handleDecision}
+                          onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
+                          onError={setError}
+                          onNavigateSuggestion={handleNavigateSuggestion}
+                          onJumpSuggestion={handleJumpSuggestion}
+                          onToggleLozenge={handleToggleLozenge}
+                          onConfirmedProfileTags={handleConfirmedProfileTags}
+                          scopeSuggestionIds={packageScopeIds}
+                        />
+                      </div>
+                    </PackagePanel>
+                  </section>
+                ) : (
+                  <>
+                    {activeDeckResult?.packaging && !activeDeckResult.packages?.length ? (
+                      <PackagePanel packages={[]} packaging={activeDeckResult.packaging} />
+                    ) : null}
+                    <div id="dr-suggestion-panel">
+                      <DeckReviewSuggestionPanel
+                        deck={activeDeck}
+                        state={review}
+                        onDecision={handleDecision}
+                        onProfileUpdate={(patch) => setReview((prev) => ({ ...prev, ...patch }))}
+                        onError={setError}
+                        onNavigateSuggestion={handleNavigateSuggestion}
+                        onJumpSuggestion={handleJumpSuggestion}
+                        onToggleLozenge={handleToggleLozenge}
+                        onConfirmedProfileTags={handleConfirmedProfileTags}
+                      />
+                    </div>
+                  </>
+                )}
                 {activeDeck ? (
                   <MissingCardsProfileSection
                     deck={activeDeck}

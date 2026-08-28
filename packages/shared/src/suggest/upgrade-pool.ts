@@ -152,9 +152,21 @@ export async function buildUpgradePool(
   const perCard = computePerCardCap(budgetUsd);
   const usdClause = `usd<=${perCard.toFixed(2)}`;
   const query = [idClause, usdClause].filter(Boolean).join(' ');
-  let cards = await searchUpgradeCards(query, cap);
+  const searchCap =
+    cap >= readUpgradePoolCap() ? cap : Math.min(readUpgradePoolCap(), Math.max(cap * 5, 50));
+  let cards = await searchUpgradeCards(query, searchCap);
   cards = cards.filter((c) => matchesProfileIntent(c, profile));
   cards = filterSetPoolCardsByFocus(cards, focusTags);
+  cards.sort((a, b) => {
+    const au = (a as SetPoolCard & { usd?: number }).usd;
+    const bu = (b as SetPoolCard & { usd?: number }).usd;
+    const aHas = au != null && Number.isFinite(au);
+    const bHas = bu != null && Number.isFinite(bu);
+    if (aHas && bHas) return bu! - au!;
+    if (aHas) return -1;
+    if (bHas) return 1;
+    return 0;
+  });
   if (cards.length > cap) cards = cards.slice(0, cap);
   return {
     cards,

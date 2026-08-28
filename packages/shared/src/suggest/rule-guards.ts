@@ -347,6 +347,7 @@ export function setCardToSuggestionCard(card: SetPoolCard): SetPoolCard {
     oracle_tags: card.oracle_tags,
     tags: card.tags,
     color_identity: card.color_identity || card.colorIdentity,
+    ...(card.usd != null && Number.isFinite(card.usd) ? { usd: card.usd } : {}),
   };
 }
 

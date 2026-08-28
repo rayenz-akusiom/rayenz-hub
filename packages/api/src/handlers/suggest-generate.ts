@@ -10,6 +10,7 @@ import {
 import { fetchPinnedReleaseCards, fetchReleaseCards, fetchSetCards } from '@rayenz-hub/shared';
 import {
   assemblePackages,
+  budgetSuggestDeckCap,
   buildUpgradePool,
   computeUpgradePoolKey,
   enrichSuggestionPrices,
@@ -291,7 +292,10 @@ export async function handleSuggestGenerate(
       }
 
       const codesKey = pool.codesKey || computeUpgradePoolKey(deckId, budgetUsd, focusTags);
-      const output = runRulesForDeck(record, setScopeFromPool(pool), { focusTags });
+      const output = runRulesForDeck(record, setScopeFromPool(pool), {
+        focusTags,
+        deckSoftCap: budgetSuggestDeckCap(maxSwaps),
+      });
       let suggestions = applyFocusToSuggestions(output.suggestions, focusTags);
       const { packages, audit: packaging } = budgetPackagesForDeck(record, suggestions, budgetUsd, {
         maxSwaps,

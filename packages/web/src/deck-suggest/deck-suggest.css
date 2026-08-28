@@ -556,6 +556,70 @@
    border-left-color: #3182ce;
 }
 
+.ds-budget-review {
+   margin-bottom: 20px;
+}
+
+.ds-budget-tally {
+   background: #f7fafc;
+   border: 1px solid #e2e8f0;
+   border-radius: 8px;
+   padding: 12px 16px;
+   margin-bottom: 12px;
+}
+
+.ds-budget-tally-main {
+   margin: 0;
+   font-weight: 600;
+   color: #2d3748;
+}
+
+.ds-budget-tally-over {
+   border-color: #f6ad55;
+   background: #fffaf0;
+}
+
+.ds-budget-tally-warn {
+   margin: 6px 0 0;
+   color: #c05621;
+   font-size: 0.9rem;
+   font-weight: 600;
+}
+
+.ds-packages {
+   background: #fff;
+   border: 1px solid #e2e8f0;
+   border-radius: 8px;
+   padding: 16px;
+}
+
+.ds-package-tabs {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 8px;
+   margin-bottom: 12px;
+}
+
+.ds-package-tab {
+   padding: 6px 12px;
+   border: 1px solid #cbd5e0;
+   border-radius: 6px;
+   background: #edf2f7;
+   cursor: pointer;
+   font: inherit;
+   font-size: 0.9rem;
+}
+
+.ds-package-tab.active {
+   background: var(--hub-accent);
+   border-color: var(--hub-accent);
+   color: #fff;
+}
+
+.ds-package-summary {
+   margin: 0 0 12px;
+}
+
 @media (max-width: 768px) {
    .ds-header {
       padding: 12px 14px;

@@ -18,6 +18,7 @@ export const ChangePackageSchema = z.object({
   swapCount: z.number().int(),
   unknownPriceCount: z.number().int(),
   suggestionIds: z.array(z.string()),
+  focusTags: z.array(z.string()),
 });
 
 export const PackagingAuditSchema = z.object({

@@ -16,6 +16,7 @@ type DeckReviewSuggestionPanelProps = {
   onJumpSuggestion: (index: number) => void;
   onToggleLozenge?: (suggestionId: string, lozenges: ProfileLozenge[]) => void;
   onConfirmedProfileTags?: (suggestionId: string, updates: ProfileLozengeUpdates) => void;
+  scopeSuggestionIds?: readonly string[] | null;
 };
 
 export function DeckReviewSuggestionPanel({
@@ -28,6 +29,7 @@ export function DeckReviewSuggestionPanel({
   onJumpSuggestion,
   onToggleLozenge,
   onConfirmedProfileTags,
+  scopeSuggestionIds,
 }: DeckReviewSuggestionPanelProps) {
   const oneAtATime = !!deck && !state.showAllMode;
 
@@ -69,7 +71,7 @@ export function DeckReviewSuggestionPanel({
   const { progress, deckPrefs, showAllMode, profileStatus, suggestionIndex } = state;
 
   if (showAllMode) {
-    const allSuggestions = allVisibleSuggestions(deck, deckPrefs);
+    const allSuggestions = allVisibleSuggestions(deck, deckPrefs, scopeSuggestionIds);
     if (!allSuggestions.length) {
       return <div className="dr-empty">No suggestions for {deck.deck_name}.</div>;
     }
@@ -98,12 +100,12 @@ export function DeckReviewSuggestionPanel({
     );
   }
 
-  const suggestion = currentSuggestion(deck, progress, deckPrefs, suggestionIndex);
+  const suggestion = currentSuggestion(deck, progress, deckPrefs, suggestionIndex, scopeSuggestionIds);
   if (!suggestion) {
     return <div className="dr-empty">All suggestions reviewed for {deck.deck_name}.</div>;
   }
 
-  const pending = pendingSuggestions(deck, progress, deckPrefs);
+  const pending = pendingSuggestions(deck, progress, deckPrefs, scopeSuggestionIds);
   const safeIndex = Math.min(suggestionIndex, Math.max(pending.length - 1, 0));
   const progressLabel =
     pending.length > 0 ? `${safeIndex + 1} of ${pending.length} · ${deck.deck_name}` : deck.deck_name;

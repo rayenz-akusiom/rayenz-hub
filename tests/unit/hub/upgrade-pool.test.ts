@@ -100,7 +100,7 @@ describe('buildUpgradePool', () => {
     expect(result.codesKey).toContain('focus-mana-production');
   });
 
-  it('caps card count', async () => {
+  it('caps card count preferring higher-priced cards', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -116,7 +116,7 @@ describe('buildUpgradePool', () => {
             color_identity: ['U'],
             cmc: 1,
             oracle_tags: ['tokens'],
-            prices: { usd: '1.00' },
+            prices: { usd: String((i + 1) / 10) },
           })),
         }),
       }),
@@ -124,6 +124,7 @@ describe('buildUpgradePool', () => {
     const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });
     expect(result.cardCount).toBe(3);
     expect(result.cards).toHaveLength(3);
+    expect(result.cards[0]?.name).toBe('Card 9');
   });
 
   it('sends User-Agent on Scryfall search', async () => {
@@ -150,7 +151,7 @@ describe('buildUpgradePool', () => {
     expect(result.cards).toHaveLength(0);
   });
 
-  it('stops pagination once cap raw cards are collected', async () => {
+  it('paginates to fill the search oversample before applying output cap', async () => {
     const baseCard = {
       set: 'CMR',
       collector_number: '1',
@@ -180,6 +181,6 @@ describe('buildUpgradePool', () => {
     vi.stubGlobal('fetch', fetchMock);
     const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });
     expect(result.cards).toHaveLength(3);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
   });
 });

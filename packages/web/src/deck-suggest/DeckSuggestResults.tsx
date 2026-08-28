@@ -126,13 +126,7 @@ function DeckResultBlock({
       ) : (
         !compact && (
           <>
-            <PackagePanel
-              packages={result.packages}
-              packaging={result.packaging}
-              suggestions={result.suggestions || []}
-              acceptedIds={acceptedIds}
-              onAccept={onAccept ? (s) => onAccept(result.deck.deck_id, s) : undefined}
-            />
+            <PackagePanel packages={result.packages} packaging={result.packaging} />
             <div className="ds-suggestion-grid">
               {(result.suggestions || []).map((s) => (
                 <SuggestionCard

@@ -33,6 +33,8 @@ export {
   SUGGEST_PER_RULE_SOFT_CAP,
   applySoftCap,
   dropLowConfidence,
+  budgetSuggestDeckCap,
+  effectiveMaxSwaps,
 } from './suggest-limits';
 
 export const Tagger = {
@@ -191,6 +193,7 @@ export function runRulesForDeck(
     existingSuggestions?: Suggestion[];
     debug?: boolean;
     focusTags?: string[];
+    deckSoftCap?: number;
   } = {},
 ) {
   ensureSetPoolIndexed(setScope);
@@ -267,7 +270,7 @@ export function runRulesForDeck(
   });
 
   suggestions = sortSuggestions(
-    applySoftCap(suggestions, SUGGEST_PER_DECK_SOFT_CAP, rankSuggestionsForCap),
+    applySoftCap(suggestions, options.deckSoftCap ?? SUGGEST_PER_DECK_SOFT_CAP, rankSuggestionsForCap),
   );
 
   return {

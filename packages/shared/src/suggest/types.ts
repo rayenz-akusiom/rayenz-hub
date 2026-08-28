@@ -21,6 +21,8 @@ export type SetPoolCard = {
   collectorNumber?: string;
   typeLine?: string;
   oracleText?: string;
+  /** Scryfall USD price when sourced from upgrade pool. */
+  usd?: number;
 };
 
 export type SetScope = {
@@ -156,6 +158,7 @@ export type PageDeckResult = {
     swapCount: number;
     unknownPriceCount: number;
     suggestionIds: string[];
+    focusTags: string[];
   }>;
   packaging?: {
     budgetUsd: number;

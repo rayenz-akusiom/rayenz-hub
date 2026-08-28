@@ -118,6 +118,11 @@ describe('POST /v1/suggest/generate budget mode', () => {
     expect(body.focusTags).toEqual(['removal']);
     expect(body.deckResults[0].packaging?.poolCardCount).toBe(3);
     expect(body.deckResults[0].packaging?.poolCardCount).toBeLessThanOrEqual(250);
+    const packages = body.deckResults[0].packages;
+    if (packages?.length) {
+      expect(packages[0].focusTags).toBeDefined();
+      expect(Array.isArray(packages[0].focusTags)).toBe(true);
+    }
   });
 
   it('reuses cached upgrade pool on second request', async () => {

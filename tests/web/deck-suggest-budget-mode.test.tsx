@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { DeckSuggestSetup } from '../../packages/web/src/deck-suggest/DeckSuggestSetup.tsx';
+import { BudgetSpendTally } from '../../packages/web/src/deck-suggest/BudgetSpendTally.tsx';
 import { PackagePanel } from '../../packages/web/src/deck-suggest/PackagePanel.tsx';
 import type { DeckSelection, DeckSuggestSettings, SetInputMode } from '../../packages/web/src/deck-suggest/types.ts';
 
@@ -46,38 +47,85 @@ describe('DeckSuggestSetup budget mode', () => {
 });
 
 describe('PackagePanel', () => {
-  it('routes accept through the shared suggestion handler', () => {
-    const onAccept = vi.fn();
-    const suggestion = {
-      suggestion_id: 's1',
-      action: 'replace',
-      card: { name: 'Feed the Swarm' },
-      quantity: 1,
-      roles_matched: [],
-      confidence: 'medium',
-      rationale: '',
-      tags: [],
-      replaces: [{ name: 'Duress', quantity: 1 }],
-      priority_tier: 'normal',
-      incomingUsd: 3.5,
-    };
+  it('renders package tabs with summary and no accept buttons', () => {
     render(
       <PackagePanel
         packages={[
           {
-            packageId: 'pkg-fitting',
-            label: 'Essentials',
-            totalUsd: 3.5,
+            packageId: 'pkg-1',
+            label: 'Removal + Ramp',
+            totalUsd: 12.5,
+            swapCount: 2,
+            unknownPriceCount: 0,
+            suggestionIds: ['s1', 's2'],
+            focusTags: ['removal', 'ramp'],
+          },
+          {
+            packageId: 'pkg-2',
+            label: 'Card draw',
+            totalUsd: 8,
             swapCount: 1,
             unknownPriceCount: 0,
-            suggestionIds: ['s1'],
+            suggestionIds: ['s3'],
+            focusTags: ['card-draw'],
           },
         ]}
-        suggestions={[suggestion]}
-        onAccept={onAccept}
+      >
+        <p>Review pane</p>
+      </PackagePanel>,
+    );
+    expect(screen.getByRole('tab', { name: 'Removal + Ramp' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Card draw' })).toBeInTheDocument();
+    expect(screen.getByText(/2 cards · \$12\.50 · removal, ramp/)).toBeInTheDocument();
+    expect(screen.getByText('Review pane')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull();
+  });
+});
+
+describe('BudgetSpendTally', () => {
+  it('shows accepted spend and over-budget warning', () => {
+    render(
+      <BudgetSpendTally
+        budgetUsd={25}
+        suggestions={[
+          {
+            suggestion_id: 's1',
+            action: 'consider',
+            card: { name: 'Card A' },
+            quantity: 1,
+            roles_matched: [],
+            confidence: 'medium',
+            rationale: '',
+            tags: [],
+            replaces: [],
+            priority_tier: 'normal',
+            incomingUsd: 15,
+          },
+          {
+            suggestion_id: 's2',
+            action: 'consider',
+            card: { name: 'Card B' },
+            quantity: 1,
+            roles_matched: [],
+            confidence: 'medium',
+            rationale: '',
+            tags: [],
+            replaces: [],
+            priority_tier: 'normal',
+            incomingUsd: 12,
+          },
+        ]}
+        progress={{
+          fileId: 'f1',
+          decisions: {
+            s1: { status: 'accepted', accepted: { action: 'seeking' } },
+            s2: { status: 'accepted', accepted: { action: 'seeking' } },
+          },
+          currentSuggestionIndex: {},
+        }}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
-    expect(onAccept).toHaveBeenCalledWith(expect.objectContaining({ suggestion_id: 's1' }));
+    expect(screen.getByText('Accepted $27.00 of $25.00 target')).toBeInTheDocument();
+    expect(screen.getByText('Accepted swaps exceed the upgrade budget target.')).toBeInTheDocument();
   });
 });

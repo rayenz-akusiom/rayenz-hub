@@ -1,6 +1,7 @@
 import type { DeckProfile, DeckRecord, SetScope, Suggestion, TaggerContext } from './types';
 import { hasScryfallOracleTags, oracleTextForFallback, textMatchesNeedle } from './signals';
 import { eligibleSetCards, emitSynergyHits } from './synergy-emit';
+import { filterEvergreenKeywords } from './upgrade-pool-tags.js';
 
 export function runKeywordSynergy(
   deck: DeckRecord,
@@ -10,7 +11,9 @@ export function runKeywordSynergy(
   taggerCtx: TaggerContext,
   debug?: { ruleId?: string; collector?: { push: (e: Record<string, unknown>) => void } },
 ): Suggestion[] {
-  const interests = (profile?.keyword_interests || []).map((t) => t.trim()).filter(Boolean);
+  const interests = filterEvergreenKeywords(
+    (profile?.keyword_interests || []).map((t) => t.trim()).filter(Boolean),
+  );
   if (!interests.length) return [];
   const hits = eligibleSetCards(deck, setScope, profile, taggerCtx.focusTags)
     .map((card) => {

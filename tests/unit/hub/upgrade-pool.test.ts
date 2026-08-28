@@ -20,6 +20,13 @@ const deck: DeckRecord = {
   },
 };
 
+function scryfallOk(body: Record<string, unknown>) {
+  return {
+    ok: true,
+    json: async () => ({ total_cards: 150, ...body }),
+  };
+}
+
 describe('upgrade-pool helpers', () => {
   it('computes per-card USD cap from budget', () => {
     expect(computePerCardCap(25)).toBeCloseTo(8.33, 2);
@@ -27,10 +34,13 @@ describe('upgrade-pool helpers', () => {
     expect(computePerCardCap(100)).toBe(15);
   });
 
-  it('builds pool keys with optional focus suffix', () => {
+  it('builds pool keys with focus and search tag suffixes', () => {
     expect(computeUpgradePoolKey('d1', 25)).toBe('upgrade:d1:25');
     expect(computeUpgradePoolKey('d1', 25, ['mana-production'])).toBe(
       'upgrade:d1:25:focus-mana-production',
+    );
+    expect(computeUpgradePoolKey('d1', 25, [], ['removal', 'ramp'])).toBe(
+      'upgrade:d1:25:tags-ramp+removal',
     );
   });
 
@@ -47,9 +57,8 @@ describe('buildUpgradePool', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      vi.fn().mockResolvedValue(
+        scryfallOk({
           data: [
             {
               name: 'Mana Rock',
@@ -77,7 +86,7 @@ describe('buildUpgradePool', () => {
             },
           ],
         }),
-      }),
+      ),
     );
   });
 
@@ -98,14 +107,25 @@ describe('buildUpgradePool', () => {
     expect(result.cards).toHaveLength(1);
     expect(result.cards[0]?.name).toBe('Mana Rock');
     expect(result.codesKey).toContain('focus-mana-production');
+    expect(result.codesKey).toContain('tags-');
+  });
+
+  it('requests otag-scoped usd-ordered Scryfall searches', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(scryfallOk({ data: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await buildUpgradePool(deck, { themes: ['removal'] }, 25, { cap: 250 });
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0] || ''));
+    const q = url.searchParams.get('q') || '';
+    expect(q).toContain('otag:removal');
+    expect(url.searchParams.get('order')).toBe('usd');
+    expect(url.searchParams.get('dir')).toBe('desc');
   });
 
   it('caps card count preferring higher-priced cards', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      vi.fn().mockResolvedValue(
+        scryfallOk({
           data: Array.from({ length: 10 }, (_, i) => ({
             name: `Card ${i}`,
             set: 'CMR',
@@ -119,7 +139,7 @@ describe('buildUpgradePool', () => {
             prices: { usd: String((i + 1) / 10) },
           })),
         }),
-      }),
+      ),
     );
     const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });
     expect(result.cardCount).toBe(3);
@@ -128,10 +148,7 @@ describe('buildUpgradePool', () => {
   });
 
   it('sends User-Agent on Scryfall search', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [] }),
-    });
+    const fetchMock = vi.fn().mockResolvedValue(scryfallOk({ data: [] }));
     vi.stubGlobal('fetch', fetchMock);
     await buildUpgradePool(deck, {}, 25, { cap: 250 });
     expect(fetchMock).toHaveBeenCalled();
@@ -151,7 +168,7 @@ describe('buildUpgradePool', () => {
     expect(result.cards).toHaveLength(0);
   });
 
-  it('paginates to fill the search oversample before applying output cap', async () => {
+  it('paginates when fetching large otag pools', async () => {
     const baseCard = {
       set: 'CMR',
       collector_number: '1',
@@ -166,17 +183,14 @@ describe('buildUpgradePool', () => {
     let page = 0;
     const fetchMock = vi.fn().mockImplementation(async () => {
       page += 1;
-      return {
-        ok: true,
-        json: async () => ({
-          data: Array.from({ length: 5 }, (_, i) => ({
-            ...baseCard,
-            name: `Card ${page}-${i}`,
-            collector_number: String(i),
-          })),
-          next_page: page < 5 ? `https://api.scryfall.com/cards/search?page=${page + 1}` : null,
-        }),
-      };
+      return scryfallOk({
+        data: Array.from({ length: 5 }, (_, i) => ({
+          ...baseCard,
+          name: `Card ${page}-${i}`,
+          collector_number: String(i),
+        })),
+        next_page: page < 5 ? `https://api.scryfall.com/cards/search?page=${page + 1}` : null,
+      });
     });
     vi.stubGlobal('fetch', fetchMock);
     const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });

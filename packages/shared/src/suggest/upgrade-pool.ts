@@ -2,6 +2,14 @@ import { SCRYFALL_SUGGEST_POOL_FILTERS, maybeAttachScryfallTags } from '../scryf
 import { withPaperGameQuery } from '../deck-builder/scryfall-api.js';
 import type { DeckProfile, DeckRecord, SetPoolCard } from './types';
 import { cardMatchesFocus, filterSetPoolCardsByFocus, focusKeySuffix, normalizeFocusTags } from './focus-filter.js';
+import {
+  UPGRADE_MIN_POOL_TARGET,
+  UPGRADE_SEARCH_RAW_CAP,
+  buildOtagClause,
+  collectProfileSearchTags,
+  nonEvergreenKeywordInterests,
+  searchTagsKeySuffix,
+} from './upgrade-pool-tags.js';
 
 const SCRYFALL_API = 'https://api.scryfall.com';
 const USER_AGENT = 'rayenz-hub/1.0';
@@ -20,10 +28,15 @@ export function computePerCardCap(budgetUsd: number): number {
   return Math.min(Math.max(per, 1), 15);
 }
 
-export function computeUpgradePoolKey(deckId: string, budgetUsd: number, focusTags?: string[]): string {
+export function computeUpgradePoolKey(
+  deckId: string,
+  budgetUsd: number,
+  focusTags?: string[],
+  searchTags?: string[],
+): string {
   const bucket = Math.round(budgetUsd);
   const base = `upgrade:${deckId}:${bucket}`;
-  return base + focusKeySuffix(focusTags || []);
+  return base + focusKeySuffix(focusTags || []) + searchTagsKeySuffix(searchTags || []);
 }
 
 function deckColorIdentity(deck: DeckRecord): string[] {
@@ -43,7 +56,7 @@ async function fetchJson(url: string): Promise<unknown> {
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
   });
   if (res.status === 404) {
-    return { data: [] };
+    return { data: [], total_cards: 0 };
   }
   if (res.status === 429) {
     const err = new Error('Scryfall rate limit — try again in a moment.');
@@ -87,7 +100,7 @@ function matchesProfileIntent(card: SetPoolCard, profile?: DeckProfile | null): 
     ...(profile?.tags || []),
   ].map((t) => String(t).toLowerCase());
   const typal = (profile?.typal_types || []).map((t) => String(t).toLowerCase());
-  const keywords = (profile?.keyword_interests || []).map((t) => String(t).toLowerCase());
+  const keywords = nonEvergreenKeywordInterests(profile).map((t) => String(t).toLowerCase());
   const roleTags: string[] = [];
   (profile?.roles || []).forEach((r) => (r.tags || []).forEach((t) => roleTags.push(String(t).toLowerCase())));
 
@@ -109,9 +122,57 @@ function matchesProfileIntent(card: SetPoolCard, profile?: DeckProfile | null): 
   return false;
 }
 
-async function searchUpgradeCards(query: string, maxRaw: number): Promise<SetPoolCard[]> {
-  const q = encodeURIComponent(withPaperGameQuery(`${query} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`));
-  let url: string | null = `${SCRYFALL_API}/cards/search?q=${q}`;
+type SearchOrder = { order?: string; dir?: string };
+
+function buildSearchUrl(query: string, opts?: { page?: number } & SearchOrder): string {
+  const q = withPaperGameQuery(`${query} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`);
+  const params = new URLSearchParams();
+  params.set('q', q);
+  if (opts?.order) params.set('order', opts.order);
+  if (opts?.dir) params.set('dir', opts.dir);
+  if (opts?.page != null && opts.page > 1) params.set('page', String(opts.page));
+  return `${SCRYFALL_API}/cards/search?${params.toString()}`;
+}
+
+async function probeSearchTotalCards(query: string, order: SearchOrder): Promise<number> {
+  const url = buildSearchUrl(query, { page: 1, ...order });
+  const data = (await fetchJson(url)) as { data?: unknown[]; total_cards?: number };
+  if (typeof data.total_cards === 'number') return data.total_cards;
+  return (data.data || []).length;
+}
+
+/** Expand otag OR-clause until Scryfall reports enough cards or tags are exhausted. */
+export async function resolveAdaptiveSearchTags(
+  profileTags: string[],
+  baseQuery: string,
+  order: SearchOrder,
+  minTarget = UPGRADE_MIN_POOL_TARGET,
+): Promise<string[]> {
+  if (!profileTags.length) return [];
+  let active = [profileTags[0]!];
+  let total = await probeSearchTotalCards(`${baseQuery} ${buildOtagClause(active)}`.trim(), order);
+  let idx = 1;
+  while (total < minTarget && idx < profileTags.length) {
+    active = profileTags.slice(0, idx + 1);
+    total = await probeSearchTotalCards(`${baseQuery} ${buildOtagClause(active)}`.trim(), order);
+    idx += 1;
+  }
+  return active;
+}
+
+export function composeUpgradeSearchQuery(baseClauses: string, searchTags: string[]): string {
+  const parts = baseClauses.split(' ').filter(Boolean);
+  const otag = buildOtagClause(searchTags);
+  if (otag) parts.push(otag);
+  return parts.join(' ');
+}
+
+async function searchUpgradeCards(
+  query: string,
+  maxRaw: number,
+  order: SearchOrder = { order: 'usd', dir: 'desc' },
+): Promise<SetPoolCard[]> {
+  let url: string | null = buildSearchUrl(query, { page: 1, ...order });
   const raw: Record<string, unknown>[] = [];
   while (url && raw.length < maxRaw) {
     const data = (await fetchJson(url)) as {
@@ -130,6 +191,19 @@ async function searchUpgradeCards(query: string, maxRaw: number): Promise<SetPoo
   return tagged as SetPoolCard[];
 }
 
+function sortPoolByPriceDesc(cards: SetPoolCard[]): SetPoolCard[] {
+  return cards.slice().sort((a, b) => {
+    const au = (a as SetPoolCard & { usd?: number }).usd;
+    const bu = (b as SetPoolCard & { usd?: number }).usd;
+    const aHas = au != null && Number.isFinite(au);
+    const bHas = bu != null && Number.isFinite(bu);
+    if (aHas && bHas) return bu! - au!;
+    if (aHas) return -1;
+    if (bHas) return 1;
+    return 0;
+  });
+}
+
 export type BuildUpgradePoolResult = {
   cards: SetPoolCard[];
   codesKey: string;
@@ -146,28 +220,26 @@ export async function buildUpgradePool(
 ): Promise<BuildUpgradePoolResult> {
   const cap = opts?.cap ?? readUpgradePoolCap();
   const focusTags = normalizeFocusTags(opts?.focusTags);
-  const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags);
   const ci = deckColorIdentity(deck);
   const idClause = ci.length ? `id:${ci.join('')}` : '';
   const perCard = computePerCardCap(budgetUsd);
   const usdClause = `usd<=${perCard.toFixed(2)}`;
-  const query = [idClause, usdClause].filter(Boolean).join(' ');
-  const searchCap =
-    cap >= readUpgradePoolCap() ? cap : Math.min(readUpgradePoolCap(), Math.max(cap * 5, 50));
-  let cards = await searchUpgradeCards(query, searchCap);
+  const baseQuery = [idClause, usdClause].filter(Boolean).join(' ');
+  const searchOrder = { order: 'usd', dir: 'desc' };
+
+  const profileTags = collectProfileSearchTags(profile);
+  const searchTags = profileTags.length
+    ? await resolveAdaptiveSearchTags(profileTags, baseQuery, searchOrder)
+    : [];
+  const query = composeUpgradeSearchQuery(baseQuery, searchTags);
+  const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags, searchTags);
+
+  let cards = await searchUpgradeCards(query, UPGRADE_SEARCH_RAW_CAP, searchOrder);
   cards = cards.filter((c) => matchesProfileIntent(c, profile));
   cards = filterSetPoolCardsByFocus(cards, focusTags);
-  cards.sort((a, b) => {
-    const au = (a as SetPoolCard & { usd?: number }).usd;
-    const bu = (b as SetPoolCard & { usd?: number }).usd;
-    const aHas = au != null && Number.isFinite(au);
-    const bHas = bu != null && Number.isFinite(bu);
-    if (aHas && bHas) return bu! - au!;
-    if (aHas) return -1;
-    if (bHas) return 1;
-    return 0;
-  });
+  cards = sortPoolByPriceDesc(cards);
   if (cards.length > cap) cards = cards.slice(0, cap);
+
   return {
     cards,
     codesKey,

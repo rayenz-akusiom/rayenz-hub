@@ -34,6 +34,8 @@ export {
   applySoftCap,
   dropLowConfidence,
   budgetSuggestDeckCap,
+  budgetSuggestPerRuleCap,
+  BUDGET_SUGGEST_PER_RULE_SOFT_CAP,
   effectiveMaxSwaps,
 } from './suggest-limits';
 
@@ -194,6 +196,7 @@ export function runRulesForDeck(
     debug?: boolean;
     focusTags?: string[];
     deckSoftCap?: number;
+    perRuleSoftCap?: number;
   } = {},
 ) {
   ensureSetPoolIndexed(setScope);
@@ -244,7 +247,11 @@ export function runRulesForDeck(
     const raw = rule.fn(deck, setScope, profile, suggestions, taggerCtx, ruleDebug) || [];
     const added = (raw as { added?: Suggestion[] }).added != null ? (raw as { added: Suggestion[] }).added : (raw as Suggestion[]);
     const skipped = (raw as { skipped?: Array<{ name: string; reason: string }> }).skipped || [];
-    const capped = applySoftCap(added, SUGGEST_PER_RULE_SOFT_CAP, rankSuggestionsForCap);
+    const capped = applySoftCap(
+      added,
+      options.perRuleSoftCap ?? SUGGEST_PER_RULE_SOFT_CAP,
+      rankSuggestionsForCap,
+    );
     suggestions = suggestions.concat(capped);
     audit.push({
       ruleId: rule.id,
@@ -344,5 +351,6 @@ export * from './focus-filter';
 export * from './synergy-emit';
 export * from './package-assembler';
 export * from './upgrade-pool';
+export * from './upgrade-pool-tags';
 export * from './missing-cards';
 export * from './yaml-lists';

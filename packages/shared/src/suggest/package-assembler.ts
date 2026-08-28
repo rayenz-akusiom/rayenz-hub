@@ -1,3 +1,4 @@
+import { isPackageThemeKey } from './upgrade-pool-tags';
 import { effectiveMaxSwaps } from './suggest-limits';
 import type { Suggestion } from './types';
 
@@ -66,43 +67,35 @@ export function rankForBudgetPackaging(suggestions: Suggestion[]): Suggestion[] 
   });
 }
 
-function focusKeysForSuggestion(s: Suggestion): string[] {
+function packageThemeKeysForSuggestion(s: Suggestion): Set<string> {
   const keys = new Set<string>();
   (s.roles_matched || []).forEach((k) => {
-    if (k) keys.add(String(k));
+    if (k && isPackageThemeKey(k)) keys.add(String(k));
   });
   (s.tags || []).forEach((t) => {
-    if (t) keys.add(String(t));
+    if (t && isPackageThemeKey(t)) keys.add(String(t));
   });
   (s.signals?.tags || []).forEach((t) => {
-    if (t) keys.add(String(t));
+    if (t && isPackageThemeKey(t)) keys.add(String(t));
   });
-  return [...keys];
+  return keys;
 }
 
-function suggestionMatchesFocus(s: Suggestion, focusTags: string[]): boolean {
-  if (!focusTags.length) return true;
-  const keys = new Set(focusKeysForSuggestion(s));
-  return focusTags.some((f) => keys.has(f));
+function formatThemeLabel(theme: string): string {
+  return theme
+    .replace(/-/g, ' ')
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
-function formatFocusLabel(focusTags: string[]): string {
-  const readable = focusTags.map((t) => {
-    if (t.startsWith('rule:')) {
-      return t.slice(5).replace(/_/g, ' ');
-    }
-    return t.replace(/-/g, ' ');
-  });
-  return readable.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' + ');
-}
+type ThemeCluster = { key: string; count: number; score: number };
 
-type FocusCluster = { key: string; count: number; score: number };
-
-function buildFocusClusters(ranked: Suggestion[]): FocusCluster[] {
+function buildThemeClusters(ranked: Suggestion[]): ThemeCluster[] {
   const map = new Map<string, { count: number; score: number }>();
   ranked.forEach((s, idx) => {
     const weight = ranked.length - idx;
-    focusKeysForSuggestion(s).forEach((key) => {
+    packageThemeKeysForSuggestion(s).forEach((key) => {
       const cur = map.get(key) || { count: 0, score: 0 };
       cur.count += 1;
       cur.score += weight;
@@ -114,31 +107,47 @@ function buildFocusClusters(ranked: Suggestion[]): FocusCluster[] {
     .sort((a, b) => b.score - a.score || b.count - a.count || a.key.localeCompare(b.key));
 }
 
-function pickFocusPairs(clusters: FocusCluster[], targetCount: number): string[][] {
-  const pairs: string[][] = [];
-  const used = new Set<string>();
-  const keys = clusters.map((c) => c.key);
-
-  for (const primary of keys) {
-    if (pairs.length >= targetCount) break;
-    if (used.has(primary)) continue;
-    let partner: string | null = null;
-    for (const candidate of keys) {
-      if (candidate === primary || used.has(candidate)) continue;
-      partner = candidate;
-      break;
-    }
-    if (partner) {
-      pairs.push([primary, partner]);
-      used.add(primary);
-      used.add(partner);
-    } else if (!used.has(primary)) {
-      pairs.push([primary]);
-      used.add(primary);
-    }
+function pickPrimaryThemes(clusters: ThemeCluster[], targetCount: number): string[] {
+  const themes: string[] = [];
+  for (const cluster of clusters) {
+    if (themes.length >= targetCount) break;
+    if (!themes.includes(cluster.key)) themes.push(cluster.key);
   }
+  return themes;
+}
 
-  return pairs;
+function themeMatchScore(s: Suggestion, theme: string): number {
+  let score = 0;
+  if ((s.roles_matched || []).includes(theme)) score += 3;
+  if ((s.signals?.tags || []).includes(theme)) score += 2;
+  if (packageThemeKeysForSuggestion(s).has(theme)) score += 1;
+  return score;
+}
+
+function partitionByThemes(
+  ranked: Suggestion[],
+  themes: string[],
+): Map<string, Suggestion[]> {
+  const buckets = new Map<string, Suggestion[]>();
+  themes.forEach((t) => buckets.set(t, []));
+  ranked.forEach((s) => {
+    let bestTheme = themes[0]!;
+    let bestScore = -1;
+    themes.forEach((theme) => {
+      const score = themeMatchScore(s, theme);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTheme = theme;
+      }
+    });
+    if (bestScore <= 0) {
+      const fallback = themes.find((t) => packageThemeKeysForSuggestion(s).has(t));
+      if (fallback) bestTheme = fallback;
+      else return;
+    }
+    buckets.get(bestTheme)!.push(s);
+  });
+  return buckets;
 }
 
 function passesFilters(
@@ -163,24 +172,23 @@ function packageTotal(selected: Suggestion[]): number {
   return selected.reduce((n, s) => n + (incomingUsd(s) ?? 0), 0);
 }
 
-function fillPackage(
-  ranked: Suggestion[],
-  focusTags: string[],
+function fillFromPartition(
+  partition: Suggestion[],
   options: AssemblePackagesOptions,
   maxSwaps: number,
   owned: Set<string>,
   usedCuts: Set<string>,
   usedSuggestionIds: Set<string>,
 ): Suggestion[] {
-  const scoped = ranked.filter((s) => suggestionMatchesFocus(s, focusTags));
-  const hasPriced = scoped.some((s) => incomingUsd(s) != null);
+  const ranked = rankForBudgetPackaging(partition);
+  const hasPriced = ranked.some((s) => incomingUsd(s) != null);
   const allowUnknown = !hasPriced;
 
   const selected: Suggestion[] = [];
   const localCuts = new Set(usedCuts);
   let total = 0;
 
-  for (const s of scoped) {
+  for (const s of ranked) {
     if (selected.length >= maxSwaps) break;
     if (!passesFilters(s, options, owned, localCuts, usedSuggestionIds, allowUnknown)) continue;
     const usd = incomingUsd(s);
@@ -199,7 +207,7 @@ function fillPackage(
       const currentPrice = incomingUsd(current) ?? 0;
       let bestUpgrade: Suggestion | null = null;
       let bestPrice = currentPrice;
-      for (const candidate of scoped) {
+      for (const candidate of ranked) {
         if (selectedIds.has(candidate.suggestion_id)) continue;
         if (!passesFilters(candidate, options, owned, localCuts, usedSuggestionIds, allowUnknown)) continue;
         const candidatePrice = incomingUsd(candidate);
@@ -246,25 +254,34 @@ export function assemblePackages(
     else unknown += 1;
   });
 
-  const clusters = buildFocusClusters(ranked);
-  const focusPairs = pickFocusPairs(clusters, TARGET_PACKAGE_COUNT);
+  const clusters = buildThemeClusters(ranked);
+  const primaryThemes = pickPrimaryThemes(clusters, TARGET_PACKAGE_COUNT);
+  const partitions = partitionByThemes(ranked, primaryThemes);
   const usedSuggestionIds = new Set<string>();
   const usedCuts = new Set<string>();
   const packages: ChangePackage[] = [];
 
-  focusPairs.forEach((focusTags, idx) => {
-    const selected = fillPackage(ranked, focusTags, options, maxSwaps, owned, usedCuts, usedSuggestionIds);
+  primaryThemes.forEach((theme, idx) => {
+    const partition = partitions.get(theme) || [];
+    const selected = fillFromPartition(
+      partition,
+      options,
+      maxSwaps,
+      owned,
+      usedCuts,
+      usedSuggestionIds,
+    );
     if (!selected.length) return;
     const total = packageTotal(selected);
     const unknownInPkg = selected.filter((s) => incomingUsd(s) == null).length;
     packages.push({
       packageId: `pkg-${idx + 1}`,
-      label: formatFocusLabel(focusTags),
+      label: formatThemeLabel(theme),
       totalUsd: total,
       swapCount: selected.length,
       unknownPriceCount: unknownInPkg,
       suggestionIds: selected.map((s) => s.suggestion_id),
-      focusTags,
+      focusTags: [theme],
     });
   });
 

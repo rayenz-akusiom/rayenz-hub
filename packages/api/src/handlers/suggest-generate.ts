@@ -11,6 +11,7 @@ import { fetchPinnedReleaseCards, fetchReleaseCards, fetchSetCards } from '@raye
 import {
   assemblePackages,
   budgetSuggestDeckCap,
+  budgetSuggestPerRuleCap,
   buildUpgradePool,
   computeUpgradePoolKey,
   enrichSuggestionPrices,
@@ -295,6 +296,7 @@ export async function handleSuggestGenerate(
       const output = runRulesForDeck(record, setScopeFromPool(pool), {
         focusTags,
         deckSoftCap: budgetSuggestDeckCap(maxSwaps),
+        perRuleSoftCap: budgetSuggestPerRuleCap(),
       });
       let suggestions = applyFocusToSuggestions(output.suggestions, focusTags);
       const { packages, audit: packaging } = budgetPackagesForDeck(record, suggestions, budgetUsd, {

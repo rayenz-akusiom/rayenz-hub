@@ -64,6 +64,7 @@ export function PackagePanel({
 }
 
 function PackageSummary({ pkg }: { pkg: Package }) {
+  const cardCount = pkg.suggestionIds?.length ?? pkg.swapCount;
   const focusLabel =
     pkg.focusTags?.length
       ? pkg.focusTags.map(formatFocusTag).join(', ')
@@ -71,7 +72,7 @@ function PackageSummary({ pkg }: { pkg: Package }) {
 
   return (
     <p className="ds-package-summary ds-meta">
-      {pkg.swapCount} card{pkg.swapCount === 1 ? '' : 's'} · ${pkg.totalUsd.toFixed(2)} · {focusLabel}
+      {cardCount} card{cardCount === 1 ? '' : 's'} · ${pkg.totalUsd.toFixed(2)} · {focusLabel}
       {pkg.unknownPriceCount ? ` · ${pkg.unknownPriceCount} unknown price` : ''}
     </p>
   );

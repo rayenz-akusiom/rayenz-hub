@@ -12,6 +12,12 @@ export function budgetSuggestDeckCap(maxSwaps?: number): number {
   return Math.max(15, 3 * effectiveMaxSwaps(maxSwaps));
 }
 
+export const BUDGET_SUGGEST_PER_RULE_SOFT_CAP = 8;
+
+export function budgetSuggestPerRuleCap(): number {
+  return BUDGET_SUGGEST_PER_RULE_SOFT_CAP;
+}
+
 export function dropLowConfidence(suggestions: Suggestion[]): Suggestion[] {
   return suggestions.filter((s) => s.confidence !== 'low');
 }

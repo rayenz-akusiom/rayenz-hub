@@ -71,7 +71,22 @@ describe('assemblePackages', () => {
     const allIds = packages.flatMap((pkg) => pkg.suggestionIds);
     expect(new Set(allIds).size).toBe(allIds.length);
     packages.forEach((pkg) => {
-      expect(pkg.focusTags.length).toBeGreaterThan(0);
+      expect(pkg.focusTags).toHaveLength(1);
+      expect(pkg.label.toLowerCase()).not.toContain('synergy');
+    });
+  });
+
+  it('partitions haste suggestions under functional themes not rule metadata', () => {
+    const suggestions = [
+      sug('a', 'Bolt', 3, 'Cut A', 'normal', ['rule:role_synergy', 'removal'], ['removal']),
+      sug('b', 'Rock', 3, 'Cut B', 'normal', ['rule:role_synergy', 'ramp'], ['ramp']),
+      sug('c', 'Draw', 3, 'Cut C', 'normal', ['rule:keyword_synergy', 'haste'], ['haste', 'card-draw']),
+    ];
+    const { packages } = assemblePackages(suggestions, { budgetUsd: 20, maxSwaps: 1 });
+    expect(packages.length).toBeGreaterThanOrEqual(2);
+    packages.forEach((pkg) => {
+      expect(pkg.label.toLowerCase()).not.toContain('synergy');
+      expect(pkg.label.toLowerCase()).not.toContain('haste');
     });
   });
 

@@ -1,4 +1,4 @@
-import { SuggestReleasesResponseSchema, getReleaseCatalog } from '@rayenz-hub/shared';
+import { SuggestReleasesResponseSchema, getPinnedReleaseEntries, getReleaseCatalog } from '@rayenz-hub/shared';
 import { jsonResponse } from '../lib/response.js';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
@@ -10,7 +10,11 @@ export async function handleSuggestReleases(
   try {
     await services.authService.authenticate(headers);
     const catalog = getReleaseCatalog();
-    const payload = SuggestReleasesResponseSchema.parse(catalog);
+    const pinned = getPinnedReleaseEntries();
+    const payload = SuggestReleasesResponseSchema.parse({
+      ...catalog,
+      releases: [...pinned, ...catalog.releases],
+    });
     return jsonResponse(200, payload);
   } catch (e) {
     const mapped = mapHandlerError(e, services.authService);

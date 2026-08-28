@@ -1,6 +1,7 @@
 import type { ReleaseCatalogEntry } from '@rayenz-hub/shared';
 import {
   formatReleaseOptionLabel,
+  listReleaseOptions,
   partitionReleaseOptions,
 } from './releases';
 
@@ -12,10 +13,22 @@ export function ReleaseSelectOptgroups({
   releases?: ReleaseCatalogEntry[];
   now?: Date;
 }) {
-  const { upcoming, groups, blocks } = partitionReleaseOptions(releases, now);
+  const all = releases ?? listReleaseOptions();
+  const pinned = all.filter((r) => r.kind === 'pinned');
+  const catalog = all.filter((r) => r.kind !== 'pinned');
+  const { upcoming, groups, blocks } = partitionReleaseOptions(catalog, now);
 
   return (
     <>
+      {pinned.length ? (
+        <optgroup label="Pinned">
+          {pinned.map((r) => (
+            <option key={r.id} value={r.id}>
+              {formatReleaseOptionLabel(r)}
+            </option>
+          ))}
+        </optgroup>
+      ) : null}
       {upcoming.length ? (
         <optgroup label="Upcoming">
           {upcoming.map((r) => (

@@ -1,6 +1,11 @@
 import { withPaperGameQuery } from '../deck-builder/scryfall-api.js';
 import type { ReleaseKind } from './release-catalog.js';
 import { maybeAttachScryfallTags } from './oracle-tags.js';
+import {
+  PINNED_RELEASE_DEFS,
+  resolvePinnedSetCodes,
+  SECRET_LAIR_WINDOW_DAYS,
+} from './pinned-releases.js';
 
 /**
  * Scryfall + Wizards Collecting set resolution (shared by API + MCP).
@@ -487,6 +492,32 @@ export async function fetchSetCards(
 }
 
 /**
+ * Fetch cards for a pinned Suggest release (e.g. Secret Lair all / 30-day window).
+ */
+export async function fetchPinnedReleaseCards(
+  code: string,
+  opts?: { dedupe?: boolean; now?: Date },
+): Promise<FetchSetCardsResult> {
+  const upper = code.trim().toUpperCase();
+  const now = opts?.now ?? new Date();
+  const setCodes = resolvePinnedSetCodes(upper, now);
+  if (!setCodes.length) {
+    throw new Error(
+      `No Secret Lair sets in the ${SECRET_LAIR_WINDOW_DAYS}-day window.`,
+    );
+  }
+  const def = PINNED_RELEASE_DEFS.find((d) => d.code === upper);
+  const fetched = await fetchSetCards(setCodes, { dedupe: opts?.dedupe });
+  return {
+    ...fetched,
+    product_name: def?.name || fetched.product_name,
+    primary_set_code: setCodes.includes(fetched.primary_set_code)
+      ? fetched.primary_set_code
+      : setCodes[0],
+  };
+}
+
+/**
  * Fetch all unique cards in a Scryfall release using `g:` (group) or `b:` (block).
  * Example: g:ltr, b:zen, g:hob
  */
@@ -495,6 +526,9 @@ export async function fetchReleaseCards(
   code: string,
   opts?: { dedupe?: boolean },
 ): Promise<FetchSetCardsResult> {
+  if (kind === 'pinned') {
+    return fetchPinnedReleaseCards(code, opts);
+  }
   const seed = code.trim().toLowerCase();
   if (!seed) throw new Error('Release code is required.');
   const prefix = kind === 'block' ? 'b' : 'g';

@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const MANUAL_SET_CODES_MAX = 5;
 
 export const SuggestReleaseSchema = z.object({
-  kind: z.enum(['group', 'block']),
+  kind: z.enum(['group', 'block', 'pinned']),
   code: z.string().min(1),
 });
 export type SuggestRelease = z.infer<typeof SuggestReleaseSchema>;
@@ -87,12 +87,21 @@ export const SuggestReleasesResponseSchema = z.object({
   releases: z.array(
     z.object({
       id: z.string(),
-      kind: z.enum(['group', 'block']),
+      kind: z.enum(['group', 'block', 'pinned']),
       code: z.string(),
       name: z.string(),
       released_at: z.string().nullable(),
       set_codes: z.array(z.string()),
     }),
   ),
+  secretLairSets: z
+    .array(
+      z.object({
+        code: z.string(),
+        name: z.string(),
+        released_at: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 export type SuggestReleasesResponse = z.infer<typeof SuggestReleasesResponseSchema>;

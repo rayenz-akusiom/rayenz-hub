@@ -15,7 +15,13 @@ export type ScryfallSetRow = {
   card_count?: number;
 };
 
-export type ReleaseKind = 'group' | 'block';
+export type ReleaseKind = 'group' | 'block' | 'pinned';
+
+export type SecretLairSetRow = {
+  code: string;
+  name: string;
+  released_at: string | null;
+};
 
 export type ReleaseCatalogEntry = {
   id: string;
@@ -31,6 +37,8 @@ export type ReleaseCatalog = {
   formatVersion: 1;
   generatedAt: string;
   releases: ReleaseCatalogEntry[];
+  /** Scryfall sets whose name starts with "Secret Lair" (for pinned Suggest shortcuts). */
+  secretLairSets: SecretLairSetRow[];
 };
 
 /** Types we treat as playable anchors / family members for Suggest. */
@@ -119,6 +127,29 @@ function pickGroupAnchor(
   return preferred || null;
 }
 
+/** Non-digital Scryfall sets whose product name starts with "Secret Lair". */
+export function buildSecretLairSets(allSets: ScryfallSetRow[]): SecretLairSetRow[] {
+  const rows: SecretLairSetRow[] = [];
+  for (const row of allSets) {
+    const code = upper(row.code);
+    if (!code || row.digital) continue;
+    const name = String(row.name || '').trim();
+    if (!/^secret lair/i.test(name)) continue;
+    rows.push({
+      code,
+      name,
+      released_at: row.released_at ? String(row.released_at) : null,
+    });
+  }
+  rows.sort((a, b) => {
+    const da = a.released_at || '';
+    const db = b.released_at || '';
+    if (da !== db) return db.localeCompare(da);
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+}
+
 /**
  * Build dropdown catalog: one group per Scryfall parent/child family (playable),
  * plus one block entry per distinct block_code.
@@ -197,5 +228,10 @@ export function buildReleaseCatalog(
     return a.name.localeCompare(b.name);
   });
 
-  return { formatVersion: 1, generatedAt, releases };
+  return {
+    formatVersion: 1,
+    generatedAt,
+    releases,
+    secretLairSets: buildSecretLairSets(allSets),
+  };
 }

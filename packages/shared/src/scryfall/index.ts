@@ -1,6 +1,7 @@
 export {
   analyzableOracleText,
   collectingUrlForName,
+  fetchPinnedReleaseCards,
   fetchReleaseCards,
   fetchSetCards,
   fetchSetMetadata,
@@ -16,6 +17,7 @@ export {
 
 export {
   buildReleaseCatalog,
+  buildSecretLairSets,
   expandBlockSetCodes,
   expandGroupSetCodes,
   familyRootCode,
@@ -24,9 +26,25 @@ export {
   type ReleaseCatalogEntry,
   type ReleaseKind,
   type ScryfallSetRow,
+  type SecretLairSetRow,
 } from './release-catalog.js';
 
 export { getReleaseCatalog } from './release-catalog-data.js';
+
+export {
+  findPinnedRelease,
+  findPinnedReleaseByKindCode,
+  formatReleaseDay,
+  getPinnedReleaseEntries,
+  isWithinReleaseWindow,
+  parseReleaseDay,
+  pinnedReleasePoolKey,
+  PINNED_RELEASE_DEFS,
+  resolvePinnedSetCodes,
+  SECRET_LAIR_WINDOW_DAYS,
+  secretLairSetsFromCatalog,
+  type PinnedReleaseCode,
+} from './pinned-releases.js';
 
 export {
   attachTagsToCard,

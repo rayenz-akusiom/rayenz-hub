@@ -1,5 +1,5 @@
 import type { ReleaseCatalogEntry, ReleaseKind } from '@rayenz-hub/shared';
-import { getReleaseCatalog } from '@rayenz-hub/shared';
+import { findPinnedRelease, getPinnedReleaseEntries, getReleaseCatalog } from '@rayenz-hub/shared';
 
 /** Keep a release in the top “Upcoming” section until it is more than this many days past release. */
 export const UPCOMING_RELEASE_GRACE_DAYS = 7;
@@ -9,12 +9,14 @@ export function parseReleaseId(
 ): { kind: ReleaseKind; code: string } | null {
   const raw = String(id || '').trim();
   if (!raw) return null;
-  const match = /^(group|block):([A-Za-z0-9]+)$/i.exec(raw);
+  const match = /^(group|block|pinned):([A-Za-z0-9-]+)$/i.exec(raw);
   if (!match) return null;
   return { kind: match[1].toLowerCase() as ReleaseKind, code: match[2].toUpperCase() };
 }
 
 export function findReleaseEntry(releaseId: string | null | undefined): ReleaseCatalogEntry | null {
+  const pinned = findPinnedRelease(releaseId);
+  if (pinned) return pinned;
   const parsed = parseReleaseId(releaseId);
   if (!parsed) return null;
   const catalog = getReleaseCatalog();
@@ -26,7 +28,7 @@ export function findReleaseEntry(releaseId: string | null | undefined): ReleaseC
 }
 
 export function listReleaseOptions(): ReleaseCatalogEntry[] {
-  return getReleaseCatalog().releases;
+  return [...getPinnedReleaseEntries(), ...getReleaseCatalog().releases];
 }
 
 function startOfUtcDay(d: Date): number {
@@ -72,6 +74,7 @@ export function partitionReleaseOptions(
   const blocks: ReleaseCatalogEntry[] = [];
 
   for (const entry of releases) {
+    if (entry.kind === 'pinned') continue;
     if (isUpcomingRelease(entry.released_at, now)) {
       upcoming.push(entry);
       continue;
@@ -98,4 +101,23 @@ export function formatReleaseOptionLabel(
     return `${base} — ${entry.released_at}`;
   }
   return base;
+}
+
+const SET_CHIP_PREVIEW_MAX = 8;
+
+/** Compact label when a release resolves to many set codes (e.g. Secret Lair all). */
+export function formatSetCodesPreview(
+  entry: ReleaseCatalogEntry | null | undefined,
+  codes: string[],
+): { summary: string | null; chips: string[] } {
+  if (!codes.length) return { summary: null, chips: [] };
+  if (entry?.kind === 'pinned' || codes.length > SET_CHIP_PREVIEW_MAX) {
+    const sample = codes.slice(0, 3).join(', ');
+    const suffix = codes.length > 3 ? ', …' : '';
+    return {
+      summary: `${codes.length} set(s) (${sample}${suffix})`,
+      chips: [],
+    };
+  }
+  return { summary: null, chips: codes };
 }

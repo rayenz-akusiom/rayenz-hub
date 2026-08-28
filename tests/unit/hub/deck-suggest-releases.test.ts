@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatReleaseOptionLabel,
+  formatSetCodesPreview,
   isUpcomingRelease,
+  listReleaseOptions,
+  parseReleaseId,
   partitionReleaseOptions,
   type PartitionedReleases,
 } from '../../../packages/web/src/deck-suggest/releases.ts';
@@ -85,5 +88,53 @@ describe('partitionReleaseOptions', () => {
       formatReleaseOptionLabel(releases[0], { includeReleaseDate: true }),
     ).toBe('The Hobbit (HOB) — 2026-09-01');
     expect(formatReleaseOptionLabel(releases[2])).toBe('The Lord of the Rings (LTR)');
+  });
+});
+
+describe('parseReleaseId', () => {
+  it('parses pinned release ids with hyphens', () => {
+    expect(parseReleaseId('pinned:secret-lair-all')).toEqual({
+      kind: 'pinned',
+      code: 'SECRET-LAIR-ALL',
+    });
+    expect(parseReleaseId('group:ltr')).toEqual({ kind: 'group', code: 'LTR' });
+  });
+});
+
+describe('listReleaseOptions', () => {
+  it('prepends pinned Secret Lair shortcuts', () => {
+    const options = listReleaseOptions();
+    expect(options[0]?.kind).toBe('pinned');
+    expect(options[0]?.id).toBe('pinned:secret-lair-all');
+    expect(options.some((r) => r.id === 'group:ltr')).toBe(true);
+  });
+});
+
+describe('partitionReleaseOptions', () => {
+  it('does not place pinned entries in upcoming, groups, or blocks', () => {
+    const now = new Date('2026-08-16T15:00:00.000Z');
+    const pinned = listReleaseOptions().filter((r) => r.kind === 'pinned');
+    const parts = partitionReleaseOptions(
+      [...pinned, ...listReleaseOptions().filter((r) => r.kind !== 'pinned')],
+      now,
+    );
+    const all = [...parts.upcoming, ...parts.groups, ...parts.blocks];
+    expect(all.some((r) => r.kind === 'pinned')).toBe(false);
+  });
+});
+
+describe('formatSetCodesPreview', () => {
+  it('summarizes many set codes for pinned releases', () => {
+    const entry: ReleaseCatalogEntry = {
+      id: 'pinned:secret-lair-all',
+      kind: 'pinned',
+      code: 'SECRET-LAIR-ALL',
+      name: 'Secret Lair (all)',
+      released_at: null,
+      set_codes: ['SLD', 'SLC', 'SLP', 'SLU', 'PSSC'],
+    };
+    const preview = formatSetCodesPreview(entry, entry.set_codes);
+    expect(preview.summary).toMatch(/5 set\(s\)/);
+    expect(preview.chips).toEqual([]);
   });
 });

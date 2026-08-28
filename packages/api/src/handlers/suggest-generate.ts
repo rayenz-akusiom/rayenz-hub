@@ -4,9 +4,10 @@ import {
   SuggestGenerateResponseSchema,
   normalizeSetCodes,
   normalizeSetCodesKey,
+  pinnedReleasePoolKey,
   type SuggestRelease,
 } from '@rayenz-hub/shared';
-import { fetchReleaseCards, fetchSetCards } from '@rayenz-hub/shared';
+import { fetchPinnedReleaseCards, fetchReleaseCards, fetchSetCards } from '@rayenz-hub/shared';
 import {
   hubDeckToRecord,
   parseYamlProfile,
@@ -28,6 +29,7 @@ export function readSuggestDeckCap(env: NodeJS.ProcessEnv = process.env): number
 
 export type SuggestGenerateDeps = {
   fetchReleaseCards?: typeof fetchReleaseCards;
+  fetchPinnedReleaseCards?: typeof fetchPinnedReleaseCards;
   fetchSetCards?: typeof fetchSetCards;
 };
 
@@ -72,6 +74,26 @@ async function ensureSetPoolFromRelease(
 ): Promise<SetPoolRecord> {
   const kind = release.kind;
   const code = release.code.trim().toUpperCase();
+
+  if (kind === 'pinned') {
+    const codesKey = pinnedReleasePoolKey(code);
+    const existing = await services.setPoolRepository.get(auth, env, codesKey);
+    if (isCurrentSetPool(existing)) {
+      return existing;
+    }
+    const fetchPinned = deps.fetchPinnedReleaseCards || fetchPinnedReleaseCards;
+    const fetched = await fetchPinned(code, { dedupe: true });
+    const codes = fetched.set_codes.length ? fetched.set_codes : [];
+    return services.setPoolRepository.put(auth, env, codesKey, {
+      codes,
+      complete: true,
+      primaryCode: fetched.primary_set_code,
+      setName: fetched.product_name,
+      cards: fetched.cards as unknown as Record<string, unknown>[],
+      formatVersion: SET_POOL_FORMAT_VERSION,
+    });
+  }
+
   // Provisional key until cards reveal the full family; prefer cached pool by catalog codes later.
   const fetchCards = deps.fetchReleaseCards || fetchReleaseCards;
   const fetched = await fetchCards(kind, code, { dedupe: true });
@@ -143,7 +165,10 @@ export async function handleSuggestGenerate(
     }
 
     const codes = pool.codes?.length ? pool.codes : [];
-    const codesKey = normalizeSetCodesKey(codes);
+    const codesKey =
+      releaseUsed?.kind === 'pinned'
+        ? pinnedReleasePoolKey(releaseUsed.code)
+        : normalizeSetCodesKey(codes);
 
     const pageDecks: Array<{ deck: ReturnType<typeof hubDeckToRecord> }> = [];
     const notFound: Array<{ deckId: string }> = [];

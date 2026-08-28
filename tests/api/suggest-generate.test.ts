@@ -261,6 +261,35 @@ describe('POST /v1/suggest/generate', () => {
     expect(body.setCodes).toContain('LTR');
   });
 
+  it('resolves pinned Secret Lair release with stable pool key', async () => {
+    const { services } = createMemoryStores();
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+    const res = await handleSuggestGenerate(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        release: { kind: 'pinned', code: 'SECRET-LAIR-ALL' },
+        deckIds: ['cmd-fixture'],
+      }),
+      services,
+      {
+        fetchPinnedReleaseCards: async () => ({
+          product_name: 'Secret Lair (all)',
+          primary_set_code: 'SLD',
+          set_codes: ['SLD', 'SLC'],
+          sets: [],
+          expected_card_count: 1,
+          fetched_card_count: 1,
+          cards: [{ ...sampleCard, set_code: 'SLD' }],
+        }),
+      },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(String(res.body));
+    expect(body.release).toEqual({ kind: 'pinned', code: 'SECRET-LAIR-ALL' });
+    expect(body.setCodesKey).toBe('pinned:secret-lair-all');
+    expect(body.setCodes).toEqual(['SLD', 'SLC']);
+  });
+
   it('returns 200 grouped results with audit; missing deck is skipped', async () => {
     const { services } = createMemoryStores();
     await seedPool(services);

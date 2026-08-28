@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "generatedAt": "2026-08-16T20:13:44.405Z",
+  "generatedAt": "2026-08-28T00:24:00.740Z",
   "releases": [
     {
       "id": "group:trk",
@@ -3181,6 +3181,33 @@
       "set_codes": [
         "LEA"
       ]
+    }
+  ],
+  "secretLairSets": [
+    {
+      "code": "PSSC",
+      "name": "Secret Lair Showcase Planes",
+      "released_at": "2025-02-21"
+    },
+    {
+      "code": "SLP",
+      "name": "Secret Lair Promo",
+      "released_at": "2023-02-17"
+    },
+    {
+      "code": "SLC",
+      "name": "Secret Lair Countdown",
+      "released_at": "2022-11-01"
+    },
+    {
+      "code": "SLU",
+      "name": "Secret Lair: Ultimate Edition",
+      "released_at": "2020-05-29"
+    },
+    {
+      "code": "SLD",
+      "name": "Secret Lair Drop",
+      "released_at": "2019-12-02"
     }
   ]
 }

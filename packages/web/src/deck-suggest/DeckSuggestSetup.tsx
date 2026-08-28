@@ -1,7 +1,7 @@
 import { isLocalHub } from '../lib/hub-utils';
 import { applyDeckList, selectAllDecks, toggleDeckSelection } from './deck-load';
 import { deckSuggestHeaderText } from './display';
-import { findReleaseEntry, listReleaseOptions } from './releases';
+import { findReleaseEntry, formatSetCodesPreview, listReleaseOptions } from './releases';
 import { ReleaseSelectOptgroups } from './ReleaseSelectOptgroups';
 import type { DeckSelection, DeckSuggestSettings, SetInputMode } from './types';
 
@@ -41,6 +41,7 @@ export function DeckSuggestSetup({
   const previewCodes = resolvedSetCodes.length
     ? resolvedSetCodes
     : selectedRelease?.set_codes || [];
+  const setPreview = formatSetCodesPreview(selectedRelease, previewCodes);
 
   function saveSettings(next: DeckSuggestSettings) {
     setSettings(next);
@@ -107,11 +108,15 @@ export function DeckSuggestSetup({
       {previewCodes.length ? (
         <p className="ds-meta" id="ds-resolved-codes">
           Sets:{' '}
-          {previewCodes.map((code) => (
-            <span key={code} className="ds-set-chip">
-              {code}
-            </span>
-          ))}
+          {setPreview.summary ? (
+            <span className="ds-set-chip">{setPreview.summary}</span>
+          ) : (
+            setPreview.chips.map((code) => (
+              <span key={code} className="ds-set-chip">
+                {code}
+              </span>
+            ))
+          )}
         </p>
       ) : null}
 

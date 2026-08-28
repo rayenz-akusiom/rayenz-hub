@@ -45,4 +45,6 @@ const catalog = buildReleaseCatalog(sets);
 fs.writeFileSync(OUT, `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
 const groups = catalog.releases.filter((r) => r.kind === 'group').length;
 const blocks = catalog.releases.filter((r) => r.kind === 'block').length;
-console.log(`Wrote ${catalog.releases.length} releases (${groups} groups, ${blocks} blocks) → ${OUT}`);
+console.log(
+  `Wrote ${catalog.releases.length} releases (${groups} groups, ${blocks} blocks), ${catalog.secretLairSets.length} Secret Lair sets → ${OUT}`,
+);

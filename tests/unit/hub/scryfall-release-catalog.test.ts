@@ -96,4 +96,11 @@ describe('getReleaseCatalog', () => {
     const hob = catalog.releases.find((r) => r.id === 'group:hob');
     expect(hob?.name).toMatch(/Hobbit/i);
   });
+
+  it('includes Secret Lair sets for pinned shortcuts', () => {
+    const catalog = getReleaseCatalog();
+    expect(catalog.secretLairSets.length).toBeGreaterThan(0);
+    expect(catalog.secretLairSets.every((s) => /^Secret Lair/i.test(s.name))).toBe(true);
+    expect(catalog.secretLairSets.some((s) => s.code === 'SLD')).toBe(true);
+  });
 });

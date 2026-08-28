@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildUpgradePool,
+  buildUpgradeThemePools,
   computePerCardCap,
   computeUpgradePoolKey,
   readUpgradePoolCap,
@@ -42,6 +43,7 @@ describe('upgrade-pool helpers', () => {
     expect(computeUpgradePoolKey('d1', 25, [], ['removal', 'ramp'])).toBe(
       'upgrade:d1:25:tags-ramp+removal',
     );
+    expect(computeUpgradePoolKey('d1', 25, [], [], 'removal')).toBe('upgrade:d1:25:theme-removal');
   });
 
   it('reads HUB_UPGRADE_POOL_CAP from env', () => {
@@ -196,5 +198,97 @@ describe('buildUpgradePool', () => {
     const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });
     expect(result.cards).toHaveLength(3);
     expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('builds separate pools per profile theme with cross-package dedup', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const q = new URL(String(url)).searchParams.get('q') || '';
+      if (q.includes('otag:removal')) {
+        return scryfallOk({
+          data: [
+            {
+              name: 'Shared Card',
+              set: 'CMR',
+              collector_number: '1',
+              type_line: 'Instant',
+              oracle_text: 'destroy',
+              keywords: [],
+              color_identity: ['U'],
+              cmc: 2,
+              oracle_id: 'shared-oracle',
+              oracle_tags: ['removal'],
+              prices: { usd: '2.00' },
+            },
+            {
+              name: 'Removal Only',
+              set: 'CMR',
+              collector_number: '2',
+              type_line: 'Instant',
+              oracle_text: 'destroy',
+              keywords: [],
+              color_identity: ['U'],
+              cmc: 2,
+              oracle_id: 'removal-only',
+              oracle_tags: ['removal'],
+              prices: { usd: '1.50' },
+            },
+          ],
+        });
+      }
+      return scryfallOk({
+        data: [
+          {
+            name: 'Shared Card',
+            set: 'CMR',
+            collector_number: '1',
+            type_line: 'Artifact',
+            oracle_text: 'Add mana',
+            keywords: [],
+            color_identity: ['U'],
+            cmc: 2,
+            oracle_id: 'shared-oracle',
+            oracle_tags: ['ramp'],
+            prices: { usd: '2.00' },
+          },
+          {
+            name: 'Ramp Only',
+            set: 'CMR',
+            collector_number: '3',
+            type_line: 'Artifact',
+            oracle_text: 'Add mana',
+            keywords: [],
+            color_identity: ['U'],
+            cmc: 2,
+            oracle_id: 'ramp-only',
+            oracle_tags: ['ramp'],
+            prices: { usd: '1.00' },
+          },
+        ],
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await buildUpgradeThemePools(
+      deck,
+      {
+        roles: [
+          { id: 'removal', tags: ['removal'] },
+          { id: 'ramp', tags: ['ramp'] },
+        ],
+      },
+      25,
+      { cap: 450 },
+    );
+
+    expect(result.themes).toEqual(['removal', 'ramp']);
+    expect(result.pools.get('removal')?.cards).toHaveLength(2);
+    expect(result.pools.get('ramp')?.cards).toHaveLength(1);
+    expect(result.pools.get('ramp')?.cards[0]?.name).toBe('Ramp Only');
+    expect(result.totalCardCount).toBe(3);
+    const searchUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(searchUrls.some((u) => u.includes('otag%3Aremoval') || u.includes('otag:removal'))).toBe(
+      true,
+    );
+    expect(searchUrls.some((u) => u.includes('otag%3Aramp') || u.includes('otag:ramp'))).toBe(true);
   });
 });

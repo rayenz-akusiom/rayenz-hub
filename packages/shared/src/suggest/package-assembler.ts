@@ -1,4 +1,4 @@
-import { isPackageThemeKey } from './upgrade-pool-tags';
+import { isPackageThemeKey, TARGET_PACKAGE_COUNT } from './upgrade-pool-tags';
 import { effectiveMaxSwaps } from './suggest-limits';
 import type { Suggestion } from './types';
 
@@ -25,11 +25,15 @@ export type AssemblePackagesOptions = {
   maxSwaps?: number;
   excludeOwned?: boolean;
   ownedNames?: Set<string>;
+  /** When set, skip theme clustering and use these buckets directly. */
+  preassignedThemes?: string[];
+  partitions?: Map<string, Suggestion[]>;
 };
 
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-const TARGET_PACKAGE_COUNT = 3;
 const SPEND_TARGET_RATIO = 0.85;
+
+export { TARGET_PACKAGE_COUNT };
 
 function incomingUsd(s: Suggestion): number | null {
   const raw = (s as { incomingUsd?: number }).incomingUsd;
@@ -255,8 +259,13 @@ export function assemblePackages(
   });
 
   const clusters = buildThemeClusters(ranked);
-  const primaryThemes = pickPrimaryThemes(clusters, TARGET_PACKAGE_COUNT);
-  const partitions = partitionByThemes(ranked, primaryThemes);
+  const primaryThemes =
+    options.preassignedThemes?.length
+      ? options.preassignedThemes
+      : pickPrimaryThemes(clusters, TARGET_PACKAGE_COUNT);
+  const partitions =
+    options.partitions ??
+    partitionByThemes(ranked, primaryThemes);
   const usedSuggestionIds = new Set<string>();
   const usedCuts = new Set<string>();
   const packages: ChangePackage[] = [];

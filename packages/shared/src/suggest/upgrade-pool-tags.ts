@@ -1,3 +1,4 @@
+import { normalizeFocusTags } from './focus-filter.js';
 import type { DeckProfile } from './types';
 
 /** Printed keywords too broad for upgrade pool search or package themes. */
@@ -43,8 +44,10 @@ export const EVERGREEN_KEYWORDS = new Set([
 
 const META_PACKAGE_KEYS = new Set(['keyword', 'theme', 'typal']);
 
+export const TARGET_PACKAGE_COUNT = 3;
 export const UPGRADE_MIN_POOL_TARGET = 100;
-export const UPGRADE_SEARCH_RAW_CAP = 1000;
+export const UPGRADE_SEARCH_RAW_CAP = 500;
+export const UPGRADE_PACKAGE_POOL_CAP = 450;
 
 function normalizeTagSlug(raw: string): string {
   return String(raw || '')
@@ -105,4 +108,45 @@ export function isPackageThemeKey(key: string): boolean {
 
 export function nonEvergreenKeywordInterests(profile?: DeckProfile | null): string[] {
   return filterEvergreenKeywords(profile?.keyword_interests || []);
+}
+
+/** Package focus areas for per-theme Scryfall queries (up to maxCount). */
+export function pickPackageFocusAreas(
+  profile?: DeckProfile | null,
+  userFocusTags?: string[],
+  maxCount = TARGET_PACKAGE_COUNT,
+): string[] {
+  const userFocus = normalizeFocusTags(userFocusTags);
+  if (userFocus.length) {
+    return userFocus.filter((t) => isPackageThemeKey(t)).slice(0, maxCount);
+  }
+  return collectProfileSearchTags(profile)
+    .filter((t) => isPackageThemeKey(t))
+    .slice(0, maxCount);
+}
+
+/** Tag list for adaptive otag expansion scoped to one package theme. */
+export function expansionTagsForTheme(
+  primaryTheme: string,
+  allProfileTags: string[],
+  otherPrimaryThemes: string[],
+): string[] {
+  const primary = normalizeTagSlug(primaryTheme);
+  if (!primary) return [];
+  const excluded = new Set(otherPrimaryThemes.map(normalizeTagSlug));
+  excluded.add(primary);
+  const out = [primary];
+  const seen = new Set([primary]);
+  for (const tag of allProfileTags) {
+    const slug = normalizeTagSlug(tag);
+    if (!slug || seen.has(slug) || excluded.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+}
+
+export function themeKeySuffix(theme?: string): string {
+  const slug = theme ? normalizeTagSlug(theme) : '';
+  return slug ? `:theme-${slug}` : '';
 }

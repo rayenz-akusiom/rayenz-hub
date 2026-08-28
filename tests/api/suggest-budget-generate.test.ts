@@ -4,6 +4,7 @@ import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
 import { handleProfile } from '../../packages/api/src/handlers/profiles.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 import commander from '../fixtures/deck-builder/commander-slice.json';
+import type { BuildUpgradeThemePoolsResult } from '../../packages/shared/src/suggest/upgrade-pool.ts';
 
 const upgradeCard = {
   name: 'Feed the Swarm',
@@ -15,6 +16,24 @@ const upgradeCard = {
   oracle_tags: ['removal'],
   usd: 3.5,
 };
+
+function singlePoolMock(
+  cards: typeof upgradeCard[],
+  codesKey: string,
+): () => Promise<BuildUpgradeThemePoolsResult> {
+  return async () => ({
+    themes: [],
+    pools: new Map(),
+    singlePool: {
+      cards,
+      codesKey,
+      codes: [codesKey],
+      primaryCode: 'UPGRADE',
+      cardCount: cards.length,
+    },
+    totalCardCount: cards.length,
+  });
+}
 
 describe('POST /v1/suggest/generate budget mode', () => {
   it('returns 400 when multiple deckIds sent', async () => {
@@ -35,13 +54,7 @@ describe('POST /v1/suggest/generate budget mode', () => {
       JSON.stringify({ budgetUsd: 25, deckIds: ['cmd-fixture'] }),
       services,
       {
-        buildUpgradePool: async () => ({
-          cards: [],
-          codesKey: 'upgrade:cmd-fixture:25',
-          codes: ['upgrade:cmd-fixture:25'],
-          primaryCode: 'UPGRADE',
-          cardCount: 0,
-        }),
+        buildUpgradeThemePools: singlePoolMock([], 'upgrade:cmd-fixture:25'),
       },
     );
     expect(res.statusCode).toBe(409);
@@ -69,13 +82,7 @@ describe('POST /v1/suggest/generate budget mode', () => {
       }),
       services,
       {
-        buildUpgradePool: async () => ({
-          cards: [upgradeCard],
-          codesKey: 'upgrade:cmd-fixture:25',
-          codes: ['upgrade:cmd-fixture:25'],
-          primaryCode: 'UPGRADE',
-          cardCount: 1,
-        }),
+        buildUpgradeThemePools: singlePoolMock([upgradeCard], 'upgrade:cmd-fixture:25'),
       },
     );
     expect(res.statusCode).toBe(200);
@@ -104,12 +111,22 @@ describe('POST /v1/suggest/generate budget mode', () => {
       }),
       services,
       {
-        buildUpgradePool: async () => ({
-          cards,
-          codesKey: 'upgrade:cmd-fixture:25:focus-removal',
-          codes: ['upgrade:cmd-fixture:25:focus-removal'],
-          primaryCode: 'UPGRADE',
-          cardCount: 3,
+        buildUpgradeThemePools: async () => ({
+          themes: ['removal'],
+          pools: new Map([
+            [
+              'removal',
+              {
+                cards,
+                codesKey: 'upgrade:cmd-fixture:25:focus-removal:theme-removal',
+                codes: ['upgrade:cmd-fixture:25:focus-removal:theme-removal'],
+                primaryCode: 'UPGRADE',
+                cardCount: 3,
+                theme: 'removal',
+              },
+            ],
+          ]),
+          totalCardCount: 3,
         }),
       },
     );
@@ -117,7 +134,7 @@ describe('POST /v1/suggest/generate budget mode', () => {
     const body = JSON.parse(String(res.body));
     expect(body.focusTags).toEqual(['removal']);
     expect(body.deckResults[0].packaging?.poolCardCount).toBe(3);
-    expect(body.deckResults[0].packaging?.poolCardCount).toBeLessThanOrEqual(250);
+    expect(body.deckResults[0].packaging?.poolCardCount).toBeLessThanOrEqual(450);
     const packages = body.deckResults[0].packages;
     if (packages?.length) {
       expect(packages[0].focusTags).toBeDefined();
@@ -130,14 +147,19 @@ describe('POST /v1/suggest/generate budget mode', () => {
     await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
     let buildCalls = 0;
     const deps = {
-      buildUpgradePool: async () => {
+      buildUpgradeThemePools: async () => {
         buildCalls += 1;
         return {
-          cards: [upgradeCard],
-          codesKey: 'upgrade:cmd-fixture:25',
-          codes: ['upgrade:cmd-fixture:25'],
-          primaryCode: 'UPGRADE',
-          cardCount: 1,
+          themes: [],
+          pools: new Map(),
+          singlePool: {
+            cards: [upgradeCard],
+            codesKey: 'upgrade:cmd-fixture:25',
+            codes: ['upgrade:cmd-fixture:25'],
+            primaryCode: 'UPGRADE',
+            cardCount: 1,
+          },
+          totalCardCount: 1,
         };
       },
     };
@@ -147,7 +169,7 @@ describe('POST /v1/suggest/generate budget mode', () => {
     expect(buildCalls).toBe(1);
   });
 
-  it('returns 502 when buildUpgradePool throws Scryfall upstream error', async () => {
+  it('returns 502 when buildUpgradeThemePools throws Scryfall upstream error', async () => {
     const { services } = createMemoryStores();
     await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
     const err = new Error('Scryfall 503');
@@ -157,7 +179,7 @@ describe('POST /v1/suggest/generate budget mode', () => {
       JSON.stringify({ budgetUsd: 25, deckIds: ['cmd-fixture'] }),
       services,
       {
-        buildUpgradePool: async () => {
+        buildUpgradeThemePools: async () => {
           throw err;
         },
       },

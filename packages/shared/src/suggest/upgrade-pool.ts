@@ -4,23 +4,28 @@ import type { DeckProfile, DeckRecord, SetPoolCard } from './types';
 import { cardMatchesFocus, filterSetPoolCardsByFocus, focusKeySuffix, normalizeFocusTags } from './focus-filter.js';
 import {
   UPGRADE_MIN_POOL_TARGET,
+  UPGRADE_PACKAGE_POOL_CAP,
   UPGRADE_SEARCH_RAW_CAP,
   buildOtagClause,
   collectProfileSearchTags,
+  expansionTagsForTheme,
   nonEvergreenKeywordInterests,
+  pickPackageFocusAreas,
   searchTagsKeySuffix,
+  themeKeySuffix,
 } from './upgrade-pool-tags.js';
 
 const SCRYFALL_API = 'https://api.scryfall.com';
 const USER_AGENT = 'rayenz-hub/1.0';
 const REQUEST_DELAY_MS = 100;
 
-export const DEFAULT_UPGRADE_POOL_CAP = 250;
+export const DEFAULT_UPGRADE_POOL_CAP = UPGRADE_PACKAGE_POOL_CAP;
 
 export function readUpgradePoolCap(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.HUB_UPGRADE_POOL_CAP;
-  const n = raw != null && raw !== '' ? Number.parseInt(String(raw), 10) : DEFAULT_UPGRADE_POOL_CAP;
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_UPGRADE_POOL_CAP;
+  const n =
+    raw != null && raw !== '' ? Number.parseInt(String(raw), 10) : UPGRADE_PACKAGE_POOL_CAP;
+  return Number.isFinite(n) && n > 0 ? n : UPGRADE_PACKAGE_POOL_CAP;
 }
 
 export function computePerCardCap(budgetUsd: number): number {
@@ -33,10 +38,16 @@ export function computeUpgradePoolKey(
   budgetUsd: number,
   focusTags?: string[],
   searchTags?: string[],
+  theme?: string,
 ): string {
   const bucket = Math.round(budgetUsd);
   const base = `upgrade:${deckId}:${bucket}`;
-  return base + focusKeySuffix(focusTags || []) + searchTagsKeySuffix(searchTags || []);
+  return (
+    base +
+    focusKeySuffix(focusTags || []) +
+    themeKeySuffix(theme) +
+    searchTagsKeySuffix(searchTags || [])
+  );
 }
 
 function deckColorIdentity(deck: DeckRecord): string[] {
@@ -210,7 +221,133 @@ export type BuildUpgradePoolResult = {
   codes: string[];
   primaryCode: string;
   cardCount: number;
+  theme?: string;
 };
+
+export type BuildUpgradeThemePoolsResult = {
+  themes: string[];
+  pools: Map<string, BuildUpgradePoolResult>;
+  /** Present when no package themes were selected (unscoped fallback). */
+  singlePool?: BuildUpgradePoolResult;
+  totalCardCount: number;
+};
+
+function cardDedupKey(card: SetPoolCard): string {
+  if (card.oracle_id) return String(card.oracle_id);
+  return String(card.name || '').toLowerCase();
+}
+
+function dedupeCardsAgainstSeen(cards: SetPoolCard[], seen: Set<string>): SetPoolCard[] {
+  const out: SetPoolCard[] = [];
+  for (const card of cards) {
+    const key = cardDedupKey(card);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(card);
+  }
+  return out;
+}
+
+export async function buildUpgradePoolForTheme(
+  deck: DeckRecord,
+  profile: DeckProfile | undefined,
+  budgetUsd: number,
+  theme: string,
+  opts?: {
+    focusTags?: string[];
+    cap?: number;
+    profileTags?: string[];
+    otherPrimaryThemes?: string[];
+    excludeOracleIds?: Set<string>;
+  },
+): Promise<BuildUpgradePoolResult> {
+  const cap = opts?.cap ?? readUpgradePoolCap();
+  const focusTags = normalizeFocusTags(opts?.focusTags);
+  const ci = deckColorIdentity(deck);
+  const idClause = ci.length ? `id:${ci.join('')}` : '';
+  const perCard = computePerCardCap(budgetUsd);
+  const usdClause = `usd<=${perCard.toFixed(2)}`;
+  const baseQuery = [idClause, usdClause].filter(Boolean).join(' ');
+  const searchOrder = { order: 'usd', dir: 'desc' };
+
+  const allProfileTags = opts?.profileTags ?? collectProfileSearchTags(profile);
+  const expansionTags = expansionTagsForTheme(
+    theme,
+    allProfileTags,
+    opts?.otherPrimaryThemes || [],
+  );
+  const searchTags = expansionTags.length
+    ? await resolveAdaptiveSearchTags(expansionTags, baseQuery, searchOrder)
+    : [];
+  const query = composeUpgradeSearchQuery(baseQuery, searchTags);
+  const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags, undefined, theme);
+
+  let cards = await searchUpgradeCards(query, UPGRADE_SEARCH_RAW_CAP, searchOrder);
+  cards = cards.filter((c) => matchesProfileIntent(c, profile));
+  cards = filterSetPoolCardsByFocus(cards, focusTags);
+  if (opts?.excludeOracleIds?.size) {
+    cards = dedupeCardsAgainstSeen(cards, new Set(opts.excludeOracleIds));
+  }
+  cards = sortPoolByPriceDesc(cards);
+  if (cards.length > cap) cards = cards.slice(0, cap);
+
+  return {
+    cards,
+    codesKey,
+    codes: [codesKey],
+    primaryCode: 'UPGRADE',
+    cardCount: cards.length,
+    theme,
+  };
+}
+
+export async function buildUpgradeThemePools(
+  deck: DeckRecord,
+  profile: DeckProfile | undefined,
+  budgetUsd: number,
+  opts?: { focusTags?: string[]; cap?: number },
+): Promise<BuildUpgradeThemePoolsResult> {
+  const focusTags = normalizeFocusTags(opts?.focusTags);
+  const cap = opts?.cap ?? readUpgradePoolCap();
+  const themes = pickPackageFocusAreas(profile, focusTags);
+
+  if (!themes.length) {
+    const singlePool = await buildUpgradePool(deck, profile, budgetUsd, { focusTags, cap });
+    return {
+      themes: [],
+      pools: new Map(),
+      singlePool,
+      totalCardCount: singlePool.cardCount,
+    };
+  }
+
+  const profileTags = collectProfileSearchTags(profile);
+  const seenOracleIds = new Set<string>();
+  const pools = new Map<string, BuildUpgradePoolResult>();
+
+  for (const theme of themes) {
+    const otherPrimaryThemes = themes.filter((t) => t !== theme);
+    const pool = await buildUpgradePoolForTheme(deck, profile, budgetUsd, theme, {
+      focusTags,
+      cap,
+      profileTags,
+      otherPrimaryThemes,
+      excludeOracleIds: seenOracleIds,
+    });
+    pool.cards.forEach((c) => {
+      const key = cardDedupKey(c);
+      if (key) seenOracleIds.add(key);
+    });
+    if (pool.cards.length) pools.set(theme, pool);
+  }
+
+  let totalCardCount = 0;
+  pools.forEach((p) => {
+    totalCardCount += p.cardCount;
+  });
+
+  return { themes: [...pools.keys()], pools, totalCardCount };
+}
 
 export async function buildUpgradePool(
   deck: DeckRecord,

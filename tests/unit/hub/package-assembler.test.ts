@@ -108,6 +108,24 @@ describe('assemblePackages', () => {
     expect(packages[0]?.suggestionIds).toContain('priced');
     expect(packages[0]?.suggestionIds).not.toContain('unknown');
   });
+
+  it('uses preassigned theme partitions when provided', () => {
+    const removal = sug('a', 'Removal A', 8, 'Cut A', 'normal', ['removal'], ['removal']);
+    const ramp = sug('b', 'Ramp A', 6, 'Cut B', 'normal', ['ramp'], ['ramp']);
+    const partitions = new Map([
+      ['removal', [removal]],
+      ['ramp', [ramp]],
+    ]);
+    const { packages } = assemblePackages([removal, ramp], {
+      budgetUsd: 20,
+      maxSwaps: 1,
+      preassignedThemes: ['removal', 'ramp'],
+      partitions,
+    });
+    expect(packages).toHaveLength(2);
+    expect(packages[0]?.focusTags).toEqual(['removal']);
+    expect(packages[1]?.focusTags).toEqual(['ramp']);
+  });
 });
 
 describe('upgrade price propagation', () => {

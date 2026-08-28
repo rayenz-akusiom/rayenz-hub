@@ -12,7 +12,7 @@ import {
   assemblePackages,
   budgetSuggestDeckCap,
   budgetSuggestPerRuleCap,
-  buildUpgradePool,
+  buildUpgradeThemePools,
   computeUpgradePoolKey,
   enrichSuggestionPrices,
   filterSuggestionsByFocus,
@@ -20,10 +20,12 @@ import {
   normalizeFocusTags,
   ownedNamesFromDeck,
   parseYamlProfile,
+  pickPackageFocusAreas,
   readUpgradePoolCap,
   runRulesForDeck,
   runRulesForPage,
   setScopeFromPool,
+  suggestionPairKey,
 } from '@rayenz-hub/shared/suggest';
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError, mapScryfallUpstreamError } from '../lib/handler-errors.js';
@@ -31,7 +33,14 @@ import { parseJsonBody } from '../lib/keyed-resource-handler.js';
 import { requireSpendUnlocked } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import type { SetPoolRecord } from '../repositories/set-pool-repository.js';
-import type { DeckRecord, Suggestion } from '@rayenz-hub/shared/suggest';
+import type {
+  BuildUpgradePoolResult,
+  BuildUpgradeThemePoolsResult,
+  DeckRecord,
+  RuleAudit,
+  SetPoolCard,
+  Suggestion,
+} from '@rayenz-hub/shared/suggest';
 
 export function readSuggestDeckCap(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.HUB_SUGGEST_DECK_CAP;
@@ -43,7 +52,7 @@ export type SuggestGenerateDeps = {
   fetchReleaseCards?: typeof fetchReleaseCards;
   fetchPinnedReleaseCards?: typeof fetchPinnedReleaseCards;
   fetchSetCards?: typeof fetchSetCards;
-  buildUpgradePool?: typeof buildUpgradePool;
+  buildUpgradeThemePools?: typeof buildUpgradeThemePools;
 };
 
 function isCurrentSetPool(pool: SetPoolRecord | null | undefined): pool is SetPoolRecord {
@@ -128,7 +137,41 @@ async function ensureSetPoolFromRelease(
   });
 }
 
-async function ensureUpgradePool(
+async function ensureThemePoolCached(
+  services: AppServices,
+  auth: Parameters<AppServices['setPoolRepository']['get']>[0],
+  env: Parameters<AppServices['setPoolRepository']['get']>[1],
+  deck: DeckRecord,
+  budgetUsd: number,
+  focusTags: string[],
+  theme: string,
+  built: { cards: Record<string, unknown>[]; codesKey: string; codes: string[]; primaryCode: string },
+): Promise<SetPoolRecord> {
+  const codesKey = built.codesKey;
+  const existing = await services.setPoolRepository.get(auth, env, codesKey);
+  if (isCurrentSetPool(existing)) {
+    return existing;
+  }
+  if (!built.cards.length) {
+    const err = new Error('Upgrade pool empty');
+    (err as { code?: string }).code = 'UPGRADE_POOL_EMPTY';
+    throw err;
+  }
+  return services.setPoolRepository.put(auth, env, codesKey, {
+    codes: built.codes,
+    complete: true,
+    primaryCode: built.primaryCode,
+    setName: `Budget upgrade pool (${theme})`,
+    cards: built.cards,
+    formatVersion: SET_POOL_FORMAT_VERSION,
+    poolKind: 'upgrade',
+    deckId: deck.deck_id,
+    budgetUsd,
+    focusTags,
+  });
+}
+
+async function ensureUpgradeThemePools(
   services: AppServices,
   auth: Parameters<AppServices['setPoolRepository']['get']>[0],
   env: Parameters<AppServices['setPoolRepository']['get']>[1],
@@ -137,36 +180,128 @@ async function ensureUpgradePool(
   budgetUsd: number,
   focusTags: string[],
   deps: SuggestGenerateDeps,
-): Promise<SetPoolRecord> {
-  const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags);
-  const existing = await services.setPoolRepository.get(auth, env, codesKey);
-  if (isCurrentSetPool(existing)) {
-    return existing;
+): Promise<{ themePools: Map<string, SetPoolRecord>; built: BuildUpgradeThemePoolsResult }> {
+  const themes = pickPackageFocusAreas(profile, focusTags);
+  const themePools = new Map<string, SetPoolRecord>();
+
+  const poolResultFromRecord = (pool: SetPoolRecord, theme?: string): BuildUpgradePoolResult => ({
+    cards: pool.cards as unknown as SetPoolCard[],
+    codesKey: pool.codesKey,
+    codes: pool.codes || [pool.codesKey],
+    primaryCode: pool.primaryCode || 'UPGRADE',
+    cardCount: pool.cards.length,
+    theme,
+  });
+
+  if (!themes.length) {
+    const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags);
+    const existing = await services.setPoolRepository.get(auth, env, codesKey);
+    if (isCurrentSetPool(existing)) {
+      themePools.set('all', existing);
+      const singlePool = poolResultFromRecord(existing);
+      return {
+        themePools,
+        built: { themes: [], pools: new Map(), singlePool, totalCardCount: singlePool.cardCount },
+      };
+    }
+  } else {
+    const cachedByTheme = new Map<string, SetPoolRecord>();
+    let allCached = true;
+    for (const theme of themes) {
+      const codesKey = computeUpgradePoolKey(deck.deck_id, budgetUsd, focusTags, undefined, theme);
+      const existing = await services.setPoolRepository.get(auth, env, codesKey);
+      if (isCurrentSetPool(existing)) {
+        cachedByTheme.set(theme, existing);
+      } else {
+        allCached = false;
+      }
+    }
+    if (allCached && cachedByTheme.size === themes.length) {
+      const pools = new Map<string, BuildUpgradePoolResult>();
+      let totalCardCount = 0;
+      cachedByTheme.forEach((pool, theme) => {
+        themePools.set(theme, pool);
+        pools.set(theme, poolResultFromRecord(pool, theme));
+        totalCardCount += pool.cards.length;
+      });
+      return { themePools, built: { themes: [...cachedByTheme.keys()], pools, totalCardCount } };
+    }
   }
 
-  const buildPool = deps.buildUpgradePool || buildUpgradePool;
-  const built = await buildPool(deck, profile, budgetUsd, {
+  const buildPools = deps.buildUpgradeThemePools || buildUpgradeThemePools;
+  const built = await buildPools(deck, profile, budgetUsd, {
     focusTags,
     cap: readUpgradePoolCap(),
   });
-  if (!built.cards.length) {
+
+  if (built.singlePool) {
+    const pool = await ensureThemePoolCached(
+      services,
+      auth,
+      env,
+      deck,
+      budgetUsd,
+      focusTags,
+      'all',
+      {
+        cards: built.singlePool.cards as unknown as Record<string, unknown>[],
+        codesKey: built.singlePool.codesKey,
+        codes: built.singlePool.codes,
+        primaryCode: built.singlePool.primaryCode,
+      },
+    );
+    themePools.set('all', pool);
+    return { themePools, built };
+  }
+
+  for (const [theme, poolResult] of built.pools) {
+    const pool = await ensureThemePoolCached(
+      services,
+      auth,
+      env,
+      deck,
+      budgetUsd,
+      focusTags,
+      theme,
+      {
+        cards: poolResult.cards as unknown as Record<string, unknown>[],
+        codesKey: poolResult.codesKey,
+        codes: poolResult.codes,
+        primaryCode: poolResult.primaryCode,
+      },
+    );
+    themePools.set(theme, pool);
+  }
+
+  if (!themePools.size) {
     const err = new Error('Upgrade pool empty');
     (err as { code?: string }).code = 'UPGRADE_POOL_EMPTY';
     throw err;
   }
 
-  return services.setPoolRepository.put(auth, env, codesKey, {
-    codes: built.codes,
-    complete: true,
-    primaryCode: built.primaryCode,
-    setName: 'Budget upgrade pool',
-    cards: built.cards as unknown as Record<string, unknown>[],
-    formatVersion: SET_POOL_FORMAT_VERSION,
-    poolKind: 'upgrade',
-    deckId: deck.deck_id,
-    budgetUsd,
-    focusTags,
-  });
+  return { themePools, built };
+}
+
+function mergeSuggestionsAcrossThemes(
+  perTheme: Array<{ theme: string; suggestions: Suggestion[] }>,
+): { suggestions: Suggestion[]; partitions: Map<string, Suggestion[]> } {
+  const partitions = new Map<string, Suggestion[]>();
+  const seenPairs = new Set<string>();
+  const suggestions: Suggestion[] = [];
+
+  for (const { theme, suggestions: themeSuggestions } of perTheme) {
+    const bucket: Suggestion[] = [];
+    for (const s of themeSuggestions) {
+      const key = suggestionPairKey(s);
+      if (seenPairs.has(key)) continue;
+      seenPairs.add(key);
+      suggestions.push(s);
+      bucket.push(s);
+    }
+    if (bucket.length) partitions.set(theme, bucket);
+  }
+
+  return { suggestions, partitions };
 }
 
 function mapUpgradePoolEmpty(e: unknown): ReturnType<typeof jsonResponse> | null {
@@ -188,7 +323,12 @@ function budgetPackagesForDeck(
   deck: DeckRecord,
   suggestions: Suggestion[],
   budgetUsd: number,
-  opts: { maxSwaps?: number; excludeOwned?: boolean },
+  opts: {
+    maxSwaps?: number;
+    excludeOwned?: boolean;
+    preassignedThemes?: string[];
+    partitions?: Map<string, Suggestion[]>;
+  },
 ) {
   const focused = suggestions;
   enrichSuggestionPrices(focused);
@@ -198,6 +338,8 @@ function budgetPackagesForDeck(
     maxSwaps: opts.maxSwaps,
     excludeOwned: opts.excludeOwned,
     ownedNames: owned,
+    preassignedThemes: opts.preassignedThemes,
+    partitions: opts.partitions,
   });
 }
 
@@ -269,9 +411,10 @@ export async function handleSuggestGenerate(
         record.profile = parseYamlProfile(profileDoc.yaml);
       }
 
-      let pool: SetPoolRecord;
+      let themePools: Map<string, SetPoolRecord>;
+      let builtPools: BuildUpgradeThemePoolsResult;
       try {
-        pool = await ensureUpgradePool(
+        ({ themePools, built: builtPools } = await ensureUpgradeThemePools(
           services,
           auth,
           env,
@@ -280,7 +423,7 @@ export async function handleSuggestGenerate(
           budgetUsd,
           focusTags,
           deps,
-        );
+        ));
       } catch (e) {
         const mapped = mapUpgradePoolEmpty(e);
         if (mapped) return mapped;
@@ -292,37 +435,60 @@ export async function handleSuggestGenerate(
         throw e;
       }
 
-      const codesKey = pool.codesKey || computeUpgradePoolKey(deckId, budgetUsd, focusTags);
-      const output = runRulesForDeck(record, setScopeFromPool(pool), {
+      const ruleOpts = {
         focusTags,
         deckSoftCap: budgetSuggestDeckCap(maxSwaps),
         perRuleSoftCap: budgetSuggestPerRuleCap(),
-      });
-      let suggestions = applyFocusToSuggestions(output.suggestions, focusTags);
+      };
+
+      const perThemeResults: Array<{ theme: string; suggestions: Suggestion[] }> = [];
+      let taggerCoverage = { cardsResolved: 0, cardsWithTags: 0, percent: 0 };
+      const mergedAudit: RuleAudit[] = [];
+
+      for (const [theme, pool] of themePools) {
+        const output = runRulesForDeck(record, setScopeFromPool(pool), ruleOpts);
+        taggerCoverage = output.taggerCoverage;
+        mergedAudit.push(...output.audit);
+        perThemeResults.push({
+          theme,
+          suggestions: applyFocusToSuggestions(output.suggestions, focusTags),
+        });
+      }
+
+      const { suggestions, partitions } = mergeSuggestionsAcrossThemes(
+        perThemeResults.map(({ theme, suggestions: s }) => ({ theme, suggestions: s })),
+      );
+
+      const preassignedThemes = builtPools.themes.length ? builtPools.themes : undefined;
       const { packages, audit: packaging } = budgetPackagesForDeck(record, suggestions, budgetUsd, {
         maxSwaps,
         excludeOwned,
+        preassignedThemes,
+        partitions: preassignedThemes ? partitions : undefined,
       });
+
+      const primaryPool = themePools.values().next().value as SetPoolRecord;
+      const codesKey = primaryPool?.codesKey || computeUpgradePoolKey(deckId, budgetUsd, focusTags);
       const packagingWithPool = {
         ...packaging,
-        poolCardCount: pool.cards.length,
+        poolCardCount: builtPools.totalCardCount,
       };
 
       const payload = {
         cap,
         mode: 'budget' as const,
-        setCodes: pool.codes?.length ? pool.codes : [codesKey],
+        setCodes: primaryPool?.codes?.length ? primaryPool.codes : [codesKey],
         setCodesKey: codesKey,
         upgradePoolKey: codesKey,
         focusTags: focusTags.length ? focusTags : undefined,
-        taggerCoverage: output.taggerCoverage,
+        taggerCoverage,
         deckResults: [
           {
             deckId: record.deck_id,
             deckName: record.deck_name,
             skipped: false,
             suggestions,
-            audit: output.audit,
+            audit: mergedAudit,
             packages,
             packaging: packagingWithPool,
           },

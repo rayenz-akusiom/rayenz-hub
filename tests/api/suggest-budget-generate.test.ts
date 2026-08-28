@@ -142,4 +142,23 @@ describe('POST /v1/suggest/generate budget mode', () => {
     await handleSuggestGenerate(TEST_AUTH_HEADERS, JSON.stringify(body), services, deps);
     expect(buildCalls).toBe(1);
   });
+
+  it('returns 502 when buildUpgradePool throws Scryfall upstream error', async () => {
+    const { services } = createMemoryStores();
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+    const err = new Error('Scryfall 503');
+    (err as { code?: string }).code = 'SCRYFALL_UPSTREAM';
+    const res = await handleSuggestGenerate(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({ budgetUsd: 25, deckIds: ['cmd-fixture'] }),
+      services,
+      {
+        buildUpgradePool: async () => {
+          throw err;
+        },
+      },
+    );
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(String(res.body)).code).toBe('SCRYFALL_UPSTREAM');
+  });
 });

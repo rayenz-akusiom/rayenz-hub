@@ -4,6 +4,7 @@ import type { DeckProfile, DeckRecord, SetPoolCard } from './types';
 import { cardMatchesFocus, filterSetPoolCardsByFocus, focusKeySuffix, normalizeFocusTags } from './focus-filter.js';
 
 const SCRYFALL_API = 'https://api.scryfall.com';
+const USER_AGENT = 'rayenz-hub/1.0';
 const REQUEST_DELAY_MS = 100;
 
 export const DEFAULT_UPGRADE_POOL_CAP = 250;
@@ -38,8 +39,23 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function fetchJson(url: string): Promise<unknown> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Scryfall ${res.status}`);
+  const res = await fetch(url, {
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+  });
+  if (res.status === 404) {
+    return { data: [] };
+  }
+  if (res.status === 429) {
+    const err = new Error('Scryfall rate limit — try again in a moment.');
+    (err as { code?: string }).code = 'SCRYFALL_RATE_LIMIT';
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(`Scryfall ${res.status}`);
+    (err as { code?: string }).code = 'SCRYFALL_UPSTREAM';
+    (err as { status?: number }).status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -93,16 +109,19 @@ function matchesProfileIntent(card: SetPoolCard, profile?: DeckProfile | null): 
   return false;
 }
 
-async function searchUpgradeCards(query: string): Promise<SetPoolCard[]> {
+async function searchUpgradeCards(query: string, maxRaw: number): Promise<SetPoolCard[]> {
   const q = encodeURIComponent(withPaperGameQuery(`${query} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`));
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${q}`;
   const raw: Record<string, unknown>[] = [];
-  while (url) {
+  while (url && raw.length < maxRaw) {
     const data = (await fetchJson(url)) as {
       data?: Record<string, unknown>[];
       next_page?: string;
     };
-    raw.push(...(data.data || []));
+    const page = data.data || [];
+    const remaining = maxRaw - raw.length;
+    raw.push(...(remaining < page.length ? page.slice(0, remaining) : page));
+    if (raw.length >= maxRaw) break;
     url = data.next_page || null;
     if (url) await sleep(REQUEST_DELAY_MS);
   }
@@ -133,7 +152,7 @@ export async function buildUpgradePool(
   const perCard = computePerCardCap(budgetUsd);
   const usdClause = `usd<=${perCard.toFixed(2)}`;
   const query = [idClause, usdClause].filter(Boolean).join(' ');
-  let cards = await searchUpgradeCards(query);
+  let cards = await searchUpgradeCards(query, cap);
   cards = cards.filter((c) => matchesProfileIntent(c, profile));
   cards = filterSetPoolCardsByFocus(cards, focusTags);
   if (cards.length > cap) cards = cards.slice(0, cap);

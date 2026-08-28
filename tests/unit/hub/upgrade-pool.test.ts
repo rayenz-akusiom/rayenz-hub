@@ -125,4 +125,61 @@ describe('buildUpgradePool', () => {
     expect(result.cardCount).toBe(3);
     expect(result.cards).toHaveLength(3);
   });
+
+  it('sends User-Agent on Scryfall search', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await buildUpgradePool(deck, {}, 25, { cap: 250 });
+    expect(fetchMock).toHaveBeenCalled();
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect((init?.headers as Record<string, string>)?.['User-Agent']).toBe('rayenz-hub/1.0');
+  });
+
+  it('treats Scryfall 404 as empty search', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      }),
+    );
+    const result = await buildUpgradePool(deck, {}, 25);
+    expect(result.cards).toHaveLength(0);
+  });
+
+  it('stops pagination once cap raw cards are collected', async () => {
+    const baseCard = {
+      set: 'CMR',
+      collector_number: '1',
+      type_line: 'Creature',
+      oracle_text: 'token',
+      keywords: [],
+      color_identity: ['U'],
+      cmc: 1,
+      oracle_tags: ['tokens'],
+      prices: { usd: '1.00' },
+    };
+    let page = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      page += 1;
+      return {
+        ok: true,
+        json: async () => ({
+          data: Array.from({ length: 5 }, (_, i) => ({
+            ...baseCard,
+            name: `Card ${page}-${i}`,
+            collector_number: String(i),
+          })),
+          next_page: page < 5 ? `https://api.scryfall.com/cards/search?page=${page + 1}` : null,
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await buildUpgradePool(deck, { themes: ['tokens'] }, 25, { cap: 3 });
+    expect(result.cards).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

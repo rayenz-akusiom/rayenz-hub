@@ -24,7 +24,7 @@ import {
   setScopeFromPool,
 } from '@rayenz-hub/shared/suggest';
 import { errorResponse, jsonResponse } from '../lib/response.js';
-import { mapHandlerError } from '../lib/handler-errors.js';
+import { mapHandlerError, mapScryfallUpstreamError } from '../lib/handler-errors.js';
 import { parseJsonBody } from '../lib/keyed-resource-handler.js';
 import { requireSpendUnlocked } from '../lib/route-policy.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
@@ -282,6 +282,11 @@ export async function handleSuggestGenerate(
       } catch (e) {
         const mapped = mapUpgradePoolEmpty(e);
         if (mapped) return mapped;
+        const scryfall = mapScryfallUpstreamError(e);
+        if (scryfall) {
+          console.error('Budget upgrade pool failed', { deckId, budgetUsd, focusTags, error: e });
+          return scryfall;
+        }
         throw e;
       }
 
@@ -394,6 +399,8 @@ export async function handleSuggestGenerate(
   } catch (e) {
     const mapped = mapUpgradePoolEmpty(e);
     if (mapped) return mapped;
+    const scryfall = mapScryfallUpstreamError(e);
+    if (scryfall) return scryfall;
     const handlerMapped = mapHandlerError(e, services.authService);
     if (handlerMapped) return handlerMapped;
     throw e;

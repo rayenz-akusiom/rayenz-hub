@@ -44,3 +44,21 @@ export function mapHandlerError(e: unknown, authService: AuthService) {
   }
   return null;
 }
+
+export function mapScryfallUpstreamError(e: unknown): ReturnType<typeof errorResponse> | null {
+  const code = (e as { code?: string })?.code;
+  if (code === 'SCRYFALL_RATE_LIMIT') {
+    return errorResponse(429, (e as Error).message, 'SCRYFALL_RATE_LIMIT');
+  }
+  if (code === 'SCRYFALL_UPSTREAM') {
+    return errorResponse(502, 'Scryfall request failed — try again in a moment.', 'SCRYFALL_UPSTREAM');
+  }
+  const msg = e instanceof Error ? e.message : '';
+  if (/^Scryfall \d+/.test(msg)) {
+    if (msg.includes('429')) {
+      return errorResponse(429, 'Scryfall rate limit — try again in a moment.', 'SCRYFALL_RATE_LIMIT');
+    }
+    return errorResponse(502, 'Scryfall request failed — try again in a moment.', 'SCRYFALL_UPSTREAM');
+  }
+  return null;
+}

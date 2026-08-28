@@ -190,6 +190,7 @@ export function runRulesForDeck(
   options: {
     existingSuggestions?: Suggestion[];
     debug?: boolean;
+    focusTags?: string[];
   } = {},
 ) {
   ensureSetPoolIndexed(setScope);
@@ -203,7 +204,7 @@ export function runRulesForDeck(
   if (options.debug) {
     collector = createCollector(deck.deck_id);
   }
-  const taggerCtx = createContext(deck, setScope);
+  const taggerCtx = createContext(deck, setScope, { focusTags: options.focusTags });
 
   const rules: Array<{ id: string; fn: RuleFn }> = [
     { id: 'queue_in_pair', fn: QueueRules.runQueueInPair },
@@ -283,7 +284,7 @@ export function runRulesForDeck(
 export function runRulesForPage(
   decks: Array<{ deck: DeckRecord; profile?: DeckRecord['profile'] }>,
   setScope: SetScope,
-  options: { debug?: boolean } = {},
+  options: { debug?: boolean; focusTags?: string[] } = {},
 ): { deckResults: PageDeckResult[]; taggerCoverage: Coverage } {
   ensureSetPoolIndexed(setScope);
   const deckResults: PageDeckResult[] = [];
@@ -304,7 +305,7 @@ export function runRulesForPage(
       });
       return;
     }
-    const output = runRulesForDeck(deck, setScope, { debug: options.debug });
+    const output = runRulesForDeck(deck, setScope, { debug: options.debug, focusTags: options.focusTags });
     coverage = output.taggerCoverage;
     deckResults.push({
       deckId: deck.deck_id,
@@ -336,5 +337,8 @@ export * from './rules-theme';
 export * from './rules-keyword';
 export * from './debug';
 export { Debug } from './debug';
+export * from './focus-filter';
+export * from './package-assembler';
+export * from './upgrade-pool';
 export * from './missing-cards';
 export * from './yaml-lists';

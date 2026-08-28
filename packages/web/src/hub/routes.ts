@@ -13,6 +13,7 @@ export type HubPath =
   | '/commander-builder'
   | '/cube-builder'
   | '/deck-suggest'
+  | '/profile-builder'
   | '/deck-review'
   | '/order-reconcile'
   | '/swap-queue'
@@ -109,6 +110,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/commander-builder',
   '/cube-builder',
   '/deck-suggest',
+  '/profile-builder',
   '/deck-review',
   '/order-reconcile',
   '/swap-queue',

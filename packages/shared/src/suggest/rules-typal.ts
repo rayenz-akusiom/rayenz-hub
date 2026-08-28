@@ -18,7 +18,7 @@ export function runTypalSynergy(
 ): Suggestion[] {
   const types = (profile?.typal_types || []).map((t) => t.trim()).filter(Boolean);
   if (!types.length) return [];
-  const hits = eligibleSetCards(deck, setScope, profile)
+  const hits = eligibleSetCards(deck, setScope, profile, taggerCtx.focusTags)
     .map((card) => {
       const tokens = typeTokens(card.type_line);
       const matched = types.filter((t) =>

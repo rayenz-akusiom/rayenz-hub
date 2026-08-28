@@ -1,5 +1,6 @@
 import type { DeckProfile, DeckRecord, SetPoolCard, SetScope, Suggestion, SuggestionSignals, TaggerContext } from './types';
 import * as G from './rule-guards';
+import { cardMatchesFocus, normalizeFocusTags } from './focus-filter';
 
 export type SynergyHit = {
   card: SetPoolCard;
@@ -18,10 +19,17 @@ function inScope(setCard: SetPoolCard, setScope: SetScope): boolean {
   return !!codes[code];
 }
 
-export function eligibleSetCards(deck: DeckRecord, setScope: SetScope, profile?: DeckProfile): SetPoolCard[] {
+export function eligibleSetCards(
+  deck: DeckRecord,
+  setScope: SetScope,
+  profile?: DeckProfile,
+  focusTags?: string[],
+): SetPoolCard[] {
   const ownedNames = G.ownedNamesInSnapshot(deck);
+  const focus = normalizeFocusTags(focusTags);
   return (setScope.cards || []).filter((setCard) => {
     if (!inScope(setCard, setScope)) return false;
+    if (focus.length && !cardMatchesFocus(setCard, focus)) return false;
     if (ownedNames[setCard.name.toLowerCase()]) return false;
     if (!G.isColorIdentityLegal(setCard, deck)) return false;
     if (G.isBlockedAdd(setCard.name, profile)) return false;

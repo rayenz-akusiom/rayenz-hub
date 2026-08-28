@@ -1,6 +1,6 @@
 import { isApiConfigured } from '../api/hub-api';
 import { isSignedIn } from '../lib/hub-auth-session';
-import { MANUAL_SET_CODES_MAX } from '@rayenz-hub/shared';
+import { MANUAL_SET_CODES_MAX, FOCUS_TAGS_MAX } from '@rayenz-hub/shared';
 import type { DeckSuggestState, ReadinessResult } from './types';
 import { pageIsOverCap } from './paging';
 import { parseReleaseId } from './releases';
@@ -10,6 +10,12 @@ export function normalizeCodesInput(input: string | null | undefined): string[] 
     .split(/[,\s]+/)
     .filter(Boolean)
     .map((c) => String(c).trim().toUpperCase());
+}
+
+export function parseBudgetUsd(input: string | null | undefined): number | null {
+  const n = Number.parseFloat(String(input || '').trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessResult {
@@ -24,8 +30,22 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
       ? state.ui.setCodesInput
       : state.settings?.setCodes || '';
   const inputCodes = normalizeCodesInput(codesInput);
+  const budgetInput =
+    state.ui?.budgetUsdInput != null && String(state.ui.budgetUsdInput).trim() !== ''
+      ? state.ui.budgetUsdInput
+      : state.settings?.budgetUsd != null
+        ? String(state.settings.budgetUsd)
+        : '';
+  const budgetUsd = parseBudgetUsd(budgetInput);
 
-  if (mode === 'release') {
+  if (mode === 'budget') {
+    if (budgetUsd != null) {
+      items.push({ id: 'set', ok: true, label: `Budget $${budgetUsd}` });
+    } else {
+      missing.push('set');
+      items.push({ id: 'set', ok: false, label: 'Enter a positive budget (USD)' });
+    }
+  } else if (mode === 'release') {
     if (parseReleaseId(releaseId)) {
       items.push({ id: 'set', ok: true, label: 'Release selected' });
     } else {
@@ -62,15 +82,36 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
   }
 
   const selectedCount = (state.deckSelection?.selectedIds || []).length;
-  if (selectedCount > 0) {
+  const budgetSingle = mode === 'budget' ? selectedCount === 1 : true;
+  if (mode === 'budget' && selectedCount !== 1) {
+    missing.push('selection');
+    items.push({
+      id: 'selection',
+      ok: false,
+      label: 'Select exactly one deck for Budget upgrade',
+    });
+  } else if (selectedCount > 0) {
     items.push({
       id: 'selection',
       ok: true,
-      label: selectedCount + ' deck(s) selected',
+      label:
+        mode === 'budget'
+          ? '1 deck selected'
+          : selectedCount + ' deck(s) selected',
     });
   } else {
     missing.push('selection');
     items.push({ id: 'selection', ok: false, label: 'Select at least one deck' });
+  }
+
+  const focusCount = (state.ui?.focusTags || state.settings?.focusTags || []).length;
+  if (focusCount > FOCUS_TAGS_MAX) {
+    missing.push('focus');
+    items.push({
+      id: 'focus',
+      ok: false,
+      label: `At most ${FOCUS_TAGS_MAX} focus tags`,
+    });
   }
 
   if (isApiConfigured()) {
@@ -96,7 +137,7 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
   }
 
   const cap = state.generationRun?.cap || 20;
-  if (selectedCount > 0 && pageIsOverCap(state.deckSelection?.selectedIds || [], cap)) {
+  if (mode !== 'budget' && selectedCount > 0 && pageIsOverCap(state.deckSelection?.selectedIds || [], cap)) {
     missing.push('cap');
     items.push({
       id: 'cap',
@@ -105,7 +146,7 @@ export function getGenerateReadiness(st?: Partial<DeckSuggestState>): ReadinessR
     });
   }
 
-  const ok = !missing.length;
+  const ok = !missing.length && budgetSingle;
   return { ok, missing, items, generating: !!state.generating };
 }
 

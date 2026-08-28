@@ -186,11 +186,21 @@ describe('DeckSuggestSetup', () => {
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Budget upgrade' })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Set release$/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/Lord of the Rings/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: 'Set codes' }));
     expect(screen.getByLabelText(/Set codes/i)).toBeInTheDocument();
+  });
+
+  it('set-release readiness unchanged when budget tab exists', async () => {
+    const user = userEvent.setup();
+    render(<DeckSuggestApp />);
+    await user.click(screen.getByRole('tab', { name: 'Budget upgrade' }));
+    await user.click(screen.getByRole('tab', { name: 'Set release' }));
+    expect(screen.getByLabelText(/^Set release$/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Lord of the Rings/i)).toBeInTheDocument();
   });
 
   it('auto-loads hub decks into the checklist', async () => {

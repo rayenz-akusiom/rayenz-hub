@@ -1,4 +1,5 @@
 import type { SetPoolCard, SnapshotCard, TaggerContext } from './types';
+import { normalizeFocusTags } from './focus-filter';
 
 const CARD_TYPE_WORDS = new Set([
   'instant',
@@ -217,6 +218,7 @@ export function resolveCardTags(cardName: string, card?: SnapshotCard | SetPoolC
 export function createContext(
   deck: { deck_snapshot?: { cards?: SnapshotCard[] } },
   setScope: { cards?: SetPoolCard[] } | null,
+  opts?: { focusTags?: string[] },
 ): TaggerContext {
   const cache: TaggerContext['cache'] = {};
   let withTags = 0;
@@ -254,5 +256,6 @@ export function createContext(
       cardsWithTags: withTags,
       percent: total ? Math.round((withTags / total) * 100) : 0,
     },
+    focusTags: normalizeFocusTags(opts?.focusTags),
   };
 }

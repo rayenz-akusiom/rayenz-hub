@@ -10,4 +10,17 @@ describe('session wishlist export', () => {
     ]);
     expect(text.toLowerCase()).toContain('sol ring');
   });
+
+  it('includes budget-mode swap accepts as queued_in', () => {
+    const text = buildSessionWishlistText([
+      {
+        deckId: 'budget-deck',
+        cardName: 'Feed the Swarm',
+        quantity: 1,
+        kind: 'queued_in',
+        printing: { set_code: 'CMR', collector_number: '1' },
+      },
+    ]);
+    expect(text.toLowerCase()).toContain('feed the swarm');
+  });
 });

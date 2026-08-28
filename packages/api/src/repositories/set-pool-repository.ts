@@ -22,6 +22,10 @@ export interface SetPoolRecord {
   cards: Record<string, unknown>[];
   formatVersion: number;
   updatedAt: string;
+  poolKind?: 'release' | 'upgrade';
+  deckId?: string;
+  budgetUsd?: number;
+  focusTags?: string[];
 }
 
 export class SetPoolRepository {
@@ -73,6 +77,10 @@ export class SetPoolRepository {
     } else {
       item.payload = { cards };
     }
+    if (input.poolKind) item.poolKind = input.poolKind;
+    if (input.deckId) item.deckId = input.deckId;
+    if (input.budgetUsd != null) item.budgetUsd = input.budgetUsd;
+    if (input.focusTags?.length) item.focusTags = input.focusTags;
     await this.doc.send(new PutCommand({ TableName: this.tableName, Item: item }));
     return {
       codesKey,
@@ -83,6 +91,10 @@ export class SetPoolRepository {
       cards,
       formatVersion: Number(item.formatVersion),
       updatedAt: now,
+      poolKind: input.poolKind,
+      deckId: input.deckId,
+      budgetUsd: input.budgetUsd,
+      focusTags: input.focusTags,
     };
   }
 }
@@ -121,5 +133,9 @@ function mapItem(
     cards,
     formatVersion: Number(item.formatVersion ?? 1),
     updatedAt: String(item.updatedAt ?? ''),
+    poolKind: item.poolKind === 'upgrade' || item.poolKind === 'release' ? item.poolKind : undefined,
+    deckId: item.deckId ? String(item.deckId) : undefined,
+    budgetUsd: item.budgetUsd != null ? Number(item.budgetUsd) : undefined,
+    focusTags: Array.isArray(item.focusTags) ? (item.focusTags as string[]) : undefined,
   };
 }

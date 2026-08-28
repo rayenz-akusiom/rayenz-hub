@@ -12,7 +12,7 @@ export function runKeywordSynergy(
 ): Suggestion[] {
   const interests = (profile?.keyword_interests || []).map((t) => t.trim()).filter(Boolean);
   if (!interests.length) return [];
-  const hits = eligibleSetCards(deck, setScope, profile)
+  const hits = eligibleSetCards(deck, setScope, profile, taggerCtx.focusTags)
     .map((card) => {
       const printed = (card.keywords || []).map((k) => k.toLowerCase());
       const tagged = hasScryfallOracleTags(card);

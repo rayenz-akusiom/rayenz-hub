@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { explainCard, formatReason } from './debug';
 import { deckSuggestHeaderText, suggestQueueBadge } from './display';
 import { collectDebugEntries } from './export';
+import { PackagePanel } from './PackagePanel';
 import type { DeckRecord, DeckResult, GenerationRun, SetScope, Suggestion } from './types';
 
 function deckResultHasSuggestions(result: DeckResult): boolean {
@@ -124,18 +125,27 @@ function DeckResultBlock({
         <p className="ds-meta">No suggestions for this deck.</p>
       ) : (
         !compact && (
-          <div className="ds-suggestion-grid">
-            {(result.suggestions || []).map((s) => (
-              <SuggestionCard
-                key={s.suggestion_id}
-                s={s}
-                deck={result.deck}
-                accepted={acceptedIds?.has(s.suggestion_id)}
-                onAccept={onAccept ? (sug) => onAccept(result.deck.deck_id, sug) : undefined}
-                onDismiss={onDismiss}
-              />
-            ))}
-          </div>
+          <>
+            <PackagePanel
+              packages={result.packages}
+              packaging={result.packaging}
+              suggestions={result.suggestions || []}
+              acceptedIds={acceptedIds}
+              onAccept={onAccept ? (s) => onAccept(result.deck.deck_id, s) : undefined}
+            />
+            <div className="ds-suggestion-grid">
+              {(result.suggestions || []).map((s) => (
+                <SuggestionCard
+                  key={s.suggestion_id}
+                  s={s}
+                  deck={result.deck}
+                  accepted={acceptedIds?.has(s.suggestion_id)}
+                  onAccept={onAccept ? (sug) => onAccept(result.deck.deck_id, sug) : undefined}
+                  onDismiss={onDismiss}
+                />
+              ))}
+            </div>
+          </>
         )
       )}
     </div>

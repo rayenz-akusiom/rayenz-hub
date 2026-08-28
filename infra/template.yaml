@@ -193,6 +193,7 @@ Resources:
           HUB_OWNER_USERNAME: !Ref HubOwnerUsername
           HUB_PAGES_ORIGIN: !Ref HubPagesOrigin
           HUB_SUGGEST_DECK_CAP: '20'
+          HUB_UPGRADE_POOL_CAP: '250'
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_CLIENT_ID: !Ref CognitoClientId
           COGNITO_CLIENT_SECRET: !Ref CognitoClientSecret

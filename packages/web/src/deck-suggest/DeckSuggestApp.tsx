@@ -38,7 +38,8 @@ import { generateSuggestions } from './generation';
 import { getGenerateReadiness } from './readiness';
 import { proposePageIds, remainingIds } from './paging';
 import { SuggestDeckLeaders } from './SuggestDeckLeaders';
-import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode } from './types';
+import { PackagePanel } from './PackagePanel';
+import type { DeckSelection, DeckSuggestSettings, DeckSuggestState, SetInputMode, Suggestion } from './types';
 import './deck-suggest.css';
 
 function reviewSetCodes(
@@ -52,9 +53,15 @@ function reviewSetCodes(
   return scopeCodes || [];
 }
 
+function resolveSetInputMode(settings: DeckSuggestSettings): SetInputMode {
+  if (settings.setInputMode === 'codes') return 'codes';
+  if (settings.setInputMode === 'budget') return 'budget';
+  return 'release';
+}
+
 function createSuggestState(): DeckSuggestState {
   const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
-  const mode: SetInputMode = settings.setInputMode === 'codes' ? 'codes' : 'release';
+  const mode = resolveSetInputMode(settings);
   return {
     setScope: null,
     deckSelection: { folderUrl: '', decks: [], selectedIds: [] },
@@ -64,6 +71,10 @@ function createSuggestState(): DeckSuggestState {
       setCodesInput: settings.setCodes || '',
       releaseId: settings.releaseId || '',
       setInputMode: mode,
+      budgetUsdInput:
+        settings.budgetUsd != null && settings.budgetUsd > 0 ? String(settings.budgetUsd) : '',
+      focusTags: settings.focusTags || [],
+      focusTagInput: '',
     },
     settings,
     statusMessage: '',
@@ -96,7 +107,7 @@ export function DeckSuggestApp() {
   useEffect(() => {
     const settings = loadDeckSuggestSettings() as DeckSuggestSettings;
     const apply = (next: DeckSuggestSettings) => {
-      const mode: SetInputMode = next.setInputMode === 'codes' ? 'codes' : 'release';
+      const mode = resolveSetInputMode(next);
       setSuggest((prev) => ({
         ...prev,
         settings: next,
@@ -104,6 +115,10 @@ export function DeckSuggestApp() {
           setCodesInput: next.setCodes || '',
           releaseId: next.releaseId || '',
           setInputMode: mode,
+          budgetUsdInput:
+            next.budgetUsd != null && next.budgetUsd > 0 ? String(next.budgetUsd) : prev.ui.budgetUsdInput,
+          focusTags: next.focusTags || prev.ui.focusTags,
+          focusTagInput: prev.ui.focusTagInput,
         },
       }));
     };
@@ -277,6 +292,34 @@ export function DeckSuggestApp() {
     setReview((prev) => promoteConfirmedLozengesOnDeck(prev, deckId, updates));
   }
 
+  const activeDeckResult = useMemo(() => {
+    const deckId = String(activeDeck?.deck_id || '');
+    if (!deckId || !suggest.generationRun?.deckResults) return null;
+    return suggest.generationRun.deckResults.find((r) => String(r.deck.deck_id) === deckId) || null;
+  }, [activeDeck, suggest.generationRun]);
+
+  const packageAcceptedIds = useMemo(() => {
+    const ids = new Set<string>();
+    const decisions = review.progress?.decisions || {};
+    Object.entries(decisions).forEach(([id, d]) => {
+      if (d && d.status === 'accepted') ids.add(id);
+    });
+    return ids;
+  }, [review.progress]);
+
+  function handlePackageAccept(suggestion: Suggestion) {
+    if (!activeDeck) return;
+    const targetId = String(suggestion.suggestion_id);
+    setReview((prev) => {
+      const pending = pendingSuggestions(activeDeck, prev.progress, prev.deckPrefs);
+      const idx = pending.findIndex((s) => String(s.suggestion_id) === targetId);
+      if (idx < 0) {
+        return { ...prev, showAllMode: false };
+      }
+      return jumpToPendingSuggestion({ ...prev, showAllMode: false }, idx);
+    });
+  }
+
   async function handleAcceptAllSeeking() {
     if (!activeDeck || bulkSeeking || !pendingForActiveDeck.length) {
       return;
@@ -369,6 +412,8 @@ export function DeckSuggestApp() {
         setCodes: suggest.ui.setCodesInput,
         releaseId: suggest.ui.releaseId,
         setInputMode: suggest.ui.setInputMode,
+        budgetUsd: Number.parseFloat(suggest.ui.budgetUsdInput) || suggest.settings.budgetUsd,
+        focusTags: suggest.ui.focusTags,
       };
       persistSettings(nextSettings);
       const run = await generateSuggestions(
@@ -558,6 +603,19 @@ export function DeckSuggestApp() {
                       setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, setCodesInput: value } }))
                     }
                     resolvedSetCodes={suggest.generationRun?.setCodes || []}
+                    budgetUsdInput={suggest.ui.budgetUsdInput}
+                    onBudgetUsdInput={(value) =>
+                      setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, budgetUsdInput: value } }))
+                    }
+                    focusTags={suggest.ui.focusTags}
+                    onFocusTags={(tags) => {
+                      setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, focusTags: tags } }));
+                      persistSettings({ ...suggest.settings, focusTags: tags });
+                    }}
+                    focusTagInput={suggest.ui.focusTagInput}
+                    onFocusTagInput={(value) =>
+                      setSuggest((prev) => ({ ...prev, ui: { ...prev.ui, focusTagInput: value } }))
+                    }
                     deckSelection={suggest.deckSelection}
                     onDeckSelectionChange={(next: DeckSelection) =>
                       setSuggest((prev) => ({ ...prev, deckSelection: next }))
@@ -569,6 +627,15 @@ export function DeckSuggestApp() {
             ) : (
               <div id="dr-content">
                 {activeDeck ? <SuggestDeckLeaders deck={activeDeck} /> : null}
+                {activeDeckResult?.packages?.length ? (
+                  <PackagePanel
+                    packages={activeDeckResult.packages}
+                    packaging={activeDeckResult.packaging}
+                    suggestions={activeDeckResult.suggestions || []}
+                    acceptedIds={packageAcceptedIds}
+                    onAccept={handlePackageAccept}
+                  />
+                ) : null}
                 <div id="dr-suggestion-panel">
                   <DeckReviewSuggestionPanel
                     deck={activeDeck}

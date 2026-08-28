@@ -20,6 +20,14 @@ describe('profile intent parse', () => {
     expect(profile.art_tags).toEqual(['tree']);
   });
 
+  it('parses representative_cards and profile_tags', () => {
+    const profile = parseYamlProfile(
+      'representative_cards:\n  - Sol Ring\nprofile_tags:\n  - artifact\n  - mana-production\n',
+    );
+    expect(profile.representative_cards).toEqual(['Sol Ring']);
+    expect(profile.profile_tags).toEqual(['artifact', 'mana-production']);
+  });
+
   it('ignores unknown keys', () => {
     const profile = parseYamlProfile('notes: human only\nblocked_cards:\n  - Sol Ring\nunknown_future: true\n');
     expect(profile.blocked_cards).toEqual(['Sol Ring']);

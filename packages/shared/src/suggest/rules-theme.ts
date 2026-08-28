@@ -12,7 +12,7 @@ export function runThemeSynergy(
 ): Suggestion[] {
   const themes = (profile?.themes || []).map((t) => t.trim()).filter(Boolean);
   if (!themes.length) return [];
-  const hits = eligibleSetCards(deck, setScope, profile)
+  const hits = eligibleSetCards(deck, setScope, profile, taggerCtx.focusTags)
     .map((card) => {
       const stored = cardStoredTags(card).map((t) => t.toLowerCase());
       const tagged = hasScryfallOracleTags(card);

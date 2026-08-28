@@ -347,4 +347,23 @@ describe('POST /v1/suggest/generate', () => {
     expect(body.deckResults).toHaveLength(5);
     expect(body.deckResults.map((r: { deckId: string }) => r.deckId)).toEqual(ids);
   });
+
+  it('accepts optional focusTags on set-release generate', async () => {
+    const { services } = createMemoryStores();
+    await seedPool(services);
+    await handleDeck('PUT', 'cmd-fixture', TEST_AUTH_HEADERS, JSON.stringify(commander), services);
+    const res = await handleSuggestGenerate(
+      TEST_AUTH_HEADERS,
+      JSON.stringify({
+        setCodes: ['MSH'],
+        deckIds: ['cmd-fixture'],
+        focusTags: ['protection'],
+      }),
+      services,
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(String(res.body));
+    expect(body.focusTags).toEqual(['protection']);
+    expect(body.mode).toBe('set');
+  });
 });

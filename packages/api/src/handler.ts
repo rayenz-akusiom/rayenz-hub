@@ -74,6 +74,16 @@ export async function route(
     return handleListProfiles(headers);
   }
 
+  const profileTagCandidatesMatch = /^\/v1\/profiles\/([^/]+)\/tag-candidates$/.exec(path);
+  if (profileTagCandidatesMatch && method === 'GET') {
+    const { handleProfileTagCandidates } = await import('./handlers/profile-tag-candidates.js');
+    return handleProfileTagCandidates(
+      decodeURIComponent(profileTagCandidatesMatch[1]),
+      headers,
+      event.queryStringParameters?.cards,
+    );
+  }
+
   const profileMatch = /^\/v1\/profiles\/([^/]+)$/.exec(path);
   if (profileMatch) {
     return handleProfile(method, decodeURIComponent(profileMatch[1]), headers, event.body);

@@ -30,6 +30,10 @@ export const SetPoolUpsertSchema = z.object({
   setName: z.string().optional(),
   cards: z.array(z.record(z.unknown())).optional().default([]),
   formatVersion: z.number().int().positive().optional().default(SET_POOL_FORMAT_VERSION),
+  poolKind: z.enum(['release', 'upgrade']).optional(),
+  deckId: z.string().optional(),
+  budgetUsd: z.number().optional(),
+  focusTags: z.array(z.string()).optional(),
 });
 
 export type SetPoolUpsert = z.infer<typeof SetPoolUpsertSchema>;

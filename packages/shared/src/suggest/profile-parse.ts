@@ -8,7 +8,9 @@ type ListKey =
   | 'keyword_interests'
   | 'art_tags'
   | 'tags'
-  | 'avoid_tags';
+  | 'avoid_tags'
+  | 'representative_cards'
+  | 'profile_tags';
 
 export function parseYamlProfile(text: string): DeckProfile {
   const profile: DeckProfile = {
@@ -20,6 +22,8 @@ export function parseYamlProfile(text: string): DeckProfile {
     keyword_interests: [],
     art_tags: [],
     tags: [],
+    representative_cards: [],
+    profile_tags: [],
     constraints: {},
   };
   let currentList: ListKey | null = null;
@@ -90,6 +94,18 @@ export function parseYamlProfile(text: string): DeckProfile {
       }
       if (trimmed === 'keyword_interests:') {
         currentList = 'keyword_interests';
+        currentRole = null;
+        inConstraints = false;
+        return;
+      }
+      if (trimmed === 'representative_cards:') {
+        currentList = 'representative_cards';
+        currentRole = null;
+        inConstraints = false;
+        return;
+      }
+      if (trimmed === 'profile_tags:') {
+        currentList = 'profile_tags';
         currentRole = null;
         inConstraints = false;
         return;

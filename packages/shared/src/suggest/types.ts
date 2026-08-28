@@ -68,6 +68,8 @@ export type DeckProfile = {
   themes?: string[];
   keyword_interests?: string[];
   art_tags?: string[];
+  representative_cards?: string[];
+  profile_tags?: string[];
   constraints?: DeckProfileConstraints;
 };
 
@@ -146,6 +148,21 @@ export type PageDeckResult = {
   message?: string;
   suggestions: Suggestion[];
   audit: RuleAudit[];
+  packages?: Array<{
+    packageId: string;
+    label: string;
+    totalUsd: number;
+    swapCount: number;
+    unknownPriceCount: number;
+    suggestionIds: string[];
+  }>;
+  packaging?: {
+    budgetUsd: number;
+    fittingPackageFound: boolean;
+    suggestionsPriced: number;
+    suggestionsUnknownPrice: number;
+    poolCardCount?: number;
+  };
 };
 
 export type DeckResult = {
@@ -159,6 +176,8 @@ export type DeckResult = {
   taggerCoverage?: { cardsResolved: number; cardsWithTags: number; percent: number };
   debugTrace?: DebugEntry[] | null;
   error?: string;
+  packages?: PageDeckResult['packages'];
+  packaging?: PageDeckResult['packaging'];
 };
 
 export type GenerationRun = {
@@ -224,6 +243,7 @@ export type TaggerContext = {
   resolve: (name: string, card?: SnapshotCard | SetPoolCard) => { cardName: string; taggerTags: string[]; source: string };
   cache: Record<string, { cardName: string; taggerTags: string[]; source: string }>;
   coverage: { cardsResolved: number; cardsWithTags: number; percent: number };
+  focusTags?: string[];
 };
 
 export type DeckLoadTab = 'hub' | 'folder' | 'paste-import' | 'paste-urls' | 'upload';

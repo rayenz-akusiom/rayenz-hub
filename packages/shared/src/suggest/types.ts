@@ -35,6 +35,7 @@ export type SetScope = {
   source?: string;
   complete?: boolean;
   fromCache?: boolean;
+  poolKind?: 'release' | 'upgrade';
 };
 
 export type SnapshotCard = {

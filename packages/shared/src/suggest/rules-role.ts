@@ -1,6 +1,7 @@
 import type { DeckProfile, DeckRecord, SetPoolCard, SetScope, Suggestion, TaggerContext } from './types';
 import * as G from './rule-guards';
 import { hasScryfallOracleTags, matchTagNeedles, oracleTextForFallback, textMatchesNeedle } from './signals';
+import { eligibleSetCards } from './synergy-emit';
 
 function normalizeText(value: string | null | undefined): string {
   return String(value || '').toLowerCase();
@@ -53,23 +54,8 @@ export function runRoleSynergy(
   debug?: { ruleId?: string; collector?: { push: (e: Record<string, unknown>) => void } },
 ): Suggestion[] {
   const added: Suggestion[] = [];
-  const ownedNames = G.ownedNamesInSnapshot(deck);
-  const codes: Record<string, boolean> = {};
-  (setScope.codes || []).forEach((c) => {
-    codes[String(c).toUpperCase()] = true;
-  });
 
-  (setScope.cards || []).forEach((setCard) => {
-    const code = String(setCard.set_code || '').toUpperCase();
-    if (!codes[code]) {
-      return;
-    }
-    if (ownedNames[setCard.name.toLowerCase()]) {
-      return;
-    }
-    if (!G.isColorIdentityLegal(setCard, deck)) {
-      return;
-    }
+  eligibleSetCards(deck, setScope, profile, taggerCtx.focusTags).forEach((setCard) => {
     const match = matchSetCardToRoles(setCard, profile);
     if (!match) {
       return;

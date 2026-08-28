@@ -338,6 +338,7 @@ export * from './rules-keyword';
 export * from './debug';
 export { Debug } from './debug';
 export * from './focus-filter';
+export * from './synergy-emit';
 export * from './package-assembler';
 export * from './upgrade-pool';
 export * from './missing-cards';

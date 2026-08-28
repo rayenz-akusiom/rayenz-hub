@@ -10,7 +10,15 @@ export type SynergyHit = {
   signals: SuggestionSignals;
 };
 
+export function isUpgradePoolScope(setScope: SetScope): boolean {
+  if (setScope.poolKind === 'upgrade') return true;
+  if (String(setScope.primaryCode || '').toUpperCase() === 'UPGRADE') return true;
+  const codes = setScope.codes || [];
+  return codes.length === 1 && String(codes[0] || '').toLowerCase().startsWith('upgrade:');
+}
+
 function inScope(setCard: SetPoolCard, setScope: SetScope): boolean {
+  if (isUpgradePoolScope(setScope)) return true;
   const codes: Record<string, boolean> = {};
   (setScope.codes || []).forEach((c) => {
     codes[String(c).toUpperCase()] = true;

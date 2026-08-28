@@ -111,6 +111,7 @@ export function setScopeFromPool(pool: {
   primaryCode?: string;
   setName?: string;
   cards: Record<string, unknown>[];
+  poolKind?: 'release' | 'upgrade';
 }): SetScope {
   return indexSetPool({
     primaryCode: pool.primaryCode || pool.codes[0],
@@ -120,6 +121,7 @@ export function setScopeFromPool(pool: {
     cards: pool.cards.map((c) => normalizePoolCard(c as SetPoolCard)),
     complete: pool.complete !== false,
     source: 'hub-set-pool',
+    poolKind: pool.poolKind,
   })!;
 }
 

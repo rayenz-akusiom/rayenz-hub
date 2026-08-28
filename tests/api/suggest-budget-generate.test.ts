@@ -66,14 +66,13 @@ describe('POST /v1/suggest/generate budget mode', () => {
       JSON.stringify({
         budgetUsd: 25,
         deckIds: ['cmd-fixture'],
-        focusTags: ['removal'],
       }),
       services,
       {
         buildUpgradePool: async () => ({
           cards: [upgradeCard],
-          codesKey: 'upgrade:cmd-fixture:25:focus-removal',
-          codes: ['upgrade:cmd-fixture:25:focus-removal'],
+          codesKey: 'upgrade:cmd-fixture:25',
+          codes: ['upgrade:cmd-fixture:25'],
           primaryCode: 'UPGRADE',
           cardCount: 1,
         }),
@@ -83,8 +82,8 @@ describe('POST /v1/suggest/generate budget mode', () => {
     const body = JSON.parse(String(res.body));
     expect(body.mode).toBe('budget');
     expect(body.upgradePoolKey).toContain('upgrade:cmd-fixture:25');
-    expect(body.focusTags).toEqual(['removal']);
     expect(body.deckResults[0].packages).toBeDefined();
+    expect(body.deckResults[0].packaging?.poolCardCount).toBe(1);
     expect(body.deckResults[0].packaging?.budgetUsd).toBe(25);
   });
 

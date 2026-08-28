@@ -2,6 +2,7 @@ import { deriveSwapQueue, type DeckWithSnapshot } from '@rayenz-hub/shared';
 import {
   Debug as SharedDebug,
   findInSetPool,
+  isUpgradePoolScope,
   matchSetCardToRoles,
   ownedNamesInSnapshot,
   resolveQueuedInForScope,
@@ -133,12 +134,11 @@ export function explainCard(deck: DeckRecord, setScope: SetScope, cardName: stri
   const poolCard = findInSetPool(name, setScope);
   const ownedNames = ownedNamesInSnapshot(deck);
   if (poolCard) {
-    const codes: Record<string, boolean> = {};
-    (setScope.codes || []).forEach((c) => {
-      codes[String(c).toUpperCase()] = true;
-    });
     const code = String(poolCard.set_code || '').toUpperCase();
-    if (!codes[code]) {
+    const inSetScope =
+      isUpgradePoolScope(setScope) ||
+      (setScope.codes || []).some((c) => String(c).toUpperCase() === code);
+    if (!inSetScope) {
       push('role_synergy', 'role_wrong_set', 'Printing set ' + code + ' not in scope');
     } else if (ownedNames[nameLower]) {
       push('role_synergy', 'role_already_in_deck', 'Already in deck snapshot');

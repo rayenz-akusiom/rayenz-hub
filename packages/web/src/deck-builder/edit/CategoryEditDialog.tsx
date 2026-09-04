@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   applyCategoryTargetWithSeed,
   canonicalizeCategoryName,
+  isGlanceUnassignedCategoryName,
   primaryCategoryCount,
   type CategoryDef,
   type DeckDocument,
@@ -51,6 +52,7 @@ export function CategoryEditDialog({
   function save() {
     const oldName = def?.name || categoryName;
     const nextName = canonicalizeCategoryName(name.trim()) || oldName;
+    if (isGlanceUnassignedCategoryName(nextName)) return;
     if (
       nextName !== oldName &&
       (deck.categories || []).some(

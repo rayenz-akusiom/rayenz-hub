@@ -30,6 +30,65 @@ describe('deck-builder glance include-set', () => {
       placeholders.length,
     );
     expect(placeholders.every((c) => c.instanceId.startsWith('glance-placeholder:'))).toBe(true);
+    const main = result.includeSet.sections.find((s) => s.name === 'Main deck');
+    expect(main?.cards.filter((c) => c.isPlaceholder)).toHaveLength(placeholders.length);
+  });
+
+  it('puts untargeted primary-category placeholders in To be chosen', () => {
+    const base = buildEligibleCommanderDeck();
+    const deck = { ...base, cards: base.cards.slice(0, 20) };
+    const result = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const placeholders = result.includeSet.cards.filter((c) => c.isPlaceholder);
+    expect(placeholders).toHaveLength(80);
+    const unassigned = result.includeSet.sections.find((s) => s.name === 'To be chosen');
+    expect(unassigned?.cards.filter((c) => c.isPlaceholder)).toHaveLength(80);
+    for (const section of result.includeSet.sections) {
+      if (section.name === 'To be chosen') continue;
+      expect(section.cards.some((c) => c.isPlaceholder)).toBe(false);
+    }
+  });
+
+  it('fills primary-category target deficits before To be chosen', () => {
+    const base = buildEligibleCommanderDeck();
+    const deck = {
+      ...base,
+      cards: base.cards.slice(0, 20),
+      categories: base.categories.map((c) =>
+        c.name === 'Instant' ? { ...c, target: 25 } : c,
+      ),
+    };
+    const result = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const instant = result.includeSet.sections.find((s) => s.name === 'Instant');
+    expect(instant?.cards.filter((c) => c.isPlaceholder)).toHaveLength(6);
+    expect(instant?.cards).toHaveLength(25);
+    const unassigned = result.includeSet.sections.find((s) => s.name === 'To be chosen');
+    expect(unassigned?.cards.filter((c) => c.isPlaceholder)).toHaveLength(74);
+  });
+
+  it('creates empty targeted categories and parks leftover faces in To be chosen', () => {
+    const base = buildEligibleCommanderDeck();
+    const forest = base.cards.find((c) => c.instanceId === 'forest-stack')!;
+    const deck = {
+      ...base,
+      cards: [...base.cards.slice(0, 11), { ...forest, quantity: 3 }],
+      categories: [
+        ...base.categories,
+        { name: 'Ramp', includedInDeck: true, includedInPrice: true, target: 5 },
+      ],
+    };
+    const result = buildGlanceIncludeSet(deck, { mode: 'primary_category' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ramp = result.includeSet.sections.find((s) => s.name === 'Ramp');
+    expect(ramp?.cards.filter((c) => c.isPlaceholder)).toHaveLength(5);
+    const unassigned = result.includeSet.sections.find((s) => s.name === 'To be chosen');
+    expect(unassigned?.cards.filter((c) => c.isPlaceholder)).toHaveLength(81);
+    const names = result.includeSet.sections.map((s) => s.name);
+    expect(names.indexOf('To be chosen')).toBeLessThan(names.indexOf('Land'));
   });
 
   it('rejects decks whose include-set exceeds 100', () => {

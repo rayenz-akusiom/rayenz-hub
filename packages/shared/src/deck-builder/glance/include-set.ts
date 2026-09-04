@@ -1,7 +1,20 @@
 import type { CardInstance, DeckDocument } from '../../schemas/deck-builder.js';
-import { isSeekingCategory, isSwapOutCategory } from '../../mtg/swap-queue.js';
-import { categoryIncluded, COMMANDER_DECK_TARGET, sortCategoryKeys } from '../browse.js';
-import { canonicalizeCategoryName } from '../category-names.js';
+import { isSeekingCategory, isSwapOutCategory, isSwapQueueCategoryName } from '../../mtg/swap-queue.js';
+import {
+  categoryIncluded,
+  categoryPlaceholderCount,
+  categoryTarget,
+  COMMANDER_DECK_TARGET,
+  HEADER_CATEGORIES,
+  includedCategoriesWithTargets,
+  isHeaderCategory,
+  sortCategoryKeys,
+} from '../browse.js';
+import {
+  canonicalizeCategoryName,
+  GLANCE_UNASSIGNED_CATEGORY,
+  isGlanceUnassignedCategoryName,
+} from '../category-names.js';
 import { normalizeCardQuantities } from '../quantities.js';
 import { formalSwapInIds, syncCardsWithFormalSwaps } from '../formal-swaps.js';
 import {
@@ -168,20 +181,52 @@ function sortSectionCards(name: string, cards: GlanceCard[]): GlanceCard[] {
   return isGlanceLandSectionName(name) ? sortLands(cards) : sortNonLands(cards);
 }
 
-function appendPlaceholders(sections: GlanceSection[], placeholders: GlanceCard[]): GlanceSection[] {
-  if (!placeholders.length) return sections;
-  if (!sections.length) {
-    return [{ name: 'Main deck', cards: placeholders }];
+function isGlanceRoleOrHeaderCategory(name: string): boolean {
+  if (roleKey(name)) return true;
+  if (isHeaderCategory(name)) return true;
+  const key = canonicalizeCategoryName(name).toLowerCase();
+  return (HEADER_CATEGORIES as readonly string[]).some((h) => h.toLowerCase() === key);
+}
+
+function canReceiveGlancePlaceholders(name: string): boolean {
+  if (isGlanceUnassignedCategoryName(name)) return false;
+  if (isGlanceRoleOrHeaderCategory(name)) return false;
+  if (isSwapQueueCategoryName(name) || isSeekingCategory(name) || isSwapOutCategory(name)) {
+    return false;
   }
-  const nonLandIdx = sections.reduce((best, s, i) => {
-    if (isGlanceLandSectionName(s.name)) return best;
-    if (best < 0) return i;
-    return s.cards.length > sections[best]!.cards.length ? i : best;
-  }, -1);
-  const target = nonLandIdx >= 0 ? nonLandIdx : 0;
-  return sections.map((s, i) =>
-    i === target ? { ...s, cards: [...s.cards, ...placeholders] } : s,
-  );
+  if (canonicalizeCategoryName(name) === MAYBEBOARD) return false;
+  return true;
+}
+
+function insertUnassignedSection(
+  sections: GlanceSection[],
+  placeholders: GlanceCard[],
+): GlanceSection[] {
+  if (!placeholders.length) return sections;
+  const section: GlanceSection = { name: GLANCE_UNASSIGNED_CATEGORY, cards: placeholders };
+  const landIdx = sections.findIndex((s) => isGlanceLandSectionName(s.name));
+  if (landIdx < 0) return [...sections, section];
+  return [...sections.slice(0, landIdx), section, ...sections.slice(landIdx)];
+}
+
+function fillSectionTargets(
+  sections: GlanceSection[],
+  placeholders: GlanceCard[],
+  deck: DeckDocument,
+): { sections: GlanceSection[]; leftover: GlanceCard[] } {
+  let remaining = placeholders;
+  const next = sections.map((s) => {
+    if (!canReceiveGlancePlaceholders(s.name) || !remaining.length) return s;
+    const need = categoryPlaceholderCount(
+      s.cards.length,
+      categoryTarget(deck.categories || [], s.name),
+    );
+    if (need <= 0) return s;
+    const take = remaining.slice(0, need);
+    remaining = remaining.slice(take.length);
+    return { ...s, cards: [...s.cards, ...take] };
+  });
+  return { sections: next, leftover: remaining };
 }
 
 function buildTypeLineSections(
@@ -210,16 +255,29 @@ function buildPrimaryCategorySections(
     else groups.set(key, [card]);
   }
 
+  for (const def of includedCategoriesWithTargets(deck.categories || [])) {
+    const key = canonicalizeCategoryName(def.name);
+    if (!canReceiveGlancePlaceholders(key)) continue;
+    const target = categoryTarget(deck.categories || [], key);
+    if (target == null || target <= 0) continue;
+    if (!groups.has(key)) groups.set(key, []);
+  }
+
   const categoryOrder = (deck.categories || []).map((c) => canonicalizeCategoryName(c.name));
   const keys = sortCategoryKeys([...groups.keys()], 'custom', categoryOrder);
   const sections: GlanceSection[] = keys
-    .filter((k) => (groups.get(k) || []).length > 0)
+    .filter((k) => {
+      if ((groups.get(k) || []).length > 0) return true;
+      const target = categoryTarget(deck.categories || [], k);
+      return canReceiveGlancePlaceholders(k) && target != null && target > 0;
+    })
     .map((name) => ({
       name,
       cards: sortSectionCards(name, groups.get(name) || []),
     }));
 
-  return appendPlaceholders(sections, placeholders);
+  const filled = fillSectionTargets(sections, placeholders, deck);
+  return insertUnassignedSection(filled.sections, filled.leftover);
 }
 
 export function buildGlanceIncludeSet(

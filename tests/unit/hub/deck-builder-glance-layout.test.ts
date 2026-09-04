@@ -414,6 +414,20 @@ describe('deck-builder glance layout', () => {
     expect(land.x + (land.width ?? 0)).toBeGreaterThanOrEqual(maxRight - 1);
   });
 
+  it('labels To be chosen for untargeted primary-category placeholders', () => {
+    const deck = buildEligibleCommanderDeck();
+    deck.cards = deck.cards.slice(0, 20);
+    const includeSet = includeFor(deck, { mode: 'primary_category' });
+    expect(includeSet.sections.some((s) => s.name === 'To be chosen')).toBe(true);
+    const plan = buildGlanceLayoutPlan(includeSet, deck.name);
+    expect(plan.labels.some((l) => l.role === 'section' && l.text === 'To be chosen')).toBe(true);
+    expect(
+      includeSet.sections
+        .find((s) => s.name === 'Instant')
+        ?.cards.some((c) => c.isPlaceholder),
+    ).toBe(false);
+  });
+
   it('places underfull-deck placeholders in the nonland region', () => {
     const deck = buildEligibleCommanderDeck();
     deck.cards = deck.cards.slice(0, 20);

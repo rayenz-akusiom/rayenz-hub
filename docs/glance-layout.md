@@ -67,7 +67,7 @@ From `GlanceIncludeSet`:
 - **commanders** / **lieutenants** — highlight plates; capped at `GLANCE_ROLE_HIGHLIGHT_LIMIT` (2)
 - **mode** / **sections** — ordered labeled stacks used for packing
 - **nonLands** / **lands** — always filled for back-compat (type-line split); mirrored into `sections` when `mode === 'type_line'`
-- **placeholders** — when the include-set is under 100 cards after swaps, synthetic `isPlaceholder` faces pad to 100 (Main deck / largest non-Land section); rendered as dashed “+” empty slots
+- **placeholders** — when the include-set is under 100 cards after swaps, synthetic `isPlaceholder` faces pad to 100; rendered as dashed “+” empty slots. Type-line mode pads **Main deck**. Primary-category mode fills included category `target` deficits first, then leftover faces go in a reserved **To be chosen** section (inserted before Land/Lands). When no category targets are set, all pad faces go to **To be chosen**.
 - Deck name + **title pips** — WUBRG-ordered commander colour identity (`C` if colourless)
 
 ### Algorithm

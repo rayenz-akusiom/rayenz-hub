@@ -7,7 +7,7 @@ import type {
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
 import { HEADER_CATEGORIES, isSwapQueueCategory, moveCardCategory } from './browse.js';
-import { canonicalizeCategoryName } from './category-names.js';
+import { canonicalizeCategoryName, isGlanceUnassignedCategoryName } from './category-names.js';
 import {
   isLookingForCategory,
   isSeekingCategory,
@@ -228,7 +228,7 @@ export function ensureCategoryDef(
   name: string,
 ): CategoryDef[] {
   const canonical = canonicalizeCategoryName(name);
-  if (!canonical) return categories;
+  if (!canonical || isGlanceUnassignedCategoryName(canonical)) return categories;
   if (categories.some((c) => canonicalizeCategoryName(c.name) === canonical)) {
     return categories;
   }
@@ -405,6 +405,7 @@ export function moveCardsCategory(
   primaryCategory: string,
   stack: string | null = null,
 ): DeckDocument {
+  if (isGlanceUnassignedCategoryName(primaryCategory)) return deck;
   const idSet = new Set(instanceIds.filter(Boolean));
   if (!idSet.size) return deck;
   let cards = deck.cards;

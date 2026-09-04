@@ -89,6 +89,30 @@ describe('CategorySettingsPanel', () => {
     expect(last.categories.some((c) => c.name === 'Ramp')).toBe(true);
     expect(onEditCategory).toHaveBeenCalledWith('Ramp');
   });
+
+  it('rejects adding a To be chosen category', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    vi.spyOn(window, 'prompt').mockReturnValue('To be chosen');
+    const deck: DeckDocument = {
+      ...cubeDoc,
+      categories: [
+        { name: 'White', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+    };
+
+    render(
+      <CategorySettingsPanel
+        deck={deck}
+        onChange={onChange}
+        onClose={vi.fn()}
+        onEditCategory={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Add category/i }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
 
 describe('CategoryEditDialog', () => {
@@ -138,6 +162,32 @@ describe('CategoryEditDialog', () => {
     const last = onChange.mock.calls.at(-1)?.[0] as DeckDocument;
     expect(last.categories.find((c) => c.name === 'White')?.target).toBe(40);
     expect(last.categories.find((c) => c.name === 'Blue')?.target).toBe(1);
+  });
+
+  it('rejects renaming a category to To be chosen', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    const deck: DeckDocument = {
+      ...cubeDoc,
+      format: 'cube',
+      categories: [
+        { name: 'White', includedInDeck: true, includedInPrice: true, target: null },
+      ],
+    };
+
+    render(
+      <CategoryEditDialog
+        deck={deck}
+        categoryName="White"
+        onChange={onChange}
+        onClose={vi.fn()}
+        onOpenReorder={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Category name'), { target: { value: 'to be chosen' } });
+    await user.click(screen.getByRole('button', { name: /^Save$/i }));
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('clicking Current sets target to card count', async () => {

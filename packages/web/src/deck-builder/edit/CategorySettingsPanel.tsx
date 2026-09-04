@@ -2,6 +2,7 @@ import { useMemo, useState, type DragEvent } from 'react';
 import {
   canonicalizeCategoryName,
   categoryTargetsMismatchCubeSize,
+  isGlanceUnassignedCategoryName,
   reorderCategoryDefs,
   type CategoryDef,
   type DeckDocument,
@@ -56,6 +57,7 @@ export function CategorySettingsPanel({
     const name = window.prompt('New category name');
     if (!name?.trim()) return;
     const trimmed = canonicalizeCategoryName(name.trim());
+    if (isGlanceUnassignedCategoryName(trimmed)) return;
     if (categories.some((c) => canonicalizeCategoryName(c.name) === trimmed)) return;
     persist([
       ...categories,

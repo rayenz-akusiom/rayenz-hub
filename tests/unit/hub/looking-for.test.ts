@@ -207,6 +207,12 @@ describe('looking-for', () => {
     expect(text).toMatch(/Birds of Paradise/);
   });
 
+  it('refuses to move cards into To be chosen', () => {
+    const next = moveCardsCategory(baseDeck(), ['c1'], 'To be chosen');
+    expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Creature');
+    expect(next.categories.some((c) => c.name === 'To be chosen')).toBe(false);
+  });
+
   it('move into Seeking creates a lookingFor entry', () => {
     const next = moveCardsCategory(baseDeck(), ['c1'], 'Seeking');
     expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Seeking');

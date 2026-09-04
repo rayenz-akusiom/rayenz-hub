@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   canonicalizeCategoryName,
   deckCategoryOptions,
+  isGlanceUnassignedCategoryName,
   moveCardsCategory,
   cardDisplayName,
   type CardView,
@@ -65,7 +66,7 @@ export function MoveSheet({
 
   function apply() {
     const cat = resolvedCategory();
-    if (!cat) return;
+    if (!cat || isGlanceUnassignedCategoryName(cat)) return;
     onApply(
       moveCardsCategory(
         deck,

@@ -222,40 +222,42 @@ export function useScryfallEnrich(
           }
 
           if (identifiers.length) {
-            let result;
+            let result: Awaited<ReturnType<typeof fetchCardsCollection>> | null = null;
             try {
               result = await fetchCardsCollection(identifiers, {
                 signal: abort.signal,
               });
-            } catch (err) {
+            } catch {
+              // Collection POST can fail in browsers (CORS / network); leave network enrich undone.
               if (cancelled || abort.signal.aborted) return;
-              throw err;
             }
             if (cancelled) return;
-            rateLimited = Boolean(result.rateLimited);
+            if (result) {
+              rateLimited = Boolean(result.rateLimited);
 
-            const byKey = indexCollectionResults(result.data);
-            for (const card of needsNetwork) {
-              let found: ScryfallCard | undefined;
-              for (const mk of cardMatchKeys(card)) {
-                found = byKey.get(mk);
-                if (found) break;
+              const byKey = indexCollectionResults(result.data);
+              for (const card of needsNetwork) {
+                let found: ScryfallCard | undefined;
+                for (const mk of cardMatchKeys(card)) {
+                  found = byKey.get(mk);
+                  if (found) break;
+                }
+                if (!found) continue;
+                const entry = cardOracleFromScryfall(found);
+                const key = oracleKey({
+                  ...card,
+                  scryfallId: card.scryfallId || entry.scryfallId,
+                });
+                oracle = upsertOracle(oracle, key, entry);
+                if (!card.scryfallId && entry.scryfallId) {
+                  cards = cards.map((c) =>
+                    c.instanceId === card.instanceId
+                      ? { ...c, scryfallId: entry.scryfallId }
+                      : c,
+                  );
+                }
+                changed = true;
               }
-              if (!found) continue;
-              const entry = cardOracleFromScryfall(found);
-              const key = oracleKey({
-                ...card,
-                scryfallId: card.scryfallId || entry.scryfallId,
-              });
-              oracle = upsertOracle(oracle, key, entry);
-              if (!card.scryfallId && entry.scryfallId) {
-                cards = cards.map((c) =>
-                  c.instanceId === card.instanceId
-                    ? { ...c, scryfallId: entry.scryfallId }
-                    : c,
-                );
-              }
-              changed = true;
             }
           }
         }

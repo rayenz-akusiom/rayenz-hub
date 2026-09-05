@@ -233,6 +233,38 @@ describe('fetchSyntaxMembership', () => {
     );
   });
 
+  it('falls back to exact-name search when collection fetch rejects', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (String(url).includes('/cards/collection')) {
+        throw new TypeError('Failed to fetch');
+      }
+      const q = new URL(String(url)).searchParams.get('q') || '';
+      expect(q).toContain('t:instant');
+      expect(q).toContain('!"Ponder"');
+      expect(q).not.toContain('oracleid:');
+      expect(q).toContain('game:paper');
+      return {
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'print-1', name: 'Ponder', set: 'cmm', collector_number: '1' }],
+          has_more: false,
+          next_page: null,
+        }),
+      };
+    });
+
+    const names = await fetchSyntaxMembership(
+      't:instant',
+      [{ name: 'Ponder', scryfallId: 'print-fallback' }],
+      { fetchImpl, delayMs: 0 },
+    );
+    expect(names.has('ponder')).toBe(true);
+    expect(fetchImpl.mock.calls.some((c) => String(c[0]).includes('/cards/collection'))).toBe(
+      true,
+    );
+    expect(fetchImpl.mock.calls.some((c) => String(c[0]).includes('/cards/search'))).toBe(true);
+  });
+
   it('treats search 404 as an empty membership set', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: false,

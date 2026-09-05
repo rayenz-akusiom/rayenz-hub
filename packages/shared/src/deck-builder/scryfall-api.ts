@@ -636,6 +636,7 @@ function clausesForResolvedCards(
 /**
  * Collection-scoped Scryfall syntax search: resolve printing ids to `oracleid:`,
  * fall back to `!"name"`, then AND the user query in batches under the `q` cap.
+ * Collection POST failures (e.g. browser CORS) soft-fail to name clauses.
  * HTTP 404 (no matches) yields an empty membership set.
  */
 export async function fetchSyntaxMembership(
@@ -653,19 +654,27 @@ export async function fetchSyntaxMembership(
   const { ids, nameById, namesWithoutId } = collectSyntaxClauses(cards);
   const unresolved = ids.filter((id) => !oracleIdByPrintingId.has(id));
   if (unresolved.length) {
-    const result = await fetchCardsCollection(
-      unresolved.map((id) => ({ id })),
-      {
-        fetchImpl: opts?.fetchImpl,
-        delayMs: opts?.delayMs,
-        signal: opts?.signal,
-      },
-    );
-    if (opts?.signal?.aborted) {
-      throw new Error('Syntax membership fetch aborted.');
-    }
-    for (const card of result.data) {
-      if (card.oracle_id) oracleIdByPrintingId.set(card.id, card.oracle_id);
+    try {
+      const result = await fetchCardsCollection(
+        unresolved.map((id) => ({ id })),
+        {
+          fetchImpl: opts?.fetchImpl,
+          delayMs: opts?.delayMs,
+          signal: opts?.signal,
+        },
+      );
+      if (opts?.signal?.aborted) {
+        throw new Error('Syntax membership fetch aborted.');
+      }
+      for (const card of result.data) {
+        if (card.oracle_id) oracleIdByPrintingId.set(card.id, card.oracle_id);
+      }
+    } catch (e) {
+      // POST /cards/collection can fail in browsers (CORS / network) while GET search works.
+      // Fall through to !"name" clauses when names are available.
+      if (opts?.signal?.aborted) {
+        throw e instanceof Error ? e : new Error('Syntax membership fetch aborted.');
+      }
     }
   }
 

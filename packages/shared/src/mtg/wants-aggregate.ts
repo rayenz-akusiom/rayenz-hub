@@ -243,44 +243,6 @@ export function unifyWantSources(sources: WantSource[]): UnifiedWantRow[] {
   return rows;
 }
 
-export type UnifiedCardRow = {
-  key: string;
-  displayName: string;
-  totalQuantity: number;
-  instanceIds: string[];
-};
-
-/**
- * Group all deck card instances by merge key (canonical name, or printing-sought
- * label when the canonical name is unavailable). Used by the Unified List browse view.
- */
-export function unifyDeckCardInstances(deck: DeckDocument): UnifiedCardRow[] {
-  const groups = new Map<string, { names: string[]; qty: number; ids: string[] }>();
-
-  for (const card of deck.cards || []) {
-    const name = printingSoughtName(deck, card);
-    const key = wantMergeKey(card, name);
-    const group = groups.get(key) || { names: [], qty: 0, ids: [] };
-    group.names.push(name);
-    group.qty += quantityOf(card);
-    group.ids.push(card.instanceId);
-    groups.set(key, group);
-  }
-
-  const rows: UnifiedCardRow[] = [];
-  for (const [key, group] of groups) {
-    rows.push({
-      key,
-      displayName: mostCommonOf(group.names),
-      totalQuantity: group.qty,
-      instanceIds: group.ids,
-    });
-  }
-
-  rows.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.key.localeCompare(b.key));
-  return rows;
-}
-
 function queueInstanceIds(deck: DeckDocument): Set<string> {
   const ids = new Set<string>();
   for (const entry of deck.formalSwapEntries || []) {

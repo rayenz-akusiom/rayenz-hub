@@ -32,7 +32,7 @@ export const BrowseViewSchema = z.enum([
   'category_multi',
   'colour_identity',
   'colour_identity_spells',
-  'unified_list',
+  'all_cards',
 ]);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
 

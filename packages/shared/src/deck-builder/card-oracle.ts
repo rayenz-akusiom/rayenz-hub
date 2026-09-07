@@ -236,6 +236,8 @@ export function upsertOracle(
 export function migrateDeckDocument<T extends Record<string, unknown>>(raw: T): T {
   if (!raw || typeof raw !== 'object') return raw;
   const cardsIn = Array.isArray(raw.cards) ? (raw.cards as LegacyCard[]) : [];
+  const browseViewDefault =
+    raw.browseViewDefault === 'unified_list' ? 'all_cards' : raw.browseViewDefault;
   let oracle: Record<string, CardOracle> = {
     ...((raw.oracle as Record<string, CardOracle>) || {}),
   };
@@ -283,6 +285,7 @@ export function migrateDeckDocument<T extends Record<string, unknown>>(raw: T): 
 
   return {
     ...raw,
+    browseViewDefault,
     cards,
     oracle,
     schemaVersion: Math.max(prevVersion, 2),

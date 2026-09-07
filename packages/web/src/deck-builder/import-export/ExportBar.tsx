@@ -21,7 +21,7 @@ const VIEW_LABELS: Record<BrowseView, string> = {
   category_multi: 'Multiple categories',
   colour_identity: 'Colour identity',
   colour_identity_spells: 'Colour identity (Spells)',
-  unified_list: 'Unified List',
+  all_cards: 'All Cards',
 };
 
 const LAYOUT_LABELS: Record<CardLayout, string> = {
@@ -142,8 +142,8 @@ export function ExportBar({
         >
           Colour identity (Spells)
         </DbMenuItem>
-        <DbMenuItem active={view === 'unified_list'} onSelect={() => onViewChange('unified_list')}>
-          Unified List
+        <DbMenuItem active={view === 'all_cards'} onSelect={() => onViewChange('all_cards')}>
+          All Cards
         </DbMenuItem>
       </DbMenu>
       <DbMenu label="Layout" value={LAYOUT_LABELS[layout]}>

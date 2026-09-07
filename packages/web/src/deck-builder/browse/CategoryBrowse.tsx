@@ -153,6 +153,7 @@ export function CardGroup({
   categoryKey,
   placeholderCount = 0,
   swapInIds,
+  filtersActive = false,
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
@@ -167,6 +168,8 @@ export function CardGroup({
   placeholderCount?: number;
   /** Formal swap In instance ids — rendered as temporary ghosts. */
   swapInIds?: ReadonlySet<string> | null;
+  /** Active browse filters suppress ghost affordances. */
+  filtersActive?: boolean;
 }) {
   const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
     <div
@@ -194,7 +197,7 @@ export function CardGroup({
               draggable={draggable}
               onContextMenu={onCardContextMenu}
               membership={card.membership || 'primary'}
-              swapInGhost={Boolean(swapInIds?.has(card.instanceId))}
+              swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
             />
             <CardStackPeek
               card={card}
@@ -223,7 +226,7 @@ export function CardGroup({
           draggable={draggable}
           onContextMenu={onCardContextMenu}
           membership={card.membership || 'primary'}
-          swapInGhost={Boolean(swapInIds?.has(card.instanceId))}
+          swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
         />
       ))}
       {placeholders}
@@ -250,6 +253,7 @@ export function DropSection({
   countPulse = false,
   warnTarget = false,
   swapInIds,
+  filtersActive = false,
 }: {
   category: string;
   cards: Array<CardView & { membership?: CategoryMembership }>;
@@ -278,6 +282,7 @@ export function DropSection({
   countPulse?: boolean;
   warnTarget?: boolean;
   swapInIds?: ReadonlySet<string> | null;
+  filtersActive?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -291,7 +296,7 @@ export function DropSection({
   const countLabel =
     target != null ? `(${n}/${target})` : `(${n})`;
   const mismatch = warnTarget && target != null && n !== target;
-  const placeholderCount = categoryPlaceholderCount(n, target);
+  const placeholderCount = filtersActive ? 0 : categoryPlaceholderCount(n, target);
   const titleClass =
     variant === 'header' ? 'db-header-cat-title' : 'db-section-title';
 
@@ -361,6 +366,7 @@ export function DropSection({
         categoryKey={category}
         placeholderCount={placeholderCount}
         swapInIds={swapInIds}
+        filtersActive={filtersActive}
       />
     </section>
   );
@@ -944,6 +950,7 @@ export function DeckHeaderRow({
   swapInIds,
   coverInstanceId = null,
   onPickSlot,
+  filtersActive = false,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -970,6 +977,7 @@ export function DeckHeaderRow({
   swapInIds?: ReadonlySet<string> | null;
   coverInstanceId?: string | null;
   onPickSlot?: (category: string) => void;
+  filtersActive?: boolean;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const [headerTab, setHeaderTab] = useState<'leaders' | 'description'>('leaders');
@@ -1036,6 +1044,7 @@ export function DeckHeaderRow({
       variant="header"
       cardSort={cardSort}
       swapInIds={swapInIds}
+      filtersActive={filtersActive}
     />
   );
 
@@ -1240,6 +1249,7 @@ export function CategoryBrowse({
   deckMetaWarn,
   syncStatus = null,
   browseView = 'category',
+  filtersActive = false,
 }: {
   deck:
     | Pick<
@@ -1294,6 +1304,7 @@ export function CategoryBrowse({
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
   browseView?: BrowseView;
+  filtersActive?: boolean;
 }) {
   const resolved = useMemo(
     () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
@@ -1301,6 +1312,7 @@ export function CategoryBrowse({
   );
   const format = ('format' in deck ? deck.format : undefined) || 'other';
   const multi = browseView === 'category_multi';
+  const allCards = browseView === 'all_cards';
   const keySort = categoryKeySortFor(browseView, format);
   const swapInIds = useMemo(
     () =>
@@ -1342,6 +1354,13 @@ export function CategoryBrowse({
         (c) => c.instanceId,
       );
     });
+    if (allCards) {
+      const combined = includedKeys.flatMap((cat) => included[cat] || []);
+      const bodyIds = sortCardsInGroup(combined, cardSort, undefined, swapInIds).map(
+        (c) => c.instanceId,
+      );
+      return [...headerIds, ...bodyIds];
+    }
     const bodyIds = includedKeys.flatMap((cat) =>
       sortCardsInGroup(included[cat] || [], cardSort, undefined, swapInIds).map(
         (c) => c.instanceId,
@@ -1404,6 +1423,7 @@ export function CategoryBrowse({
             countPulse={isSeekingCategory(cat) ? seekingCountPulse : false}
             warnTarget={warnTargets}
             swapInIds={swapInIds}
+            filtersActive={filtersActive}
           />
         ))}
       </div>
@@ -1428,11 +1448,43 @@ export function CategoryBrowse({
       primaryCount={primaryCategoryCount(resolved, cat)}
       warnTarget={warnTargets}
       swapInIds={swapInIds}
+      filtersActive={filtersActive}
     />
   );
 
+  const allCardsSection = (() => {
+    if (!allCards) return null;
+    const cards = sortCardsInGroup(
+      includedKeys.flatMap((cat) => included[cat] || []),
+      cardSort,
+      undefined,
+      swapInIds,
+    );
+    return (
+      <section className={layout === 'grid' ? 'db-section' : 'db-cat-column'}>
+        <h3 className="db-section-title">
+          All Cards <span className="db-count">({cards.length})</span>
+        </h3>
+        <CardGroup
+          cards={cards}
+          layout={layout}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onSelectCard={onSelectCard}
+          draggable={Boolean(onDropCard)}
+          onCardContextMenu={onCardContextMenu}
+          categoryKey="all_cards"
+          swapInIds={swapInIds}
+          filtersActive={filtersActive}
+        />
+      </section>
+    );
+  })();
+
   const body =
-    keySort === 'cube_ci' ? (
+    allCards ? (
+      allCardsSection
+    ) : keySort === 'cube_ci' ? (
       <div className="db-cube-bands">
         {groupKeysByCubeCategoryBand(includedKeys).map((group, index) => (
           <div key={group.band} className="db-cube-band">
@@ -1481,6 +1533,7 @@ export function CategoryBrowse({
         syncStatus={syncStatus}
         swapInIds={swapInIds}
         coverInstanceId={'coverInstanceId' in deck ? deck.coverInstanceId : null}
+        filtersActive={filtersActive}
       />
       {body}
     </div>

@@ -52,6 +52,7 @@ export function ColourIdentityBrowse({
   deckMeta,
   deckMetaWarn,
   syncStatus = null,
+  filtersActive = false,
 }: {
   deck:
     | Pick<
@@ -98,6 +99,7 @@ export function ColourIdentityBrowse({
   deckMeta?: string;
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
+  filtersActive?: boolean;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -191,6 +193,7 @@ export function ColourIdentityBrowse({
             draggable={Boolean(onDropCard)}
             onCardContextMenu={onCardContextMenu}
             swapInIds={swapInIds}
+            filtersActive={filtersActive}
           />
         </section>
       );
@@ -232,6 +235,7 @@ export function ColourIdentityBrowse({
         coverInstanceId={
           'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
         }
+        filtersActive={filtersActive}
       />
       {layout === 'stacked' ? (
         <MasonryColumns>{sections}</MasonryColumns>

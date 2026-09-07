@@ -73,7 +73,6 @@ import {
 import { CategoryBrowse } from './CategoryBrowse';
 import { CardFlagCharmProvider } from './CardFlagCharmContext';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
-import { UnifiedListBrowse } from './UnifiedListBrowse';
 import { AddCardFab } from './AddCardFab';
 import { type ContextMenuPoint } from './CardTile';
 import { useDragAutoScroll } from './useDragAutoScroll';
@@ -304,6 +303,10 @@ export function BrowseShell({
     [liveDeck.cards],
   );
   const syntaxFilter = useScryfallSyntaxFilter(syntaxCards);
+  const setActive = Boolean(setFilter.active && setFilter.membership);
+  const syntaxActive = Boolean(syntaxFilter.active);
+  const flagActive = proxyFilter !== 'all' || foilFilter !== 'all' || seekingFilter !== 'all';
+  const filtersActive = setActive || syntaxActive || flagActive;
 
   const selectedCards = useMemo(
     () => liveDeck.cards.filter((c) => selectedIds.has(c.instanceId)),
@@ -315,11 +318,8 @@ export function BrowseShell({
 
   /** Browse-only view with set / syntax / proxy / foil filters; mutations still use full `liveDeck`. */
   const browseDeck = useMemo((): DeckDocument => {
-    const setActive = setFilter.active && setFilter.membership;
     const membership = setFilter.membership;
-    const syntaxActive = syntaxFilter.active;
     const syntaxMembership = syntaxFilter.membership;
-    const flagActive = proxyFilter !== 'all' || foilFilter !== 'all' || seekingFilter !== 'all';
     if (!setActive && !syntaxActive && !flagActive) return liveDeck;
     return {
       ...liveDeck,
@@ -475,7 +475,6 @@ export function BrowseShell({
 
   const isColourIdentityView =
     view === 'colour_identity' || view === 'colour_identity_spells';
-  const isUnifiedListView = view === 'unified_list';
   // Enrich CI/type/leader keywords when missing; Archidekt imports already have layout defaults.
   const { enriching } = useScryfallEnrich(liveDeck, true, onEnrichPatch);
 
@@ -691,19 +690,6 @@ export function BrowseShell({
       return new Set([id]);
     });
     setSelectionAnchorId(id);
-  }
-
-  function onSelectUnifiedInstance(instanceId: string) {
-    setContextMenu(null);
-    if (trimMode && !readOnly) {
-      applyTrimToInstance(instanceId);
-      return;
-    }
-    setSelectedIds((prev) => {
-      if (prev.size === 1 && prev.has(instanceId)) return new Set();
-      return new Set([instanceId]);
-    });
-    setSelectionAnchorId(instanceId);
   }
 
   function openCardContextMenu(
@@ -1378,15 +1364,7 @@ export function BrowseShell({
           {setFilter.loading || syntaxFilter.loading ? (
             <p className="hub-muted">Updating filters…</p>
           ) : null}
-          {isUnifiedListView ? (
-            <UnifiedListBrowse
-              deck={browseDeck}
-              onSelectInstance={onSelectUnifiedInstance}
-              deckMeta={deckMeta}
-              deckMetaWarn={sizeWarn || targetsVsCubeWarn}
-              syncStatus={syncStatus}
-            />
-          ) : isColourIdentityView ? (
+          {isColourIdentityView ? (
             <ColourIdentityBrowse
               deck={browseDeck}
               selectedIds={selectedIds}
@@ -1414,6 +1392,7 @@ export function BrowseShell({
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
+              filtersActive={filtersActive}
             />
           ) : (
             <CategoryBrowse
@@ -1442,8 +1421,9 @@ export function BrowseShell({
               deckMeta={deckMeta}
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
-              browseView={isCategoryBrowseView(view) ? view : 'category'}
+              browseView={view}
               onEditCategory={readOnly ? undefined : (cat) => setEditingCategory(cat)}
+              filtersActive={filtersActive}
             />
           )}
         </main>
@@ -1526,6 +1506,7 @@ export function BrowseShell({
               queuesReadOnly={queuesReadOnly}
               mode="aside"
               browseView={isCategoryBrowseView(view) ? view : 'category'}
+              filtersActive={filtersActive}
             />
           </div>
           <div

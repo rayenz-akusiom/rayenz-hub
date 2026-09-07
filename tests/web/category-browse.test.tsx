@@ -147,6 +147,36 @@ describe('CardGroup and DropSection', () => {
     expect(screen.getByText(/\(1\/5\)/)).toBeInTheDocument();
     expect(document.querySelectorAll('.db-card-placeholder')).toHaveLength(4);
   });
+
+  it('suppresses placeholders when filters are active', () => {
+    render(
+      <DropSection
+        category="Land"
+        cards={[]}
+        layout="grid"
+        target={5}
+        primaryCount={0}
+        filtersActive
+      />,
+    );
+
+    expect(screen.getByText(/\(0\/5\)/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.db-card-placeholder')).toHaveLength(0);
+  });
+
+  it('suppresses swap-in ghost styling when filters are active', () => {
+    const card = cardAt(0);
+    render(
+      <CardGroup
+        cards={[card]}
+        layout="grid"
+        swapInIds={new Set([card.instanceId])}
+        filtersActive
+      />,
+    );
+
+    expect(document.querySelector('.db-card-tile.is-swap-in-ghost')).toBeNull();
+  });
 });
 
 describe('DeckHeaderRow', () => {

@@ -17,6 +17,8 @@ afterEach(() => {
   resetHubModules();
 });
 
+const recentUpdatedAt = () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
 describe('buildDeckFromImportText', () => {
   it('builds a deck with snapshot from import lines', () => {
     const text = '1x Sol Ring (cmm) 1 [Ramp]\n1x Lightning Bolt (mh2) 123 [Removal]';
@@ -196,7 +198,7 @@ describe('loadHubLibraryDecks', () => {
       cardLayoutDefault: 'stacked',
       cardSortDefault: 'name_asc',
       createdAt: '2026-08-01T00:00:00.000Z',
-      updatedAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: recentUpdatedAt(),
       lastArchidektSyncAt: null,
       lastArchidektImportAt: null,
       cubeTargetSize: null,

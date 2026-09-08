@@ -50,7 +50,7 @@ describe('mcp hub-client', () => {
       }),
     ).toEqual({
       url: 'http://x',
-      username: 'Rayenz',
+      username: 'rayenz',
       password: 'secret',
     });
   });

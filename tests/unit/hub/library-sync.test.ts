@@ -25,6 +25,8 @@ const deleteDeck = vi.fn<(deckId: string) => Promise<void>>();
 
 const apiListDecks = vi.fn<() => Promise<DeckSummary[]>>();
 const apiGetDeck = vi.fn<(deckId: string) => Promise<DeckDocument | null>>();
+const recentUpdatedAt = () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+const newerUpdatedAt = () => new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
 vi.mock('../../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
@@ -45,12 +47,12 @@ vi.mock('../../../packages/web/src/deck-builder/store/deck-api', () => ({
 describe('pullRemoteLibraryUpdates', () => {
   const localDoc = {
     ...commander,
-    updatedAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: recentUpdatedAt(),
   } as DeckDocument;
   const remoteDoc = {
     ...commander,
     name: 'Remote Commander',
-    updatedAt: '2026-08-10T00:00:00.000Z',
+    updatedAt: newerUpdatedAt(),
   } as DeckDocument;
 
   beforeEach(() => {

@@ -126,7 +126,7 @@ export async function pullRemoteLibraryUpdates(): Promise<DeckSummary[]> {
   const local = await listDecks();
   const remaining = await purgeExpiredSandboxDecks(Date.now(), local);
 
-  if (!isApiConfigured()) {
+  if (!isApiConfigured() || !isSignedIn()) {
     return remaining.filter((s) => isSandboxScoped(s.deckId));
   }
 

@@ -1,6 +1,6 @@
 # Hub API production (auth, cost cap, owner sync)
 
-The public Hub **website stays on GitHub Pages**. AWS hosts the API, DynamoDB, S3, Cognito, and cost controls. Routine **deploy** is Hub API then Pages: `npm run deploy:api`, then `npm run publish:hub` / `npm run deploy:hub`. Cognito (`npm run deploy:cognito`) is first-time / identity-stack only.
+The public Hub **website stays on GitHub Pages**. AWS hosts the API, DynamoDB, S3, Cognito, and cost controls. Routine **deploy** is Hub API then Pages: `npm run deploy` for the full sequence, or `npm run deploy:api` then `npm run deploy:pages` when running the steps explicitly. Cognito (`npm run deploy:cognito`) is first-time / identity-stack only.
 
 Browser production identity is a **Cognito session** (username/password). MCP and CLI scripts sign in the same way (`HUB_USERNAME` / `HUB_PASSWORD`). There is no operator API key.
 
@@ -72,7 +72,7 @@ npx tsx scripts/migrate-user-partition.ts --execute --target-sub <rayenzSub> --d
 Optional: `$env:HUB_MIGRATE_SOURCE_USER_ID = 'rayenz-local'` if local writes already used that id instead of `default`.
 
 5. Set local `HUB_USER_ID` / `infra/env.local.json` to that `sub` (not a permanent bootstrap partition). Then mirror local → prod (`Owner sync` below).
-6. `npm run publish:hub` (bakes `HubApiUrl` into the SPA). Sign in as `Rayenz`. Save/reload one settings or deck (SC-001).
+6. `npm run deploy:pages` (runs `publish:hub`, bakes `HubApiUrl` into the SPA, then subtree-pushes Pages). Sign in as `Rayenz`. Save/reload one settings or deck (SC-001).
 7. Confirm AWS Budget alerts (50%, 80%, 95%) and that a 95% notification sets `SYSTEM`/`SPEND_LOCK`.
 8. Sign-off SC-001…SC-009.
 

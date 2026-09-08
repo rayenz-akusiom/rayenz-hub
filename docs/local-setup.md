@@ -53,9 +53,9 @@ Run this after most code changes. **No running API server required.**
 | Command             | What it exercises                                                    |
 | ------------------- | -------------------------------------------------------------------- |
 | `npm run test:api`  | API handlers + Inversify container (~21 tests) — in-memory Dynamo/S3 |
-| `npm run test:unit` | Vanilla Hub apps (~276 tests) — happy-dom, no HTTP server            |
+| `npm run test:unit` | Default Vitest run: unit + API tests — fast, no HTTP server          |
 | `npm run test:web`  | React dailies settings page — RTL smoke test                         |
-| `npm test`          | Unit tests, then Playwright e2e                                      |
+| `npm test`          | Unit + API, then React RTL, then Playwright e2e                      |
 
 
 `npm run test:api` calls handlers directly via `createTestServices()` / `createMemoryStores()` in `tests/api/helpers/test-services.ts`. It does **not** need `sam local` or Docker.
@@ -339,7 +339,7 @@ npm run build:web    # Build SPA into rayenz-hub/ (index.html + assets/); emptyO
 
 The Hub is a single React SPA (`packages/web`). All hash routes (`#/dailies`, `#/deck-builder`, `#/deck-suggest`, `#/order-reconcile`, `#/settings…`, etc.) render in-tree as React/TypeScript apps. Shared CSS lives under `rayenz-hub/shared/`. Legacy `#/deck-review` redirects to `#/deck-suggest`.
 
-**Always run `npm run build:web` before `deploy:hub`** so `rayenz-hub/index.html` points at the current SPA bundle.
+Prefer `npm run deploy:pages` for a Pages release; it runs `publish:hub` before `deploy:hub` so `rayenz-hub/index.html` points at the current SPA bundle.
 
 To test the SPA (and optional local API) from a phone on your LAN, see [mobile-local-testing.md](./mobile-local-testing.md).
 
@@ -397,7 +397,7 @@ Need real HTTP?
 | Layer                | Local command                | Needs Docker/SAM? |
 | -------------------- | ---------------------------- | ----------------- |
 | API unit/integration | `npm run test:api`           | No                |
-| Vanilla Hub          | `npm run test:unit`          | No                |
+| Vanilla Hub + API    | `npm run test:unit`          | No                |
 | React shell          | `npm run test:web`           | No                |
 | Live REST API        | `npm run start:api`          | Yes               |
 | Browser + API        | Vite + Sign in as Rayenz     | Yes (for API)     |

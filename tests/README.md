@@ -11,12 +11,12 @@ Automated tests for the [rayenz-hub](../rayenz-hub/) hub live in this folder at 
 
 | Command | Description |
 |---------|-------------|
-| `npm run test:unit` | Vitest + happy-dom (fast in-process DOM tests) |
-| `npm run test:unit:watch` | Vitest watch mode |
+| `npm run test:unit` | Default Vitest run for unit + API tests |
+| `npm run test:unit:watch` | Vitest watch mode for the default unit + API suite |
 | `npm run test:web` | Vitest React component tests |
 | `npm run test:e2e` | Playwright browser tests |
 | `npm run test:e2e:install` | Install Chromium for Playwright (one-time) |
-| `npm test` | Run unit tests, then e2e |
+| `npm test` | Run unit + API tests, then React component tests, then e2e |
 
 ## Layout
 

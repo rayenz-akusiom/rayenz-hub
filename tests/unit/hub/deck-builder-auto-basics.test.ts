@@ -297,6 +297,270 @@ describe('recalculateAutoBasics', () => {
     expect(islands).toBeGreaterThan(forests);
   });
 
+  it('adds white basics when a five-colour deck has a triple-white card', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'Kenrith',
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      scryfallId: 'sf-cmd',
+    });
+    const triome = card({
+      instanceId: 'triome',
+      name: 'Savai Triome',
+      primaryCategory: 'Land',
+      categories: ['Land'],
+      scryfallId: 'sf-triome',
+    });
+    const spell = card({
+      instanceId: 'wrath',
+      name: 'Wrath of God',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      scryfallId: 'sf-wrath',
+    });
+    const base = withOracle(
+      deck({
+        categories: [
+          { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 1 },
+          { name: 'Land', includedInDeck: true, includedInPrice: true, target: 6 },
+          { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+      [cmd, triome, spell],
+      {
+        cmd: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Legendary Creature',
+          manaCost: '{W}{U}{B}{R}{G}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-cmd',
+        },
+        triome: {
+          colourIdentity: ['W', 'B', 'R'],
+          typeLine: 'Land',
+          manaCost: '',
+          producedMana: ['W', 'B', 'R'],
+          manaValue: 0,
+          scryfallId: 'sf-triome',
+        },
+        wrath: {
+          colourIdentity: ['W'],
+          typeLine: 'Sorcery',
+          manaCost: '{2}{W}{W}{W}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-wrath',
+        },
+      },
+    );
+
+    const next = recalculateAutoBasics(base);
+    const byName = new Map(
+      listBasicLandStacks(next).map((c) => [c.name, c.quantity] as const),
+    );
+    expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('uses existing nonbasic land sources toward the source floor', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'Kenrith',
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      scryfallId: 'sf-cmd',
+    });
+    const tower = card({
+      instanceId: 'tower',
+      name: 'Command Tower',
+      primaryCategory: 'Land',
+      categories: ['Land'],
+      scryfallId: 'sf-tower',
+    });
+    const fountain = card({
+      instanceId: 'fountain',
+      name: 'Hallowed Fountain',
+      primaryCategory: 'Land',
+      categories: ['Land'],
+      scryfallId: 'sf-fountain',
+    });
+    const spell = card({
+      instanceId: 'wrath',
+      name: 'Wrath of God',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      scryfallId: 'sf-wrath',
+    });
+    const base = withOracle(
+      deck({
+        categories: [
+          { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 1 },
+          { name: 'Land', includedInDeck: true, includedInPrice: true, target: 5 },
+          { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+      [cmd, tower, fountain, spell],
+      {
+        cmd: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Legendary Creature',
+          manaCost: '{W}{U}{B}{R}{G}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-cmd',
+        },
+        tower: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Land',
+          manaCost: '',
+          producedMana: ['W', 'U', 'B', 'R', 'G'],
+          manaValue: 0,
+          scryfallId: 'sf-tower',
+        },
+        fountain: {
+          colourIdentity: ['W', 'U'],
+          typeLine: 'Land — Plains Island',
+          manaCost: '',
+          producedMana: ['W', 'U'],
+          manaValue: 0,
+          scryfallId: 'sf-fountain',
+        },
+        wrath: {
+          colourIdentity: ['W'],
+          typeLine: 'Sorcery',
+          manaCost: '{2}{W}{W}{W}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-wrath',
+        },
+      },
+    );
+
+    const next = recalculateAutoBasics(base);
+    const byName = new Map(
+      listBasicLandStacks(next).map((c) => [c.name, c.quantity] as const),
+    );
+    expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not count nonland mana producers toward the land-source floor', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'Kenrith',
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      scryfallId: 'sf-cmd',
+    });
+    const rock = card({
+      instanceId: 'rock',
+      name: 'Arcane Signet',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      scryfallId: 'sf-rock',
+    });
+    const spell = card({
+      instanceId: 'wrath',
+      name: 'Wrath of God',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      scryfallId: 'sf-wrath',
+    });
+    const base = withOracle(
+      deck({
+        categories: [
+          { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 3 },
+          { name: 'Land', includedInDeck: true, includedInPrice: true, target: 3 },
+          { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+      [cmd, rock, spell],
+      {
+        cmd: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Legendary Creature',
+          manaCost: '{W}{U}{B}{R}{G}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-cmd',
+        },
+        rock: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Artifact',
+          manaCost: '{2}',
+          producedMana: ['W', 'U', 'B', 'R', 'G'],
+          manaValue: 2,
+          scryfallId: 'sf-rock',
+        },
+        wrath: {
+          colourIdentity: ['W'],
+          typeLine: 'Sorcery',
+          manaCost: '{2}{W}{W}{W}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-wrath',
+        },
+      },
+    );
+
+    const next = recalculateAutoBasics(base);
+    const byName = new Map(
+      listBasicLandStacks(next).map((c) => [c.name, c.quantity] as const),
+    );
+    expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBe(3);
+  });
+
+  it('spends the full budget when the floor exceeds available land slots', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'Kenrith',
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      scryfallId: 'sf-cmd',
+    });
+    const spell = card({
+      instanceId: 'wrath',
+      name: 'Wrath of God',
+      primaryCategory: 'Other',
+      categories: ['Other'],
+      scryfallId: 'sf-wrath',
+    });
+    const base = withOracle(
+      deck({
+        categories: [
+          { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 1 },
+          { name: 'Land', includedInDeck: true, includedInPrice: true, target: 2 },
+          { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+      [cmd, spell],
+      {
+        cmd: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Legendary Creature',
+          manaCost: '{W}{U}{B}{R}{G}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-cmd',
+        },
+        wrath: {
+          colourIdentity: ['W'],
+          typeLine: 'Sorcery',
+          manaCost: '{2}{W}{W}{W}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-wrath',
+        },
+      },
+    );
+
+    const next = recalculateAutoBasics(base);
+    const basics = listBasicLandStacks(next);
+    expect(basics.reduce((s, c) => s + c.quantity, 0)).toBe(2);
+    const byName = new Map(basics.map((c) => [c.name, c.quantity] as const));
+    expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBe(2);
+  });
+
   it('shouldRecalculateAutoBasics ignores basic-only edits', () => {
     const cmd = card({
       instanceId: 'cmd',

@@ -170,6 +170,16 @@ function producedManaCounts(
   return counts;
 }
 
+function ceilColourCounts(
+  counts: Record<ColourLetter, number>,
+): Record<ColourLetter, number> {
+  const out = emptyColourCounts();
+  for (const c of WUBRG) {
+    out[c] = Math.max(0, Math.ceil(counts[c] || 0));
+  }
+  return out;
+}
+
 function basicColourLetter(name: string): ColourLetter | 'C' | null {
   const key = basicLandTypeKey(name);
   if (!key) return null;
@@ -342,7 +352,13 @@ export function recalculateAutoBasics(
   const target = landCategoryTarget(next) ?? DEFAULT_LAND_TARGET;
 
   const views = resolveDeckCards(next);
+  const commandZoneIds = new Set(
+    collectCommandZoneCards(views, next.format)
+      .map((card) => card.instanceId)
+      .filter((id): id is string => Boolean(id)),
+  );
   const demand = emptyColourCounts();
+  const singleCardFloor = emptyColourCounts();
   let nonBasicLands = 0;
   const supply = emptyColourCounts();
 
@@ -356,22 +372,31 @@ export function recalculateAutoBasics(
 
     if (land) {
       nonBasicLands += qty;
+      const produced = producedManaCounts(getOracle(next, view)?.producedMana);
+      addCounts(supply, produced, qty);
     } else {
       const pips = parseManaCostPips(getOracle(next, view)?.manaCost);
       addCounts(demand, pips, qty);
+      if (!commandZoneIds.has(view.instanceId)) {
+        for (const c of WUBRG) {
+          singleCardFloor[c] = Math.max(singleCardFloor[c], pips[c] || 0);
+        }
+      }
     }
-
-    const produced = producedManaCounts(getOracle(next, view)?.producedMana);
-    addCounts(supply, produced, qty);
   }
 
   const colours: ColourLetter[] = colourless ? [] : letters;
   // Restrict demand to CI colours
   if (colours.length) {
     for (const c of WUBRG) {
-      if (!colours.includes(c)) demand[c] = 0;
+      if (!colours.includes(c)) {
+        demand[c] = 0;
+        singleCardFloor[c] = 0;
+        supply[c] = 0;
+      }
     }
   }
+  const sourceFloor = ceilColourCounts(singleCardFloor);
 
   const budget = Math.max(0, target - nonBasicLands);
   const basics = emptyColourCounts();
@@ -387,7 +412,27 @@ export function recalculateAutoBasics(
         basics[colours[i % colours.length]!] += 1;
       }
     } else {
-      for (let i = 0; i < budget; i++) {
+      let remaining = budget;
+
+      while (remaining > 0) {
+        let bestFloorColour: ColourLetter | null = null;
+        let bestGap = 0;
+        for (const c of colours) {
+          const gap = Math.max(0, sourceFloor[c] - (supply[c] + basics[c]));
+          if (gap > bestGap || (gap === bestGap && gap > 0 && bestFloorColour != null && c < bestFloorColour)) {
+            bestGap = gap;
+            bestFloorColour = c;
+          } else if (bestFloorColour == null && gap > 0) {
+            bestGap = gap;
+            bestFloorColour = c;
+          }
+        }
+        if (!bestFloorColour || bestGap <= 0) break;
+        basics[bestFloorColour] += 1;
+        remaining -= 1;
+      }
+
+      for (let i = 0; i < remaining; i++) {
         let best: ColourLetter | null = null;
         let bestErr = Infinity;
         for (const c of colours) {

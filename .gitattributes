@@ -1,0 +1,7 @@
+packages/web/index.html text eol=lf
+rayenz-hub/*.html text eol=lf
+rayenz-hub/.nojekyll text eol=lf
+rayenz-hub/assets/*.css text eol=lf
+rayenz-hub/assets/*.js text eol=lf
+rayenz-hub/assets/*.json text eol=lf
+rayenz-hub/shared/*.css text eol=lf

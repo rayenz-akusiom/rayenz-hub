@@ -1,8 +1,12 @@
 /** Shared Hub glance POST helpers (deck + swaps). */
+import { assertApiNotPageOrigin, getHubApiConfig } from '../api/hub-api-client';
+import {
+  getAccessToken,
+  notifyAuthRequired,
+  tryRefreshAccessToken,
+} from './hub-auth-session';
 
 async function getGlanceApiConfig(): Promise<{ url: string; token: string }> {
-  const { getHubApiConfig, assertApiNotPageOrigin } = await import('../api/hub-api-client');
-  const { getAccessToken } = await import('./hub-auth-session');
   const cfg = getHubApiConfig();
   const token = getAccessToken();
   if (!cfg.url || !token) {
@@ -32,7 +36,6 @@ export async function postGlanceRequest(
 
   let res = await doFetch(cfg.token);
   if (res.status === 401) {
-    const { tryRefreshAccessToken, notifyAuthRequired } = await import('./hub-auth-session');
     const refreshed = await tryRefreshAccessToken(cfg.url);
     if (refreshed.ok) {
       res = await doFetch(refreshed.accessToken);

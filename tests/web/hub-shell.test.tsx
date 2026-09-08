@@ -91,30 +91,30 @@ describe('HubShell AppOutlet', () => {
     ['/settings/swap-queue', 'settings', 'mtg'],
     ['/settings/order-reconcile', 'settings', 'mtg'],
     ['/settings/invites', 'settings', 'invites'],
-  ] as const)('renders %s outlet', (path, testId, settingsTab) => {
+  ] as const)('renders %s outlet', async (path, testId, settingsTab) => {
     setHash(path);
     render(<HubShell />);
-    const outlet = screen.getByTestId(testId);
+    const outlet = await screen.findByTestId(testId);
     expect(outlet).toBeInTheDocument();
     if (settingsTab) {
       expect(outlet).toHaveAttribute('data-tab', settingsTab);
     }
   });
 
-  it('falls back to DailiesApp for unknown hash paths', () => {
+  it('falls back to DailiesApp for unknown hash paths', async () => {
     setHash('/unknown-route');
     render(<HubShell />);
-    expect(screen.getByTestId('dailies')).toBeInTheDocument();
+    expect(await screen.findByTestId('dailies')).toBeInTheDocument();
   });
 
-  it('falls back to DailiesApp for unrecognized outlet paths', () => {
+  it('falls back to DailiesApp for unrecognized outlet paths', async () => {
     vi.spyOn(useHubRouteModule, 'useHubRoute').mockReturnValue({
       path: '/not-a-real-route' as HubPath,
       navigate: vi.fn(),
       isSettings: false,
     });
     render(<HubShell />);
-    expect(screen.getByTestId('dailies')).toBeInTheDocument();
+    expect(await screen.findByTestId('dailies')).toBeInTheDocument();
     vi.restoreAllMocks();
   });
 

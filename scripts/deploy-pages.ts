@@ -18,11 +18,18 @@ const PUBLISH_PATHS = [
 ] as const;
 const PUBLISH_COMMIT_MESSAGE = 'Publish Hub SPA bundle';
 
+function childEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.npm_config_devdir;
+  return env;
+}
+
 function run(command: string, options?: { capture?: boolean }): string {
   const result = spawnSync(command, {
     encoding: 'utf8',
     shell: true,
     stdio: options?.capture ? 'pipe' : 'inherit',
+    env: childEnv(),
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

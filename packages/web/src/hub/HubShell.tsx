@@ -1,16 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { DailiesApp } from '../dailies/DailiesApp';
-import { LegacyDeckBuilderRedirect } from '../deck-builder/LegacyDeckBuilderRedirect';
-import { CommanderBuilderApp } from '../deck-builder/commander/CommanderBuilderApp';
-import { CollectionBuilderApp } from '../deck-builder/collection/CollectionBuilderApp';
-import { CubeBuilderApp } from '../deck-builder/cube/CubeBuilderApp';
-import { ProfileBuilderApp } from '../profile-builder/ProfileBuilderApp';
-import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
-import { NeopetsMoreApp } from '../neopets-more/NeopetsMoreApp';
-import { OrderReconcileApp } from '../order-reconcile/OrderReconcileApp';
-import { SwapQueueApp } from '../swap-queue/SwapQueueApp';
-import { InviteRedeemPage } from '../pages/InviteRedeemPage';
-import { SettingsShell, type SettingsTab } from '../SettingsShell';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { installHubCardPickerBridge } from '../cards/CardPicker';
 import { getHubApiConfig } from '../api/hub-api-client';
 import { hydrateHubOwnerFlag } from '../lib/hub-auth-client';
@@ -18,6 +6,45 @@ import { restoreHubAuthSession } from '../lib/hub-auth-session';
 import { HubNav } from './HubNav';
 import { isSettingsPath } from './routes';
 import { useHubRoute } from './useHubRoute';
+import type { SettingsTab } from '../SettingsShell';
+
+function lazyNamed<TModule, TKey extends keyof TModule & string>(
+  load: () => Promise<TModule>,
+  key: TKey,
+): ComponentType<TModule[TKey] extends ComponentType<infer P> ? P : never> {
+  return lazy(async () => {
+    const mod = await load();
+    return { default: mod[key] as ComponentType<any> };
+  });
+}
+
+const DailiesApp = lazyNamed(() => import('../dailies/DailiesApp'), 'DailiesApp');
+const NeopetsMoreApp = lazyNamed(() => import('../neopets-more/NeopetsMoreApp'), 'NeopetsMoreApp');
+const LegacyDeckBuilderRedirect = lazyNamed(
+  () => import('../deck-builder/LegacyDeckBuilderRedirect'),
+  'LegacyDeckBuilderRedirect',
+);
+const CommanderBuilderApp = lazyNamed(
+  () => import('../deck-builder/commander/CommanderBuilderApp'),
+  'CommanderBuilderApp',
+);
+const CollectionBuilderApp = lazyNamed(
+  () => import('../deck-builder/collection/CollectionBuilderApp'),
+  'CollectionBuilderApp',
+);
+const CubeBuilderApp = lazyNamed(() => import('../deck-builder/cube/CubeBuilderApp'), 'CubeBuilderApp');
+const ProfileBuilderApp = lazyNamed(
+  () => import('../profile-builder/ProfileBuilderApp'),
+  'ProfileBuilderApp',
+);
+const DeckSuggestApp = lazyNamed(() => import('../deck-suggest/DeckSuggestApp'), 'DeckSuggestApp');
+const OrderReconcileApp = lazyNamed(
+  () => import('../order-reconcile/OrderReconcileApp'),
+  'OrderReconcileApp',
+);
+const SwapQueueApp = lazyNamed(() => import('../swap-queue/SwapQueueApp'), 'SwapQueueApp');
+const InviteRedeemPage = lazyNamed(() => import('../pages/InviteRedeemPage'), 'InviteRedeemPage');
+const SettingsShell = lazyNamed(() => import('../SettingsShell'), 'SettingsShell');
 
 function settingsTabFromPath(path: string): SettingsTab {
   if (path.startsWith('/settings/profile') || path.startsWith('/settings/hub-api')) {
@@ -110,7 +137,9 @@ export function HubShell() {
         <HubNav path={path} open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="hub-main">
           <div id="app-root">
-            <AppOutlet path={path} />
+            <Suspense fallback={<div className="hub-loading">Loading...</div>}>
+              <AppOutlet path={path} />
+            </Suspense>
           </div>
         </main>
       </div>

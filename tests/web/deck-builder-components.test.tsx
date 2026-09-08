@@ -530,6 +530,26 @@ describe('BrowseShell selection and context menu', () => {
     };
   }
 
+  function deckWithSeekingCounts(): DeckDocument {
+    const mainDeckSeeking = {
+      ...(commanderDoc.cards[0] as CardInstance),
+      categories: ['Creature', 'Seeking'],
+    };
+    const asideSeeking = {
+      ...(commanderDoc.cards[1] as CardInstance),
+      primaryCategory: 'Maybeboard',
+      categories: ['Maybeboard', 'Seeking'],
+    };
+    return {
+      ...commanderDoc,
+      cards: [mainDeckSeeking, asideSeeking, ...commanderDoc.cards.slice(2)],
+      categories: [
+        ...(commanderDoc.categories || []),
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false },
+      ],
+    };
+  }
+
   it('shows deck title in leaders band and opens add-card FAB', async () => {
     const user = userEvent.setup();
     render(<BrowseShell deck={foilDeck()} onChange={noop} onBack={noop} />);
@@ -540,6 +560,11 @@ describe('BrowseShell selection and context menu', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add card' }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('shows a sought count for Seeking-marked main-deck cards only', () => {
+    render(<BrowseShell deck={deckWithSeekingCounts()} onChange={noop} onBack={noop} />);
+    expect(screen.getByText(/2 cards · 1 sought/i)).toBeInTheDocument();
   });
 
   it('shows foil toggle without card name and opens context menu actions', async () => {

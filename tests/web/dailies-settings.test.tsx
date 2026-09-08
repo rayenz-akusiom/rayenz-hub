@@ -313,7 +313,11 @@ describe('DailiesSettingsPage', () => {
 describe('DeckBuilderSettingsPage', () => {
   beforeEach(() => {
     loadDeckBuilderSettings.mockResolvedValue({
-      settings: { allyThreeColourNames: 'shards', enemyThreeColourNames: 'wedges' },
+      settings: {
+        allyThreeColourNames: 'shards',
+        enemyThreeColourNames: 'wedges',
+        clearSeekingWhenMovingMainToAside: true,
+      },
       source: 'api',
     });
     persistDeckBuilderSettings.mockResolvedValue('api');
@@ -329,11 +333,16 @@ describe('DeckBuilderSettingsPage', () => {
 
     const allySelect = screen.getByLabelText('Ally three-colour names');
     const enemySelect = screen.getByLabelText('Enemy three-colour names');
+    const clearSeeking = screen.getByLabelText(
+      'Remove `Seeking` when moving a main-deck card to an aside category',
+    );
     expect(allySelect).toHaveValue('shards');
     expect(enemySelect).toHaveValue('wedges');
+    expect(clearSeeking).toBeChecked();
 
     await user.selectOptions(allySelect, 'capenna');
     await user.selectOptions(enemySelect, 'ikoria');
+    await user.click(clearSeeking);
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -343,6 +352,7 @@ describe('DeckBuilderSettingsPage', () => {
     expect(persistDeckBuilderSettings).toHaveBeenCalledWith({
       allyThreeColourNames: 'capenna',
       enemyThreeColourNames: 'ikoria',
+      clearSeekingWhenMovingMainToAside: false,
     });
   });
 });

@@ -10,6 +10,8 @@ import {
   type MouseEvent,
 } from 'react';
 import {
+  DECK_BUILDER_SETTINGS_EVENT,
+  DEFAULT_DECK_BUILDER_SETTINGS,
   addCardToDeck,
   addSecondaryCategory,
   cardDisplayName,
@@ -64,6 +66,7 @@ import {
   type CardView,
   type CardLayout,
   type CardSortMode,
+  type DeckBuilderSettingsPayload,
   type DeckDocument,
   type DeckOwnership,
   type DeckVisibility,
@@ -118,6 +121,7 @@ import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChip
 import { useDeckEditHistory } from '../useDeckEditHistory';
 import { loadCardCharmsPref, saveCardCharmsPref } from '../card-charms-pref';
 import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
+import { loadDeckBuilderSettings } from '../../api/hub-api';
 import { navigateHub } from '../../lib/hub-storage';
 import {
   builderHash,
@@ -191,6 +195,12 @@ function builderFormatFromLocation(): BuilderFormat {
   return pathFromHash() === '/cube-builder' ? 'cube' : 'commander';
 }
 
+function mergeDeckBuilderSettings(
+  remote: DeckBuilderSettingsPayload | null,
+): DeckBuilderSettingsPayload {
+  return { ...DEFAULT_DECK_BUILDER_SETTINGS, ...(remote || {}) };
+}
+
 function writeBuilderPairHash(entryId: string | null) {
   const route = parseBuilderRoute(window.location.hash);
   if (!route) return;
@@ -247,6 +257,9 @@ export function BrowseShell({
   const [cardCharmsEnabled, setCardCharmsEnabled] = useState(
     () => loadCardCharmsPref().enabled,
   );
+  const [builderSettings, setBuilderSettings] = useState<DeckBuilderSettingsPayload>(
+    DEFAULT_DECK_BUILDER_SETTINGS,
+  );
   const [seekingStatus, setSeekingStatus] = useState<string | null>(null);
   const [seekingCountPulse, setSeekingCountPulse] = useState(false);
   useDragAutoScroll();
@@ -294,6 +307,29 @@ export function BrowseShell({
     if (progressHostRef.current && !progressRef.current) {
       progressRef.current = HubProgress.mount(progressHostRef.current);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { settings } = await loadDeckBuilderSettings();
+        if (!cancelled) setBuilderSettings(mergeDeckBuilderSettings(settings));
+      } catch {
+        /* keep defaults */
+      }
+    })();
+
+    function onSettings(event: Event) {
+      const detail = (event as CustomEvent<DeckBuilderSettingsPayload>).detail;
+      if (detail) setBuilderSettings(mergeDeckBuilderSettings(detail));
+    }
+
+    window.addEventListener(DECK_BUILDER_SETTINGS_EVENT, onSettings);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(DECK_BUILDER_SETTINGS_EVENT, onSettings);
+    };
   }, []);
 
   const liveDeck = useMemo(() => projectLiveFormalSwaps(deck), [deck]);
@@ -349,6 +385,12 @@ export function BrowseShell({
 
   const incomplete = incompleteEntryCount(liveDeck.formalSwapEntries);
   const size = deckSize(liveDeck);
+  const mainDeckSeekingCount = liveDeck.cards.reduce((sum, card) => {
+    const primary = card.primaryCategory || 'Other';
+    if (!categoryIncluded(liveDeck.categories || [], primary)) return sum;
+    if (!cardIsSeekingMarked(card)) return sum;
+    return sum + (Number(card.quantity) || 1);
+  }, 0);
   const queuesReadOnly = isTheoryDeck(liveDeck) || readOnly;
 
   const deckRef = useRef(liveDeck);
@@ -486,6 +528,7 @@ export function BrowseShell({
     headerTarget != null ? `${size}/${headerTarget} cards` : `${size} cards`;
   const deckMeta = [
     sizeLabel,
+    `${mainDeckSeekingCount} sought`,
     sizeWarn ? 'size warning' : null,
     targetsVsCubeWarn ? 'category targets ≠ cube size' : null,
     incomplete ? `${incomplete} incomplete swaps` : null,
@@ -654,7 +697,9 @@ export function BrowseShell({
     if (isTrimProtectedSlot(card.primaryCategory)) return;
     if (trimEffect === 'maybeboard') {
       if (card.primaryCategory === MAYBEBOARD) return;
-      commit(moveCardsCategory(current, [instanceId], MAYBEBOARD));
+      commit(moveCardsCategory(current, [instanceId], MAYBEBOARD, null, {
+        clearSeekingWhenMovingMainToAside: builderSettings.clearSeekingWhenMovingMainToAside,
+      }));
       return;
     }
     commit(removeCardsFromDeck(current, [instanceId]));
@@ -890,7 +935,11 @@ export function BrowseShell({
     if (!toMove.length) return;
 
     const stack = current.cards.find((c) => c.instanceId === toMove[0])?.stack ?? null;
-    commit(moveCardsCategory(current, toMove, category, stack));
+    commit(
+      moveCardsCategory(current, toMove, category, stack, {
+        clearSeekingWhenMovingMainToAside: builderSettings.clearSeekingWhenMovingMainToAside,
+      }),
+    );
   }
 
   function clearSwapEdit() {
@@ -1526,6 +1575,9 @@ export function BrowseShell({
         <MoveSheet
           deck={liveDeck}
           cards={selectedCards}
+          clearSeekingWhenMovingMainToAside={
+            builderSettings.clearSeekingWhenMovingMainToAside
+          }
           initialCreatingNew={moveCreatingNew}
           onClose={() => {
             setMoveOpen(false);
@@ -1701,7 +1753,12 @@ export function BrowseShell({
             commit(moveCardsToDefaultCategories(deckRef.current, ids));
           }}
           onDropMaybeboard={(ids) => {
-            commit(moveCardsCategory(deckRef.current, ids, MAYBEBOARD));
+            commit(
+              moveCardsCategory(deckRef.current, ids, MAYBEBOARD, null, {
+                clearSeekingWhenMovingMainToAside:
+                  builderSettings.clearSeekingWhenMovingMainToAside,
+              }),
+            );
           }}
           onDropNewCategory={(ids) => {
             setSelectedIds(new Set(ids));

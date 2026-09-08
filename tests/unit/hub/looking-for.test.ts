@@ -226,6 +226,26 @@ describe('looking-for', () => {
     expect(next.cards.find((c) => c.instanceId === 'c1')!.primaryCategory).toBe('Other');
   });
 
+  it('can clear secondary Seeking when moving a main-deck card to aside', () => {
+    const marked = markCardsSeekingSecondary(baseDeck(), ['c1']);
+    const next = moveCardsCategory(marked, ['c1'], 'Maybeboard', null, {
+      clearSeekingWhenMovingMainToAside: true,
+    });
+    const moved = next.cards.find((c) => c.instanceId === 'c1')!;
+    expect(moved.primaryCategory).toBe('Maybeboard');
+    expect(moved.categories).toEqual(['Maybeboard']);
+    expect(next.lookingForEntries).toHaveLength(0);
+  });
+
+  it('keeps secondary Seeking when the clear-on-aside option is off', () => {
+    const marked = markCardsSeekingSecondary(baseDeck(), ['c1']);
+    const next = moveCardsCategory(marked, ['c1'], 'Maybeboard');
+    const moved = next.cards.find((c) => c.instanceId === 'c1')!;
+    expect(moved.primaryCategory).toBe('Maybeboard');
+    expect(moved.categories).toContain('Seeking');
+    expect(next.lookingForEntries.map((e) => e.instanceId)).toEqual(['c1']);
+  });
+
   it('addCardToDeck with Seeking creates a lookingFor entry', () => {
     const next = addCardToDeck(baseDeck(), printing, 'Seeking');
     const added = next.cards.find((c) => c.scryfallId === 'sf-brainstorm')!;

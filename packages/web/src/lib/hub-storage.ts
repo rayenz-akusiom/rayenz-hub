@@ -190,6 +190,7 @@ export function saveDeckSuggestSettings(settings: Record<string, unknown>): void
 const DEFAULT_DECK_BUILDER_SETTINGS = {
   allyThreeColourNames: 'shards',
   enemyThreeColourNames: 'wedges',
+  clearSeekingWhenMovingMainToAside: true,
 };
 
 let deckBuilderSettingsMemory: Record<string, unknown> | null = null;

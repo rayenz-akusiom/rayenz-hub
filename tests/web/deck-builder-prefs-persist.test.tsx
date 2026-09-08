@@ -5,10 +5,12 @@ import type { DeckDocument } from '@rayenz-hub/shared';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
+const loadDeckBuilderSettings = vi.fn(async () => ({ settings: null, source: 'defaults' as const }));
+
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => false,
   getHubApiConfig: () => ({ url: '', enabled: false }),
-  loadDeckBuilderSettings: async () => ({ settings: null, source: 'defaults' }),
+  loadDeckBuilderSettings: (...args: unknown[]) => loadDeckBuilderSettings(...args),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
@@ -43,6 +45,8 @@ function baseDeck(): DeckDocument {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  loadDeckBuilderSettings.mockReset();
+  loadDeckBuilderSettings.mockResolvedValue({ settings: null, source: 'defaults' });
 });
 
 describe('BrowseShell prefs and category targets persistence', () => {
@@ -103,5 +107,69 @@ describe('BrowseShell prefs and category targets persistence', () => {
     const last = onChange.mock.calls.at(-1)![0] as DeckDocument;
     expect(last.cardLayoutDefault).toBe('grid');
     expect(last.categories.find((c) => c.name === 'Creature')?.target).toBe(12);
+  });
+
+  it('defaults to clearing Seeking when trimming a main-deck card into Maybeboard', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const base = baseDeck();
+    const deck: DeckDocument = {
+      ...base,
+      cards: base.cards.map((c) =>
+        c.instanceId === 'c1'
+          ? { ...c, primaryCategory: 'Creature', categories: ['Creature', 'Seeking'] }
+          : c,
+      ),
+      categories: [
+        ...base.categories,
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+    };
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Trim' }));
+    await user.click(screen.getByRole('button', { name: /Birds of Paradise/i }));
+
+    const last = onChange.mock.calls.at(-1)?.[0] as DeckDocument;
+    const moved = last.cards.find((c) => c.instanceId === 'c1');
+    expect(moved?.primaryCategory).toBe('Maybeboard');
+    expect(moved?.categories).toEqual(['Maybeboard']);
+  });
+
+  it('keeps Seeking when the clear-on-aside setting is off', async () => {
+    loadDeckBuilderSettings.mockResolvedValueOnce({
+      settings: { clearSeekingWhenMovingMainToAside: false },
+      source: 'api',
+    });
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const base = baseDeck();
+    const deck: DeckDocument = {
+      ...base,
+      cards: base.cards.map((c) =>
+        c.instanceId === 'c1'
+          ? { ...c, primaryCategory: 'Creature', categories: ['Creature', 'Seeking'] }
+          : c,
+      ),
+      categories: [
+        ...base.categories,
+        { name: 'Maybeboard', includedInDeck: false, includedInPrice: false, target: null },
+        { name: 'Seeking', includedInDeck: false, includedInPrice: false, target: null },
+      ],
+    };
+
+    render(<BrowseShell deck={deck} onChange={onChange} onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Trim' }));
+    await user.click(screen.getByRole('button', { name: /Birds of Paradise/i }));
+
+    const last = onChange.mock.calls.at(-1)?.[0] as DeckDocument;
+    const moved = last.cards.find((c) => c.instanceId === 'c1');
+    expect(moved?.primaryCategory).toBe('Maybeboard');
+    expect(moved?.categories).toContain('Seeking');
   });
 });

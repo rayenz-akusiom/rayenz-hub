@@ -63,8 +63,8 @@ export function DeckBuilderSettingsPage() {
     <div className="hub-web-page hub-web-page--tab">
       <h2 className="hub-web-section-title">Deck builders</h2>
       <p className="hub-web-hint">
-        Preferences for colour-identity browse labels. Guilds, X-less, and Prismatic are fixed; only
-        three-colour names change.
+        Preferences for colour-identity browse labels and how deck-builder moves treat
+        `Seeking` cards.
       </p>
 
       {error && (
@@ -111,6 +111,23 @@ export function DeckBuilderSettingsPage() {
               <option value="wedges">Wedges (Abzan, Jeskai, Sultai, Mardu, Temur)</option>
               <option value="ikoria">Ikoria triomes (Indatha, Raugrin, Zagoth, Savai, Ketria)</option>
             </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Category moves</legend>
+          <label className="hub-web-field">
+            <input
+              type="checkbox"
+              checked={settings.clearSeekingWhenMovingMainToAside}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  clearSeekingWhenMovingMainToAside: e.target.checked,
+                }))
+              }
+            />
+            Remove `Seeking` when moving a main-deck card to an aside category
           </label>
         </fieldset>
 

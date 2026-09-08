@@ -6,6 +6,7 @@ export const EnemyThreeColourNamesSchema = z.enum(['wedges', 'ikoria']);
 export const DeckBuilderSettingsPayloadSchema = z.object({
   allyThreeColourNames: AllyThreeColourNamesSchema.default('shards'),
   enemyThreeColourNames: EnemyThreeColourNamesSchema.default('wedges'),
+  clearSeekingWhenMovingMainToAside: z.boolean().default(true),
 });
 
 export type DeckBuilderSettingsPayload = z.infer<typeof DeckBuilderSettingsPayloadSchema>;
@@ -18,6 +19,7 @@ export type ThreeColourNamingStyle = Pick<
 export const DEFAULT_DECK_BUILDER_SETTINGS: DeckBuilderSettingsPayload = {
   allyThreeColourNames: 'shards',
   enemyThreeColourNames: 'wedges',
+  clearSeekingWhenMovingMainToAside: true,
 };
 
 /** Dispatched on `window` after deck-builder settings are persisted. */

@@ -15,6 +15,7 @@ const NEW_CATEGORY_VALUE = '__new__';
 export function MoveSheet({
   deck,
   cards,
+  clearSeekingWhenMovingMainToAside = true,
   onClose,
   onApply,
   initialCreatingNew = false,
@@ -22,6 +23,7 @@ export function MoveSheet({
   deck: DeckDocument;
   /** One or more cards to move to the same category/stack. */
   cards: Array<CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null }>;
+  clearSeekingWhenMovingMainToAside?: boolean;
   onClose: () => void;
   onApply: (next: DeckDocument) => void;
   /** Open directly on the new-category name field (FAB drop target). */
@@ -73,6 +75,7 @@ export function MoveSheet({
         list.map((c) => c.instanceId),
         cat,
         stack.trim() || null,
+        { clearSeekingWhenMovingMainToAside },
       ),
     );
   }

@@ -6,7 +6,13 @@ import type {
   DeckFormat,
   FormalSwapEntry,
 } from '../schemas/deck-builder.js';
-import { HEADER_CATEGORIES, isSwapQueueCategory, moveCardCategory } from './browse.js';
+import {
+  HEADER_CATEGORIES,
+  categoryIncluded,
+  isSwapQueueCategory,
+  moveCardCategory,
+  removeSecondaryCategory,
+} from './browse.js';
 import { canonicalizeCategoryName, isGlanceUnassignedCategoryName } from './category-names.js';
 import {
   isLookingForCategory,
@@ -38,7 +44,7 @@ import {
 import type { PrintingFields } from './scryfall-api.js';
 import { applyPrintingToCard } from './scryfall-api.js';
 import { scryfallImageFromId } from './scryfall-images.js';
-import { reconcileLookingForFromCards } from './looking-for.js';
+import { cardIsSeekingMarked, reconcileLookingForFromCards } from './looking-for.js';
 
 function defaultNextId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -404,18 +410,32 @@ export function moveCardsCategory(
   instanceIds: string[],
   primaryCategory: string,
   stack: string | null = null,
+  opts?: { clearSeekingWhenMovingMainToAside?: boolean },
 ): DeckDocument {
   if (isGlanceUnassignedCategoryName(primaryCategory)) return deck;
   const idSet = new Set(instanceIds.filter(Boolean));
   if (!idSet.size) return deck;
+  const categories = ensureCategoryDef(deck.categories || [], primaryCategory);
+  const targetIncluded = categoryIncluded(categories, primaryCategory);
   let cards = deck.cards;
   for (const id of idSet) {
+    const current = cards.find((c) => c.instanceId === id);
     cards = moveCardCategory(cards, id, primaryCategory, stack);
+    if (
+      opts?.clearSeekingWhenMovingMainToAside &&
+      current &&
+      categoryIncluded(categories, current.primaryCategory || 'Other') &&
+      !targetIncluded &&
+      !isSeekingCategory(current.primaryCategory) &&
+      cardIsSeekingMarked(current)
+    ) {
+      cards = removeSecondaryCategory(cards, id, SEEKING);
+    }
   }
   return reconcileLookingForFromCards({
     ...deck,
     cards,
-    categories: ensureCategoryDef(deck.categories || [], primaryCategory),
+    categories,
     updatedAt: new Date().toISOString(),
   });
 }

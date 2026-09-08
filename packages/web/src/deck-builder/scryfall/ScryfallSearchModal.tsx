@@ -83,6 +83,51 @@ export function deckCardNameCounts(deck: Pick<DeckDocument, 'cards'>): Map<strin
   return counts;
 }
 
+function hasTopLevelOrClause(query: string): boolean {
+  let depth = 0;
+  let inQuotes = false;
+  let token = '';
+
+  function flushToken(): boolean {
+    const isOr = depth === 0 && !inQuotes && token.toLowerCase() === 'or';
+    token = '';
+    return isOr;
+  }
+
+  for (const char of query) {
+    if (char === '"') {
+      if (flushToken()) return true;
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (!inQuotes) {
+      if (char === '(') {
+        if (flushToken()) return true;
+        depth += 1;
+        continue;
+      }
+      if (char === ')') {
+        if (flushToken()) return true;
+        depth = Math.max(0, depth - 1);
+        continue;
+      }
+    }
+    if (!/[A-Za-z]/.test(char)) {
+      if (flushToken()) return true;
+      continue;
+    }
+    token += char;
+  }
+
+  return flushToken();
+}
+
+function normalizeFreeformQuery(freeform: string, hasAppendedClauses: boolean): string {
+  const trimmed = freeform.trim();
+  if (!trimmed || !hasAppendedClauses) return trimmed;
+  return hasTopLevelOrClause(trimmed) ? `(${trimmed})` : trimmed;
+}
+
 /** Freeform query plus optional Include clauses (kept out of the input). */
 export function composeScryfallQuery(
   freeform: string,
@@ -93,9 +138,9 @@ export function composeScryfallQuery(
   },
   deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string {
-  const parts = [freeform.trim()];
-  if (opts.extraQuery) parts.push(opts.extraQuery.trim());
-  if (opts.includeFormatCommander && !opts.extraQuery) {
+  const extraClause = opts.extraQuery?.trim() || '';
+  const parts: string[] = [];
+  if (opts.includeFormatCommander && !extraClause) {
     const clause = formatScryfallClause(deck.format);
     if (clause) parts.push(clause);
   }
@@ -103,7 +148,10 @@ export function composeScryfallQuery(
     const clause = commanderIdentityScryfallQuery(deck);
     if (clause) parts.push(clause);
   }
-  return parts.filter(Boolean).join(' ');
+  const normalizedFreeform = normalizeFreeformQuery(freeform, parts.length > 0 || Boolean(extraClause));
+  if (normalizedFreeform) parts.unshift(normalizedFreeform);
+  if (extraClause) parts.push(extraClause);
+  return parts.join(' ');
 }
 
 function includeMenuValue(includeIdentity: boolean, includeFormatCommander: boolean): string {

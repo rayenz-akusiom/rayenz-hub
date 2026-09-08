@@ -744,6 +744,46 @@ describe('ScryfallSearchModal commander Include options', () => {
     ).toBe('t:instant format:commander');
   });
 
+  it('composeScryfallQuery groups top-level or queries before appending clauses', () => {
+    const deck = commanderDeckWithIdentity();
+    expect(
+      composeScryfallQuery(
+        't:instant or t:sorcery',
+        { includeIdentity: true, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('(t:instant or t:sorcery) format:commander id:wubg');
+    expect(
+      composeScryfallQuery(
+        't:instant or t:sorcery',
+        {
+          includeIdentity: false,
+          includeFormatCommander: true,
+          extraQuery: 'legal:commander',
+        },
+        deck,
+      ),
+    ).toBe('(t:instant or t:sorcery) legal:commander');
+  });
+
+  it('composeScryfallQuery leaves nested or queries and plain searches unchanged', () => {
+    const deck = commanderDeckWithIdentity();
+    expect(
+      composeScryfallQuery(
+        '(t:instant or t:sorcery)',
+        { includeIdentity: true, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('(t:instant or t:sorcery) format:commander id:wubg');
+    expect(
+      composeScryfallQuery(
+        'o:\"return target\"',
+        { includeIdentity: true, includeFormatCommander: true },
+        deck,
+      ),
+    ).toBe('o:\"return target\" format:commander id:wubg');
+  });
+
   it('uses r:c legal:commander as Include Format for Pendragon 98 searches', async () => {
     const user = userEvent.setup();
     const deck = { ...baseDeck, format: 'pendragon' as const };

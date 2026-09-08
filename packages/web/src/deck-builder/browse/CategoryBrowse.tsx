@@ -154,6 +154,7 @@ export function CardGroup({
   placeholderCount = 0,
   swapInIds,
   filtersActive = false,
+  enableSoughtGhost = false,
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
@@ -170,6 +171,8 @@ export function CardGroup({
   swapInIds?: ReadonlySet<string> | null;
   /** Active browse filters suppress ghost affordances. */
   filtersActive?: boolean;
+  /** Collection builder only — unmet targets render as sought ghosts. */
+  enableSoughtGhost?: boolean;
 }) {
   const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
     <div
@@ -198,6 +201,7 @@ export function CardGroup({
               onContextMenu={onCardContextMenu}
               membership={card.membership || 'primary'}
               swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
+              enableSoughtGhost={enableSoughtGhost}
             />
             <CardStackPeek
               card={card}
@@ -227,6 +231,7 @@ export function CardGroup({
           onContextMenu={onCardContextMenu}
           membership={card.membership || 'primary'}
           swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
+          enableSoughtGhost={enableSoughtGhost}
         />
       ))}
       {placeholders}
@@ -254,6 +259,7 @@ export function DropSection({
   warnTarget = false,
   swapInIds,
   filtersActive = false,
+  enableSoughtGhost = false,
 }: {
   category: string;
   cards: Array<CardView & { membership?: CategoryMembership }>;
@@ -283,6 +289,7 @@ export function DropSection({
   warnTarget?: boolean;
   swapInIds?: ReadonlySet<string> | null;
   filtersActive?: boolean;
+  enableSoughtGhost?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -367,6 +374,7 @@ export function DropSection({
         placeholderCount={placeholderCount}
         swapInIds={swapInIds}
         filtersActive={filtersActive}
+        enableSoughtGhost={enableSoughtGhost}
       />
     </section>
   );
@@ -385,6 +393,7 @@ function CommanderSlot({
   dropCategory = 'Commander',
   emptyLabel = 'Drop commander',
   onPickSlot,
+  enableSoughtGhost = false,
 }: {
   slot: 0 | 1;
   card: CardView | null;
@@ -398,6 +407,7 @@ function CommanderSlot({
   dropCategory?: string;
   emptyLabel?: string;
   onPickSlot?: () => void;
+  enableSoughtGhost?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -435,6 +445,7 @@ function CommanderSlot({
             onSelect={onSelectCard}
             draggable={draggable}
             onContextMenu={onCardContextMenu}
+            enableSoughtGhost={enableSoughtGhost}
           />
         </>
       ) : onPickSlot ? (
@@ -461,6 +472,7 @@ function RepresentativeSlot({
   onSelectCard,
   onCardContextMenu,
   onPick,
+  enableSoughtGhost = false,
 }: {
   card: CardView | null;
   label: string;
@@ -469,6 +481,7 @@ function RepresentativeSlot({
   onSelectCard?: SelectCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onPick?: () => void;
+  enableSoughtGhost?: boolean;
 }) {
   return (
     <div className="db-partner-pair" aria-label={label}>
@@ -484,6 +497,7 @@ function RepresentativeSlot({
           draggable={false}
           emptyLabel={onPick ? `Choose ${label.toLowerCase()}` : label}
           onPickSlot={onPick}
+          enableSoughtGhost={enableSoughtGhost}
         />
       </div>
     </div>
@@ -498,6 +512,7 @@ function CommanderGalleryFace({
   onSelectCard,
   onCardContextMenu,
   draggable,
+  enableSoughtGhost = false,
 }: {
   card: CardView;
   isPrimary: boolean;
@@ -506,6 +521,7 @@ function CommanderGalleryFace({
   onSelectCard?: SelectCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
+  enableSoughtGhost?: boolean;
 }) {
   return (
     <div className={`db-commander-slot${isPrimary ? ' is-primary' : ''}`}>
@@ -521,6 +537,7 @@ function CommanderGalleryFace({
         onSelect={onSelectCard}
         draggable={draggable}
         onContextMenu={onCardContextMenu}
+        enableSoughtGhost={enableSoughtGhost}
       />
     </div>
   );
@@ -535,6 +552,7 @@ function CommanderSlots({
   onDropCard,
   onCardContextMenu,
   onPickSlot,
+  enableSoughtGhost = false,
 }: {
   commanders: CardView[];
   coverInstanceId?: string | null;
@@ -544,6 +562,7 @@ function CommanderSlots({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onPickSlot?: (category: string) => void;
+  enableSoughtGhost?: boolean;
 }) {
   const canDrop = Boolean(onDropCard);
   const leaders = pickCommanderLeaders(commanders, coverInstanceId);
@@ -633,6 +652,7 @@ function CommanderSlots({
               onSelectCard={onSelectCard}
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
+              enableSoughtGhost={enableSoughtGhost}
             />
           ))}
           {showPartnerSlot ? (
@@ -647,6 +667,7 @@ function CommanderSlots({
                 onDropCard={onDropCard}
                 onCardContextMenu={onCardContextMenu}
                 draggable={canDrop}
+                enableSoughtGhost={enableSoughtGhost}
               />
             </>
           ) : null}
@@ -677,6 +698,7 @@ function CommanderSlots({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
+              enableSoughtGhost={enableSoughtGhost}
             />
             {groupA.cards.length > 1 ? (
               <div className="db-commander-side-gallery" aria-label={`${groupA.name} printings`}>
@@ -692,6 +714,7 @@ function CommanderSlots({
                       onSelectCard={onSelectCard}
                       onCardContextMenu={onCardContextMenu}
                       draggable={canDrop}
+                      enableSoughtGhost={enableSoughtGhost}
                     />
                   ))}
               </div>
@@ -709,6 +732,7 @@ function CommanderSlots({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
+              enableSoughtGhost={enableSoughtGhost}
             />
             {groupB.cards.length > 1 ? (
               <div className="db-commander-side-gallery" aria-label={`${groupB.name} printings`}>
@@ -724,6 +748,7 @@ function CommanderSlots({
                       onSelectCard={onSelectCard}
                       onCardContextMenu={onCardContextMenu}
                       draggable={canDrop}
+                      enableSoughtGhost={enableSoughtGhost}
                     />
                   ))}
               </div>
@@ -763,6 +788,7 @@ function CommanderSlots({
               onSelectCard={onSelectCard}
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
+              enableSoughtGhost={enableSoughtGhost}
             />
           ))}
         </div>
@@ -794,6 +820,7 @@ function CommanderSlots({
           draggable={canDrop}
           emptyLabel={!slot0 && onPickSlot ? 'Choose commander' : 'Drop commander'}
           onPickSlot={!slot0 && onPickSlot ? () => onPickSlot('Commander') : undefined}
+          enableSoughtGhost={enableSoughtGhost}
         />
         {showPartnerSlot ? (
           <>
@@ -808,6 +835,7 @@ function CommanderSlots({
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
               emptyLabel="Drop commander"
+              enableSoughtGhost={enableSoughtGhost}
             />
           </>
         ) : null}
@@ -825,6 +853,7 @@ function PendragonSlots({
   onDropCard,
   onCardContextMenu,
   onPickSlot,
+  enableSoughtGhost = false,
 }: {
   arthur: CardView | null;
   excalibur: CardView | null;
@@ -834,6 +863,7 @@ function PendragonSlots({
   onDropCard?: DropCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onPickSlot?: (category: string) => void;
+  enableSoughtGhost?: boolean;
 }) {
   const canDrop = Boolean(onDropCard);
   return (
@@ -852,6 +882,7 @@ function PendragonSlots({
           dropCategory="Arthur"
           emptyLabel="Choose Arthur"
           onPickSlot={!arthur && onPickSlot ? () => onPickSlot('Arthur') : undefined}
+          enableSoughtGhost={enableSoughtGhost}
         />
         <PartnerTie />
         <CommanderSlot
@@ -866,6 +897,7 @@ function PendragonSlots({
           dropCategory="Excalibur"
           emptyLabel="Choose Excalibur"
           onPickSlot={!excalibur && onPickSlot ? () => onPickSlot('Excalibur') : undefined}
+          enableSoughtGhost={enableSoughtGhost}
         />
       </div>
     </div>
@@ -991,6 +1023,7 @@ export function DeckHeaderRow({
   representativeLabel = 'Representative',
   onPickRepresentative,
   filtersActive = false,
+  enableSoughtGhost = false,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -1021,6 +1054,7 @@ export function DeckHeaderRow({
   representativeLabel?: string;
   onPickRepresentative?: () => void;
   filtersActive?: boolean;
+  enableSoughtGhost?: boolean;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const [headerTab, setHeaderTab] = useState<'leaders' | 'description'>('leaders');
@@ -1093,6 +1127,7 @@ export function DeckHeaderRow({
       cardSort={cardSort}
       swapInIds={swapInIds}
       filtersActive={filtersActive}
+      enableSoughtGhost={enableSoughtGhost}
     />
   );
 
@@ -1156,6 +1191,7 @@ export function DeckHeaderRow({
               onSelectCard={onSelectCard}
               onCardContextMenu={onCardContextMenu}
               onPick={onPickRepresentative}
+              enableSoughtGhost={enableSoughtGhost}
             />
           </div>
         ) : null}
@@ -1170,6 +1206,7 @@ export function DeckHeaderRow({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               onPickSlot={onPickSlot}
+              enableSoughtGhost={enableSoughtGhost}
             />
           </div>
         ) : null}
@@ -1184,6 +1221,7 @@ export function DeckHeaderRow({
               onDropCard={onDropCard}
               onCardContextMenu={onCardContextMenu}
               onPickSlot={onPickSlot}
+              enableSoughtGhost={enableSoughtGhost}
             />
           </div>
         ) : null}
@@ -1315,6 +1353,7 @@ export function CategoryBrowse({
   syncStatus = null,
   browseView = 'category',
   filtersActive = false,
+  enableSoughtGhost = false,
 }: {
   deck:
     | Pick<
@@ -1373,6 +1412,7 @@ export function CategoryBrowse({
   syncStatus?: DeckSyncStatus | null;
   browseView?: BrowseView;
   filtersActive?: boolean;
+  enableSoughtGhost?: boolean;
 }) {
   const resolved = useMemo(
     () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
@@ -1492,6 +1532,7 @@ export function CategoryBrowse({
             warnTarget={warnTargets}
             swapInIds={swapInIds}
             filtersActive={filtersActive}
+            enableSoughtGhost={enableSoughtGhost}
           />
         ))}
       </div>
@@ -1517,6 +1558,7 @@ export function CategoryBrowse({
       warnTarget={warnTargets}
       swapInIds={swapInIds}
       filtersActive={filtersActive}
+      enableSoughtGhost={enableSoughtGhost}
     />
   );
 
@@ -1544,6 +1586,7 @@ export function CategoryBrowse({
           categoryKey="all_cards"
           swapInIds={swapInIds}
           filtersActive={filtersActive}
+          enableSoughtGhost={enableSoughtGhost}
         />
       </section>
     );
@@ -1605,6 +1648,7 @@ export function CategoryBrowse({
         swapInIds={swapInIds}
         coverInstanceId={'coverInstanceId' in deck ? deck.coverInstanceId : null}
         filtersActive={filtersActive}
+        enableSoughtGhost={enableSoughtGhost}
       />
       {body}
     </div>

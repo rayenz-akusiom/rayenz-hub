@@ -82,9 +82,25 @@ describe('CardTile', () => {
     render(<CardTile card={bolt} onSelect={onSelect} />);
 
     const tile = screen.getByRole('button', { name: /Lightning Bolt/i });
-    expect(tile).toHaveAttribute('title', 'Lightning Bolt (sought)');
+    expect(tile).toHaveAttribute('title', 'Lightning Bolt');
     await user.click(tile);
     expect(onSelect).toHaveBeenCalledWith(bolt, expect.anything());
+  });
+
+  it('only applies sought ghosting when explicitly enabled', () => {
+    const bolt = card({
+      instanceId: 'inst-ghost',
+      name: 'Lightning Bolt',
+      primaryCategory: 'Instants',
+      quantity: 2,
+      ownedQuantity: 0,
+    });
+
+    render(<CardTile card={bolt} enableSoughtGhost />);
+
+    const tile = screen.getByRole('button', { name: /Lightning Bolt, sought/i });
+    expect(tile).toHaveAttribute('title', 'Lightning Bolt (sought)');
+    expect(tile).toHaveClass('is-sought-ghost');
   });
 
   it('marks selected tiles', () => {

@@ -401,6 +401,7 @@ export function CollectionBrowseShell({
             deckMeta={deckMeta}
             syncStatus={syncStatus}
             browseView={view}
+            enableSoughtGhost
             representativeCard={liveDeck.representativeCard ? toRepresentativeCardView(liveDeck.representativeCard) : null}
             representativeLabel="Binder"
             onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}

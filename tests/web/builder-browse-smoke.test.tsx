@@ -152,6 +152,11 @@ describe('builder browse smoke', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /back|library/i })).toBeInTheDocument();
     });
+
+    expect(screen.getByRole('button', { name: /Birds of Paradise/i })).toHaveAttribute(
+      'title',
+      'Birds of Paradise',
+    );
   });
 
   it('opens a cube deck into browse chrome from Cube Builder', async () => {
@@ -168,6 +173,11 @@ describe('builder browse smoke', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /back|library/i })).toBeInTheDocument();
     });
+
+    expect(screen.getByRole('button', { name: /Swords to Plowshares/i })).toHaveAttribute(
+      'title',
+      'Swords to Plowshares',
+    );
   });
 
   it('opens a collection into browse chrome from Collection Builder', async () => {
@@ -185,5 +195,10 @@ describe('builder browse smoke', () => {
       expect(screen.getByRole('button', { name: /library/i })).toBeInTheDocument();
       expect(screen.getByText(/1 cards/i)).toBeInTheDocument();
     });
+
+    expect(screen.getByRole('button', { name: /Jace Beleren, sought/i })).toHaveAttribute(
+      'title',
+      'Jace Beleren (sought)',
+    );
   });
 });

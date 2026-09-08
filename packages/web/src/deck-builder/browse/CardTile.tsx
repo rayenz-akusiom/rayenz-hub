@@ -74,6 +74,7 @@ export function CardTile({
   onContextMenu,
   membership = 'primary',
   swapInGhost = false,
+  enableSoughtGhost = false,
 }: {
   card: CardView;
   onSelect?: SelectCardHandler;
@@ -87,6 +88,8 @@ export function CardTile({
   membership?: CategoryMembership;
   /** Formal swap In — temporary ghost styling in main browse. */
   swapInGhost?: boolean;
+  /** Collection builder only — unmet targets render as sought ghosts. */
+  enableSoughtGhost?: boolean;
 }) {
   const longPress = useLongPress();
   const src = cardImageUrl(card);
@@ -96,7 +99,7 @@ export function CardTile({
   const foil = Boolean(card.foil);
   const proxy = Boolean(card.proxy);
   const seeking = cardIsSeekingMarked(card);
-  const soughtGhost = collectionCardIsSought(card);
+  const soughtGhost = enableSoughtGhost && collectionCardIsSought(card);
   const displayName = cardDisplayName(card);
   const secondary = membership === 'secondary';
 

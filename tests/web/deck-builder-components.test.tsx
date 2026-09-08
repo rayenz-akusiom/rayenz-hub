@@ -567,6 +567,19 @@ describe('BrowseShell selection and context menu', () => {
     expect(screen.getByText(/2 cards · 1 sought/i)).toBeInTheDocument();
   });
 
+  it('does not treat ownedQuantity defaults as Seeking in deck builder browse', () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      cards: commanderDoc.cards.map((card) => ({
+        ...card,
+        ownedQuantity: 0,
+        inDeckQuantity: 0,
+      })),
+    };
+    render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
+    expect(screen.getByText(/3 cards · 0 sought/i)).toBeInTheDocument();
+  });
+
   it('shows foil toggle without card name and opens context menu actions', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

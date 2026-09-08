@@ -6,7 +6,6 @@ import type {
   FormalSwapEntry,
   LookingForEntry,
 } from '../schemas/deck-builder.js';
-import { collectionCardIsSought } from './collection.js';
 import {
   SEEKING,
   LOOKING_FOR,
@@ -50,13 +49,6 @@ function clearSeekingCategory(card: CardInstance, format: DeckFormat): CardInsta
 export function cardIsSeekingMarked(
   card: Pick<CardInstance, 'primaryCategory' | 'categories'>,
 ): boolean {
-  if (
-    'ownedQuantity' in card &&
-    'quantity' in card &&
-    collectionCardIsSought(card as Pick<CardInstance, 'quantity' | 'ownedQuantity'>)
-  ) {
-    return true;
-  }
   if (isSeekingCategory(card.primaryCategory)) return true;
   return (card.categories || []).some((c) => isSeekingCategory(c));
 }

@@ -187,6 +187,15 @@ describe('looking-for', () => {
     expect(seeded[0].instanceId).toBe('lf1');
   });
 
+  it('does not treat default ownedQuantity on regular deck cards as Seeking', () => {
+    const card = {
+      ...(commander.cards[0] as DeckDocument['cards'][0]),
+      ownedQuantity: 0,
+      inDeckQuantity: 0,
+    };
+    expect(cardIsSeekingMarked(card)).toBe(false);
+  });
+
   it('export keeps secondary Seeking in deck and still emits Seeking flags', () => {
     const cards = applyLookingForToCards(
       commander.cards as DeckDocument['cards'],

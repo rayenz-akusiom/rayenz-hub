@@ -2088,6 +2088,67 @@ body,
   border-color: rgba(31, 111, 235, 0.35);
 }
 
+.db-trim-fab {
+  width: min(calc(100vw - 2rem), 34rem);
+  max-width: calc(100vw - 2rem);
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.db-trim-fab-status {
+  display: flex;
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.2rem 0.35rem;
+  color: var(--db-ink);
+}
+
+.db-trim-fab-title {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.db-trim-fab-copy,
+.db-trim-fab-hint {
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.db-trim-fab-copy {
+  color: var(--db-muted);
+  font-weight: 600;
+}
+
+.db-trim-fab-hint {
+  color: var(--db-muted);
+}
+
+.db-trim-fab .db-add-fab-zone {
+  min-width: 5rem;
+}
+
+.db-trim-fab-danger {
+  color: var(--db-danger);
+}
+
+.db-trim-fab.is-trim-delete {
+  border-color: color-mix(in srgb, var(--db-danger) 42%, transparent);
+  background: rgba(255, 245, 244, 0.88);
+}
+
+.db-trim-fab.is-trim-delete .db-trim-fab-title,
+.db-trim-fab.is-trim-delete .db-trim-fab-danger {
+  color: var(--db-danger);
+}
+
+.db-trim-fab.is-trim-delete .db-add-fab-zone.is-drop-target {
+  outline-color: var(--db-danger);
+  background: rgba(180, 35, 24, 0.1);
+  border-color: color-mix(in srgb, var(--db-danger) 42%, transparent);
+}
+
 .db-menu {
   position: relative;
   display: inline-flex;
@@ -2805,6 +2866,24 @@ body,
   .db-glance-overlay,
   .db-modal.is-expanded {
     inset: 0;
+  }
+
+  .db-trim-fab {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    right: 0.5rem;
+    bottom: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .db-trim-fab-status {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .db-trim-fab .db-add-fab-zone {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
 

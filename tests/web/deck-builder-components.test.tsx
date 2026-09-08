@@ -988,7 +988,10 @@ describe('BrowseShell trim mode', () => {
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
     await enterTrim(user);
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+    const trimControls = screen.getByRole('group', { name: 'Trim mode controls' });
+    expect(trimControls).toBeInTheDocument();
+    expect(trimControls).toHaveTextContent(/3 cards\s*·\s*legal/i);
+    await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1009,7 +1012,10 @@ describe('BrowseShell trim mode', () => {
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
     await enterTrim(user);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+    expect(screen.getByRole('group', { name: 'Trim mode controls' })).toHaveTextContent(
+      /Click a card to delete it/i,
+    );
+    await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
 
     expect(confirm).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith(
@@ -1042,7 +1048,7 @@ describe('BrowseShell trim mode', () => {
 
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
     await enterTrim(user);
-    await user.click(screen.getByRole('button', { name: /^Stash Me$/i }));
+    await user.click(screen.getByRole('button', { name: /Stash Me/i }));
 
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -1054,15 +1060,17 @@ describe('BrowseShell trim mode', () => {
 
     render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
     await enterTrim(user);
-    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Trim mode controls' })).toHaveTextContent(
+      /Click a card to move it to Maybeboard/i,
+    );
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByText(/Trim mode — click a card to move it to Maybeboard/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Trim mode controls' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Deck actions' }));
     expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
+    await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
     expect(screen.getByText('1 selected')).toBeInTheDocument();
   });
 
@@ -1076,10 +1084,12 @@ describe('BrowseShell trim mode', () => {
     const user = userEvent.setup();
     render(<BrowseShell deck={trimDeck()} onChange={noop} onBack={noop} />);
     await user.keyboard('t');
-    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Trim mode controls' })).toHaveTextContent(
+      /3 cards\s*·\s*legal/i,
+    );
     expect(screen.getByText('Trim mode · Esc exit')).toBeInTheDocument();
     await user.keyboard('t');
-    expect(screen.queryByText(/Trim mode — click a card to move it to Maybeboard/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Trim mode controls' })).not.toBeInTheDocument();
   });
 
   it('auto-exits trim when size drops from over target to legal', async () => {
@@ -1110,10 +1120,12 @@ describe('BrowseShell trim mode', () => {
 
     render(<Harness />);
     await enterTrim(user);
-    expect(screen.getByText(/Trim mode · 1 over/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^Extra Creature$/i }));
+    expect(screen.getByRole('group', { name: 'Trim mode controls' })).toHaveTextContent(
+      /101 cards\s*·\s*trim 1/i,
+    );
+    await user.click(screen.getByRole('button', { name: /Extra Creature/i }));
     await waitFor(() => {
-      expect(screen.queryByText(/Trim mode/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Trim mode controls' })).not.toBeInTheDocument();
     });
     await user.click(screen.getByRole('button', { name: 'Deck actions' }));
     expect(screen.getByRole('menuitem', { name: 'Trim' })).toBeInTheDocument();
@@ -1137,7 +1149,9 @@ describe('BrowseShell trim mode', () => {
 
     render(<BrowseShell deck={deck} onChange={noop} onBack={noop} />);
     await enterTrim(user);
-    expect(screen.getByText(/Trim mode — click a card to move it to Maybeboard/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Trim mode controls' })).toHaveTextContent(
+      /100 cards\s*·\s*legal/i,
+    );
     expect(screen.getByText('Trim mode · Esc exit')).toBeInTheDocument();
   });
 
@@ -1148,8 +1162,8 @@ describe('BrowseShell trim mode', () => {
     const deck = trimDeck();
     const card = deck.cards[0]!;
     render(<BrowseShell deck={deck} onChange={onChange} onBack={noop} />);
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${card.name}$`, 'i') }));
-    expect(screen.getByText('Esc clear · Del remove · T trim')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: new RegExp(card.name, 'i') }));
+    expect(screen.getByText(/Esc clear.*Del remove.*T trim/i)).toBeInTheDocument();
     await user.keyboard('{Delete}');
     expect(confirm).toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith(

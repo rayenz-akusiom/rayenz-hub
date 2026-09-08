@@ -77,6 +77,7 @@ import { CategoryBrowse } from './CategoryBrowse';
 import { CardFlagCharmProvider } from './CardFlagCharmContext';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { AddCardFab } from './AddCardFab';
+import { TrimModeFab } from './TrimModeFab';
 import { type ContextMenuPoint } from './CardTile';
 import { useDragAutoScroll } from './useDragAutoScroll';
 import { SwapQueuePanel } from '../swaps/SwapQueuePanel';
@@ -182,6 +183,12 @@ function rangeIds(order: string[], fromId: string, toId: string): string[] {
 }
 
 type TrimEffect = 'maybeboard' | 'delete';
+
+function trimModeHint(trimEffect: TrimEffect): string {
+  return trimEffect === 'delete'
+    ? 'click a card to delete it'
+    : 'click a card to move it to Maybeboard';
+}
 
 function isTrimProtectedSlot(primaryCategory: string | null | undefined): boolean {
   return isCommanderCategory(primaryCategory) || isPendragonLeaderCategory(primaryCategory);
@@ -1317,43 +1324,11 @@ export function BrowseShell({
         <CardFlagCharmProvider value={cardFlagCharmValue}>
         <main className="db-main">
           {trimMode && !readOnly ? (
-            <div
-              className={`db-selection-bar is-pick${trimEffect === 'delete' ? ' is-trim-delete' : ''}`}
-            >
-              <span className="db-selection-bar-count" aria-live="polite">
-                {(() => {
-                  const action =
-                    trimEffect === 'delete'
-                      ? 'click a card to delete it'
-                      : 'click a card to move it to Maybeboard';
-                  if (trimOver > 0) {
-                    return `Trim mode · ${trimOver} over — ${action}`;
-                  }
-                  return `Trim mode — ${action}`;
-                })()}
-              </span>
-              <div className="db-selection-bar-actions">
-                <button
-                  type="button"
-                  className={`db-btn${trimEffect === 'maybeboard' ? ' is-active' : ''}`}
-                  aria-pressed={trimEffect === 'maybeboard'}
-                  onClick={() => setTrimEffect('maybeboard')}
-                >
-                  Maybeboard
-                </button>
-                <button
-                  type="button"
-                  className={`db-btn db-btn-danger${trimEffect === 'delete' ? ' is-active' : ''}`}
-                  aria-pressed={trimEffect === 'delete'}
-                  onClick={() => setTrimEffect('delete')}
-                >
-                  Delete
-                </button>
-                <button type="button" className="db-btn" onClick={exitTrim}>
-                  Done
-                </button>
-              </div>
-            </div>
+            <p className="db-selection-bar-count hub-muted" aria-live="polite">
+              {trimOver > 0
+                ? `Trim mode · ${trimOver} over — ${trimModeHint(trimEffect)}`
+                : `Trim mode — ${trimModeHint(trimEffect)}`}
+            </p>
           ) : selectionCount && !readOnly ? (
             <div className="db-selection-bar">
               <span className="db-selection-bar-count" aria-live="polite">
@@ -1744,29 +1719,39 @@ export function BrowseShell({
       ) : null}
 
       {readOnly ? null : (
-        <AddCardFab
-          onAddClick={() => {
-            setPickSlotCategory(null);
-            setAddOpen(true);
-          }}
-          onDropDefault={(ids) => {
-            commit(moveCardsToDefaultCategories(deckRef.current, ids));
-          }}
-          onDropMaybeboard={(ids) => {
-            commit(
-              moveCardsCategory(deckRef.current, ids, MAYBEBOARD, null, {
-                clearSeekingWhenMovingMainToAside:
-                  builderSettings.clearSeekingWhenMovingMainToAside,
-              }),
-            );
-          }}
-          onDropNewCategory={(ids) => {
-            setSelectedIds(new Set(ids));
-            setSelectionAnchorId(ids[0] ?? null);
-            setMoveCreatingNew(true);
-            setMoveOpen(true);
-          }}
-        />
+        trimMode ? (
+          <TrimModeFab
+            sizeLabel={sizeLabel}
+            trimOver={trimOver}
+            trimEffect={trimEffect}
+            onTrimEffectChange={setTrimEffect}
+            onDone={exitTrim}
+          />
+        ) : (
+          <AddCardFab
+            onAddClick={() => {
+              setPickSlotCategory(null);
+              setAddOpen(true);
+            }}
+            onDropDefault={(ids) => {
+              commit(moveCardsToDefaultCategories(deckRef.current, ids));
+            }}
+            onDropMaybeboard={(ids) => {
+              commit(
+                moveCardsCategory(deckRef.current, ids, MAYBEBOARD, null, {
+                  clearSeekingWhenMovingMainToAside:
+                    builderSettings.clearSeekingWhenMovingMainToAside,
+                }),
+              );
+            }}
+            onDropNewCategory={(ids) => {
+              setSelectedIds(new Set(ids));
+              setSelectionAnchorId(ids[0] ?? null);
+              setMoveCreatingNew(true);
+              setMoveOpen(true);
+            }}
+          />
+        )
       )}
     </div>
   );

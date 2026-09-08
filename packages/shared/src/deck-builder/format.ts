@@ -1,7 +1,7 @@
 import type { DeckFormat } from '../schemas/deck-builder.js';
 import type { BrowseView } from '../schemas/deck-builder.js';
 
-export type BuilderFormat = 'commander' | 'cube';
+export type BuilderFormat = 'commander' | 'cube' | 'collection';
 
 /** Commander and Pendragon: 100-card singleton, command-zone leaders, commander builder. */
 export function isCommandZoneFormat(format: string | null | undefined): boolean {
@@ -9,6 +9,7 @@ export function isCommandZoneFormat(format: string | null | undefined): boolean 
 }
 
 export function builderFormatForDeck(format: string | null | undefined): BuilderFormat {
+  if (format === 'collection') return 'collection';
   return format === 'cube' ? 'cube' : 'commander';
 }
 
@@ -16,6 +17,7 @@ export function deckBelongsToBuilder(
   deckFormat: string | null | undefined,
   builderFormat: BuilderFormat,
 ): boolean {
+  if (builderFormat === 'collection') return deckFormat === 'collection';
   if (builderFormat === 'cube') return deckFormat === 'cube';
   return deckFormat === 'commander' || deckFormat === 'pendragon';
 }
@@ -49,6 +51,7 @@ export function detectDeckFormat(input: {
     input.format === 'commander' ||
     input.format === 'cube' ||
     input.format === 'pendragon' ||
+    input.format === 'collection' ||
     input.format === 'other'
   ) {
     return input.format;
@@ -59,5 +62,6 @@ export function detectDeckFormat(input: {
 }
 
 export function defaultBrowseView(format: DeckFormat): BrowseView {
+  if (format === 'collection') return 'all_cards';
   return format === 'cube' ? 'colour_identity' : 'category';
 }

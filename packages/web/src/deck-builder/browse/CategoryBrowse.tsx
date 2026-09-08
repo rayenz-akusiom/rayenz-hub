@@ -453,6 +453,43 @@ function CommanderSlot({
   );
 }
 
+function RepresentativeSlot({
+  card,
+  label,
+  selectedId,
+  selectedIds,
+  onSelectCard,
+  onCardContextMenu,
+  onPick,
+}: {
+  card: CardView | null;
+  label: string;
+  selectedId?: string | null;
+  selectedIds?: ReadonlySet<string> | null;
+  onSelectCard?: SelectCardHandler;
+  onCardContextMenu?: CardContextMenuHandler;
+  onPick?: () => void;
+}) {
+  return (
+    <div className="db-partner-pair" aria-label={label}>
+      <h3 className="db-partner-pair-title">{label}</h3>
+      <div className="db-partner-pair-row">
+        <CommanderSlot
+          slot={0}
+          card={card}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          onSelectCard={onSelectCard}
+          onCardContextMenu={onCardContextMenu}
+          draggable={false}
+          emptyLabel={onPick ? `Choose ${label.toLowerCase()}` : label}
+          onPickSlot={onPick}
+        />
+      </div>
+    </div>
+  );
+}
+
 function CommanderGalleryFace({
   card,
   isPrimary,
@@ -950,6 +987,9 @@ export function DeckHeaderRow({
   swapInIds,
   coverInstanceId = null,
   onPickSlot,
+  representativeCard = null,
+  representativeLabel = 'Representative',
+  onPickRepresentative,
   filtersActive = false,
 }: {
   header: Record<string, CardView[]>;
@@ -977,6 +1017,9 @@ export function DeckHeaderRow({
   swapInIds?: ReadonlySet<string> | null;
   coverInstanceId?: string | null;
   onPickSlot?: (category: string) => void;
+  representativeCard?: CardView | null;
+  representativeLabel?: string;
+  onPickRepresentative?: () => void;
   filtersActive?: boolean;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
@@ -1006,7 +1049,12 @@ export function DeckHeaderRow({
   const useTabs = mode === 'tabs' && remainderLeaderCount > 0 && showDescription;
   const activeTab: 'leaders' | 'description' = headerDragHover ? 'leaders' : headerTab;
   const badgeFormat: DeckFormat =
-    format === 'commander' || format === 'cube' || format === 'pendragon' ? format : 'other';
+    format === 'commander' ||
+    format === 'cube' ||
+    format === 'pendragon' ||
+    format === 'collection'
+      ? format
+      : 'other';
   const resolvedOwnership = deckOwnership({ ownership });
   const theory = resolvedOwnership === 'theory';
   const resolvedVisibility = deckVisibility({ visibility });
@@ -1093,10 +1141,24 @@ export function DeckHeaderRow({
 
   const hasCommander = format === 'commander';
   const hasPendragon = format === 'pendragon';
+  const hasRepresentative = format === 'collection';
   const hasOtherLeaders = format !== 'commander' && format !== 'pendragon' && headerKeys.length > 0;
   const slots =
-    hasCommander || hasPendragon || needsRemainder || hasOtherLeaders ? (
+    hasCommander || hasPendragon || hasRepresentative || needsRemainder || hasOtherLeaders ? (
       <div className="db-header-row">
+        {hasRepresentative ? (
+          <div className="db-header-slot is-commander">
+            <RepresentativeSlot
+              card={representativeCard}
+              label={representativeLabel}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              onCardContextMenu={onCardContextMenu}
+              onPick={onPickRepresentative}
+            />
+          </div>
+        ) : null}
         {hasPendragon ? (
           <div className="db-header-slot is-commander">
             <PendragonSlots
@@ -1127,7 +1189,7 @@ export function DeckHeaderRow({
         ) : null}
         {needsRemainder ? (
           <div className="db-header-slot is-remainder" ref={remainderRef}>
-            {hasCommander || hasPendragon ? (
+            {hasCommander || hasPendragon || hasRepresentative ? (
               <div className="db-header-divider" aria-hidden="true" />
             ) : null}
             <div className="db-header-remainder" id="db-leaders-panel">{remainderPane}</div>
@@ -1243,6 +1305,9 @@ export function CategoryBrowse({
   onRename,
   onSetDescription,
   onPickSlot,
+  representativeCard,
+  representativeLabel,
+  onPickRepresentative,
   queuesReadOnly = false,
   mode = 'main',
   deckMeta,
@@ -1297,6 +1362,9 @@ export function CategoryBrowse({
   onRename?: (name: string) => void;
   onSetDescription?: (description: string) => void;
   onPickSlot?: (category: string) => void;
+  representativeCard?: CardView | null;
+  representativeLabel?: string;
+  onPickRepresentative?: () => void;
   /** Theory decks: Seeking actions stay visible but disabled. */
   queuesReadOnly?: boolean;
   mode?: 'main' | 'aside';
@@ -1517,6 +1585,9 @@ export function CategoryBrowse({
         onCardContextMenu={onCardContextMenu}
         onEditCategory={onEditCategory}
         onPickSlot={onPickSlot}
+        representativeCard={representativeCard}
+        representativeLabel={representativeLabel}
+        onPickRepresentative={onPickRepresentative}
         format={format}
         cardSort={cardSort}
         deckName={deckName}

@@ -21,6 +21,7 @@ import {
 import { navigateHub } from '../../lib/hub-storage';
 import { toKebabCase } from '../../lib/string-utils';
 import { BrowseShell } from '../browse/BrowseShell';
+import { CollectionBrowseShell } from '../collection/CollectionBrowseShell';
 import { FormatFilteredLibrary } from './library/FormatFilteredLibrary';
 import * as store from '../store/deck-store';
 import * as deckApi from '../store/deck-api';
@@ -60,7 +61,9 @@ export type CreateDialogProps = {
 };
 
 function otherBuilderFormat(format: BuilderFormat): BuilderFormat {
-  return format === 'commander' ? 'cube' : 'commander';
+  if (format === 'commander') return 'cube';
+  if (format === 'cube') return 'commander';
+  return 'commander';
 }
 
 function hashUsesOtherBuilder(hash: string, builderFormat: BuilderFormat): boolean {
@@ -643,29 +646,50 @@ export function BuilderApp({
     return (
       <div className="db-app">
         {apiWarning ? <p className="hub-warn">{apiWarning}</p> : null}
-        <BrowseShell
-          deck={active}
-          syncStatus={syncStatus}
-          readOnly={readOnly}
-          focusPairEntryId={
-            parseBuilderRoute(window.location.hash, builderFormat)?.pairEntryId ?? null
-          }
-          onDuplicate={(doc) => void duplicateDeck(doc)}
-          duplicateDisabled={decks.length >= MAX_LIBRARY_DECKS}
-          onBack={() => {
-            invalidatePersist();
-            setActive(null);
-            setSyncStatus(null);
-            setReadOnly(false);
-            readOnlyRef.current = false;
-            syncDeckHash(null);
-            void refreshLibrary({ applyRoute: false });
-          }}
-          onChange={(next) => {
-            if (readOnlyRef.current) return;
-            void persist(next);
-          }}
-        />
+        {builderFormat === 'collection' ? (
+          <CollectionBrowseShell
+            deck={active}
+            syncStatus={syncStatus}
+            readOnly={readOnly}
+            onBack={() => {
+              invalidatePersist();
+              setActive(null);
+              setSyncStatus(null);
+              setReadOnly(false);
+              readOnlyRef.current = false;
+              syncDeckHash(null);
+              void refreshLibrary({ applyRoute: false });
+            }}
+            onChange={(next) => {
+              if (readOnlyRef.current) return;
+              void persist(next);
+            }}
+          />
+        ) : (
+          <BrowseShell
+            deck={active}
+            syncStatus={syncStatus}
+            readOnly={readOnly}
+            focusPairEntryId={
+              parseBuilderRoute(window.location.hash, builderFormat)?.pairEntryId ?? null
+            }
+            onDuplicate={(doc) => void duplicateDeck(doc)}
+            duplicateDisabled={decks.length >= MAX_LIBRARY_DECKS}
+            onBack={() => {
+              invalidatePersist();
+              setActive(null);
+              setSyncStatus(null);
+              setReadOnly(false);
+              readOnlyRef.current = false;
+              syncDeckHash(null);
+              void refreshLibrary({ applyRoute: false });
+            }}
+            onChange={(next) => {
+              if (readOnlyRef.current) return;
+              void persist(next);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -701,6 +725,10 @@ export function BuilderApp({
           if (atDeckCap) return;
           if (builderFormat === 'commander') {
             void createEmptyDeck('commander');
+            return;
+          }
+          if (builderFormat === 'collection') {
+            setAddOpen(true);
             return;
           }
           setImportFormat('commander');

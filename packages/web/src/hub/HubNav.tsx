@@ -52,6 +52,12 @@ const MTG: NavItem[] = [
     icon: <FormatBadge format="cube" />,
   },
   {
+    path: '/collection-builder',
+    prefix: '/collection-builder',
+    label: 'Collection Builder',
+    icon: <FormatBadge format="collection" />,
+  },
+  {
     path: '/swap-queue',
     prefix: '/swap-queue',
     alsoPrefixes: ['/wishlist'],

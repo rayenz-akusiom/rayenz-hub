@@ -21,6 +21,7 @@ const VIEW_LABELS: Record<BrowseView, string> = {
   category_multi: 'Multiple categories',
   colour_identity: 'Colour identity',
   colour_identity_spells: 'Colour identity (Spells)',
+  planeswalker_subtype: 'Planeswalker subtype',
   all_cards: 'All Cards',
 };
 
@@ -35,6 +36,15 @@ const SORT_MODES: CardSortMode[] = [
   'colour_identity',
   'mana_asc',
   'mana_desc',
+];
+
+const DEFAULT_VIEW_OPTIONS: BrowseView[] = [
+  'category',
+  'category_custom',
+  'category_multi',
+  'colour_identity',
+  'colour_identity_spells',
+  'all_cards',
 ];
 
 export function ExportBar({
@@ -56,6 +66,7 @@ export function ExportBar({
   onSeekingFilterChange,
   cardCharmsEnabled,
   onCardCharmsEnabledChange,
+  viewOptions = DEFAULT_VIEW_OPTIONS,
 }: {
   view: BrowseView;
   onViewChange: (next: BrowseView) => void;
@@ -75,6 +86,7 @@ export function ExportBar({
   onSeekingFilterChange?: (next: FlagFilterMode) => void;
   cardCharmsEnabled?: boolean;
   onCardCharmsEnabledChange?: (enabled: boolean) => void;
+  viewOptions?: BrowseView[];
 }) {
   const hasFilters =
     Boolean(setFilter) ||
@@ -115,36 +127,11 @@ export function ExportBar({
   return (
     <div className="db-toolbar-controls">
       <DbMenu label="Browse" value={VIEW_LABELS[view]}>
-        <DbMenuItem active={view === 'category'} onSelect={() => onViewChange('category')}>
-          Categories
-        </DbMenuItem>
-        <DbMenuItem
-          active={view === 'category_custom'}
-          onSelect={() => onViewChange('category_custom')}
-        >
-          Categories (Custom)
-        </DbMenuItem>
-        <DbMenuItem
-          active={view === 'category_multi'}
-          onSelect={() => onViewChange('category_multi')}
-        >
-          Multiple categories
-        </DbMenuItem>
-        <DbMenuItem
-          active={view === 'colour_identity'}
-          onSelect={() => onViewChange('colour_identity')}
-        >
-          Colour identity
-        </DbMenuItem>
-        <DbMenuItem
-          active={view === 'colour_identity_spells'}
-          onSelect={() => onViewChange('colour_identity_spells')}
-        >
-          Colour identity (Spells)
-        </DbMenuItem>
-        <DbMenuItem active={view === 'all_cards'} onSelect={() => onViewChange('all_cards')}>
-          All Cards
-        </DbMenuItem>
+        {viewOptions.map((option) => (
+          <DbMenuItem key={option} active={view === option} onSelect={() => onViewChange(option)}>
+            {VIEW_LABELS[option]}
+          </DbMenuItem>
+        ))}
       </DbMenu>
       <DbMenu label="Layout" value={LAYOUT_LABELS[layout]}>
         <DbMenuItem active={layout === 'stacked'} onSelect={() => onLayoutChange('stacked')}>

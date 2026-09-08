@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DailiesApp } from '../dailies/DailiesApp';
 import { LegacyDeckBuilderRedirect } from '../deck-builder/LegacyDeckBuilderRedirect';
 import { CommanderBuilderApp } from '../deck-builder/commander/CommanderBuilderApp';
+import { CollectionBuilderApp } from '../deck-builder/collection/CollectionBuilderApp';
 import { CubeBuilderApp } from '../deck-builder/cube/CubeBuilderApp';
 import { ProfileBuilderApp } from '../profile-builder/ProfileBuilderApp';
 import { DeckSuggestApp } from '../deck-suggest/DeckSuggestApp';
@@ -40,6 +41,7 @@ function AppOutlet({ path }: { path: string }) {
   if (path === '/neopets-more') return <NeopetsMoreApp />;
   if (path === '/commander-builder') return <CommanderBuilderApp />;
   if (path === '/cube-builder') return <CubeBuilderApp />;
+  if (path === '/collection-builder') return <CollectionBuilderApp />;
   if (path === '/deck-builder') return <LegacyDeckBuilderRedirect />;
   if (path === '/profile-builder') return <ProfileBuilderApp />;
   if (path === '/deck-suggest' || path === '/deck-review') return <DeckSuggestApp />;

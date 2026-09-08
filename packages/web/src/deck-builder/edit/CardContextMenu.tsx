@@ -63,7 +63,7 @@ export function CardContextMenu({
   onToggleSeeking?: () => void;
   onSetCover: () => void;
   onClearCover: () => void;
-  onMove: () => void;
+  onMove?: () => void;
   onMoveToDefault?: () => void;
   onAddToSwapQueue?: () => void;
   onChangePrinting: () => void;
@@ -209,17 +209,19 @@ export function CardContextMenu({
           </button>
         )
       ) : null}
-      <button
-        type="button"
-        role="menuitem"
-        className="db-card-context-item"
-        onClick={() => {
-          onMove();
-          onClose();
-        }}
-      >
-        {multi ? `Move ${selectionCount}…` : 'Move…'}
-      </button>
+      {onMove ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onMove();
+            onClose();
+          }}
+        >
+          {multi ? `Move ${selectionCount}…` : 'Move…'}
+        </button>
+      ) : null}
       {onMoveToDefault ? (
         <button
           type="button"

@@ -34,6 +34,7 @@ export type ScryfallCard = {
   name: string;
   set: string;
   collector_number: string;
+  released_at?: string;
   oracle_id?: string;
   type_line?: string;
   color_identity?: string[];

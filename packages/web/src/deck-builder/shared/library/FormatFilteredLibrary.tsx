@@ -331,6 +331,11 @@ export function FormatFilteredLibrary({
           lead: 'No Commander or Pendragon decks saved in Hub yet.',
           hint: 'Add a Commander deck, or use the menu to create Pendragon or import paste.',
         }
+      : builderFormat === 'collection'
+        ? {
+            lead: 'No collections saved in Hub yet.',
+            hint: 'Create a collection from a Scryfall search, then track what you still need to collect.',
+          }
       : {
           lead: 'No cube decks saved in Hub yet.',
           hint: 'Create a new cube with a target size and colour-identity browse defaults, or paste Archidekt import text.',

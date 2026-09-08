@@ -1,5 +1,6 @@
 import type { DeckDocument } from '../schemas/deck-builder.js';
 import { cardImageUrl } from './scryfall-images.js';
+import { isCollectionDeck, toRepresentativeCardView } from './collection.js';
 import {
   isArthurCategory,
   isCommanderCategory,
@@ -9,7 +10,10 @@ import {
 } from './partner.js';
 import { resolveDeckCards, type CardView } from './card-oracle.js';
 
-type CoverDoc = Pick<DeckDocument, 'format' | 'cards' | 'coverInstanceId' | 'oracle'>;
+type CoverDoc = Pick<
+  DeckDocument,
+  'format' | 'cards' | 'coverInstanceId' | 'oracle' | 'representativeCard'
+>;
 
 function resolveCoverOverride(doc: CoverDoc): CardView | null {
   const id = doc.coverInstanceId;
@@ -37,6 +41,9 @@ export function pickDeckCoverCard(doc: CoverDoc): CardView | null {
  * - Pendragon → Arthur then Excalibur (no partner legality).
  */
 export function pickDeckCoverCards(doc: CoverDoc): CardView[] {
+  if (isCollectionDeck(doc) && doc.representativeCard) {
+    return [toRepresentativeCardView(doc.representativeCard)];
+  }
   const cards = resolveDeckCards(doc);
   const override = resolveCoverOverride(doc);
   if (override && !isLeaderCoverCategory(override.primaryCategory)) {

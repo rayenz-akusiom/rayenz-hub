@@ -8,7 +8,7 @@ import {
 } from '../deck-builder/deck-cover.js';
 import { DeckDescriptionSchema } from '../deck-builder/deck-description.js';
 
-export const DeckFormatSchema = z.enum(['commander', 'cube', 'pendragon', 'other']);
+export const DeckFormatSchema = z.enum(['commander', 'cube', 'pendragon', 'collection', 'other']);
 export type DeckFormat = z.infer<typeof DeckFormatSchema>;
 
 /** Account / sandbox library size cap (sample decks excluded). */
@@ -32,6 +32,7 @@ export const BrowseViewSchema = z.enum([
   'category_multi',
   'colour_identity',
   'colour_identity_spells',
+  'planeswalker_subtype',
   'all_cards',
 ]);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
@@ -102,6 +103,10 @@ export const CardInstanceSchema = z.object({
   instanceId: z.string().min(1),
   name: z.string().min(1),
   quantity: z.number().positive().default(1),
+  /** Collection builder: owned copies currently on hand. */
+  ownedQuantity: z.number().int().nonnegative().optional().default(0),
+  /** Collection builder: owned copies currently allocated into decks. */
+  inDeckQuantity: z.number().int().nonnegative().optional().default(0),
   primaryCategory: z.string().min(1),
   categories: z.array(z.string()).default([]),
   stack: z.string().nullable().default(null),
@@ -112,8 +117,35 @@ export const CardInstanceSchema = z.object({
   foil: z.boolean().default(false),
   /** Unofficial / proxy copy; Archidekt secondary category "Proxies". */
   proxy: z.boolean().default(false),
+  /** Collection builder sync source. */
+  collectionSource: z.enum(['search', 'manual']).optional().default('manual'),
 });
 export type CardInstance = z.infer<typeof CardInstanceSchema>;
+
+export const CollectionTemplateSchema = z.enum(['generic', 'planeswalkers']);
+export type CollectionTemplate = z.infer<typeof CollectionTemplateSchema>;
+
+export const CollectionRepresentativeCardSchema = z.object({
+  name: z.string().min(1),
+  scryfallId: z.string().nullable().default(null),
+  setCode: z.string().nullable().default(null),
+  collectorNumber: z.string().nullable().default(null),
+  foil: z.boolean().default(false),
+  imageUrl: z.string().nullable().default(null),
+  printedName: z.string().nullable().default(null),
+  flavorName: z.string().nullable().default(null),
+});
+export type CollectionRepresentativeCard = z.infer<typeof CollectionRepresentativeCardSchema>;
+
+export const CollectionSearchSchema = z.object({
+  query: z.string().trim().min(1),
+  defaultQuantity: z.number().int().positive().default(1),
+  lastSyncedAt: z.string().nullable().default(null),
+  lastOpenedAt: z.string().nullable().default(null),
+  latestReleaseDate: z.string().nullable().default(null),
+  suppressedKeys: z.array(z.string()).default([]),
+});
+export type CollectionSearch = z.infer<typeof CollectionSearchSchema>;
 
 export const FormalSwapEntrySchema = z.object({
   id: z.string().min(1),
@@ -162,6 +194,9 @@ const DeckDocumentObjectSchema = z.object({
   lastArchidektSyncAt: z.string().nullable().default(null),
   lastArchidektImportAt: z.string().nullable().default(null),
   cubeTargetSize: z.number().positive().nullable().optional().default(null),
+  collectionTemplate: CollectionTemplateSchema.nullable().optional().default(null),
+  collectionSearch: CollectionSearchSchema.nullable().optional().default(null),
+  representativeCard: CollectionRepresentativeCardSchema.nullable().optional().default(null),
   /**
    * When true, auto-fill basic lands to the Land category target using pip ratio.
    * Default false so existing decks are unchanged; new commander/pendragon decks opt in.

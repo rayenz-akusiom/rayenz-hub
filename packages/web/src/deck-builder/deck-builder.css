@@ -1519,6 +1519,20 @@ body,
   pointer-events: none;
 }
 
+.db-card-tile.is-sought-ghost {
+  opacity: 0.78;
+}
+
+.db-card-tile.is-sought-ghost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(15, 23, 42, 0.08));
+  pointer-events: none;
+  z-index: 1;
+}
+
 .db-card-tile.is-selected.is-swap-in-ghost::after {
   background: rgba(31, 111, 235, 0.13);
 }
@@ -3146,6 +3160,30 @@ body,
   gap: 0.35rem;
   flex-wrap: wrap;
   margin-left: auto;
+}
+
+.db-collection-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: end;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.db-collection-stats > strong {
+  min-width: min(20rem, 100%);
+}
+
+.db-collection-stats label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 5rem;
+  font-size: 0.85rem;
+}
+
+.db-collection-stats .db-input {
+  margin-top: 0;
 }
 
 .db-swap-visual-list {

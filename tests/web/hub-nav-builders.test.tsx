@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 describe('HubNav builder entries', () => {
-  it('renders Commander Builder and Cube Builder links', () => {
+  it('renders Commander Builder, Cube Builder, and Collection Builder links', () => {
     render(<HubNav path="/dailies" open={false} onClose={() => {}} />);
     expect(screen.getByRole('link', { name: 'Commander Builder' })).toHaveAttribute(
       'href',
@@ -16,6 +16,10 @@ describe('HubNav builder entries', () => {
     expect(screen.getByRole('link', { name: 'Cube Builder' })).toHaveAttribute(
       'href',
       '#/cube-builder',
+    );
+    expect(screen.getByRole('link', { name: 'Collection Builder' })).toHaveAttribute(
+      'href',
+      '#/collection-builder',
     );
     expect(screen.queryByRole('link', { name: 'Deck Builder' })).not.toBeInTheDocument();
   });
@@ -30,5 +34,10 @@ describe('HubNav builder entries', () => {
     render(<HubNav path="/cube-builder" open={false} onClose={() => {}} />);
     expect(screen.getByRole('link', { name: 'Cube Builder' })).toHaveClass('active');
     expect(screen.getByRole('link', { name: 'Commander Builder' })).not.toHaveClass('active');
+  });
+
+  it('marks collection builder active on nested path', () => {
+    render(<HubNav path="/collection-builder" open={false} onClose={() => {}} />);
+    expect(screen.getByRole('link', { name: 'Collection Builder' })).toHaveClass('active');
   });
 });

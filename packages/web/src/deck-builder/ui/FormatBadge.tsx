@@ -7,6 +7,7 @@ const FORMAT_LABEL: Record<DeckFormat, string> = {
   commander: 'Commander',
   cube: 'Cube',
   pendragon: 'Pendragon',
+  collection: 'Collection',
   other: 'Other',
 };
 
@@ -51,6 +52,22 @@ function OtherIcon() {
   );
 }
 
+function CollectionIcon() {
+  return (
+    <svg className="db-format-icon-svg" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M3 2.2h7.2c.83 0 1.5.67 1.5 1.5v8.9c0-.33-.27-.6-.6-.6H3.9c-.77 0-1.4-.63-1.4-1.4V3.7c0-.83.67-1.5 1.5-1.5z"
+        opacity="0.35"
+      />
+      <path
+        fill="currentColor"
+        d="M5.4 3h7.1c.83 0 1.5.67 1.5 1.5v9.3h-1V4.5c0-.28-.22-.5-.5-.5H5.4V3zm-1 1.2h6.7c.72 0 1.3.58 1.3 1.3v8.3H4.4c-.72 0-1.3-.58-1.3-1.3V5.5c0-.72.58-1.3 1.3-1.3zm1.1 2.1v1h4.6v-1H5.5zm0 2v1h4.6v-1H5.5z"
+      />
+    </svg>
+  );
+}
+
 export function FormatBadge({
   format,
   showLabel = false,
@@ -82,6 +99,8 @@ export function FormatBadge({
         <CubeIcon />
       ) : format === 'pendragon' ? (
         <PendragonIcon />
+      ) : format === 'collection' ? (
+        <CollectionIcon />
       ) : (
         <OtherIcon />
       )}

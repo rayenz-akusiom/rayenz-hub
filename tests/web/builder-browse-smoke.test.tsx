@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { DeckDocument, DeckSummary } from '@rayenz-hub/shared';
 import { toDeckSummary } from '@rayenz-hub/shared';
 import { CommanderBuilderApp } from '../../packages/web/src/deck-builder/commander/CommanderBuilderApp';
+import { CollectionBuilderApp } from '../../packages/web/src/deck-builder/collection/CollectionBuilderApp';
 import { CubeBuilderApp } from '../../packages/web/src/deck-builder/cube/CubeBuilderApp';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 import cubeFixture from '../fixtures/deck-builder/cube-slice.json';
@@ -61,6 +62,60 @@ const cubeDoc = {
   ...(cubeFixture as DeckDocument),
   updatedAt: new Date().toISOString(),
 };
+const collectionDoc: DeckDocument = {
+  deckId: 'collection-1',
+  schemaVersion: 2,
+  name: 'Planeswalker Binder',
+  description: '',
+  format: 'collection',
+  ownership: 'owned',
+  visibility: 'private',
+  archidektId: null,
+  archidektUrl: null,
+  categories: [{ name: 'Collection', includedInDeck: true, includedInPrice: true, target: null }],
+  cards: [
+    {
+      instanceId: 'pc1',
+      name: 'Jace Beleren',
+      quantity: 1,
+      ownedQuantity: 0,
+      inDeckQuantity: 0,
+      primaryCategory: 'Collection',
+      categories: ['Collection'],
+      stack: null,
+      setCode: 'm10',
+      collectorNumber: '60',
+      scryfallId: 'jace-beleren',
+      archidektCardId: null,
+      foil: false,
+      proxy: false,
+      collectionSource: 'search',
+    },
+  ],
+  oracle: {},
+  formalSwapEntries: [],
+  lookingForEntries: [],
+  coverInstanceId: null,
+  browseViewDefault: 'all_cards',
+  cardLayoutDefault: 'grid',
+  cardSortDefault: 'name_asc',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  lastArchidektSyncAt: null,
+  lastArchidektImportAt: null,
+  cubeTargetSize: null,
+  collectionTemplate: 'planeswalkers',
+  collectionSearch: {
+    query: 't:planeswalker',
+    defaultQuantity: 1,
+    lastSyncedAt: new Date().toISOString(),
+    lastOpenedAt: new Date().toISOString(),
+    latestReleaseDate: null,
+    suppressedKeys: [],
+  },
+  representativeCard: null,
+  autoAdjustBasics: false,
+};
 
 afterEach(() => {
   cleanup();
@@ -70,12 +125,13 @@ afterEach(() => {
 
 describe('builder browse smoke', () => {
   beforeEach(() => {
-    const summaries = [toDeckSummary(commanderDoc), toDeckSummary(cubeDoc)];
+    const summaries = [toDeckSummary(commanderDoc), toDeckSummary(cubeDoc), toDeckSummary(collectionDoc)];
     listDecks.mockResolvedValue(summaries);
     readLibraryIndex.mockReturnValue(summaries);
     getDeck.mockImplementation(async (id) => {
       if (id === commanderDoc.deckId) return commanderDoc;
       if (id === cubeDoc.deckId) return cubeDoc;
+      if (id === collectionDoc.deckId) return collectionDoc;
       return null;
     });
     saveDeck.mockImplementation(async (doc) => doc);
@@ -111,6 +167,23 @@ describe('builder browse smoke', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /back|library/i })).toBeInTheDocument();
+    });
+  });
+
+  it('opens a collection into browse chrome from Collection Builder', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/collection-builder';
+    render(<CollectionBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /library/i })).toBeInTheDocument();
+      expect(screen.getByText(/1 cards/i)).toBeInTheDocument();
     });
   });
 });

@@ -36,6 +36,7 @@ export * from './deck-builder/card-oracle';
 export * from './deck-builder/card-sort';
 export * from './deck-builder/card-types';
 export * from './deck-builder/category-names';
+export * from './deck-builder/collection';
 export * from './deck-builder/glance';
 export * from './deck-builder/swap-glance';
 export * from './mtg/option-key';

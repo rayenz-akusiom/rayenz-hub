@@ -12,6 +12,7 @@ export type HubPath =
   | '/deck-builder'
   | '/commander-builder'
   | '/cube-builder'
+  | '/collection-builder'
   | '/deck-suggest'
   | '/profile-builder'
   | '/deck-review'
@@ -64,7 +65,7 @@ export type DeckBuilderRoute = {
   pairEntryId?: string;
 };
 
-export type BuilderFormat = 'commander' | 'cube';
+export type BuilderFormat = 'commander' | 'cube' | 'collection';
 
 export type SwapQueueRoute = {
   userSlug: string;
@@ -92,14 +93,19 @@ export function defaultLayoutForSwapQueuePath(
   return 'tiles';
 }
 
-const BUILDER_PREFIX: Record<BuilderFormat, '/commander-builder' | '/cube-builder'> = {
+const BUILDER_PREFIX: Record<
+  BuilderFormat,
+  '/commander-builder' | '/cube-builder' | '/collection-builder'
+> = {
   commander: '/commander-builder',
   cube: '/cube-builder',
+  collection: '/collection-builder',
 };
 
 const ALL_BUILDER_PREFIXES = [
   '/commander-builder',
   '/cube-builder',
+  '/collection-builder',
   '/deck-builder',
 ] as const;
 
@@ -109,6 +115,7 @@ export const KNOWN_PATHS = new Set<string>([
   '/deck-builder',
   '/commander-builder',
   '/cube-builder',
+  '/collection-builder',
   '/deck-suggest',
   '/profile-builder',
   '/deck-review',
@@ -200,6 +207,9 @@ export function pathFromHash(hash?: string | null): HubPath {
   if (path === '/cube-builder' || path.startsWith('/cube-builder/')) {
     return '/cube-builder';
   }
+  if (path === '/collection-builder' || path.startsWith('/collection-builder/')) {
+    return '/collection-builder';
+  }
   if (path === '/deck-builder' || path.startsWith('/deck-builder/')) {
     return '/deck-builder';
   }
@@ -209,7 +219,9 @@ export function pathFromHash(hash?: string | null): HubPath {
   return DEFAULT_PATH;
 }
 
-export function builderBasePath(format: BuilderFormat): '/commander-builder' | '/cube-builder' {
+export function builderBasePath(
+  format: BuilderFormat,
+): '/commander-builder' | '/cube-builder' | '/collection-builder' {
   return BUILDER_PREFIX[format];
 }
 

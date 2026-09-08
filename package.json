@@ -24,7 +24,7 @@
     "test:e2e:install": "playwright install chromium",
     "extract:suggestion-fixture": "node tests/scripts/extract-suggestion-fixture.mjs",
     "deploy": "npm run deploy:api && npm run deploy:pages",
-    "deploy:pages": "npm run publish:hub && npm run deploy:hub",
+    "deploy:pages": "tsx scripts/deploy-pages.ts",
     "deploy:hub": "git subtree push --prefix=rayenz-hub hub-prod main",
     "init:local-db": "node scripts/create-local-hub-table.mjs",
     "start:dynamodb:persist": "node tools/dev-dashboard/cli.mjs start dynamodb",

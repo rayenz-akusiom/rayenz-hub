@@ -339,7 +339,7 @@ npm run build:web    # Build SPA into rayenz-hub/ (index.html + assets/); emptyO
 
 The Hub is a single React SPA (`packages/web`). All hash routes (`#/dailies`, `#/deck-builder`, `#/deck-suggest`, `#/order-reconcile`, `#/settings…`, etc.) render in-tree as React/TypeScript apps. Shared CSS lives under `rayenz-hub/shared/`. Legacy `#/deck-review` redirects to `#/deck-suggest`.
 
-Prefer `npm run deploy:pages` for a Pages release; it runs `publish:hub` before `deploy:hub` so `rayenz-hub/index.html` points at the current SPA bundle.
+Prefer `npm run deploy:pages` for a Pages release; it rebuilds `rayenz-hub/`, creates a scoped Pages-only commit when the generated bundle changed, and then runs `deploy:hub` so the subtree push always includes the latest committed publish tree.
 
 To test the SPA (and optional local API) from a phone on your LAN, see [mobile-local-testing.md](./mobile-local-testing.md).
 

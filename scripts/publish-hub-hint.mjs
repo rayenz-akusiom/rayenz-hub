@@ -2,12 +2,11 @@
 console.log(`
 Build complete. Next steps:
 
-  1. Commit the publish tree:
-       git add rayenz-hub/index.html rayenz-hub/404.html rayenz-hub/.nojekyll rayenz-hub/assets/
-       git commit -m "Rebuild Hub SPA bundle for GitHub Pages."
+  1. Deploy to production Pages:
+       npm run deploy:pages
 
-  2. Deploy to production Pages:
-       npm run deploy:hub
+     This rebuilds the publish tree, creates a scoped Pages-only commit when
+     needed, and then subtree-pushes GitHub Pages.
 
 Live URL: https://rayenz-akusiom.github.io/rayenz-akusiom/
 `);

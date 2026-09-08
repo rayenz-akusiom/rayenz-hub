@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateAutoBasicsBreakdown,
   DEFAULT_LAND_TARGET,
   emptyCardOracle,
   listBasicLandStacks,
@@ -559,6 +560,94 @@ describe('recalculateAutoBasics', () => {
     expect(basics.reduce((s, c) => s + c.quantity, 0)).toBe(2);
     const byName = new Map(basics.map((c) => [c.name, c.quantity] as const));
     expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBe(2);
+  });
+
+  it('protects a meaningful white share in an ancient-zubera-like five-colour deck', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'General',
+      primaryCategory: 'Commander',
+      categories: ['Commander'],
+      scryfallId: 'sf-cmd',
+    });
+    const lands = [
+      card({ instanceId: 'w1', name: 'Obscura Storefront', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-w1' }),
+      card({ instanceId: 'w2', name: 'Brokers Hideout', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-w2' }),
+      card({ instanceId: 'u1', name: 'Land U1', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-u1' }),
+      card({ instanceId: 'u2', name: 'Land U2', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-u2' }),
+      card({ instanceId: 'b1', name: 'Land B1', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-b1' }),
+      card({ instanceId: 'b2', name: 'Land B2', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-b2' }),
+      card({ instanceId: 'r1', name: 'Land R1', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-r1' }),
+      card({ instanceId: 'r2', name: 'Land R2', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-r2' }),
+      card({ instanceId: 'g1', name: 'Land G1', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-g1' }),
+      card({ instanceId: 'g2', name: 'Land G2', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-g2' }),
+      card({ instanceId: 'c1', name: 'Escape Tunnel', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-c1' }),
+      card({ instanceId: 'c2', name: 'Vibrant Cityscape', quantity: 1, primaryCategory: 'Land', categories: ['Land'], scryfallId: 'sf-c2' }),
+    ];
+    const spells = [
+      card({ instanceId: 'ww', name: 'Irregular Cohort', primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-ww' }),
+      card({ instanceId: 'u7', name: 'Blue Load', quantity: 7, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-u7' }),
+      card({ instanceId: 'u2', name: 'Blue Double', quantity: 2, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-u2s' }),
+      card({ instanceId: 'b13', name: 'Black Load', quantity: 13, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-b13' }),
+      card({ instanceId: 'b5', name: 'Black Double', quantity: 5, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-b5' }),
+      card({ instanceId: 'r8', name: 'Red Load', quantity: 8, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-r8' }),
+      card({ instanceId: 'g7', name: 'Green Load', quantity: 7, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-g7' }),
+      card({ instanceId: 'w10', name: 'White Load', quantity: 10, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-w10' }),
+      card({ instanceId: 'hy', name: 'Hybrid White', quantity: 3, primaryCategory: 'Other', categories: ['Other'], scryfallId: 'sf-hy' }),
+    ];
+    const base = withOracle(
+      deck({
+        categories: [
+          { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 1 },
+          { name: 'Land', includedInDeck: true, includedInPrice: true, target: 36 },
+          { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+        ],
+      }),
+      [cmd, ...lands, ...spells],
+      {
+        cmd: {
+          colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+          typeLine: 'Legendary Creature',
+          manaCost: '{W}{U}{B}{R}{G}',
+          producedMana: [],
+          manaValue: 5,
+          scryfallId: 'sf-cmd',
+        },
+        w1: { colourIdentity: ['W'], typeLine: 'Land', manaCost: '', producedMana: ['W'], manaValue: 0, scryfallId: 'sf-w1' },
+        w2: { colourIdentity: ['W'], typeLine: 'Land', manaCost: '', producedMana: ['W'], manaValue: 0, scryfallId: 'sf-w2' },
+        u1: { colourIdentity: ['U'], typeLine: 'Land', manaCost: '', producedMana: ['U'], manaValue: 0, scryfallId: 'sf-u1' },
+        u2: { colourIdentity: ['U'], typeLine: 'Land', manaCost: '', producedMana: ['U'], manaValue: 0, scryfallId: 'sf-u2' },
+        b1: { colourIdentity: ['B'], typeLine: 'Land', manaCost: '', producedMana: ['B'], manaValue: 0, scryfallId: 'sf-b1' },
+        b2: { colourIdentity: ['B'], typeLine: 'Land', manaCost: '', producedMana: ['B'], manaValue: 0, scryfallId: 'sf-b2' },
+        r1: { colourIdentity: ['R'], typeLine: 'Land', manaCost: '', producedMana: ['R'], manaValue: 0, scryfallId: 'sf-r1' },
+        r2: { colourIdentity: ['R'], typeLine: 'Land', manaCost: '', producedMana: ['R'], manaValue: 0, scryfallId: 'sf-r2' },
+        g1: { colourIdentity: ['G'], typeLine: 'Land', manaCost: '', producedMana: ['G'], manaValue: 0, scryfallId: 'sf-g1' },
+        g2: { colourIdentity: ['G'], typeLine: 'Land', manaCost: '', producedMana: ['G'], manaValue: 0, scryfallId: 'sf-g2' },
+        c1: { colourIdentity: [], typeLine: 'Land', manaCost: '', producedMana: [], manaValue: 0, scryfallId: 'sf-c1' },
+        c2: { colourIdentity: [], typeLine: 'Land', manaCost: '', producedMana: [], manaValue: 0, scryfallId: 'sf-c2' },
+        ww: { colourIdentity: ['W'], typeLine: 'Creature', manaCost: '{2}{W}{W}', producedMana: [], manaValue: 4, scryfallId: 'sf-ww' },
+        u7: { colourIdentity: ['U'], typeLine: 'Instant', manaCost: '{U}', producedMana: [], manaValue: 1, scryfallId: 'sf-u7' },
+        u2s: { colourIdentity: ['U'], typeLine: 'Instant', manaCost: '{U}{U}', producedMana: [], manaValue: 2, scryfallId: 'sf-u2s' },
+        b13: { colourIdentity: ['B'], typeLine: 'Sorcery', manaCost: '{B}', producedMana: [], manaValue: 1, scryfallId: 'sf-b13' },
+        b5: { colourIdentity: ['B'], typeLine: 'Sorcery', manaCost: '{B}{B}', producedMana: [], manaValue: 2, scryfallId: 'sf-b5' },
+        r8: { colourIdentity: ['R'], typeLine: 'Instant', manaCost: '{R}', producedMana: [], manaValue: 1, scryfallId: 'sf-r8' },
+        g7: { colourIdentity: ['G'], typeLine: 'Creature', manaCost: '{G}', producedMana: [], manaValue: 1, scryfallId: 'sf-g7' },
+        w10: { colourIdentity: ['W'], typeLine: 'Creature', manaCost: '{W}', producedMana: [], manaValue: 1, scryfallId: 'sf-w10' },
+        hy: { colourIdentity: ['W', 'B'], typeLine: 'Creature', manaCost: '{2}{W/B}', producedMana: [], manaValue: 3, scryfallId: 'sf-hy' },
+      },
+    );
+
+    const analysis = calculateAutoBasicsBreakdown(base);
+    expect(analysis).not.toBeNull();
+    const white = analysis!.colourBreakdown.find((row) => row.colour === 'W');
+    expect(white?.existingLandSources).toBe(2);
+    expect(white?.minimumSourceGoal).toBeGreaterThan(white?.singleCardFloor || 0);
+
+    const next = recalculateAutoBasics(base);
+    const byName = new Map(
+      listBasicLandStacks(next).map((c) => [c.name, c.quantity] as const),
+    );
+    expect((byName.get('Plains') || 0) + (byName.get('Snow-Covered Plains') || 0)).toBeGreaterThanOrEqual(2);
   });
 
   it('shouldRecalculateAutoBasics ignores basic-only edits', () => {

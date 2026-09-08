@@ -3,6 +3,7 @@ import {
   addOrBumpBasicPrinting,
   basicLandTypeKey,
   basicLandTypesForPanel,
+  calculateAutoBasicsBreakdown,
   canonicalizeCategoryName,
   changeCardPrintingMerging,
   DEFAULT_LAND_TARGET,
@@ -35,6 +36,14 @@ const SNOW_TYPES = [
   'Snow-Covered Mountain',
   'Snow-Covered Forest',
 ] as const;
+
+const COLOUR_LABELS: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
+  W: 'White',
+  U: 'Blue',
+  B: 'Black',
+  R: 'Red',
+  G: 'Green',
+};
 
 function printingLabel(card: CardInstance): string {
   const set = card.setCode ? String(card.setCode).toUpperCase() : '';
@@ -83,6 +92,13 @@ function shortTypeLabel(name: string): string {
   return name;
 }
 
+function allocationReasonLabel(reason: 'none' | 'floor' | 'ratio' | 'floor+ratio'): string {
+  if (reason === 'floor') return 'Floor';
+  if (reason === 'ratio') return 'Ratio';
+  if (reason === 'floor+ratio') return 'Floor + ratio';
+  return 'None';
+}
+
 export function BasicLandsPanel({
   deck,
   onChange,
@@ -104,6 +120,7 @@ export function BasicLandsPanel({
   const landCount = includedLandCount(deck);
   const landTarget = landCategoryTarget(deck) ?? DEFAULT_LAND_TARGET;
   const autoOn = Boolean(deck.autoAdjustBasics);
+  const diagnostics = useMemo(() => calculateAutoBasicsBreakdown(deck), [deck]);
 
   const sortedStacks = useMemo(() => {
     return [...stacks].sort((a, b) => {
@@ -219,9 +236,60 @@ export function BasicLandsPanel({
             Lands {landCount} / {landTarget}
             <span className="db-meta"> · Basics {grandTotal}</span>
             {autoOn ? (
-              <span className="db-meta"> · Auto fills basics to target by pip ratio</span>
+              <span className="db-meta"> · Auto fills basics to target by source minimums + pip ratio</span>
             ) : null}
           </div>
+
+          {diagnostics && diagnostics.colours.length ? (
+            <section
+              className="db-basics-diagnostics"
+              aria-label="Auto basics diagnostics"
+              style={{
+                border: '1px solid var(--db-border, #444)',
+                borderRadius: '10px',
+                padding: '12px',
+                marginBottom: '12px',
+              }}
+            >
+              <div className="db-meta" style={{ marginBottom: '8px' }}>
+                Land sources {diagnostics.sourceBudget} · Nonbasic lands {diagnostics.nonBasicLands} · Basic budget {diagnostics.budget}
+              </div>
+              <ul
+                style={{
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
+                  display: 'grid',
+                  gap: '8px',
+                }}
+              >
+                {diagnostics.colourBreakdown.map((row) => (
+                  <li
+                    key={row.colour}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(72px, 96px) 1fr',
+                      gap: '8px',
+                      alignItems: 'start',
+                    }}
+                  >
+                    <strong>{COLOUR_LABELS[row.colour]}</strong>
+                    <div className="db-meta">
+                      Sources {row.totalSources} = lands {row.existingLandSources} + basics {row.totalBasics}
+                      {' · '}
+                      Demand {row.demand}
+                      {' · '}
+                      Min {row.minimumSourceGoal} (card {row.singleCardFloor}, ratio {row.proportionalSourceGoal})
+                      {' · '}
+                      Added {row.floorAllocatedBasics} floor + {row.ratioAllocatedBasics} ratio
+                      {' · '}
+                      Driver {allocationReasonLabel(row.allocationReason)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <div className="db-basics-add-row">
             <label className="db-basics-check">

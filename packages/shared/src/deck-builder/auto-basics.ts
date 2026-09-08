@@ -44,6 +44,31 @@ const LETTER_TO_SNOW: Record<ColourLetter, string> = {
   G: 'Snow-Covered Forest',
 };
 
+export type AutoBasicsColourBreakdown = {
+  colour: ColourLetter;
+  demand: number;
+  existingLandSources: number;
+  singleCardFloor: number;
+  proportionalSourceGoal: number;
+  minimumSourceGoal: number;
+  floorAllocatedBasics: number;
+  ratioAllocatedBasics: number;
+  totalBasics: number;
+  totalSources: number;
+  allocationReason: 'none' | 'floor' | 'ratio' | 'floor+ratio';
+};
+
+export type AutoBasicsBreakdown = {
+  target: number;
+  nonBasicLands: number;
+  budget: number;
+  demandTotal: number;
+  sourceBudget: number;
+  colours: ColourLetter[];
+  colourless: boolean;
+  colourBreakdown: AutoBasicsColourBreakdown[];
+};
+
 /** Parse Scryfall mana_cost into colored pip weights (hybrid = 0.5 each). */
 export function parseManaCostPips(manaCost: string | null | undefined): Record<ColourLetter, number> {
   const counts: Record<ColourLetter, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
@@ -178,6 +203,30 @@ function ceilColourCounts(
     out[c] = Math.max(0, Math.ceil(counts[c] || 0));
   }
   return out;
+}
+
+function roundColourTargets(
+  demand: Record<ColourLetter, number>,
+  colours: ColourLetter[],
+  totalSources: number,
+): Record<ColourLetter, number> {
+  const out = emptyColourCounts();
+  const demandTotal = sumCounts(demand, colours);
+  if (demandTotal <= 0 || totalSources <= 0) return out;
+  for (const c of colours) {
+    out[c] = Math.max(0, Math.round((demand[c] / demandTotal) * totalSources));
+  }
+  return out;
+}
+
+function allocationReason(
+  floorAllocatedBasics: number,
+  ratioAllocatedBasics: number,
+): AutoBasicsColourBreakdown['allocationReason'] {
+  if (floorAllocatedBasics > 0 && ratioAllocatedBasics > 0) return 'floor+ratio';
+  if (floorAllocatedBasics > 0) return 'floor';
+  if (ratioAllocatedBasics > 0) return 'ratio';
+  return 'none';
 }
 
 function basicColourLetter(name: string): ColourLetter | 'C' | null {
@@ -333,24 +382,17 @@ function applyBasicTotals(
 
 export type RecalculateAutoBasicsOpts = { force?: boolean };
 
-/**
- * Fill / redistribute basic lands so land count reaches the Land category target
- * and colored mana sources match pip demand as closely as possible.
- */
-export function recalculateAutoBasics(
+export function calculateAutoBasicsBreakdown(
   deck: DeckDocument,
-  opts?: RecalculateAutoBasicsOpts,
-): DeckDocument {
-  if (!isCommandZoneFormat(deck.format)) return deck;
-  if (!opts?.force && !deck.autoAdjustBasics) return deck;
+): AutoBasicsBreakdown | null {
+  if (!isCommandZoneFormat(deck.format)) return null;
 
   const letters = deckCommanderColourLetters(deck);
   const colourless = deckCommanderColourlessKnown(deck);
-  if (!letters.length && !colourless) return deck;
+  if (!letters.length && !colourless) return null;
 
-  let next = ensureLandCategoryTarget(deck);
+  const next = ensureLandCategoryTarget(deck);
   const target = landCategoryTarget(next) ?? DEFAULT_LAND_TARGET;
-
   const views = resolveDeckCards(next);
   const commandZoneIds = new Set(
     collectCommandZoneCards(views, next.format)
@@ -361,6 +403,7 @@ export function recalculateAutoBasics(
   const singleCardFloor = emptyColourCounts();
   let nonBasicLands = 0;
   const supply = emptyColourCounts();
+  const colours: ColourLetter[] = colourless ? [] : letters;
 
   for (const view of views) {
     if (!isIncludedMainboard(next, view)) continue;
@@ -385,8 +428,6 @@ export function recalculateAutoBasics(
     }
   }
 
-  const colours: ColourLetter[] = colourless ? [] : letters;
-  // Restrict demand to CI colours
   if (colours.length) {
     for (const c of WUBRG) {
       if (!colours.includes(c)) {
@@ -396,20 +437,27 @@ export function recalculateAutoBasics(
       }
     }
   }
-  const sourceFloor = ceilColourCounts(singleCardFloor);
 
   const budget = Math.max(0, target - nonBasicLands);
+  const sourceFloor = ceilColourCounts(singleCardFloor);
+  const sourceBudget = sumCounts(supply, colours) + budget;
+  const proportionalSourceGoal = roundColourTargets(demand, colours, sourceBudget);
+  const minimumSourceGoal = emptyColourCounts();
+  const floorAllocatedBasics = emptyColourCounts();
+  const ratioAllocatedBasics = emptyColourCounts();
   const basics = emptyColourCounts();
-  let wastes = 0;
+  const demandTotal = sumCounts(demand, colours);
 
-  if (colourless) {
-    wastes = budget;
-  } else if (budget > 0) {
-    const demandTotal = sumCounts(demand, colours);
+  for (const c of colours) {
+    minimumSourceGoal[c] = Math.max(sourceFloor[c], proportionalSourceGoal[c]);
+  }
+
+  if (!colourless && budget > 0) {
     if (demandTotal <= 0) {
-      // Even spread
       for (let i = 0; i < budget; i++) {
-        basics[colours[i % colours.length]!] += 1;
+        const c = colours[i % colours.length]!;
+        basics[c] += 1;
+        ratioAllocatedBasics[c] += 1;
       }
     } else {
       let remaining = budget;
@@ -417,18 +465,26 @@ export function recalculateAutoBasics(
       while (remaining > 0) {
         let bestFloorColour: ColourLetter | null = null;
         let bestGap = 0;
+        let bestDemand = -1;
         for (const c of colours) {
-          const gap = Math.max(0, sourceFloor[c] - (supply[c] + basics[c]));
-          if (gap > bestGap || (gap === bestGap && gap > 0 && bestFloorColour != null && c < bestFloorColour)) {
+          const gap = Math.max(0, minimumSourceGoal[c] - (supply[c] + basics[c]));
+          if (
+            gap > bestGap ||
+            (gap === bestGap && gap > 0 && demand[c] > bestDemand) ||
+            (gap === bestGap && gap > 0 && demand[c] === bestDemand && bestFloorColour != null && c < bestFloorColour)
+          ) {
             bestGap = gap;
+            bestDemand = demand[c];
             bestFloorColour = c;
           } else if (bestFloorColour == null && gap > 0) {
             bestGap = gap;
+            bestDemand = demand[c];
             bestFloorColour = c;
           }
         }
         if (!bestFloorColour || bestGap <= 0) break;
         basics[bestFloorColour] += 1;
+        floorAllocatedBasics[bestFloorColour] += 1;
         remaining -= 1;
       }
 
@@ -450,11 +506,67 @@ export function recalculateAutoBasics(
             best = c;
           }
         }
-        if (best) basics[best] += 1;
+        if (best) {
+          basics[best] += 1;
+          ratioAllocatedBasics[best] += 1;
+        }
       }
     }
   }
 
+  return {
+    target,
+    nonBasicLands,
+    budget,
+    demandTotal,
+    sourceBudget,
+    colours,
+    colourless,
+    colourBreakdown: colours.map((colour) => ({
+      colour,
+      demand: demand[colour],
+      existingLandSources: supply[colour],
+      singleCardFloor: sourceFloor[colour],
+      proportionalSourceGoal: proportionalSourceGoal[colour],
+      minimumSourceGoal: minimumSourceGoal[colour],
+      floorAllocatedBasics: floorAllocatedBasics[colour],
+      ratioAllocatedBasics: ratioAllocatedBasics[colour],
+      totalBasics: basics[colour],
+      totalSources: supply[colour] + basics[colour],
+      allocationReason: allocationReason(floorAllocatedBasics[colour], ratioAllocatedBasics[colour]),
+    })),
+  };
+}
+
+/**
+ * Fill / redistribute basic lands so land count reaches the Land category target
+ * and colored mana sources match pip demand as closely as possible.
+ */
+export function recalculateAutoBasics(
+  deck: DeckDocument,
+  opts?: RecalculateAutoBasicsOpts,
+): DeckDocument {
+  if (!isCommandZoneFormat(deck.format)) return deck;
+  if (!opts?.force && !deck.autoAdjustBasics) return deck;
+
+  const analysis = calculateAutoBasicsBreakdown(deck);
+  if (!analysis) return deck;
+
+  const colourless = analysis.colourless;
+  const colours = analysis.colours;
+  const budget = analysis.budget;
+  const basics = emptyColourCounts();
+  let wastes = 0;
+
+  if (colourless) {
+    wastes = budget;
+  } else {
+    for (const row of analysis.colourBreakdown) {
+      basics[row.colour] = row.totalBasics;
+    }
+  }
+
+  const next = ensureLandCategoryTarget(deck);
   const existing = listBasicLandStacks(next);
   const desired = new Map<string, number>();
   if (colourless) {

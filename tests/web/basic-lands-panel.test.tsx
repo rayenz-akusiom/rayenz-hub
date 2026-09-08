@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DeckDocument } from '@rayenz-hub/shared';
+import { emptyCardOracle, oracleKey, type DeckDocument } from '@rayenz-hub/shared';
 import { BasicLandsPanel } from '../../packages/web/src/deck-builder/edit/BasicLandsPanel';
 import { BrowseShell } from '../../packages/web/src/deck-builder/browse/BrowseShell';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
@@ -63,6 +63,133 @@ function basicsDeck(): DeckDocument {
           }
         : { ...c, foil: false, proxy: false },
     ),
+  };
+}
+
+function diagnosticsDeck(): DeckDocument {
+  const now = new Date().toISOString();
+  const commander = {
+    instanceId: 'cmd',
+    name: 'Kenrith',
+    quantity: 1,
+    ownedQuantity: 0,
+    inDeckQuantity: 0,
+    primaryCategory: 'Commander',
+    categories: ['Commander'],
+    stack: null,
+    setCode: 'eld',
+    collectorNumber: '303',
+    scryfallId: 'sf-cmd',
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+  };
+  const triome = {
+    instanceId: 'land1',
+    name: 'Savai Triome',
+    quantity: 1,
+    ownedQuantity: 0,
+    inDeckQuantity: 0,
+    primaryCategory: 'Land',
+    categories: ['Land'],
+    stack: null,
+    setCode: 'iko',
+    collectorNumber: '253',
+    scryfallId: 'sf-triome',
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+  };
+  const plains = {
+    instanceId: 'plains1',
+    name: 'Plains',
+    quantity: 2,
+    ownedQuantity: 0,
+    inDeckQuantity: 0,
+    primaryCategory: 'Land',
+    categories: ['Land'],
+    stack: null,
+    setCode: 'm12',
+    collectorNumber: '229',
+    scryfallId: 'sf-plains',
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+  };
+  const spell = {
+    instanceId: 'spell1',
+    name: 'Irregular Cohort',
+    quantity: 1,
+    ownedQuantity: 0,
+    inDeckQuantity: 0,
+    primaryCategory: 'Other',
+    categories: ['Other'],
+    stack: null,
+    setCode: 'clb',
+    collectorNumber: '696',
+    scryfallId: 'sf-spell',
+    archidektCardId: null,
+    foil: false,
+    proxy: false,
+  };
+  return {
+    schemaVersion: 2,
+    deckId: 'diag-1',
+    name: 'Diagnostics',
+    format: 'commander',
+    ownership: 'owned',
+    visibility: 'public',
+    archidektId: null,
+    archidektUrl: null,
+    categories: [
+      { name: 'Commander', includedInDeck: true, includedInPrice: true, target: 1 },
+      { name: 'Land', includedInDeck: true, includedInPrice: true, target: 5 },
+      { name: 'Other', includedInDeck: true, includedInPrice: true, target: null },
+    ],
+    cards: [commander, triome, plains, spell],
+    oracle: {
+      [oracleKey(commander)]: emptyCardOracle({
+        scryfallId: commander.scryfallId,
+        colourIdentity: ['W', 'U', 'B', 'R', 'G'],
+        typeLine: 'Legendary Creature',
+        manaCost: '{W}{U}{B}{R}{G}',
+        producedMana: [],
+      }),
+      [oracleKey(triome)]: emptyCardOracle({
+        scryfallId: triome.scryfallId,
+        colourIdentity: ['W', 'B', 'R'],
+        typeLine: 'Land',
+        manaCost: '',
+        producedMana: ['W', 'B', 'R'],
+      }),
+      [oracleKey(plains)]: emptyCardOracle({
+        scryfallId: plains.scryfallId,
+        colourIdentity: ['W'],
+        typeLine: 'Basic Land — Plains',
+        manaCost: '',
+        producedMana: ['W'],
+      }),
+      [oracleKey(spell)]: emptyCardOracle({
+        scryfallId: spell.scryfallId,
+        colourIdentity: ['W'],
+        typeLine: 'Creature',
+        manaCost: '{2}{W}{W}',
+        producedMana: [],
+      }),
+    },
+    formalSwapEntries: [],
+    lookingForEntries: [],
+    coverInstanceId: null,
+    browseViewDefault: 'category',
+    cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
+    createdAt: now,
+    updatedAt: now,
+    lastArchidektSyncAt: null,
+    lastArchidektImportAt: null,
+    cubeTargetSize: null,
+    autoAdjustBasics: true,
+    description: '',
   };
 }
 
@@ -163,6 +290,15 @@ describe('BasicLandsPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Recalculate' }));
     expect(onChange).toHaveBeenCalled();
+  });
+
+  it('shows auto basics diagnostics for coloured commander decks', () => {
+    render(<BasicLandsPanel deck={diagnosticsDeck()} onChange={vi.fn()} onClose={vi.fn()} />);
+
+    expect(screen.getByText(/Land sources/i)).toBeInTheDocument();
+    expect(screen.getByText(/source minimums \+ pip ratio/i)).toBeInTheDocument();
+    expect(screen.getByText(/White/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Driver/i).length).toBeGreaterThan(0);
   });
 });
 

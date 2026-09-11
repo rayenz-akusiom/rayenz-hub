@@ -21,8 +21,8 @@ export function MoveSheet({
   initialCreatingNew = false,
 }: {
   deck: DeckDocument;
-  /** One or more cards to move to the same category/stack. */
-  cards: Array<CardView | { name: string; primaryCategory: string; instanceId: string; stack?: string | null }>;
+  /** One or more cards to move to the same category. */
+  cards: Array<CardView | { name: string; primaryCategory: string; instanceId: string }>;
   clearSeekingWhenMovingMainToAside?: boolean;
   onClose: () => void;
   onApply: (next: DeckDocument) => void;
@@ -47,17 +47,9 @@ export function MoveSheet({
         ? primary.primaryCategory
         : categories[0] || primary.primaryCategory;
 
-  const defaultStack =
-    list.length === 1
-      ? primary.stack || ''
-      : list.every((c) => (c.stack || '') === (primary.stack || ''))
-        ? primary.stack || ''
-        : '';
-
   const [category, setCategory] = useState(defaultCategory);
   const [creatingNew, setCreatingNew] = useState(initialCreatingNew);
   const [newCategory, setNewCategory] = useState('');
-  const [stack, setStack] = useState(defaultStack);
 
   function resolvedCategory(): string {
     if (creatingNew) {
@@ -70,13 +62,9 @@ export function MoveSheet({
     const cat = resolvedCategory();
     if (!cat || isGlanceUnassignedCategoryName(cat)) return;
     onApply(
-      moveCardsCategory(
-        deck,
-        list.map((c) => c.instanceId),
-        cat,
-        stack.trim() || null,
-        { clearSeekingWhenMovingMainToAside },
-      ),
+      moveCardsCategory(deck, list.map((c) => c.instanceId), cat, {
+        clearSeekingWhenMovingMainToAside,
+      }),
     );
   }
 
@@ -120,16 +108,6 @@ export function MoveSheet({
             </select>
           </label>
         )}
-        <label>
-          Pile name (optional)
-          <input
-            className="db-input"
-            value={stack}
-            onChange={(e) => setStack(e.target.value)}
-            placeholder="Same name = one pile"
-            aria-label="Pile name (optional)"
-          />
-        </label>
         <div className="db-modal-actions">
           <button type="button" className="db-btn" onClick={onClose}>
             Cancel

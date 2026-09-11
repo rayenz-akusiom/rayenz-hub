@@ -1282,13 +1282,13 @@ describe('MoveSheet', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Move card' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Pile name (optional)')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pile name (optional)')).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Category'), 'Land');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(onApply).toHaveBeenCalledWith(
       expect.objectContaining({
-        cards: moveCardCategory(commanderDoc.cards, card.instanceId, 'Land', card.stack),
+        cards: moveCardCategory(commanderDoc.cards, card.instanceId, 'Land'),
       }),
     );
     expect(onClose).not.toHaveBeenCalled();

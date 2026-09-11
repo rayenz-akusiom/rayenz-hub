@@ -704,7 +704,7 @@ export function BrowseShell({
     if (isTrimProtectedSlot(card.primaryCategory)) return;
     if (trimEffect === 'maybeboard') {
       if (card.primaryCategory === MAYBEBOARD) return;
-      commit(moveCardsCategory(current, [instanceId], MAYBEBOARD, null, {
+      commit(moveCardsCategory(current, [instanceId], MAYBEBOARD, {
         clearSeekingWhenMovingMainToAside: builderSettings.clearSeekingWhenMovingMainToAside,
       }));
       return;
@@ -941,9 +941,8 @@ export function BrowseShell({
     });
     if (!toMove.length) return;
 
-    const stack = current.cards.find((c) => c.instanceId === toMove[0])?.stack ?? null;
     commit(
-      moveCardsCategory(current, toMove, category, stack, {
+      moveCardsCategory(current, toMove, category, {
         clearSeekingWhenMovingMainToAside: builderSettings.clearSeekingWhenMovingMainToAside,
       }),
     );
@@ -1738,7 +1737,7 @@ export function BrowseShell({
             }}
             onDropMaybeboard={(ids) => {
               commit(
-                moveCardsCategory(deckRef.current, ids, MAYBEBOARD, null, {
+                moveCardsCategory(deckRef.current, ids, MAYBEBOARD, {
                   clearSeekingWhenMovingMainToAside:
                     builderSettings.clearSeekingWhenMovingMainToAside,
                 }),

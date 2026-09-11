@@ -14,9 +14,8 @@ export function applyCardMove(
   deck: DeckDocument,
   instanceId: string,
   primaryCategory: string,
-  stack: string | null = null,
 ): DeckDocument {
-  return moveCardsCategory(deck, [instanceId], primaryCategory, stack);
+  return moveCardsCategory(deck, [instanceId], primaryCategory);
 }
 
 export function applyAddCard(

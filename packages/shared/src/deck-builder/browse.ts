@@ -90,7 +90,7 @@ export function moveCardCategory(
   cards: CardInstance[],
   instanceId: string,
   primaryCategory: string,
-  stack: string | null = null,
+  stack?: string | null,
 ): CardInstance[] {
   return cards.map((c) => {
     if (c.instanceId !== instanceId) return c;
@@ -100,6 +100,7 @@ export function moveCardCategory(
       isSeekingCategory(prevPrimary) && !isSeekingCategory(primaryCategory);
     const promoting =
       prevPrimary !== primaryCategory && existing.includes(primaryCategory);
+    const nextStack = stack !== undefined ? stack : c.stack;
     if (promoting) {
       // Drop onto an existing secondary → promote; old primary stays as secondary
       // unless leaving Seeking (Seeking must not linger as secondary after a Move out).
@@ -114,7 +115,7 @@ export function moveCardCategory(
           ),
         ]),
       ];
-      return { ...c, primaryCategory, categories, stack };
+      return { ...c, primaryCategory, categories, stack: nextStack };
     }
     // Normal move: replace primary; keep other secondaries (not the old primary).
     // Leaving Seeking also strips Seeking aliases from membership.
@@ -129,7 +130,7 @@ export function moveCardCategory(
         ),
       ]),
     ];
-    return { ...c, primaryCategory, categories, stack };
+    return { ...c, primaryCategory, categories, stack: nextStack };
   });
 }
 

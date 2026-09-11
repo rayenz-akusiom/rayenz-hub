@@ -16,15 +16,18 @@ import {
 } from '../../../packages/shared/src/index.ts';
 
 describe('card mutations', () => {
-  it('moves category and stack', () => {
-    const next = moveCardCategory(commander.cards, 'c1', 'Ramp', 'Rocks');
+  it('moves category and preserves stack when omitted', () => {
+    const withStack = commander.cards.map((c) =>
+      c.instanceId === 'c1' ? { ...c, stack: 'Rocks' } : c,
+    );
+    const next = moveCardCategory(withStack, 'c1', 'Ramp');
     const card = next.find((c) => c.instanceId === 'c1');
     expect(card.primaryCategory).toBe('Ramp');
     expect(card.stack).toBe('Rocks');
   });
 
   it('applyCardMove updates document timestamp', () => {
-    const doc = applyCardMove(commander, 'c1', 'Enchantment', null);
+    const doc = applyCardMove(commander, 'c1', 'Enchantment');
     expect(doc.cards.find((c) => c.instanceId === 'c1').primaryCategory).toBe('Enchantment');
     expect(doc.updatedAt).toBeTruthy();
   });

@@ -237,7 +237,7 @@ describe('looking-for', () => {
 
   it('can clear secondary Seeking when moving a main-deck card to aside', () => {
     const marked = markCardsSeekingSecondary(baseDeck(), ['c1']);
-    const next = moveCardsCategory(marked, ['c1'], 'Maybeboard', null, {
+    const next = moveCardsCategory(marked, ['c1'], 'Maybeboard', {
       clearSeekingWhenMovingMainToAside: true,
     });
     const moved = next.cards.find((c) => c.instanceId === 'c1')!;

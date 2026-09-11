@@ -128,7 +128,7 @@ export function moveCardsToDefaultCategories(
   for (const card of deck.cards) {
     if (!idSet.has(card.instanceId)) continue;
     const target = defaultCategoryForCard(deck, card);
-    cards = moveCardCategory(cards, card.instanceId, target, card.stack);
+    cards = moveCardCategory(cards, card.instanceId, target);
     categories = ensureCategoryDef(categories, target);
   }
   return {
@@ -404,12 +404,11 @@ export function removeCardsFromDeck(
   return next;
 }
 
-/** Move many cards to the same primary category (+ optional stack). */
+/** Move many cards to the same primary category. Each card keeps its existing stack. */
 export function moveCardsCategory(
   deck: DeckDocument,
   instanceIds: string[],
   primaryCategory: string,
-  stack: string | null = null,
   opts?: { clearSeekingWhenMovingMainToAside?: boolean },
 ): DeckDocument {
   if (isGlanceUnassignedCategoryName(primaryCategory)) return deck;
@@ -420,7 +419,7 @@ export function moveCardsCategory(
   let cards = deck.cards;
   for (const id of idSet) {
     const current = cards.find((c) => c.instanceId === id);
-    cards = moveCardCategory(cards, id, primaryCategory, stack);
+    cards = moveCardCategory(cards, id, primaryCategory);
     if (
       opts?.clearSeekingWhenMovingMainToAside &&
       current &&
@@ -446,7 +445,6 @@ export function addCardToDeck(
   category: string,
   opts?: {
     quantity?: number;
-    stack?: string | null;
     nextId?: (prefix: string) => string;
     proxy?: boolean;
   },
@@ -462,7 +460,7 @@ export function addCardToDeck(
     quantity,
     primaryCategory,
     categories: [primaryCategory],
-    stack: opts?.stack ?? null,
+    stack: null,
     setCode: printing.setCode || null,
     collectorNumber: printing.collectorNumber || null,
     scryfallId: printing.scryfallId,

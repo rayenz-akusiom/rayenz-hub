@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addCardToDeck,
   cardDisplayName,
@@ -44,6 +44,16 @@ import {
   suppressCollectionCard,
   syncCollectionFromSearch,
 } from './collection-sync';
+import { DeckCopyConflictModal } from './DeckCopyConflictModal';
+import {
+  applyCollectionDeckSync,
+  collectDeckCopies,
+  loadOwnedLibraryDecks,
+  planCollectionDeckSync,
+  type CollectionDeckSyncPlan,
+  type DeckCopy,
+} from './sync-from-decks';
+import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 function OpenBinderIcon() {
@@ -133,7 +143,11 @@ export function CollectionBrowseShell({
   const [searchSettingsOpen, setSearchSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<CardContextMenuState | null>(null);
   const [syncingSearch, setSyncingSearch] = useState(false);
+  const [syncingDecks, setSyncingDecks] = useState(false);
+  const [deckSyncPlan, setDeckSyncPlan] = useState<CollectionDeckSyncPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const progressHostRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HubProgressController | null>(null);
   const { size: cardSize, setSize: setCardSize } = useCardSize();
   const setFilter = useSetMembershipFilter();
   const syntaxFilter = useScryfallSyntaxFilter(
@@ -157,6 +171,12 @@ export function CollectionBrowseShell({
     const synced = syncCollectionDeck({ ...next, updatedAt: new Date().toISOString() });
     onChange(synced);
   }, [onChange]);
+
+  useEffect(() => {
+    if (progressHostRef.current && !progressRef.current) {
+      progressRef.current = HubProgress.mount(progressHostRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isCollectionDeck(liveDeck)) return;
@@ -258,7 +278,51 @@ export function CollectionBrowseShell({
     setSelectedIds(new Set());
   }
 
-  const deckMeta = `${collectionSummaryText(liveDeck)}${syncingSearch ? ' · syncing search…' : ''}`;
+  function applyDeckCopies(copies: DeckCopy[]) {
+    commit(applyCollectionDeckSync(liveDeck, copies));
+    setDeckSyncPlan(null);
+  }
+
+  async function onSyncFromDecks() {
+    if (readOnly || syncingDecks) return;
+    setError(null);
+    setSyncingDecks(true);
+    const progress = progressRef.current;
+    progress?.start({ label: 'Loading library…', indeterminate: true });
+    try {
+      const docs = await loadOwnedLibraryDecks({
+        skipDeckIds: [liveDeck.deckId],
+        onProgress: (current, total) => {
+          progress?.update({
+            current,
+            total,
+            label: total ? `Loading decks… ${current}/${total}` : 'Loading decks…',
+          });
+        },
+      });
+      const copies = collectDeckCopies(docs, { skipDeckIds: [liveDeck.deckId] });
+      const plan = planCollectionDeckSync(liveDeck, copies);
+      if (plan.autoCopies.length) {
+        commit(applyCollectionDeckSync(liveDeck, plan.autoCopies));
+      }
+      if (!plan.conflicts.length) {
+        progress?.dismiss();
+        return;
+      }
+      progress?.dismiss();
+      setDeckSyncPlan({ autoCopies: [], conflicts: plan.conflicts });
+    } catch (e) {
+      progress?.finish({
+        label: e instanceof Error ? e.message : String(e),
+        variant: 'error',
+      });
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSyncingDecks(false);
+    }
+  }
+
+  const deckMeta = `${collectionSummaryText(liveDeck)}${syncingSearch ? ' · syncing search…' : ''}${syncingDecks ? ' · syncing decks…' : ''}`;
 
   return (
     <div className="db-shell">
@@ -305,12 +369,21 @@ export function CollectionBrowseShell({
               <button type="button" className="db-btn" onClick={() => setSearchSettingsOpen(true)}>
                 Search
               </button>
+              <button
+                type="button"
+                className="db-btn"
+                onClick={() => void onSyncFromDecks()}
+                disabled={syncingDecks}
+              >
+                Sync from decks
+              </button>
               <button type="button" className="db-btn" onClick={() => setRepresentativeOpen(true)}>
                 Representative
               </button>
             </>
           ) : null}
         </header>
+        <div className="hub-progress-host" ref={progressHostRef} id="collection-progress-host" />
         <ActiveFilterChips
           chips={filterChips}
           onClearAll={() => {
@@ -459,6 +532,14 @@ export function CollectionBrowseShell({
               .catch((e) => setError(e instanceof Error ? e.message : String(e)))
               .finally(() => setSyncingSearch(false));
           }}
+        />
+      ) : null}
+
+      {deckSyncPlan ? (
+        <DeckCopyConflictModal
+          conflicts={deckSyncPlan.conflicts}
+          onClose={() => setDeckSyncPlan(null)}
+          onConfirm={(chosen) => applyDeckCopies(chosen)}
         />
       ) : null}
 

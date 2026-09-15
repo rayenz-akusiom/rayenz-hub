@@ -201,6 +201,8 @@ describe('builder browse smoke', () => {
       'Jace Beleren (sought)',
     );
     expect(screen.getByRole('button', { name: /Jace Beleren, sought/i })).toHaveClass('is-sought-ghost');
+    expect(screen.getByRole('button', { name: 'Sync from decks' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
   });
 
   it('ghosts unmet copies in the default planeswalker subtype browse', async () => {

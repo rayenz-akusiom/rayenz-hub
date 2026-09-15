@@ -99,6 +99,7 @@ describe('collection builder helpers', () => {
 
   it('uses planeswalker subtype browse as the template default', () => {
     expect(defaultCollectionBrowseView('planeswalkers')).toBe('planeswalker_subtype');
+    expect(defaultCollectionBrowseView('partners')).toBe('partner_pairing');
     expect(defaultCollectionBrowseView('generic')).toBe('all_cards');
   });
 

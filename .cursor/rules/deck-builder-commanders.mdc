@@ -9,7 +9,8 @@ alwaysApply: false
 ## Commander
 
 - Cards in the **`Commander`** category are command-zone card(s).
-- Partner-family pairs (Partner, Partner with, Friends forever, Doctor’s companion, Choose a Background) are **two cards in `Commander`**.
+- Partner-family pairs (Partner, Partner with, Partner— designators such as Friends forever / Character select / Father & son / Survivors, Doctor’s companion, Choose a Background) are **two cards in `Commander`**.
+- Shared detection/legality lives in `packages/shared/src/deck-builder/partner.ts` (`detectPartnerAbilities`, `canPartner`, `partnerPairingLane`).
 - Bonded partner UI and dual library covers use **only** `Commander` cards.
 
 ## Lieutenants

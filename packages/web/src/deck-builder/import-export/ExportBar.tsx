@@ -22,6 +22,7 @@ const VIEW_LABELS: Record<BrowseView, string> = {
   colour_identity: 'Colour identity',
   colour_identity_spells: 'Colour identity (Spells)',
   planeswalker_subtype: 'Planeswalker subtype',
+  partner_pairing: 'Partner pairing',
   set_code: 'By set',
   all_cards: 'All Cards',
 };

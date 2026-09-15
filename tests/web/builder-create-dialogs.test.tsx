@@ -173,7 +173,7 @@ describe('CreateCollectionDialog', () => {
 
     await user.type(screen.getByLabelText('Name'), 'Planeswalker Binder');
     await user.selectOptions(screen.getByLabelText('Template'), 'planeswalkers');
-    await user.type(screen.getByLabelText('Scryfall query'), 't:planeswalker');
+    expect(screen.getByLabelText('Scryfall query')).toHaveValue('t:planeswalker');
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -189,5 +189,63 @@ describe('CreateCollectionDialog', () => {
     expect(saved.format).toBe('collection');
     expect(saved.collectionTemplate).toBe('planeswalkers');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('presets otag:pair-commander for the partners template', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(collectionSync, 'createCollectionDocument').mockResolvedValue({
+      deckId: 'collection-partners',
+      schemaVersion: 2,
+      name: 'Partner Binder',
+      description: '',
+      format: 'collection',
+      ownership: 'owned',
+      visibility: 'private',
+      archidektId: null,
+      archidektUrl: null,
+      categories: [],
+      cards: [],
+      oracle: {},
+      formalSwapEntries: [],
+      lookingForEntries: [],
+      coverInstanceId: null,
+      browseViewDefault: 'partner_pairing',
+      cardLayoutDefault: 'grid',
+      cardSortDefault: 'name_asc',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastArchidektSyncAt: null,
+      lastArchidektImportAt: null,
+      cubeTargetSize: null,
+      collectionTemplate: 'partners',
+      collectionSearch: {
+        query: 'otag:pair-commander',
+        defaultQuantity: 1,
+        lastSyncedAt: null,
+        lastOpenedAt: null,
+        latestReleaseDate: null,
+        suppressedKeys: [],
+      },
+      representativeCard: null,
+      autoAdjustBasics: false,
+    });
+    render(<CreateCollectionDialog onClose={onClose} onSave={onSave} />);
+
+    await user.type(screen.getByLabelText('Name'), 'Partner Binder');
+    await user.selectOptions(screen.getByLabelText('Template'), 'partners');
+    expect(screen.getByLabelText('Scryfall query')).toHaveValue('otag:pair-commander');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(collectionSync.createCollectionDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Partner Binder',
+        template: 'partners',
+        query: 'otag:pair-commander',
+      }),
+    );
+    const saved = onSave.mock.calls[0][0] as DeckDocument;
+    expect(saved.collectionTemplate).toBe('partners');
+    expect(saved.browseViewDefault).toBe('partner_pairing');
   });
 });

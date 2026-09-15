@@ -3,6 +3,11 @@ import type { CollectionTemplate } from '@rayenz-hub/shared';
 import type { CreateDialogProps } from '../shared/BuilderApp';
 import { createCollectionDocument } from './collection-sync';
 
+const TEMPLATE_QUERY_PRESETS: Partial<Record<CollectionTemplate, string>> = {
+  planeswalkers: 't:planeswalker',
+  partners: 'otag:pair-commander',
+};
+
 export function CreateCollectionDialog({
   onClose,
   onSave,
@@ -13,6 +18,17 @@ export function CreateCollectionDialog({
   const [defaultQuantity, setDefaultQuantity] = useState('1');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function onTemplateChange(next: CollectionTemplate) {
+    const prevPreset = TEMPLATE_QUERY_PRESETS[template];
+    const nextPreset = TEMPLATE_QUERY_PRESETS[next];
+    setTemplate(next);
+    if (!nextPreset) return;
+    const trimmed = query.trim();
+    if (!trimmed || (prevPreset && trimmed === prevPreset)) {
+      setQuery(nextPreset);
+    }
+  }
 
   async function create() {
     setBusy(true);
@@ -44,9 +60,14 @@ export function CreateCollectionDialog({
         </label>
         <label>
           Template
-          <select className="db-select" value={template} onChange={(e) => setTemplate(e.target.value as CollectionTemplate)}>
+          <select
+            className="db-select"
+            value={template}
+            onChange={(e) => onTemplateChange(e.target.value as CollectionTemplate)}
+          >
             <option value="generic">Generic</option>
             <option value="planeswalkers">Planeswalkers</option>
+            <option value="partners">Partners</option>
           </select>
         </label>
         <label>
@@ -55,7 +76,7 @@ export function CreateCollectionDialog({
             className="db-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder='e.g. t:planeswalker or set:sld'
+            placeholder='e.g. t:planeswalker or otag:pair-commander'
             spellCheck={false}
           />
         </label>

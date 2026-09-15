@@ -43,6 +43,7 @@ import { CardFlagCharmProvider } from '../browse/CardFlagCharmContext';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
 import { SeekingIcon } from '../../cards/SeekingIcon';
 import { PlaneswalkerSubtypeBrowse } from './PlaneswalkerSubtypeBrowse';
+import { PartnerPairingBrowse } from './PartnerPairingBrowse';
 import {
   collectionSummaryText,
   representativeFromPrinting,
@@ -228,9 +229,12 @@ export function CollectionBrowseShell({
     };
   }, [liveDeck, resolvedCards, setFilter.active, setFilter.membership, syntaxFilter.active, syntaxFilter.membership, proxyFilter, foilFilter, seekingFilter]);
 
-  const viewOptions = deck.collectionTemplate === 'planeswalkers'
-    ? ['all_cards', 'category', 'planeswalker_subtype', 'set_code'] as BrowseView[]
-    : ['all_cards', 'category', 'set_code'] as BrowseView[];
+  const viewOptions =
+    deck.collectionTemplate === 'planeswalkers'
+      ? (['all_cards', 'category', 'planeswalker_subtype', 'set_code'] as BrowseView[])
+      : deck.collectionTemplate === 'partners'
+        ? (['all_cards', 'category', 'partner_pairing', 'set_code'] as BrowseView[])
+        : (['all_cards', 'category', 'set_code'] as BrowseView[]);
 
   const filterChips: ActiveFilterChip[] = [];
   if (setFilter.active && setFilter.label) filterChips.push({ id: 'set', label: setFilter.label, onDismiss: () => setFilter.clear() });
@@ -559,6 +563,24 @@ export function CollectionBrowseShell({
       <div className="db-main">
         {view === 'planeswalker_subtype' ? (
           <PlaneswalkerSubtypeBrowse
+            deck={browseDeck}
+            representativeCard={liveDeck.representativeCard}
+            selectedIds={selectedIds}
+            onSelectCard={(card) => setSelectedIds(new Set([card.instanceId]))}
+            onCardContextMenu={readOnly ? undefined : (card, at) => {
+              setSelectedIds(new Set([card.instanceId]));
+              setContextMenu({ x: at.clientX, y: at.clientY, instanceId: card.instanceId });
+            }}
+            layout={layout}
+            cardSort={cardSort}
+            onRename={readOnly ? undefined : (name) => commit({ ...liveDeck, name })}
+            onSetDescription={readOnly ? undefined : (description) => commit({ ...liveDeck, description })}
+            deckMeta={deckMeta}
+            syncStatus={syncStatus}
+            onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}
+          />
+        ) : view === 'partner_pairing' ? (
+          <PartnerPairingBrowse
             deck={browseDeck}
             representativeCard={liveDeck.representativeCard}
             selectedIds={selectedIds}

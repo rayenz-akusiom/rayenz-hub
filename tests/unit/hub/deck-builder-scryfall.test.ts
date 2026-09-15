@@ -339,7 +339,28 @@ describe('mapScryfallCardToPrinting', () => {
       finishes: ['nonfoil', 'foil'],
       manaCost: null,
       producedMana: null,
+      keywords: null,
+      oracleText: null,
+      partnerWith: null,
     });
+  });
+
+  it('maps keywords, oracle text, and partnerWith from search results', () => {
+    const printing = mapScryfallCardToPrinting({
+      id: 'sf-halana',
+      name: 'Halana, Kessig Ranger',
+      set: 'cmr',
+      collector_number: '231',
+      type_line: 'Legendary Creature — Human Archer',
+      color_identity: ['G'],
+      finishes: ['nonfoil'],
+      keywords: ['Partner with', 'Reach'],
+      oracle_text:
+        'Partner with Alena, Kessig Trapper (When this creature enters…)\nReach',
+    });
+    expect(printing.keywords).toEqual(['Partner with', 'Reach']);
+    expect(printing.oracleText).toContain('Partner with Alena');
+    expect(printing.partnerWith).toBe('Alena, Kessig Trapper');
   });
 
   it('maps printed_name, flavor_name, and cmc', () => {

@@ -259,4 +259,81 @@ describe('builder browse smoke', () => {
     expect(tile).toHaveAttribute('title', 'Jace Beleren (sought)');
     expect(tile).toHaveClass('is-sought-ghost');
   });
+
+  it('opens partner pairing swimlanes for the partners collection template', async () => {
+    const partnersDoc: DeckDocument = {
+      ...collectionDoc,
+      deckId: 'collection-partners',
+      name: 'Partner Binder',
+      collectionTemplate: 'partners',
+      browseViewDefault: 'partner_pairing',
+      cards: [
+        {
+          instanceId: 'c1',
+          name: 'Thrasios, Triton Hero',
+          quantity: 1,
+          ownedQuantity: 0,
+          inDeckQuantity: 0,
+          primaryCategory: 'Collection',
+          categories: ['Collection', 'Seeking'],
+          stack: null,
+          setCode: 'c16',
+          collectorNumber: '46',
+          scryfallId: 'thrasios',
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+          collectionSource: 'search',
+        },
+      ],
+      oracle: {
+        'id:thrasios': {
+          scryfallId: 'thrasios',
+          colourIdentity: ['G', 'U'],
+          typeLine: 'Legendary Creature — Merfolk Wizard',
+          layout: 'normal',
+          keywords: ['Partner'],
+          partnerWith: null,
+          oracleText: 'Partner',
+          printedName: null,
+          flavorName: null,
+          manaValue: 2,
+          imageUrl: null,
+          colours: ['G', 'U'],
+          finishes: null,
+          hasCommonPrinting: null,
+          manaCost: '{G}{U}',
+          producedMana: null,
+          updatedAt: null,
+        },
+      },
+      collectionSearch: {
+        query: 'otag:pair-commander',
+        defaultQuantity: 1,
+        lastSyncedAt: new Date().toISOString(),
+        lastOpenedAt: new Date().toISOString(),
+        latestReleaseDate: null,
+        suppressedKeys: [],
+      },
+    };
+    const summaries = [toDeckSummary(partnersDoc)];
+    listDecks.mockResolvedValue(summaries);
+    readLibraryIndex.mockReturnValue(summaries);
+    getDeck.mockImplementation(async (id) => (id === partnersDoc.deckId ? partnersDoc : null));
+
+    const user = userEvent.setup();
+    window.location.hash = '#/collection-builder';
+    render(<CollectionBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Partner Binder', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Partner Binder', { selector: '.db-library-tile-name' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 3, name: /Partner\s*\(1\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Thrasios, Triton Hero, sought/i })).toBeInTheDocument();
+    });
+  });
 });

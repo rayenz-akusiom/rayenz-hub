@@ -32,7 +32,9 @@ export function isCollectionDeck(
 export function defaultCollectionBrowseView(
   template: CollectionTemplate | null | undefined,
 ) {
-  return template === 'planeswalkers' ? 'planeswalker_subtype' : 'all_cards';
+  if (template === 'planeswalkers') return 'planeswalker_subtype';
+  if (template === 'partners') return 'partner_pairing';
+  return 'all_cards';
 }
 
 export function collectionOwnedQuantity(card: Pick<CardInstance, 'ownedQuantity'>): number {

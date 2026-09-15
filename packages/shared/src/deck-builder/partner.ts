@@ -13,6 +13,7 @@ export type PartnerCard = {
   keywords?: string[] | null;
   partnerWith?: string | null;
   typeLine?: string | null;
+  oracleText?: string | null;
 };
 
 export type CommanderPairStatus = 'legal' | 'illegal' | 'unknown' | 'single' | 'none' | 'many';
@@ -23,12 +24,56 @@ export type CommanderPairResult =
   | { status: 'many'; a?: undefined; b?: undefined }
   | { status: 'legal' | 'illegal' | 'unknown'; a: PartnerCard; b: PartnerCard };
 
+/** CR 702.124 partner-family ability on a single card (a card may have several). */
+export type PartnerAbility =
+  | { kind: 'partner' }
+  | { kind: 'partner_with'; name: string }
+  | { kind: 'partner_designator'; designator: string }
+  | { kind: 'choose_a_background' }
+  | { kind: 'doctors_companion' }
+  | { kind: 'background' }
+  | { kind: 'time_lord_doctor' };
+
+/** Known Partner— designators (CR 702.124i); others still parse dynamically. */
+export const KNOWN_PARTNER_DESIGNATORS = [
+  'Character select',
+  'Father & son',
+  'Friends forever',
+  'Survivors',
+] as const;
+
+export const PARTNER_PAIRING_OTHER_LANE = 'Other';
+
+/** Fixed browse order for known lanes; Other is always last. */
+export const PARTNER_PAIRING_KNOWN_LANES = [
+  'Partner with',
+  ...KNOWN_PARTNER_DESIGNATORS.map((d) => `Partner—${d}`),
+  'Partner',
+  "Doctor's companion",
+  'Choose a Background',
+] as const;
+
 /** Parse "Partner with Name" from oracle text. */
 export function parsePartnerWithName(oracleText: string | null | undefined): string | null {
   if (!oracleText) return null;
   const m = oracleText.match(/Partner with ([^\n(]+)/i);
   if (!m) return null;
   return m[1].trim().replace(/\s+/g, ' ') || null;
+}
+
+/** Normalize a Partner— designator for comparison (case/spacing). */
+export function normalizePartnerDesignator(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Display label for a designator swimlane / ability. */
+export function partnerDesignatorLaneLabel(designator: string): string {
+  const key = normalizePartnerDesignator(designator);
+  const known = KNOWN_PARTNER_DESIGNATORS.find((d) => normalizePartnerDesignator(d) === key);
+  return `Partner—${known ?? String(designator).trim().replace(/\s+/g, ' ')}`;
 }
 
 export function isCommanderCategory(name: string | null | undefined): boolean {
@@ -131,42 +176,210 @@ function namesMatch(a: string, b: string): boolean {
   return commanderNameKey(a) === commanderNameKey(b);
 }
 
-/** Classic Partner (not Partner with). */
-function hasClassicPartner(card: Pick<PartnerCard, 'keywords'>): boolean {
-  return hasKeyword(card, 'Partner') && !hasKeyword(card, 'Partner with');
+const PARTNER_DESIGNATOR_RE = /^Partner\s*[—–-]\s*(.+)$/i;
+const ORACLE_PARTNER_DESIGNATOR_RE = /Partner\s*[—–-]\s*([^\n(]+)/gi;
+
+function parseDesignatorFromToken(token: string): string | null {
+  const m = String(token || '').trim().match(PARTNER_DESIGNATOR_RE);
+  const raw = m?.[1]?.trim().replace(/\s+/g, ' ');
+  return raw || null;
+}
+
+function collectDesignators(
+  card: Pick<PartnerCard, 'keywords' | 'oracleText'>,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (raw: string | null | undefined) => {
+    const trimmed = String(raw || '').trim().replace(/\s+/g, ' ');
+    if (!trimmed) return;
+    const key = normalizePartnerDesignator(trimmed);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(trimmed);
+  };
+
+  for (const kw of card.keywords || []) {
+    if (/^friends forever$/i.test(kw.trim())) {
+      add('Friends forever');
+      continue;
+    }
+    add(parseDesignatorFromToken(kw));
+  }
+
+  const oracle = card.oracleText || '';
+  if (oracle) {
+    for (const m of oracle.matchAll(ORACLE_PARTNER_DESIGNATOR_RE)) {
+      add(m[1]?.trim().replace(/\s+/g, ' '));
+    }
+  }
+
+  return out;
 }
 
 function isBackground(card: Pick<PartnerCard, 'typeLine'>): boolean {
   return /\bBackground\b/i.test(card.typeLine || '');
 }
 
-function isTimeLordDoctor(card: Pick<PartnerCard, 'typeLine'>): boolean {
-  return /Time Lord Doctor/i.test(card.typeLine || '');
+/**
+ * Legendary Time Lord Doctor with no other creature types (CR 702.124m).
+ * Faces are checked independently; any qualifying face counts.
+ */
+export function isTimeLordDoctor(card: Pick<PartnerCard, 'typeLine'>): boolean {
+  const raw = String(card.typeLine || '').trim();
+  if (!raw) return false;
+  for (const face of raw.split(/\s+\/\/\s+/)) {
+    if (!/\bLegendary\b/i.test(face) || !/\bCreature\b/i.test(face)) continue;
+    const dash = face.match(/[—–-]\s*(.+)$/);
+    if (!dash?.[1]) continue;
+    const subtypes = dash[1]
+      .split(/\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // "Time Lord Doctor" → Time, Lord, Doctor — no other creature types.
+    if (
+      subtypes.length === 3 &&
+      /^time$/i.test(subtypes[0]!) &&
+      /^lord$/i.test(subtypes[1]!) &&
+      /^doctor$/i.test(subtypes[2]!)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type AbilityCard = Pick<PartnerCard, 'name' | 'keywords' | 'partnerWith' | 'typeLine' | 'oracleText'>;
+
+/**
+ * All partner-family abilities / roles on a card (CR 702.124g — pick one when building).
+ */
+export function detectPartnerAbilities(card: AbilityCard): PartnerAbility[] {
+  const abilities: PartnerAbility[] = [];
+  const keywords = card.keywords || [];
+  const hasPartnerWithKw = hasKeyword(card, 'Partner with');
+  const designators = collectDesignators(card);
+  const hasDesignatorKw = designators.length > 0 || keywords.some((k) => PARTNER_DESIGNATOR_RE.test(k.trim()));
+
+  const partnerWithName =
+    card.partnerWith?.trim() ||
+    parsePartnerWithName(card.oracleText) ||
+    null;
+  if (partnerWithName || hasPartnerWithKw) {
+    abilities.push({
+      kind: 'partner_with',
+      name: partnerWithName || '',
+    });
+  }
+
+  for (const designator of designators) {
+    abilities.push({ kind: 'partner_designator', designator });
+  }
+
+  // Classic Partner: keyword Partner, but not Partner with / Partner—…
+  if (
+    hasKeyword(card, 'Partner') &&
+    !hasPartnerWithKw &&
+    !hasDesignatorKw &&
+    designators.length === 0
+  ) {
+    abilities.push({ kind: 'partner' });
+  }
+
+  if (hasKeyword(card, 'Choose a Background')) {
+    abilities.push({ kind: 'choose_a_background' });
+  }
+  if (hasKeyword(card, "Doctor's companion")) {
+    abilities.push({ kind: 'doctors_companion' });
+  }
+  if (isBackground(card)) {
+    abilities.push({ kind: 'background' });
+  }
+  if (isTimeLordDoctor(card)) {
+    abilities.push({ kind: 'time_lord_doctor' });
+  }
+
+  return abilities;
+}
+
+function abilitiesCompatible(
+  a: PartnerAbility,
+  b: PartnerAbility,
+  aName: string,
+  bName: string,
+): boolean {
+  if (a.kind === 'partner' && b.kind === 'partner') return true;
+  if (a.kind === 'partner_designator' && b.kind === 'partner_designator') {
+    return normalizePartnerDesignator(a.designator) === normalizePartnerDesignator(b.designator);
+  }
+  if (a.kind === 'partner_with' && a.name && namesMatch(a.name, bName)) return true;
+  if (b.kind === 'partner_with' && b.name && namesMatch(b.name, aName)) return true;
+  if (a.kind === 'choose_a_background' && b.kind === 'background') return true;
+  if (b.kind === 'choose_a_background' && a.kind === 'background') return true;
+  if (a.kind === 'doctors_companion' && b.kind === 'time_lord_doctor') return true;
+  if (b.kind === 'doctors_companion' && a.kind === 'time_lord_doctor') return true;
+  return false;
 }
 
 /**
  * Whether two cards form a legal dual-commander pair under partner-family rules.
+ * True if any ability on A is compatible with any ability on B (702.124g).
  */
-export function canPartner(
-  a: Pick<PartnerCard, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
-  b: Pick<PartnerCard, 'name' | 'keywords' | 'partnerWith' | 'typeLine'>,
-): boolean {
-  if (hasClassicPartner(a) && hasClassicPartner(b)) return true;
-
-  const aWith = a.partnerWith?.trim();
-  const bWith = b.partnerWith?.trim();
-  if (aWith && namesMatch(aWith, b.name)) return true;
-  if (bWith && namesMatch(bWith, a.name)) return true;
-
-  if (hasKeyword(a, 'Friends forever') && hasKeyword(b, 'Friends forever')) return true;
-
-  if (hasKeyword(a, "Doctor's companion") && isTimeLordDoctor(b)) return true;
-  if (hasKeyword(b, "Doctor's companion") && isTimeLordDoctor(a)) return true;
-
-  if (hasKeyword(a, 'Choose a Background') && isBackground(b)) return true;
-  if (hasKeyword(b, 'Choose a Background') && isBackground(a)) return true;
-
+export function canPartner(a: AbilityCard, b: AbilityCard): boolean {
+  const aAbs = detectPartnerAbilities(a);
+  const bAbs = detectPartnerAbilities(b);
+  for (const aa of aAbs) {
+    for (const bb of bAbs) {
+      if (abilitiesCompatible(aa, bb, a.name, b.name)) return true;
+    }
+  }
   return false;
+}
+
+/**
+ * Collection / browse swimlane for a pairing card.
+ * Multi-ability cards use priority: Partner with → designator → Partner → Doctor → Background → Other.
+ */
+export function partnerPairingLane(card: AbilityCard): string {
+  const abilities = detectPartnerAbilities(card);
+  const partnerWith = abilities.find((a) => a.kind === 'partner_with');
+  if (partnerWith) return 'Partner with';
+
+  const designator = abilities.find((a) => a.kind === 'partner_designator');
+  if (designator && designator.kind === 'partner_designator') {
+    return partnerDesignatorLaneLabel(designator.designator);
+  }
+
+  if (abilities.some((a) => a.kind === 'partner')) return 'Partner';
+  if (
+    abilities.some((a) => a.kind === 'doctors_companion' || a.kind === 'time_lord_doctor')
+  ) {
+    return "Doctor's companion";
+  }
+  if (
+    abilities.some((a) => a.kind === 'choose_a_background' || a.kind === 'background')
+  ) {
+    return 'Choose a Background';
+  }
+  return PARTNER_PAIRING_OTHER_LANE;
+}
+
+/** Sort swimlane keys: known order, then unknown designators alpha, Other last. */
+export function sortPartnerPairingLaneKeys(keys: string[]): string[] {
+  const knownIndex = new Map<string, number>(
+    PARTNER_PAIRING_KNOWN_LANES.map((label, i) => [label, i]),
+  );
+  return [...keys].sort((a, b) => {
+    if (a === PARTNER_PAIRING_OTHER_LANE && b !== PARTNER_PAIRING_OTHER_LANE) return 1;
+    if (b === PARTNER_PAIRING_OTHER_LANE && a !== PARTNER_PAIRING_OTHER_LANE) return -1;
+    if (a === PARTNER_PAIRING_OTHER_LANE && b === PARTNER_PAIRING_OTHER_LANE) return 0;
+    const ai = knownIndex.get(a);
+    const bi = knownIndex.get(b);
+    if (ai != null && bi != null) return ai - bi;
+    if (ai != null) return -1;
+    if (bi != null) return 1;
+    return a.localeCompare(b);
+  });
 }
 
 function pickGroupPrimary<T extends PartnerCard>(

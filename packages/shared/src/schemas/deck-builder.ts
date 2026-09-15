@@ -33,6 +33,7 @@ export const BrowseViewSchema = z.enum([
   'colour_identity',
   'colour_identity_spells',
   'planeswalker_subtype',
+  'partner_pairing',
   'set_code',
   'all_cards',
 ]);
@@ -125,7 +126,7 @@ export const CardInstanceSchema = z.object({
 });
 export type CardInstance = z.infer<typeof CardInstanceSchema>;
 
-export const CollectionTemplateSchema = z.enum(['generic', 'planeswalkers']);
+export const CollectionTemplateSchema = z.enum(['generic', 'planeswalkers', 'partners']);
 export type CollectionTemplate = z.infer<typeof CollectionTemplateSchema>;
 
 export const CollectionRepresentativeCardSchema = z.object({

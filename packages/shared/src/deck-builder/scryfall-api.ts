@@ -1,5 +1,6 @@
 import type { CardInstance } from '../schemas/deck-builder.js';
 import { normalizeColourIdentity, type ColourLetter } from './color-identity-map.js';
+import { parsePartnerWithName } from './partner.js';
 import { isBasicLand } from './quantities.js';
 import { scryfallImageFromId } from './scryfall-images.js';
 
@@ -97,6 +98,10 @@ export type PrintingFields = {
   hasCommonPrinting?: boolean | null;
   manaCost?: string | null;
   producedMana?: string[] | null;
+  /** Scryfall keywords when known from search / collection fetch. */
+  keywords?: string[] | null;
+  oracleText?: string | null;
+  partnerWith?: string | null;
 };
 
 const printCache: Record<string, ScryfallCard[]> = {};
@@ -295,6 +300,8 @@ export function mapScryfallCardToPrinting(
   const finishes = card.finishes || [];
   const wantFoil = Boolean(opts?.foil);
   const foil = wantFoil && finishes.includes('foil');
+  const keywords = Array.isArray(card.keywords) ? card.keywords.map(String) : null;
+  const oracleText = typeof card.oracle_text === 'string' ? card.oracle_text : null;
   return {
     name: card.name,
     scryfallId: card.id,
@@ -312,6 +319,9 @@ export function mapScryfallCardToPrinting(
     producedMana: Array.isArray(card.produced_mana)
       ? card.produced_mana.map((c) => String(c || '').toUpperCase()).filter(Boolean)
       : null,
+    keywords,
+    oracleText,
+    partnerWith: parsePartnerWithName(oracleText),
   };
 }
 

@@ -38,6 +38,26 @@ Do **not** put these in git or Pages localStorage. An unused Secrets Manager sec
 
 **Not Secrets Manager:** Cognito client secret (the Cognito stack generates it; `deploy:api` reads it via `DescribeUserPoolClient` and does not commit it). Owner password `HUB_OWNER_PASSWORD` and owner email `HUB_OWNER_EMAIL` for `provision-owner-rayenz.ts` — keep the password in a password manager; it becomes the Cognito `Rayenz` password (email is marked verified by admin). Optional `BudgetNotifyEmail` is a SAM parameter, not a secret.
 
+## Precons catalog account
+
+Official Commander precons live on Cognito user `precons` (unlimited library; other accounts stay at 50 decks). After an API deploy that includes the unlimited-cap exemption:
+
+```powershell
+$env:HUB_PRECONS_PASSWORD = '<password>'
+$env:HUB_PRECONS_EMAIL = '<email>'
+$env:COGNITO_USER_POOL_ID = '<from rayenz-hub-cognito outputs>'
+$env:COGNITO_CLIENT_ID = '<from rayenz-hub-cognito outputs>'
+npm run provision:precons
+
+$env:HUB_API_URL = '<HubApiUrl>'
+$env:HUB_USERNAME = 'precons'
+$env:HUB_PASSWORD = $env:HUB_PRECONS_PASSWORD
+npm run seed:precon-library -- --dry-run --limit 2   # optional smoke
+npm run seed:precon-library
+```
+
+Deep links: `#/commander-builder/precons/{deck-slug}`. Re-running the seed is idempotent (`deckId` = `precon-{mtgjsonFileName}`).
+
 ## Cutover order
 
 PowerShell (this repo’s shell): set env with `$env:NAME = 'value'`, not `NAME=value` prefixes. Runner is `npx tsx` (not `tsk`).

@@ -6,6 +6,7 @@ import {
   deckCoverImageUrlSecondary,
   pickCoverPartnerStatus,
   deckSk,
+  isUnlimitedLibraryUsername,
   libraryDeckCapMessage,
   MAX_LIBRARY_DECKS,
   resolveUserId,
@@ -98,7 +99,11 @@ export class DeckRepository {
     const userId = resolveUserId(auth, env);
     const summaries = await this.listByUserId(userId);
     const exists = summaries.some((s) => s.deckId === deckId);
-    if (!exists && summaries.length >= MAX_LIBRARY_DECKS) {
+    if (
+      !exists &&
+      summaries.length >= MAX_LIBRARY_DECKS &&
+      !isUnlimitedLibraryUsername(auth.username)
+    ) {
       throw new ConflictError(libraryDeckCapMessage());
     }
     const now = new Date().toISOString();

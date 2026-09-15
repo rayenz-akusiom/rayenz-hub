@@ -1,6 +1,9 @@
 /** Reserved Cognito usernames / URL slugs. `sandbox` is unsigned local library only. */
 export const SANDBOX_USERNAME = 'sandbox';
 
+/** Catalog account for official Commander precon decks (unlimited library). */
+export const PRECONS_USERNAME = 'precons';
+
 /** Retired bootstrap URL slug (never a Cognito username). */
 export const RETIRED_USER_SLUG = 'default';
 
@@ -41,4 +44,12 @@ export function isReservedUsername(name: string): boolean {
 export function isSandboxUsername(name: string): boolean {
   const lower = normalizeUsername(name);
   return lower === SANDBOX_USERNAME || usernameToSlug(name) === SANDBOX_USERNAME;
+}
+
+/** True for the precon catalog account — skips MAX_LIBRARY_DECKS. */
+export function isUnlimitedLibraryUsername(name: string | null | undefined): boolean {
+  if (!name?.trim()) return false;
+  const lower = normalizeUsername(name);
+  const slug = usernameToSlug(name);
+  return lower === PRECONS_USERNAME || slug === PRECONS_USERNAME;
 }

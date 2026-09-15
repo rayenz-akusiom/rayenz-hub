@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { handleDeck, handleListDecks } from '../../packages/api/src/handlers/decks.ts';
+import { encodeTestJwt } from '../../packages/api/src/lib/jwt.ts';
 import { MAX_LIBRARY_DECKS } from '../../packages/shared/src/schemas/deck-builder.ts';
+import { PRECONS_USERNAME } from '../../packages/shared/src/usernames.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
 import commander from '../fixtures/deck-builder/commander-slice.json';
 
@@ -155,5 +157,33 @@ describe('decks API', () => {
     );
     expect(update.statusCode).toBe(200);
     expect(JSON.parse(String(update.body)).name).toBe('Updated');
+  });
+
+  it('allows the precons catalog account to create past the library cap', async () => {
+    const { services } = createMemoryStores();
+    const preconsJwt = encodeTestJwt({ sub: 'precons-sub', username: PRECONS_USERNAME });
+    const headers = { authorization: `Bearer ${preconsJwt}` };
+
+    for (let i = 0; i < MAX_LIBRARY_DECKS; i++) {
+      const id = `precon-${i}`;
+      const put = await handleDeck(
+        'PUT',
+        id,
+        headers,
+        JSON.stringify({ ...commander, deckId: id, name: `Precon ${i}` }),
+        services,
+      );
+      expect(put.statusCode).toBe(200);
+    }
+
+    const extra = await handleDeck(
+      'PUT',
+      'precon-extra',
+      headers,
+      JSON.stringify({ ...commander, deckId: 'precon-extra', name: 'Precon Extra' }),
+      services,
+    );
+    expect(extra.statusCode).toBe(200);
+    expect(JSON.parse(String(extra.body)).deckId).toBe('precon-extra');
   });
 });

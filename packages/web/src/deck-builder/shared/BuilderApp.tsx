@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type { DeckDocument, DeckOwnership, DeckSummary, DeckVisibility } from '@rayenz-hub/shared';
-import { filterLibraryByFormat, libraryDeckCapMessage, MAX_LIBRARY_DECKS, builderFormatForDeck, deckBelongsToBuilder, defaultPendragonCategoryDefs } from '@rayenz-hub/shared';
+import {
+  filterLibraryByFormat,
+  isUnlimitedLibraryUsername,
+  libraryDeckCapMessage,
+  MAX_LIBRARY_DECKS,
+  builderFormatForDeck,
+  deckBelongsToBuilder,
+  defaultPendragonCategoryDefs,
+} from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
 import {
   builderHash,
@@ -530,9 +538,14 @@ export function BuilderApp({
     if (saved) syncDeckHash(saved);
   }
 
-  async function createEmptyDeck(format: 'commander' | 'pendragon') {
+  function libraryAtCap(): boolean {
+    if (isUnlimitedLibraryUsername(getHubAuthSession()?.username)) return false;
     const realCount = decksRef.current.filter((d) => !isSampleDeckId(d.deckId)).length;
-    if (realCount >= MAX_LIBRARY_DECKS) {
+    return realCount >= MAX_LIBRARY_DECKS;
+  }
+
+  async function createEmptyDeck(format: 'commander' | 'pendragon') {
+    if (libraryAtCap()) {
       setError(libraryDeckCapMessage());
       return;
     }
@@ -610,8 +623,7 @@ export function BuilderApp({
   }
 
   async function duplicateDeck(source: DeckDocument | string) {
-    const realCount = decksRef.current.filter((d) => !isSampleDeckId(d.deckId)).length;
-    if (realCount >= MAX_LIBRARY_DECKS) {
+    if (libraryAtCap()) {
       setError(libraryDeckCapMessage());
       return;
     }
@@ -682,7 +694,7 @@ export function BuilderApp({
               parseBuilderRoute(window.location.hash, builderFormat)?.pairEntryId ?? null
             }
             onDuplicate={(doc) => void duplicateDeck(doc)}
-            duplicateDisabled={decks.length >= MAX_LIBRARY_DECKS}
+            duplicateDisabled={libraryAtCap()}
             onBack={() => {
               invalidatePersist();
               setActive(null);
@@ -714,7 +726,7 @@ export function BuilderApp({
     );
   }
 
-  const atDeckCap = decks.length >= MAX_LIBRARY_DECKS;
+  const atDeckCap = libraryAtCap();
 
   return (
     <div className="db-app">

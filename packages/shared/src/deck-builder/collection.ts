@@ -195,16 +195,21 @@ const PLANESWALKER_SUBTYPE = /Planeswalker\s+[—-]\s+(.+)$/i;
 export function parsePlaneswalkerSubtype(typeLine: string | null | undefined): string | null {
   const raw = String(typeLine || '').trim();
   if (!raw) return null;
-  const names: string[] = [];
+  const tokens: string[] = [];
   const seen = new Set<string>();
   for (const face of raw.split(/\s+\/\/\s+/)) {
     const match = face.match(PLANESWALKER_SUBTYPE);
     const name = match?.[1]?.trim();
     if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
+    for (const token of name.split(/\s+/)) {
+      if (!token) continue;
+      const key = token.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tokens.push(token);
+    }
   }
-  return names.length ? names.join(' & ') : null;
+  if (!tokens.length) return null;
+  tokens.sort((a, b) => a.localeCompare(b));
+  return tokens.join(' ');
 }

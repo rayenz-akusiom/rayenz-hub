@@ -115,10 +115,18 @@ describe('collection builder helpers', () => {
       parsePlaneswalkerSubtype('Legendary Creature — God // Legendary Planeswalker — Tibalt'),
     ).toBe('Tibalt');
     expect(
+      parsePlaneswalkerSubtype('Legendary Planeswalker — Will Rowan'),
+    ).toBe('Rowan Will');
+    expect(
+      parsePlaneswalkerSubtype(
+        'Legendary Planeswalker — Rowan // Legendary Planeswalker — Will',
+      ),
+    ).toBe('Rowan Will');
+    expect(
       parsePlaneswalkerSubtype(
         'Legendary Planeswalker — Will // Legendary Planeswalker — Rowan',
       ),
-    ).toBe('Will & Rowan');
+    ).toBe('Rowan Will');
   });
 
   it('syncs collection cards into Seeking when owned is below target', () => {

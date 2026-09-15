@@ -189,6 +189,10 @@ describe('builder browse smoke', () => {
       expect(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     });
 
+    expect(screen.queryByRole('heading', { name: /^Theory/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Theory')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Owned')).not.toBeInTheDocument();
+
     await user.click(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' }));
 
     await waitFor(() => {

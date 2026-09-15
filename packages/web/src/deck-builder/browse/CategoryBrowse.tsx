@@ -1090,10 +1090,15 @@ export function DeckHeaderRow({
       ? format
       : 'other';
   const resolvedOwnership = deckOwnership({ ownership });
-  const theory = resolvedOwnership === 'theory';
+  const theory = format !== 'collection' && resolvedOwnership === 'theory';
   const resolvedVisibility = deckVisibility({ visibility });
   const privateDeck = isPrivateDeck({ visibility: resolvedVisibility });
   const canOpenMenu = Boolean((onSetOwnership || onSetVisibility) && deckId);
+  const menuTitle = !canOpenMenu
+    ? undefined
+    : onSetOwnership
+      ? 'Right-click to mark Owned, Theory, Public, or Private'
+      : 'Right-click to mark Public or Private';
 
   useEffect(() => {
     const el = remainderRef.current;
@@ -1260,7 +1265,7 @@ export function DeckHeaderRow({
                   visibility: resolvedVisibility,
                 });
               }}
-              title={canOpenMenu ? 'Right-click to mark Owned, Theory, Public, or Private' : undefined}
+              title={menuTitle}
             >
               <FormatBadge format={badgeFormat} />
               {theory ? (

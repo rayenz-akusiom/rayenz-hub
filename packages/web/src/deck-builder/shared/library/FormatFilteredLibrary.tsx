@@ -39,6 +39,7 @@ function LibraryGrid({
   onDragOverLane,
   onDragLeaveLane,
   onDropLane,
+  ownershipLanes = true,
 }: {
   builderFormat: BuilderFormat;
   ownership: DeckOwnership;
@@ -51,25 +52,31 @@ function LibraryGrid({
   onDragOverLane: (e: DragEvent) => void;
   onDragLeaveLane: (e: DragEvent) => void;
   onDropLane: (e: DragEvent, ownership: DeckOwnership) => void;
+  /** When false, render a flat tile grid (no Owned/Theory swimlanes). */
+  ownershipLanes?: boolean;
 }) {
   return (
     <section
-      className={`db-library-section db-library-ownership-lane${dropActive ? ' is-drop-target' : ''}`}
-      aria-label={ownershipLabel(ownership)}
-      data-ownership={ownership}
-      onDragOver={onDragOverLane}
-      onDragLeave={onDragLeaveLane}
-      onDrop={(e) => onDropLane(e, ownership)}
+      className={`db-library-section${ownershipLanes ? ' db-library-ownership-lane' : ''}${
+        dropActive ? ' is-drop-target' : ''
+      }`}
+      aria-label={ownershipLanes ? ownershipLabel(ownership) : undefined}
+      data-ownership={ownershipLanes ? ownership : undefined}
+      onDragOver={ownershipLanes ? onDragOverLane : undefined}
+      onDragLeave={ownershipLanes ? onDragLeaveLane : undefined}
+      onDrop={ownershipLanes ? (e) => onDropLane(e, ownership) : undefined}
     >
-      <h3 className="db-library-section-title">
-        {ownershipLabel(ownership)}
-        <span className="db-count">({decks.length})</span>
-      </h3>
+      {ownershipLanes ? (
+        <h3 className="db-library-section-title">
+          {ownershipLabel(ownership)}
+          <span className="db-count">({decks.length})</span>
+        </h3>
+      ) : null}
       {decks.length ? (
         <ul className="db-library-grid">
           {decks.map((d) => {
             const isSample = sampleIds?.has(d.deckId) ?? false;
-            const isTheory = deckOwnership(d) === 'theory';
+            const isTheory = ownershipLanes && deckOwnership(d) === 'theory';
             const isPrivate = isPrivateDeck(d);
             const updated = `Updated ${new Date(d.updatedAt).toLocaleString()}`;
             const dual = Boolean(d.coverImageUrl && d.coverImageUrlSecondary);
@@ -83,9 +90,9 @@ function LibraryGrid({
                 }${isSample ? ' is-sample' : ''}${isTheory ? ' is-theory' : ''}${
                   isPrivate && !isSample ? ' is-private' : ''
                 }`}
-                draggable={!isSample}
+                draggable={ownershipLanes && !isSample}
                 onDragStart={(e) => {
-                  if (isSample) {
+                  if (!ownershipLanes || isSample) {
                     e.preventDefault();
                     return;
                   }
@@ -155,13 +162,13 @@ function LibraryGrid({
             );
           })}
         </ul>
-      ) : (
+      ) : ownershipLanes ? (
         <p className="db-library-lane-empty hub-muted">
           {ownership === 'owned'
             ? 'No owned decks — drag a Theory deck here, or create one.'
             : 'No theory decks — right-click a tile or drag here to mark as Theory.'}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -271,6 +278,7 @@ export function FormatFilteredLibrary({
   const [menu, setMenu] = useState<DeckOwnershipMenuState | null>(null);
 
   const sorted = useMemo(() => sortLibraryDecks(decks, sort), [decks, sort]);
+  const ownershipLanes = builderFormat !== 'collection';
   const { owned, theory } = useMemo(() => partitionLibraryByOwnership(sorted), [sorted]);
   const commanderDecks = useMemo(
     () => sorted.filter((d) => d.format === 'commander'),
@@ -280,6 +288,7 @@ export function FormatFilteredLibrary({
     () => sorted.filter((d) => d.format === 'pendragon'),
     [sorted],
   );
+  const ownershipHandler = ownershipLanes ? onSetOwnership : undefined;
   const sampleIds = useMemo(
     () => (sampleDeck ? new Set([sampleDeck.deckId]) : new Set<string>()),
     [sampleDeck],
@@ -291,7 +300,7 @@ export function FormatFilteredLibrary({
   }
 
   function onDragOverLane(e: DragEvent, laneKey: string) {
-    if (!onSetOwnership) return;
+    if (!ownershipHandler) return;
     if (
       !e.dataTransfer.types.includes(OWNERSHIP_DRAG_TYPE) &&
       !e.dataTransfer.types.includes('text/plain')
@@ -312,13 +321,13 @@ export function FormatFilteredLibrary({
   function onDropLane(e: DragEvent, ownership: DeckOwnership) {
     e.preventDefault();
     setDropTarget(null);
-    if (!onSetOwnership) return;
+    if (!ownershipHandler) return;
     const deckId =
       e.dataTransfer.getData(OWNERSHIP_DRAG_TYPE) || e.dataTransfer.getData('text/plain');
     if (!deckId) return;
     const current = decks.find((d) => d.deckId === deckId);
     if (!current || deckOwnership(current) === ownership) return;
-    onSetOwnership(deckId, ownership);
+    ownershipHandler(deckId, ownership);
   }
 
   const libraryStyle = {
@@ -447,6 +456,20 @@ export function FormatFilteredLibrary({
                     onDropLane={onDropLane}
                   />
                 </>
+              ) : builderFormat === 'collection' ? (
+                <LibraryGrid
+                  builderFormat={builderFormat}
+                  ownership="owned"
+                  decks={sorted}
+                  onOpen={onOpen}
+                  onDelete={onDelete}
+                  onContextMenu={openOwnershipMenu}
+                  dropActive={false}
+                  onDragOverLane={() => {}}
+                  onDragLeaveLane={() => {}}
+                  onDropLane={() => {}}
+                  ownershipLanes={false}
+                />
               ) : (
                 <>
                   <LibraryGrid
@@ -479,13 +502,13 @@ export function FormatFilteredLibrary({
           )}
         </>
       )}
-      {menu && (onDuplicate || (!menu.isSample && (onSetOwnership || onSetVisibility))) ? (
+      {menu && (onDuplicate || (!menu.isSample && (ownershipHandler || onSetVisibility))) ? (
         <DeckOwnershipContextMenu
           state={menu}
           onClose={() => setMenu(null)}
           onDuplicate={onDuplicate}
           duplicateDisabled={atDeckCap}
-          onSetOwnership={menu.isSample ? undefined : onSetOwnership}
+          onSetOwnership={menu.isSample ? undefined : ownershipHandler}
           onSetVisibility={menu.isSample ? undefined : onSetVisibility}
         />
       ) : null}

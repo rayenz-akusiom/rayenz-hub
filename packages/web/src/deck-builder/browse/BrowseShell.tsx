@@ -1406,7 +1406,9 @@ export function BrowseShell({
                     }
               }
               onVisibleOrderChange={onMainVisibleOrderChange}
-              onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onSetOwnership={
+                readOnly || liveDeck.format === 'collection' ? undefined : onSetOwnership
+              }
               onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               onSetDescription={
@@ -1435,7 +1437,9 @@ export function BrowseShell({
                     }
               }
               onVisibleOrderChange={onMainVisibleOrderChange}
-              onSetOwnership={readOnly ? undefined : onSetOwnership}
+              onSetOwnership={
+                readOnly || liveDeck.format === 'collection' ? undefined : onSetOwnership
+              }
               onSetVisibility={readOnly ? undefined : onSetVisibility}
               onRename={readOnly ? undefined : (name) => commitPatch({ name })}
               onSetDescription={

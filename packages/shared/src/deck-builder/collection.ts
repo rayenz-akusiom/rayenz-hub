@@ -14,6 +14,14 @@ import { scryfallImageFromId } from './scryfall-images.js';
 export const COLLECTION_FORMAT = 'collection';
 export const COLLECTION_DEFAULT_CATEGORY = 'Collection';
 export const COLLECTION_CARD_LIMIT = 2500;
+/** Synthetic Binder cover — not inventory; never sought / foil / seeking. */
+export const COLLECTION_REPRESENTATIVE_INSTANCE_ID = '__collection_representative__';
+
+export function isCollectionRepresentativeCard(
+  card: Pick<CardInstance, 'instanceId'> | null | undefined,
+): boolean {
+  return card?.instanceId === COLLECTION_REPRESENTATIVE_INSTANCE_ID;
+}
 
 export function isCollectionDeck(
   deck: Pick<DeckDocument, 'format'> | null | undefined,
@@ -127,10 +135,10 @@ export function toRepresentativeCardView(
   rep: CollectionRepresentativeCard,
 ): CardInstance & CardOracle {
   const card: CardInstance = {
-    instanceId: '__collection_representative__',
+    instanceId: COLLECTION_REPRESENTATIVE_INSTANCE_ID,
     name: rep.name,
     quantity: 1,
-    ownedQuantity: 0,
+    ownedQuantity: 1,
     inDeckQuantity: 0,
     primaryCategory: 'Commander',
     categories: ['Commander'],
@@ -139,7 +147,8 @@ export function toRepresentativeCardView(
     collectorNumber: rep.collectorNumber ?? null,
     scryfallId: rep.scryfallId ?? null,
     archidektCardId: null,
-    foil: Boolean(rep.foil),
+    // Cover art only — never surface foil/seeking inventory marks.
+    foil: false,
     proxy: false,
     collectionSource: 'manual',
   };

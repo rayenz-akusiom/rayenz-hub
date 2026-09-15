@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COLLECTION_REPRESENTATIVE_INSTANCE_ID,
   collectionCardIsSought,
   collectionNeededQuantity,
   collectionSeekingToggleEnabled,
   defaultCollectionBrowseView,
+  isCollectionRepresentativeCard,
   parsePlaneswalkerSubtype,
   syncCollectionDeck,
+  toRepresentativeCardView,
   toggleCollectionCardsSeeking,
   type CardInstance,
   type DeckDocument,
@@ -74,6 +77,24 @@ describe('collection builder helpers', () => {
     expect(collectionNeededQuantity({ quantity: 3, ownedQuantity: 1 })).toBe(2);
     expect(collectionCardIsSought({ quantity: 3, ownedQuantity: 1 })).toBe(true);
     expect(collectionCardIsSought({ quantity: 2, ownedQuantity: 2 })).toBe(false);
+  });
+
+  it('treats the Binder representative as cover art, not inventory', () => {
+    const view = toRepresentativeCardView({
+      name: 'Jace Beleren',
+      scryfallId: 'jace',
+      setCode: 'm10',
+      collectorNumber: '60',
+      foil: true,
+      imageUrl: null,
+      printedName: null,
+      flavorName: null,
+    });
+    expect(view.instanceId).toBe(COLLECTION_REPRESENTATIVE_INSTANCE_ID);
+    expect(isCollectionRepresentativeCard(view)).toBe(true);
+    expect(view.foil).toBe(false);
+    expect(collectionCardIsSought(view)).toBe(false);
+    expect(view.categories).not.toContain('Seeking');
   });
 
   it('uses planeswalker subtype browse as the template default', () => {

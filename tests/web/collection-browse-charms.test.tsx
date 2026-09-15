@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
@@ -131,5 +131,36 @@ describe('collection browse charms', () => {
     expect(screen.queryByRole('button', { name: 'Unmark seeking' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark as seeking' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark as proxy' })).not.toBeInTheDocument();
+  });
+
+  it('does not ghost or mark the Binder cover as foil or seeking', () => {
+    const deck: DeckDocument = {
+      ...collectionDoc(1, 0),
+      representativeCard: {
+        name: 'Liliana of the Veil',
+        scryfallId: 'liliana-cover',
+        setCode: 'isd',
+        collectorNumber: '105',
+        foil: true,
+        imageUrl: null,
+        printedName: null,
+        flavorName: null,
+      },
+    };
+    render(<Harness initial={deck} />);
+
+    const binder = screen.getByLabelText('Binder');
+    const cover = within(binder).getByRole('button', { name: /Liliana of the Veil/i });
+    expect(cover).not.toHaveClass('is-sought-ghost');
+    expect(cover).not.toHaveClass('is-foil');
+    expect(cover).not.toHaveClass('is-seeking');
+    expect(cover).toHaveAttribute('title', 'Liliana of the Veil');
+    expect(within(binder).queryByRole('button', { name: /foil/i })).not.toBeInTheDocument();
+    expect(within(binder).queryByRole('button', { name: /seeking/i })).not.toBeInTheDocument();
+
+    const inventory = screen.getByRole('button', { name: /Jace Beleren, sought/i });
+    expect(inventory).toHaveClass('is-sought-ghost');
+    expect(screen.getByRole('button', { name: 'Mark as foil' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unmark seeking' })).toBeInTheDocument();
   });
 });

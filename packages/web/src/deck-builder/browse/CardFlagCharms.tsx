@@ -1,4 +1,4 @@
-import { cardIsSeekingMarked, type CardView } from '@rayenz-hub/shared';
+import { cardIsSeekingMarked, isCollectionRepresentativeCard, type CardView } from '@rayenz-hub/shared';
 import type { MouseEvent } from 'react';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
@@ -14,6 +14,7 @@ import {
 export function CardFlagCharms({ card, selected }: { card: CardView; selected?: boolean }) {
   const ctx = useCardFlagCharms();
   if (!ctx?.enabled || ctx.readOnly) return null;
+  if (isCollectionRepresentativeCard(card)) return null;
 
   const targetIds = ctx.resolveTargetIds(card);
   const foil = Boolean(card.foil);

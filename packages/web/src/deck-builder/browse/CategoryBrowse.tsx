@@ -472,7 +472,6 @@ function RepresentativeSlot({
   onSelectCard,
   onCardContextMenu,
   onPick,
-  enableSoughtGhost = false,
 }: {
   card: CardView | null;
   label: string;
@@ -481,7 +480,6 @@ function RepresentativeSlot({
   onSelectCard?: SelectCardHandler;
   onCardContextMenu?: CardContextMenuHandler;
   onPick?: () => void;
-  enableSoughtGhost?: boolean;
 }) {
   return (
     <div className="db-partner-pair" aria-label={label}>
@@ -497,7 +495,7 @@ function RepresentativeSlot({
           draggable={false}
           emptyLabel={onPick ? `Choose ${label.toLowerCase()}` : label}
           onPickSlot={onPick}
-          enableSoughtGhost={enableSoughtGhost}
+          enableSoughtGhost={false}
         />
       </div>
     </div>
@@ -1196,7 +1194,6 @@ export function DeckHeaderRow({
               onSelectCard={onSelectCard}
               onCardContextMenu={onCardContextMenu}
               onPick={onPickRepresentative}
-              enableSoughtGhost={enableSoughtGhost}
             />
           </div>
         ) : null}

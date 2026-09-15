@@ -50,7 +50,7 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
   return {
     ...actual,
-    loadHubLibraryDecks: (...args: unknown[]) => mockLoadHubLibraryDecks(...args),
+    loadHubLibraryForSuggest: (...args: unknown[]) => mockLoadHubLibraryDecks(...args),
   };
 });
 
@@ -130,10 +130,13 @@ beforeEach(() => {
   progressController.start.mockClear();
   progressController.update.mockClear();
   progressController.finish.mockClear();
-  mockLoadHubLibraryDecks.mockResolvedValue([
-    { deck_id: 'd1', deck_name: 'Test Deck' },
-    { deck_id: 'd2', deck_name: 'Empty Deck' },
-  ]);
+  mockLoadHubLibraryDecks.mockResolvedValue({
+    decks: [
+      { deck_id: 'd1', deck_name: 'Test Deck' },
+      { deck_id: 'd2', deck_name: 'Empty Deck' },
+    ],
+    covers: {},
+  });
   mockGenerateSuggestions.mockResolvedValue(sampleGenerationRun());
 });
 
@@ -145,14 +148,14 @@ afterEach(() => {
 
 describe('DeckSuggestApp chrome', () => {
   it('renders header, generate, and setup', async () => {
-    mockLoadHubLibraryDecks.mockResolvedValueOnce([]);
+    mockLoadHubLibraryDecks.mockResolvedValueOnce({ decks: [], covers: {} });
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText(/No commander decks found/i)).toBeInTheDocument();
+      expect(screen.getByText(/No commander decks in the library/i)).toBeInTheDocument();
     });
   });
 
@@ -185,7 +188,6 @@ describe('DeckSuggestSetup', () => {
     const user = userEvent.setup();
     render(<DeckSuggestApp />);
 
-    expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget upgrade' })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Set release$/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/Lord of the Rings/i)).toBeInTheDocument();

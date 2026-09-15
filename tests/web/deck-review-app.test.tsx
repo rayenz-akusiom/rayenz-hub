@@ -35,7 +35,7 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
   return {
     ...actual,
-    loadHubLibraryDecks: vi.fn(() => Promise.resolve([])),
+    loadHubLibraryForSuggest: vi.fn(() => Promise.resolve({ decks: [], covers: {} })),
     readProfileForDeck: vi.fn(() => Promise.resolve(null)),
     tryRestoreSetPool: vi.fn(() => null),
     fetchSetPool: vi.fn(() => Promise.resolve({ codes: [], cards: [] })),
@@ -147,17 +147,20 @@ afterEach(() => {
 });
 
 describe('DeckSuggestApp empty state', () => {
-  it('shows empty guidance and setup actions', () => {
+  it('shows empty guidance and setup actions', async () => {
+    const user = userEvent.setup();
     render(<DeckSuggestApp />);
 
     expect(screen.getByRole('heading', { name: 'Deck Suggest' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Generate' }).compareDocumentPosition(
-        screen.getByRole('button', { name: 'Upload JSON' }),
+        screen.getByRole('button', { name: 'More' }),
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitem', { name: 'Upload JSON' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Deck navigation' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Deck' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Profile' })).toBeInTheDocument();
@@ -185,7 +188,6 @@ describe('DeckSuggestApp upload and sidebar', () => {
     await loadSuggestionsViaUpload(handoffPayload());
     expect(screen.getByRole('button', { name: 'Back to setup' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to setup' })).toHaveClass('dr-chrome-back');
-    expect(screen.queryByRole('button', { name: 'Download JSON' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Baird/i })).toBeInTheDocument();
     expect(screen.queryByText('Hub library')).not.toBeInTheDocument();
@@ -216,9 +218,11 @@ describe('DeckSuggestApp upload and sidebar', () => {
     expect(screen.queryByRole('button', { name: 'Upload JSON' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back to setup' }));
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Upload JSON' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument();
     });
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitem', { name: 'Upload JSON' })).toBeInTheDocument();
   });
 
   it('opens and closes the deck navigation drawer', async () => {

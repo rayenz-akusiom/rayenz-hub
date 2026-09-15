@@ -254,8 +254,13 @@ export function buildDeckFromImportText(
   };
 }
 
-/** Load commander decks from the Hub library for Deck Suggest. */
-export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
+export type HubLibraryForSuggest = {
+  decks: DeckRecord[];
+  covers: Record<string, DeckSummary>;
+};
+
+/** Load commander decks from the Hub library for Deck Suggest (covers for setup tiles). */
+export async function loadHubLibraryForSuggest(): Promise<HubLibraryForSuggest> {
   let summaries: DeckSummary[];
   try {
     summaries = await pullRemoteLibraryUpdates();
@@ -267,13 +272,21 @@ export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
   }
   summaries = sortLibraryDecks(summaries, readLibrarySort());
   const decks: DeckRecord[] = [];
+  const covers: Record<string, DeckSummary> = {};
   for (const s of summaries) {
     if (s.format !== 'commander') continue;
     if (isTheoryDeck(s)) continue;
     const doc = await resolveLibraryDocument(s.deckId);
     if (!doc || isTheoryDeck(doc)) continue;
     decks.push(hubDeckToRecord(doc));
+    covers[s.deckId] = s;
   }
+  return { decks, covers };
+}
+
+/** Load commander decks from the Hub library for Deck Suggest. */
+export async function loadHubLibraryDecks(): Promise<DeckRecord[]> {
+  const { decks } = await loadHubLibraryForSuggest();
   return decks;
 }
 

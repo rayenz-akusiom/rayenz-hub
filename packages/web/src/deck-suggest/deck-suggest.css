@@ -12,6 +12,14 @@
    line-height: 1.45;
 }
 
+.deck-suggest-app .dr-main-area {
+   align-items: stretch;
+}
+
+.deck-suggest-app .hub-sticky-chrome {
+   width: 100%;
+}
+
 /* Review phase: scroll body under sticky chrome inside the clipped viewport */
 .deck-suggest-app.deck-suggest-reviewing > .dr-layout {
    flex: 1;
@@ -59,88 +67,108 @@
    gap: 8px;
 }
 
-.ds-readiness {
-   margin-top: 10px;
+.ds-setup-phase {
+   width: 100%;
 }
 
-.ds-readiness-toggle {
-   display: inline-flex;
-   align-items: center;
-   gap: 8px;
-   margin: 0;
-   padding: 0;
-   border: none;
-   background: transparent;
-   font: inherit;
-   font-size: 0.85rem;
-   font-weight: 600;
-   cursor: pointer;
-   color: #4a5568;
+.ds-setup-canvas {
+   display: flex;
+   flex-direction: column;
+   gap: 20px;
 }
 
-.ds-readiness-caret {
-   font-size: 0.75rem;
-   color: #718096;
+.ds-setup-source {
+   display: flex;
+   flex-direction: column;
+   gap: 10px;
 }
 
-.ds-requirements-label {
-   margin: 12px 0 4px;
-   font-size: 0.8rem;
-   font-weight: 600;
-   color: #4a5568;
-   text-transform: uppercase;
-   letter-spacing: 0.03em;
+.ds-setup-control {
+   max-width: 28rem;
 }
 
-.ds-requirements {
-   list-style: none;
-   margin: 8px 0 0;
-   padding: 0;
+.ds-setup-chips {
    display: flex;
    flex-wrap: wrap;
-   gap: 8px 16px;
-   font-size: 0.85rem;
+   gap: 0.35rem;
+   align-items: center;
 }
 
-.ds-requirements li {
+.ds-setup-page-banner {
+   display: flex;
+   flex-wrap: wrap;
+   align-items: center;
+   gap: 8px;
+   margin: 0 0 16px;
+}
+
+.ds-setup-decks .db-library-grid {
    margin: 0;
 }
 
-.ds-req-ok {
-   color: #276749;
+.ds-setup-decks .db-library-tile.is-selected .db-library-tile-open {
+   outline: 2px solid var(--hub-accent);
+   outline-offset: 2px;
 }
 
-.ds-req-missing {
-   color: #c05621;
+.ds-tile-profile {
+   display: block;
+   margin: 6px 0 0;
+   padding: 0 4px 4px;
+   font-size: 0.8rem;
+   font-weight: 500;
+   color: var(--hub-muted);
 }
 
-.ds-results-placeholder {
-   margin: 0;
-   padding: 8px 0;
-}
-
-.ds-blocked-reason {
-   margin: 8px 0 0;
-   color: #c05621;
-   font-weight: 600;
+.ds-tile-profile a {
+   color: var(--hub-accent);
 }
 
 .ds-set-mode-tabs {
    display: flex;
    flex-wrap: wrap;
    gap: 6px;
-   margin: 0 0 12px;
+   margin: 0;
+}
+
+.ds-mode-chip {
+   display: inline-flex;
+   align-items: center;
+   margin: 0;
+   padding: 0.2rem 0.7rem;
+   border: 1px solid var(--hub-border);
+   border-radius: 999px;
+   background: var(--hub-ghost-bg);
+   color: var(--hub-ink);
+   font: inherit;
+   font-size: 0.85rem;
+   font-weight: 600;
+   cursor: pointer;
+   line-height: 1.4;
+}
+
+.ds-mode-chip.active {
+   background: var(--hub-accent);
+   border-color: var(--hub-accent);
+   color: #fff;
 }
 
 .ds-set-chip {
    display: inline-block;
-   margin: 0 6px 4px 0;
+   margin: 0;
    padding: 2px 8px;
-   border-radius: 4px;
-   background: #edf2f7;
+   border-radius: 999px;
+   background: var(--hub-ghost-bg);
    font-size: 0.8rem;
    font-weight: 600;
    letter-spacing: 0.02em;
+   cursor: default;
+}
+
+.ds-blocked-reason {
+   margin: 8px 0 0;
+   color: #c05621;
+   font-weight: 600;
 }
 
 .ds-suggestion-grid {
@@ -316,7 +344,8 @@
    font-weight: 600;
 }
 
-.ds-field select {
+.ds-field select,
+.ds-field input {
    display: block;
    width: 100%;
    margin-top: 4px;
@@ -472,6 +501,10 @@
 }
 
 .ds-deck-select-actions {
+   display: flex;
+   flex-wrap: wrap;
+   align-items: baseline;
+   gap: 8px 12px;
    margin-bottom: 8px;
    font-size: 0.9rem;
 }

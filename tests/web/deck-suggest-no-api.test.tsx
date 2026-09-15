@@ -40,7 +40,10 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/deck-suggest/data')>();
   return {
     ...actual,
-    loadHubLibraryDecks: vi.fn(async () => [{ deck_id: 'd1', deck_name: 'Test Deck' }]),
+    loadHubLibraryForSuggest: vi.fn(async () => ({
+      decks: [{ deck_id: 'd1', deck_name: 'Test Deck' }],
+      covers: {},
+    })),
   };
 });
 

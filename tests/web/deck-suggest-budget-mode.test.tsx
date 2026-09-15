@@ -32,6 +32,7 @@ function renderSetup(mode: SetInputMode = 'budget') {
       onFocusTagInput={() => {}}
       deckSelection={baseSelection}
       onDeckSelectionChange={() => {}}
+      covers={{}}
       decksLoading={false}
     />,
   );

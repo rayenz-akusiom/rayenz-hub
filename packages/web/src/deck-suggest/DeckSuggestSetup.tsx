@@ -1,9 +1,11 @@
-import { FOCUS_TAGS_MAX } from '@rayenz-hub/shared';
+import { FOCUS_TAGS_MAX, type DeckSummary } from '@rayenz-hub/shared';
 import { useEffect, useState } from 'react';
-import { isLocalHub } from '../lib/hub-utils';
+import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
+import { LibrarySkeleton } from '../deck-builder/library/library-chrome';
+import { FormatBadge } from '../deck-builder/ui/FormatBadge';
+import { CARD_SIZE_PX } from '../deck-builder/card-size';
+import { selectAllDecks, toggleDeckSelection } from './deck-load';
 import { readProfileForDeck } from './data';
-import { applyDeckList, selectAllDecks, toggleDeckSelection } from './deck-load';
-import { deckSuggestHeaderText } from './display';
 import { findReleaseEntry, formatSetCodesPreview, listReleaseOptions } from './releases';
 import { ReleaseSelectOptgroups } from './ReleaseSelectOptgroups';
 import { profileReadiness, profileReadinessLabel } from './profile-readiness';
@@ -28,7 +30,26 @@ type SetupProps = {
   deckSelection: DeckSelection;
   onDeckSelectionChange: (next: DeckSelection) => void;
   decksLoading: boolean;
+  covers: Record<string, DeckSummary>;
 };
+
+function coverSummary(deckId: string, name: string, covers: Record<string, DeckSummary>): DeckSummary {
+  return (
+    covers[deckId] || {
+      deckId,
+      name,
+      format: 'commander',
+      ownership: 'owned',
+      visibility: 'public',
+      updatedAt: '',
+      archidektId: null,
+      coverImageUrl: null,
+      coverImageUrlSecondary: null,
+      coverPartnerStatus: null,
+      coverCardName: null,
+    }
+  );
+}
 
 export function DeckSuggestSetup({
   settings,
@@ -49,6 +70,7 @@ export function DeckSuggestSetup({
   deckSelection,
   onDeckSelectionChange,
   decksLoading,
+  covers,
 }: SetupProps) {
   const decks = deckSelection.decks || [];
   const selected = deckSelection.selectedIds || [];
@@ -62,6 +84,7 @@ export function DeckSuggestSetup({
   const selectedDeckId = budgetMode && selected.length ? selected[0] : '';
   const [profileLevel, setProfileLevel] = useState<'none' | 'partial' | 'ready'>('none');
   const [profileTagChips, setProfileTagChips] = useState<string[]>([]);
+  const [focusOpen, setFocusOpen] = useState(false);
 
   useEffect(() => {
     if (!budgetMode || !selectedDeckId) {
@@ -113,79 +136,90 @@ export function DeckSuggestSetup({
     onFocusTagInput('');
   }
 
+  function selectDeck(deckId: string, on: boolean) {
+    if (budgetMode) {
+      onDeckSelectionChange({
+        ...deckSelection,
+        selectedIds: on ? [deckId] : [],
+      });
+      return;
+    }
+    onDeckSelectionChange({
+      ...deckSelection,
+      selectedIds: toggleDeckSelection(selected, deckId, on),
+    });
+  }
+
   return (
-    <>
-      <h3>Setup</h3>
-      <p className="ds-meta">Pick a source, choose decks, then Generate.</p>
-
-      <div className="ds-set-mode-tabs" role="tablist" aria-label="Suggest input mode">
-        <button
-          type="button"
-          role="tab"
-          className={'ds-deck-load-tab' + (setInputMode === 'release' ? ' active' : '')}
-          aria-selected={setInputMode === 'release'}
-          id="ds-mode-release"
-          onClick={() => switchMode('release')}
-        >
-          Set release
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={'ds-deck-load-tab' + (setInputMode === 'codes' ? ' active' : '')}
-          aria-selected={setInputMode === 'codes'}
-          id="ds-mode-codes"
-          onClick={() => switchMode('codes')}
-        >
-          Set codes
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={'ds-deck-load-tab' + (budgetMode ? ' active' : '')}
-          aria-selected={budgetMode}
-          id="ds-mode-budget"
-          onClick={() => switchMode('budget')}
-        >
-          Budget upgrade
-        </button>
-      </div>
-
-      {setInputMode === 'release' ? (
-        <label className="ds-field">
-          Set release
-          <select
-            id="ds-release"
-            value={releaseId}
-            onChange={(e) => {
-              const next = e.target.value;
-              onReleaseId(next);
-              saveSettings({ ...settings, releaseId: next });
-            }}
+    <div className="ds-setup-canvas" style={{ ['--db-card-w' as string]: `${CARD_SIZE_PX.M}px` }}>
+      <div className="ds-setup-source">
+        <div className="ds-set-mode-tabs" role="tablist" aria-label="Suggest input mode">
+          <button
+            type="button"
+            role="tab"
+            className={'ds-mode-chip' + (setInputMode === 'release' ? ' active' : '')}
+            aria-selected={setInputMode === 'release'}
+            id="ds-mode-release"
+            onClick={() => switchMode('release')}
           >
-            <option value="">Select a release…</option>
-            <ReleaseSelectOptgroups releases={releases} />
-          </select>
-        </label>
-      ) : null}
+            Set release
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={'ds-mode-chip' + (setInputMode === 'codes' ? ' active' : '')}
+            aria-selected={setInputMode === 'codes'}
+            id="ds-mode-codes"
+            onClick={() => switchMode('codes')}
+          >
+            Set codes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={'ds-mode-chip' + (budgetMode ? ' active' : '')}
+            aria-selected={budgetMode}
+            id="ds-mode-budget"
+            onClick={() => switchMode('budget')}
+          >
+            Budget upgrade
+          </button>
+        </div>
 
-      {setInputMode === 'codes' ? (
-        <label className="ds-field">
-          Set codes (up to 5, comma-separated)
-          <input
-            type="text"
-            id="ds-set-codes"
-            value={setCodesInput}
-            placeholder="LTR, LTC"
-            onChange={(e) => onSetCodesInput(e.target.value)}
-            onBlur={() => saveSettings({ ...settings, setCodes: setCodesInput })}
-          />
-        </label>
-      ) : null}
+        {setInputMode === 'release' ? (
+          <label className="ds-field ds-setup-control">
+            Set release
+            <select
+              id="ds-release"
+              value={releaseId}
+              onChange={(e) => {
+                const next = e.target.value;
+                onReleaseId(next);
+                saveSettings({ ...settings, releaseId: next });
+              }}
+            >
+              <option value="">Select a release…</option>
+              <ReleaseSelectOptgroups releases={releases} />
+            </select>
+          </label>
+        ) : null}
 
-      {budgetMode ? (
-        <>
-          <label className="ds-field">
+        {setInputMode === 'codes' ? (
+          <label className="ds-field ds-setup-control">
+            Set codes (up to 5, comma-separated)
+            <input
+              type="text"
+              id="ds-set-codes"
+              value={setCodesInput}
+              placeholder="LTR, LTC"
+              onChange={(e) => onSetCodesInput(e.target.value)}
+              onBlur={() => saveSettings({ ...settings, setCodes: setCodesInput })}
+            />
+          </label>
+        ) : null}
+
+        {budgetMode ? (
+          <label className="ds-field ds-setup-control">
             Budget (USD)
             <input
               type="number"
@@ -203,162 +237,175 @@ export function DeckSuggestSetup({
               }}
             />
           </label>
-          <p className="ds-meta" id="ds-profile-readiness">
-            Profile readiness: {profileReadinessLabel(profileLevel)}
-            {selectedDeckId ? (
-              <>
-                {' · '}
-                <a href={`#/profile-builder?deckId=${encodeURIComponent(selectedDeckId)}`}>
-                  Build profile
-                </a>
-              </>
-            ) : null}
-          </p>
-        </>
-      ) : null}
+        ) : null}
 
-      {!budgetMode && previewCodes.length ? (
-        <p className="ds-meta" id="ds-resolved-codes">
-          Sets:{' '}
-          {setPreview.summary ? (
-            <span className="ds-set-chip">{setPreview.summary}</span>
-          ) : (
-            setPreview.chips.map((code) => (
-              <span key={code} className="ds-set-chip">
-                {code}
-              </span>
-            ))
-          )}
-        </p>
-      ) : null}
-
-      <fieldset className="ds-focus-run">
-        <legend>Focus this run (optional, ≤{FOCUS_TAGS_MAX})</legend>
-        <div className="ds-focus-chips">
-          {focusTags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              className="ds-focus-chip"
-              onClick={() => onFocusTags(focusTags.filter((t) => t !== tag))}
-            >
-              {tag} ×
-            </button>
-          ))}
-        </div>
-        {profileTagChips.length ? (
-          <div className="ds-focus-suggestions">
-            {profileTagChips
-              .filter((t) => !focusTags.some((f) => f.toLowerCase() === t.toLowerCase()))
-              .slice(0, 12)
-              .map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  className="ds-btn ds-btn-sm"
-                  disabled={focusTags.length >= FOCUS_TAGS_MAX}
-                  onClick={() => addFocusTag(tag)}
-                >
-                  + {tag}
-                </button>
-              ))}
+        {!budgetMode && previewCodes.length ? (
+          <div className="ds-setup-chips" id="ds-resolved-codes">
+            {setPreview.summary ? (
+              <span className="db-filter-chip ds-set-chip">{setPreview.summary}</span>
+            ) : (
+              setPreview.chips.map((code) => (
+                <span key={code} className="db-filter-chip ds-set-chip">
+                  {code}
+                </span>
+              ))
+            )}
           </div>
         ) : null}
-        <label className="ds-field">
-          Add focus tag
-          <input
-            type="text"
-            id="ds-focus-input"
-            value={focusTagInput}
-            placeholder="mana-production"
-            onChange={(e) => onFocusTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addFocusTag(focusTagInput);
-              }
-            }}
-          />
-        </label>
-        {focusTags.length ? (
-          <button type="button" className="ds-btn ds-btn-sm" onClick={() => onFocusTags([])}>
-            Clear focus
-          </button>
-        ) : null}
-      </fieldset>
 
-      <h4 className="ds-meta">Decks</h4>
-      {decksLoading ? <p className="ds-meta">Loading decks…</p> : null}
-      {!decksLoading && !decks.length ? (
-        <p className="ds-meta">No commander decks found. Save decks in Commander Builder first.</p>
-      ) : null}
-
-      {decks.length ? (
-        <fieldset className="ds-deck-list">
-          <legend>
-            Decks ({budgetMode ? (selected.length ? '1' : '0') : selected.length}/{decks.length})
-          </legend>
-          {!budgetMode ? (
-            <div className="ds-deck-select-actions">
+        <div className="ds-focus-run">
+          <div className="ds-setup-chips">
+            {focusTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="db-filter-chip"
+                onClick={() => onFocusTags(focusTags.filter((t) => t !== tag))}
+              >
+                {tag}
+                <span className="db-filter-chip-x" aria-hidden="true">
+                  ×
+                </span>
+              </button>
+            ))}
+            {focusTags.length ? (
+              <button type="button" className="db-filter-chip db-filter-chip-clear" onClick={() => onFocusTags([])}>
+                Clear focus
+              </button>
+            ) : null}
+            {!focusOpen ? (
               <button
                 type="button"
-                id="ds-select-all-decks"
-                onClick={() =>
-                  onDeckSelectionChange({ ...deckSelection, selectedIds: selectAllDecks(decks) })
-                }
+                className="db-filter-chip db-filter-chip-clear"
+                disabled={focusTags.length >= FOCUS_TAGS_MAX}
+                onClick={() => setFocusOpen(true)}
               >
-                Select all
+                Focus this run…
               </button>
-              <button
-                type="button"
-                id="ds-clear-all-decks"
-                onClick={() => onDeckSelectionChange({ ...deckSelection, selectedIds: [] })}
-              >
-                Clear all
-              </button>
+            ) : null}
+          </div>
+          {profileTagChips.length ? (
+            <div className="ds-focus-suggestions">
+              {profileTagChips
+                .filter((t) => !focusTags.some((f) => f.toLowerCase() === t.toLowerCase()))
+                .slice(0, 12)
+                .map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="db-filter-chip"
+                    disabled={focusTags.length >= FOCUS_TAGS_MAX}
+                    onClick={() => addFocusTag(tag)}
+                  >
+                    + {tag}
+                  </button>
+                ))}
             </div>
           ) : null}
-          {decks.map((deck) => (
-            <label key={deck.deck_id} className="ds-deck-option">
+          {focusOpen ? (
+            <label className="ds-field ds-setup-control">
+              Add focus tag (optional, ≤{FOCUS_TAGS_MAX})
               <input
-                type={budgetMode ? 'radio' : 'checkbox'}
-                name="ds-deck"
-                value={deck.deck_id}
-                checked={selected.indexOf(deck.deck_id) >= 0}
-                onChange={(e) => {
-                  if (budgetMode) {
-                    onDeckSelectionChange({
-                      ...deckSelection,
-                      selectedIds: e.target.checked ? [deck.deck_id] : [],
-                    });
-                    return;
+                type="text"
+                id="ds-focus-input"
+                value={focusTagInput}
+                placeholder="mana-production"
+                onChange={(e) => onFocusTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addFocusTag(focusTagInput);
                   }
-                  onDeckSelectionChange({
-                    ...deckSelection,
-                    selectedIds: toggleDeckSelection(selected, deck.deck_id, e.target.checked),
-                  });
                 }}
-              />{' '}
-              {deckSuggestHeaderText(deck)}
+              />
             </label>
-          ))}
-        </fieldset>
-      ) : null}
+          ) : null}
+        </div>
+      </div>
 
-      {isLocalHub() ? (
-        <fieldset className="ds-rules-debug-setup">
-          <legend>Developer</legend>
-          <label className="ds-deck-option">
-            <input
-              type="checkbox"
-              id="ds-rules-debug"
-              checked={!!settings.rulesDebug}
-              onChange={(e) => saveSettings({ ...settings, rulesDebug: e.target.checked })}
-            />{' '}
-            Debug trace
-          </label>
-        </fieldset>
-      ) : null}
-    </>
+      <div className="ds-setup-decks">
+        {decks.length && !budgetMode ? (
+          <div className="ds-deck-select-actions">
+            <span className="ds-meta">
+              Decks ({selected.length}/{decks.length})
+            </span>
+            <button
+              type="button"
+              id="ds-select-all-decks"
+              onClick={() =>
+                onDeckSelectionChange({ ...deckSelection, selectedIds: selectAllDecks(decks) })
+              }
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              id="ds-clear-all-decks"
+              onClick={() => onDeckSelectionChange({ ...deckSelection, selectedIds: [] })}
+            >
+              Clear all
+            </button>
+          </div>
+        ) : decks.length ? (
+          <p className="ds-meta">Choose one deck</p>
+        ) : null}
+
+        {decksLoading ? <LibrarySkeleton /> : null}
+        {!decksLoading && !decks.length ? (
+          <div className="db-empty-state">
+            <p>No commander decks in the library.</p>
+            <p>Save a deck in Commander Builder, then generate suggestions here.</p>
+            <a href="#/commander-builder" className="db-btn is-active">
+              Open Commander Builder
+            </a>
+          </div>
+        ) : null}
+
+        {!decksLoading && decks.length ? (
+          <ul className="db-library-grid" role={budgetMode ? 'radiogroup' : 'group'} aria-label="Decks">
+            {decks.map((deck) => {
+              const isOn = selected.indexOf(deck.deck_id) >= 0;
+              const summary = coverSummary(deck.deck_id, deck.deck_name, covers);
+              const dual = Boolean(summary.coverImageUrl && summary.coverImageUrlSecondary);
+              return (
+                <li
+                  key={deck.deck_id}
+                  className={
+                    'db-library-tile' +
+                    (dual ? ' is-partner-pair' : '') +
+                    (isOn ? ' is-selected' : '') +
+                    (summary.coverPartnerStatus === 'illegal' ? ' is-illegal-pair' : '')
+                  }
+                >
+                  <button
+                    type="button"
+                    role={budgetMode ? 'radio' : 'checkbox'}
+                    aria-checked={isOn}
+                    aria-label={deck.deck_name}
+                    className="db-library-tile-open"
+                    onClick={() => selectDeck(deck.deck_id, !isOn)}
+                  >
+                    <LibraryCoverArt deck={summary} />
+                    <span className="db-library-tile-caption">
+                      <FormatBadge format={summary.format === 'pendragon' ? 'pendragon' : 'commander'} />
+                      <span className="db-library-tile-name">{deck.deck_name}</span>
+                    </span>
+                  </button>
+                  {budgetMode && isOn ? (
+                    <p className="ds-tile-profile" id="ds-profile-readiness">
+                      {profileReadinessLabel(profileLevel)}
+                      {' · '}
+                      <a href={`#/profile-builder?deckId=${encodeURIComponent(deck.deck_id)}`}>
+                        Build profile
+                      </a>
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CardSizePicker, useCardSize } from '../cards';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { useIsSignedIn } from '../lib/hub-auth-session';
+import { isLocalHub } from '../lib/hub-utils';
 import { loadDeckSuggestSettings, saveDeckSuggestSettings } from '../lib/hub-storage';
 import {
   getHubApiConfig,
@@ -28,10 +29,12 @@ import {
   selectDeck,
 } from '../deck-review/review';
 import type { DeckReviewState, ReviewDecision, SuggestionsPayload } from '../deck-review/types';
-import type { ProfileLozenge, ProfileLozengeUpdates, Suggestion } from '@rayenz-hub/shared';
+import type { DeckSummary, ProfileLozenge, ProfileLozengeUpdates, Suggestion } from '@rayenz-hub/shared';
+import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
 import '../deck-review/deck-review.css';
+import '../deck-builder/deck-builder.css';
 import { DeckSuggestSetup } from './DeckSuggestSetup';
-import { loadHubLibraryDecks } from './data';
+import { loadHubLibraryForSuggest } from './data';
 import { applyDeckList } from './deck-load';
 import { buildExport } from './export';
 import { generateSuggestions } from './generation';
@@ -89,6 +92,7 @@ export function DeckSuggestApp() {
   const [review, setReview] = useState<DeckReviewState>(createInitialReviewState);
   const [error, setError] = useState('');
   const [decksLoading, setDecksLoading] = useState(true);
+  const [deckCovers, setDeckCovers] = useState<Record<string, DeckSummary>>({});
   const [processedIds, setProcessedIds] = useState<string[]>([]);
   const [navOpen, setNavOpen] = useState(false);
   const [bulkSeeking, setBulkSeeking] = useState(false);
@@ -150,11 +154,12 @@ export function DeckSuggestApp() {
     (async () => {
       setDecksLoading(true);
       try {
-        const loaded = await loadHubLibraryDecks();
+        const loaded = await loadHubLibraryForSuggest();
         if (cancelled) return;
+        setDeckCovers(loaded.covers);
         setSuggest((prev) => ({
           ...prev,
-          deckSelection: applyDeckList(loaded, prev.deckSelection),
+          deckSelection: applyDeckList(loaded.decks, prev.deckSelection),
         }));
       } catch (err) {
         if (!cancelled) {
@@ -539,14 +544,31 @@ export function DeckSuggestApp() {
                   >
                     Generate
                   </button>
-                  <button
-                    type="button"
-                    className="dr-btn dr-btn-ghost"
-                    id="ds-upload-btn"
-                    onClick={() => fileInputRef.current?.click()}
+                  <DbMenu
+                    icon={
+                      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M3 4.5h12v1.5H3V4.5zm0 4h12v1.5H3V8.5zm0 4h12V14H3v-1.5z"
+                        />
+                      </svg>
+                    }
+                    ariaLabel="More"
+                    align="end"
+                    triggerClassName="dr-btn dr-btn-ghost db-menu-icon-btn"
                   >
-                    Upload JSON
-                  </button>
+                    <DbMenuItem onSelect={() => fileInputRef.current?.click()}>Upload JSON</DbMenuItem>
+                    {isLocalHub() ? (
+                      <DbMenuItem
+                        active={!!suggest.settings.rulesDebug}
+                        onSelect={() =>
+                          persistSettings({ ...suggest.settings, rulesDebug: !suggest.settings.rulesDebug })
+                        }
+                      >
+                        Debug trace
+                      </DbMenuItem>
+                    ) : null}
+                  </DbMenu>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -586,14 +608,14 @@ export function DeckSuggestApp() {
             {!loaded ? (
               <div className="ds-setup-phase">
                 {remaining.length && processedIds.length ? (
-                  <p className="ds-meta">
+                  <p className="hub-warn ds-setup-page-banner">
                     {remaining.length} deck(s) left unprocessed.{' '}
                     <button type="button" className="dr-btn dr-btn-ghost" onClick={handleNextPage}>
                       Select next page
                     </button>
                   </p>
                 ) : null}
-                <section className="ds-panel" id="ds-setup">
+                <section id="ds-setup">
                   <DeckSuggestSetup
                     settings={suggest.settings}
                     setSettings={persistSettings}
@@ -632,6 +654,7 @@ export function DeckSuggestApp() {
                       setSuggest((prev) => ({ ...prev, deckSelection: next }))
                     }
                     decksLoading={decksLoading}
+                    covers={deckCovers}
                   />
                 </section>
               </div>

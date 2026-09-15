@@ -116,4 +116,56 @@ describe('sortCardsInGroup', () => {
     // Normal A–Z: c, b, a → permanent b first, then ghosts c then a (stable within partition)
     expect(sorted.map((c) => c.instanceId)).toEqual(['b', 'c', 'a']);
   });
+
+  it('sorts by set then collector number ascending (numeric)', () => {
+    const c10 = view({
+      instanceId: 'c10',
+      name: 'Ten',
+      setCode: 'mh3',
+      collectorNumber: '10',
+    });
+    const c2 = view({
+      instanceId: 'c2',
+      name: 'Two',
+      setCode: 'mh3',
+      collectorNumber: '2',
+    });
+    const aaa = view({
+      instanceId: 'aaa',
+      name: 'Early Set',
+      setCode: 'aaa',
+      collectorNumber: '99',
+    });
+    const missing = view({
+      instanceId: 'miss',
+      name: 'No Set',
+      setCode: null,
+      collectorNumber: null,
+    });
+    const sorted = sortCardsInGroup([c10, missing, c2, aaa], 'collector_asc');
+    expect(sorted.map((c) => c.instanceId)).toEqual(['aaa', 'c2', 'c10', 'miss']);
+  });
+
+  it('sorts by set then collector number descending (numeric), missing last', () => {
+    const c10 = view({
+      instanceId: 'c10',
+      name: 'Ten',
+      setCode: 'mh3',
+      collectorNumber: '10',
+    });
+    const c2 = view({
+      instanceId: 'c2',
+      name: 'Two',
+      setCode: 'mh3',
+      collectorNumber: '2',
+    });
+    const missingCn = view({
+      instanceId: 'nocn',
+      name: 'No Number',
+      setCode: 'mh3',
+      collectorNumber: null,
+    });
+    const sorted = sortCardsInGroup([c2, missingCn, c10], 'collector_desc');
+    expect(sorted.map((c) => c.instanceId)).toEqual(['c10', 'c2', 'nocn']);
+  });
 });

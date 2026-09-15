@@ -14,7 +14,18 @@ export const CARD_SORT_MODE_LABELS: Record<CardSortMode, string> = {
   colour_identity: 'Colour identity',
   mana_asc: 'Mana value ↑',
   mana_desc: 'Mana value ↓',
+  collector_asc: 'Collector ↑',
+  collector_desc: 'Collector ↓',
 };
+
+/** Canonical empty-set key for browse swimlanes and sort missing-set handling. */
+export const UNKNOWN_SET_CODE_KEY = '—';
+
+export function normalizeSetCodeKey(setCode: string | null | undefined): string {
+  const trimmed = String(setCode || '').trim();
+  if (!trimmed) return UNKNOWN_SET_CODE_KEY;
+  return trimmed.toUpperCase();
+}
 
 function compareDisplayName(a: CardView, b: CardView): number {
   const cmp = cardDisplayName(a).localeCompare(cardDisplayName(b), undefined, {
@@ -34,8 +45,55 @@ function colourIdentityRank(
   return idx >= 0 ? idx : sections.length;
 }
 
+function compareSetCode(a: CardView, b: CardView): number {
+  const setA = normalizeSetCodeKey(a.setCode);
+  const setB = normalizeSetCodeKey(b.setCode);
+  const aMissing = setA === UNKNOWN_SET_CODE_KEY;
+  const bMissing = setB === UNKNOWN_SET_CODE_KEY;
+  if (aMissing !== bMissing) return aMissing ? 1 : -1;
+  if (setA !== setB) return setA.localeCompare(setB);
+  return 0;
+}
+
+function compareCollectorNumber(a: CardView, b: CardView, desc: boolean): number {
+  const cnA = String(a.collectorNumber ?? '').trim();
+  const cnB = String(b.collectorNumber ?? '').trim();
+  const aMissing = !cnA;
+  const bMissing = !cnB;
+  if (aMissing !== bMissing) return aMissing ? 1 : -1;
+  if (cnA !== cnB) {
+    const cmp = cnA.localeCompare(cnB, undefined, { numeric: true });
+    return desc ? -cmp : cmp;
+  }
+  return 0;
+}
+
 /**
- * Sort cards within a browse group. Missing mana / CI sort last.
+ * Set code (A–Z, unknown last), then collector number (numeric, missing last),
+ * then display name. Used by collector sort modes and Glance secondary compare.
+ */
+export function compareSetThenCollector(
+  a: Pick<CardView, 'setCode' | 'collectorNumber' | 'instanceId'> & {
+    name?: string | null;
+    printedName?: string | null;
+    flavorName?: string | null;
+  },
+  b: Pick<CardView, 'setCode' | 'collectorNumber' | 'instanceId'> & {
+    name?: string | null;
+    printedName?: string | null;
+    flavorName?: string | null;
+  },
+  collectorDesc = false,
+): number {
+  const setCmp = compareSetCode(a as CardView, b as CardView);
+  if (setCmp !== 0) return setCmp;
+  const cnCmp = compareCollectorNumber(a as CardView, b as CardView, collectorDesc);
+  if (cnCmp !== 0) return cnCmp;
+  return compareDisplayName(a as CardView, b as CardView);
+}
+
+/**
+ * Sort cards within a browse group. Missing mana / CI / set / collector sort last.
  * Stable ties: display name, then instanceId.
  * When `ghostIds` is set, those cards are stable-partitioned to the end (above placeholders).
  */
@@ -56,6 +114,9 @@ export function sortCardsInGroup(
       if (ra !== rb) return ra - rb;
       return compareDisplayName(a, b);
     }
+
+    if (mode === 'collector_asc') return compareSetThenCollector(a, b, false);
+    if (mode === 'collector_desc') return compareSetThenCollector(a, b, true);
 
     const aMana = a.manaValue;
     const bMana = b.manaValue;

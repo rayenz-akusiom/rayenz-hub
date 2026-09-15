@@ -76,6 +76,7 @@ import {
 import { CategoryBrowse } from './CategoryBrowse';
 import { CardFlagCharmProvider } from './CardFlagCharmContext';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
+import { SetCodeBrowse } from './SetCodeBrowse';
 import { AddCardFab } from './AddCardFab';
 import { TrimModeFab } from './TrimModeFab';
 import { type ContextMenuPoint } from './CardTile';
@@ -1395,6 +1396,37 @@ export function BrowseShell({
               layout={layout}
               cardSort={cardSort}
               separateLands={view === 'colour_identity_spells'}
+              onDropCard={readOnly ? () => {} : onDropCard}
+              onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
+              onPickSlot={
+                readOnly
+                  ? undefined
+                  : (category) => {
+                      setPickSlotCategory(category);
+                      setAddOpen(true);
+                    }
+              }
+              onVisibleOrderChange={onMainVisibleOrderChange}
+              onSetOwnership={
+                readOnly || liveDeck.format === 'collection' ? undefined : onSetOwnership
+              }
+              onSetVisibility={readOnly ? undefined : onSetVisibility}
+              onRename={readOnly ? undefined : (name) => commitPatch({ name })}
+              onSetDescription={
+                readOnly ? undefined : (description) => commitPatch({ description })
+              }
+              deckMeta={deckMeta}
+              deckMetaWarn={sizeWarn || targetsVsCubeWarn}
+              syncStatus={syncStatus}
+              filtersActive={filtersActive}
+            />
+          ) : view === 'set_code' ? (
+            <SetCodeBrowse
+              deck={browseDeck}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              layout={layout}
+              cardSort={cardSort}
               onDropCard={readOnly ? () => {} : onDropCard}
               onCardContextMenu={readOnly ? () => {} : onCardContextMenu}
               onPickSlot={

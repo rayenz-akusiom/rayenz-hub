@@ -33,6 +33,7 @@ export const BrowseViewSchema = z.enum([
   'colour_identity',
   'colour_identity_spells',
   'planeswalker_subtype',
+  'set_code',
   'all_cards',
 ]);
 export type BrowseView = z.infer<typeof BrowseViewSchema>;
@@ -47,6 +48,8 @@ export const CardSortModeSchema = z.enum([
   'colour_identity',
   'mana_asc',
   'mana_desc',
+  'collector_asc',
+  'collector_desc',
 ]);
 export type CardSortMode = z.infer<typeof CardSortModeSchema>;
 

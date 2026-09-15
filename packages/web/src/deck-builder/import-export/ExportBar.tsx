@@ -22,6 +22,7 @@ const VIEW_LABELS: Record<BrowseView, string> = {
   colour_identity: 'Colour identity',
   colour_identity_spells: 'Colour identity (Spells)',
   planeswalker_subtype: 'Planeswalker subtype',
+  set_code: 'By set',
   all_cards: 'All Cards',
 };
 
@@ -36,6 +37,8 @@ const SORT_MODES: CardSortMode[] = [
   'colour_identity',
   'mana_asc',
   'mana_desc',
+  'collector_asc',
+  'collector_desc',
 ];
 
 const DEFAULT_VIEW_OPTIONS: BrowseView[] = [
@@ -44,6 +47,7 @@ const DEFAULT_VIEW_OPTIONS: BrowseView[] = [
   'category_multi',
   'colour_identity',
   'colour_identity_spells',
+  'set_code',
   'all_cards',
 ];
 

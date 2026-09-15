@@ -29,6 +29,10 @@ vi.mock('../../packages/web/src/deck-builder/browse/ColourIdentityBrowse', () =>
   ColourIdentityBrowse: () => <div data-testid="ci-browse-stub" />,
 }));
 
+vi.mock('../../packages/web/src/deck-builder/browse/SetCodeBrowse', () => ({
+  SetCodeBrowse: () => <div data-testid="set-code-browse-stub" />,
+}));
+
 vi.mock('../../packages/web/src/deck-builder/swaps/SwapQueuePanel', () => ({
   SwapQueuePanel: () => <div data-testid="swap-queue-panel-stub" />,
 }));
@@ -78,6 +82,32 @@ describe('ExportBar All Cards option', () => {
     );
     expect(screen.getByRole('button', { name: /Browse.*All Cards/i })).toBeInTheDocument();
   });
+
+  it('offers By set and Collector sorts', async () => {
+    const onViewChange = vi.fn();
+    const onCardSortChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ExportBar
+        view="category"
+        onViewChange={onViewChange}
+        layout="stacked"
+        onLayoutChange={() => {}}
+        cardSort="name_asc"
+        onCardSortChange={onCardSortChange}
+        cardSize="M"
+        onCardSizeChange={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Browse/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'By set' }));
+    expect(onViewChange).toHaveBeenCalledWith('set_code');
+
+    await user.click(screen.getByRole('button', { name: /Sort/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Collector ↑' }));
+    expect(onCardSortChange).toHaveBeenCalledWith('collector_asc');
+  });
 });
 
 describe('BrowseShell All Cards view', () => {
@@ -122,5 +152,20 @@ describe('BrowseShell All Cards view', () => {
         layout: 'grid',
       }),
     );
+  });
+
+  it('routes By set through SetCodeBrowse', async () => {
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      browseViewDefault: null,
+      lookingForEntries: [],
+    };
+    const user = userEvent.setup();
+    render(<BrowseShell deck={deck} onChange={() => {}} onBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: /Browse/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'By set' }));
+
+    expect(screen.getByTestId('set-code-browse-stub')).toBeInTheDocument();
   });
 });

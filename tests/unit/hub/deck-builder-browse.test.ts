@@ -14,6 +14,7 @@ import {
   cubeCategoryBand,
   groupByAllCategories,
   groupByCategory,
+  groupBySetCode,
   groupKeysByCubeCategoryBand,
   moveCardCategory,
   orderedCategoryKeys,
@@ -21,6 +22,8 @@ import {
   primaryCategoryCount,
   partitionCategories,
   removeSecondaryCategory,
+  sortSetCodeKeys,
+  UNKNOWN_SET_CODE_KEY,
 } from '../../../packages/shared/src/index.ts';
 import commander from '../../fixtures/deck-builder/commander-slice.json';
 import cube from '../../fixtures/deck-builder/cube-slice.json';
@@ -35,6 +38,21 @@ describe('browse grouping', () => {
     const groups = groupByCategory(commander.cards);
     expect(groups.Creature).toHaveLength(1);
     expect(groups.Land).toHaveLength(1);
+  });
+
+  it('groups by set code with unknown last in key sort', () => {
+    const cards = [
+      { instanceId: '1', setCode: 'mh3' },
+      { instanceId: '2', setCode: 'cmm' },
+      { instanceId: '3', setCode: null },
+      { instanceId: '4', setCode: 'MH3' },
+      { instanceId: '5', setCode: '' },
+    ];
+    const groups = groupBySetCode(cards);
+    expect(groups.MH3.map((c) => c.instanceId)).toEqual(['1', '4']);
+    expect(groups.CMM.map((c) => c.instanceId)).toEqual(['2']);
+    expect(groups[UNKNOWN_SET_CODE_KEY].map((c) => c.instanceId)).toEqual(['3', '5']);
+    expect(sortSetCodeKeys(Object.keys(groups))).toEqual(['CMM', 'MH3', UNKNOWN_SET_CODE_KEY]);
   });
 
   it('orders Commander and Lieutenants as headers', () => {

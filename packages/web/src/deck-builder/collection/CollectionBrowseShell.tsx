@@ -24,6 +24,7 @@ import {
   type PrintingFields,
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from '../browse/CategoryBrowse';
+import { SetCodeBrowse } from '../browse/SetCodeBrowse';
 import { type ContextMenuPoint } from '../browse/CardTile';
 import { ExportBar } from '../import-export/ExportBar';
 import { PrintingPickerModal } from '../scryfall/PrintingPickerModal';
@@ -228,8 +229,8 @@ export function CollectionBrowseShell({
   }, [liveDeck, resolvedCards, setFilter.active, setFilter.membership, syntaxFilter.active, syntaxFilter.membership, proxyFilter, foilFilter, seekingFilter]);
 
   const viewOptions = deck.collectionTemplate === 'planeswalkers'
-    ? ['all_cards', 'category', 'planeswalker_subtype'] as BrowseView[]
-    : ['all_cards', 'category'] as BrowseView[];
+    ? ['all_cards', 'category', 'planeswalker_subtype', 'set_code'] as BrowseView[]
+    : ['all_cards', 'category', 'set_code'] as BrowseView[];
 
   const filterChips: ActiveFilterChip[] = [];
   if (setFilter.active && setFilter.label) filterChips.push({ id: 'set', label: setFilter.label, onDismiss: () => setFilter.clear() });
@@ -572,6 +573,26 @@ export function CollectionBrowseShell({
             onSetDescription={readOnly ? undefined : (description) => commit({ ...liveDeck, description })}
             deckMeta={deckMeta}
             syncStatus={syncStatus}
+            onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}
+          />
+        ) : view === 'set_code' ? (
+          <SetCodeBrowse
+            deck={browseDeck}
+            selectedIds={selectedIds}
+            onSelectCard={(card) => setSelectedIds((prev) => (prev.size === 1 && prev.has(card.instanceId) ? new Set() : new Set([card.instanceId])))}
+            layout={layout}
+            cardSort={cardSort}
+            onCardContextMenu={readOnly ? undefined : (card, at) => {
+              setSelectedIds(new Set([card.instanceId]));
+              setContextMenu({ x: at.clientX, y: at.clientY, instanceId: card.instanceId });
+            }}
+            onRename={readOnly ? undefined : (name) => commit({ ...liveDeck, name })}
+            onSetDescription={readOnly ? undefined : (description) => commit({ ...liveDeck, description })}
+            deckMeta={deckMeta}
+            syncStatus={syncStatus}
+            enableSoughtGhost
+            representativeCard={liveDeck.representativeCard ? toRepresentativeCardView(liveDeck.representativeCard) : null}
+            representativeLabel="Binder"
             onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}
           />
         ) : (

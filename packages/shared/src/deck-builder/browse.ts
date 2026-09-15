@@ -6,6 +6,7 @@ import type {
   DeckFormat,
 } from '../schemas/deck-builder.js';
 import { SEEKING, isSeekingCategory, isSwapQueueCategoryName } from '../mtg/swap-queue.js';
+import { normalizeSetCodeKey, UNKNOWN_SET_CODE_KEY } from './card-sort.js';
 import { canonicalizeCategoryName } from './category-names.js';
 import { cubeCategorySectionsOrder } from './colour-identity.js';
 import { collectCommanderGalleryExtraIds } from './partner.js';
@@ -58,6 +59,29 @@ export function groupByCategory(cards: CardInstance[]): Record<string, CardInsta
     groups[key].push(card);
   }
   return groups;
+}
+
+/** Group cards by normalized set code (`—` when missing). */
+export function groupBySetCode<T extends { setCode?: string | null }>(
+  cards: T[],
+): Record<string, T[]> {
+  const groups: Record<string, T[]> = {};
+  for (const card of cards) {
+    const key = normalizeSetCodeKey(card.setCode);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(card);
+  }
+  return groups;
+}
+
+/** Alpha A–Z set codes; unknown/`—` last. */
+export function sortSetCodeKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
+    const aUnknown = a === UNKNOWN_SET_CODE_KEY;
+    const bUnknown = b === UNKNOWN_SET_CODE_KEY;
+    if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
+    return a.localeCompare(b);
+  });
 }
 
 /** Place a card into every membership in `categories[]` (primary + secondaries). */

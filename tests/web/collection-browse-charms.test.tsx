@@ -163,4 +163,34 @@ describe('collection browse charms', () => {
     expect(screen.getByRole('button', { name: 'Mark as foil' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unmark seeking' })).toBeInTheDocument();
   });
+
+  it('offers Clear Binder on the matching printing and never shows proxy in the context menu', async () => {
+    const user = userEvent.setup();
+    const deck: DeckDocument = {
+      ...collectionDoc(1, 1),
+      representativeCard: {
+        name: 'Jace Beleren',
+        scryfallId: 'pc1',
+        setCode: 'm10',
+        collectorNumber: '60',
+        foil: false,
+        imageUrl: null,
+        printedName: null,
+        flavorName: null,
+      },
+    };
+    render(<Harness initial={deck} />);
+
+    const binder = screen.getByLabelText('Binder');
+    const inventory = screen
+      .getAllByRole('button', { name: /^Jace Beleren$/i })
+      .find((el) => !binder.contains(el));
+    expect(inventory).toBeTruthy();
+    await user.pointer({ keys: '[MouseRight>]', target: inventory! });
+
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Clear Binder' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /proxy/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /cover/i })).not.toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 import {
   cardSupportsFoilToggle,
-  collectionDefaultTargetQuantity,
+  collectionSeekingToggleEnabled,
   isCollectionDeck,
   type CardView,
   type DeckDocument,
@@ -46,7 +46,7 @@ export function proxyCharmEnabled(deck: DeckDocument): boolean {
 
 export function seekingCharmEnabled(deck: DeckDocument, queuesReadOnly: boolean): boolean {
   if (queuesReadOnly) return false;
-  if (isCollectionDeck(deck) && collectionDefaultTargetQuantity(deck) !== 1) return false;
+  if (isCollectionDeck(deck)) return collectionSeekingToggleEnabled(deck);
   return true;
 }
 

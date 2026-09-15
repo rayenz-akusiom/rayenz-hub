@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addCardToDeck,
   cardDisplayName,
+  cardMatchesCollectionRepresentative,
   cardMatchesSetMembership,
   cardMatchesSyntaxMembership,
   changeCardPrinting,
@@ -11,6 +12,7 @@ import {
   collectionSearchNeedsReleaseRefresh,
   collectionSeekingToggleEnabled,
   collectionTargetQuantity,
+  defaultCollectionBrowseView,
   isCollectionDeck,
   resolveDeckCards,
   syncCollectionDeck,
@@ -139,7 +141,9 @@ export function CollectionBrowseShell({
   syncStatus?: DeckSyncStatus | null;
   readOnly?: boolean;
 }) {
-  const [view, setView] = useState<BrowseView>(deck.browseViewDefault || 'all_cards');
+  const initialBrowseView =
+    deck.browseViewDefault || defaultCollectionBrowseView(deck.collectionTemplate) || 'all_cards';
+  const [view, setView] = useState<BrowseView>(initialBrowseView);
   const [layout, setLayout] = useState<CardLayout>(deck.cardLayoutDefault || 'grid');
   const [cardSort, setCardSort] = useState<CardSortMode>(deck.cardSortDefault || 'name_asc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -167,9 +171,14 @@ export function CollectionBrowseShell({
 
   const liveDeck = useMemo(() => syncCollectionDeck(deck), [deck]);
   const seekingToggleEnabled = collectionSeekingToggleEnabled(liveDeck);
+  const representativeCardView = liveDeck.representativeCard
+    ? toRepresentativeCardView(liveDeck.representativeCard)
+    : null;
 
   useEffect(() => {
-    setView(deck.browseViewDefault || 'all_cards');
+    setView(
+      deck.browseViewDefault || defaultCollectionBrowseView(deck.collectionTemplate) || 'all_cards',
+    );
     setLayout(deck.cardLayoutDefault || 'grid');
     setCardSort(deck.cardSortDefault || 'name_asc');
     setSelectedIds(new Set());
@@ -564,7 +573,7 @@ export function CollectionBrowseShell({
         {view === 'planeswalker_subtype' ? (
           <PlaneswalkerSubtypeBrowse
             deck={browseDeck}
-            representativeCard={liveDeck.representativeCard}
+            representativeCard={representativeCardView}
             selectedIds={selectedIds}
             onSelectCard={(card) => setSelectedIds(new Set([card.instanceId]))}
             onCardContextMenu={readOnly ? undefined : (card, at) => {
@@ -582,7 +591,7 @@ export function CollectionBrowseShell({
         ) : view === 'partner_pairing' ? (
           <PartnerPairingBrowse
             deck={browseDeck}
-            representativeCard={liveDeck.representativeCard}
+            representativeCard={representativeCardView}
             selectedIds={selectedIds}
             onSelectCard={(card) => setSelectedIds(new Set([card.instanceId]))}
             onCardContextMenu={readOnly ? undefined : (card, at) => {
@@ -613,7 +622,7 @@ export function CollectionBrowseShell({
             deckMeta={deckMeta}
             syncStatus={syncStatus}
             enableSoughtGhost
-            representativeCard={liveDeck.representativeCard ? toRepresentativeCardView(liveDeck.representativeCard) : null}
+            representativeCard={representativeCardView}
             representativeLabel="Binder"
             onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}
           />
@@ -634,7 +643,7 @@ export function CollectionBrowseShell({
             syncStatus={syncStatus}
             browseView={view}
             enableSoughtGhost
-            representativeCard={liveDeck.representativeCard ? toRepresentativeCardView(liveDeck.representativeCard) : null}
+            representativeCard={representativeCardView}
             representativeLabel="Binder"
             onPickRepresentative={readOnly ? undefined : () => setRepresentativeOpen(true)}
           />
@@ -724,14 +733,14 @@ export function CollectionBrowseShell({
         <CardContextMenu
           state={contextMenu}
           selectionCount={selectedIds.size}
-          isCover={liveDeck.coverInstanceId === contextCard.instanceId}
+          isCover={cardMatchesCollectionRepresentative(contextCard, liveDeck.representativeCard)}
+          coverActionLabel="binder"
           foil={Boolean(contextCard.foil)}
           foilEnabled
           proxy={Boolean(contextCard.proxy)}
           seeking={collectionCardIsSought(contextCard)}
           onClose={() => setContextMenu(null)}
           onToggleFoil={() => commit({ ...liveDeck, cards: liveDeck.cards.map((card) => card.instanceId === contextCard.instanceId ? { ...card, foil: !card.foil } : card) })}
-          onToggleProxy={() => commit({ ...liveDeck, cards: liveDeck.cards.map((card) => card.instanceId === contextCard.instanceId ? { ...card, proxy: !card.proxy } : card) })}
           onToggleSeeking={seekingToggleEnabled ? onToggleSeeking : undefined}
           onSetCover={() => commit({ ...liveDeck, representativeCard: representativeFromPrinting({
             name: contextCard.name,

@@ -23,6 +23,28 @@ export function isCollectionRepresentativeCard(
   return card?.instanceId === COLLECTION_REPRESENTATIVE_INSTANCE_ID;
 }
 
+/** True when an inventory card is the same printing as the Binder cover art. */
+export function cardMatchesCollectionRepresentative(
+  card: Pick<CardInstance, 'name' | 'scryfallId' | 'setCode' | 'collectorNumber'> | null | undefined,
+  rep: CollectionRepresentativeCard | null | undefined,
+): boolean {
+  if (!card || !rep) return false;
+  const cardId = String(card.scryfallId || '').trim();
+  const repId = String(rep.scryfallId || '').trim();
+  if (cardId && repId) return cardId === repId;
+  const cardSet = String(card.setCode || '').trim().toLowerCase();
+  const repSet = String(rep.setCode || '').trim().toLowerCase();
+  const cardCn = String(card.collectorNumber || '').trim().toLowerCase();
+  const repCn = String(rep.collectorNumber || '').trim().toLowerCase();
+  if (cardSet && repSet && cardCn && repCn) {
+    return cardSet === repSet && cardCn === repCn;
+  }
+  if (!cardId && !repId && (!cardSet || !cardCn) && (!repSet || !repCn)) {
+    return String(card.name || '').trim().toLowerCase() === String(rep.name || '').trim().toLowerCase();
+  }
+  return false;
+}
+
 export function isCollectionDeck(
   deck: Pick<DeckDocument, 'format'> | null | undefined,
 ): boolean {

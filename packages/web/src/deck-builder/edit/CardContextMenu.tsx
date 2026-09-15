@@ -46,8 +46,8 @@ export function CardContextMenu({
   /** Number of cards in the active selection (menu targets all when > 1). */
   selectionCount?: number;
   isCover: boolean;
-  /** Noun for cover/primary menu actions (`cover` | `primary`). */
-  coverActionLabel?: 'cover' | 'primary';
+  /** Noun for cover/primary/Binder menu actions. */
+  coverActionLabel?: 'cover' | 'primary' | 'binder';
   foil: boolean;
   foilEnabled: boolean;
   proxy: boolean;
@@ -59,7 +59,8 @@ export function CardContextMenu({
   categoryOrder?: string[];
   onClose: () => void;
   onToggleFoil: () => void;
-  onToggleProxy: () => void;
+  /** Omit to hide the proxy menu item (e.g. collection binders). */
+  onToggleProxy?: () => void;
   onToggleSeeking?: () => void;
   onSetCover: () => void;
   onClearCover: () => void;
@@ -140,26 +141,28 @@ export function CardContextMenu({
             ? `Mark as foil (${selectionCount})`
             : 'Mark as foil'}
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="db-card-context-item"
-        onClick={() => {
-          onToggleProxy();
-          onClose();
-        }}
-      >
-        <span className={`db-card-context-proxy${proxy ? ' is-proxy' : ''}`}>
-          <ProxyIcon filled={proxy} />
-        </span>
-        {proxy
-          ? multi
-            ? `Unmark proxy (${selectionCount})`
-            : 'Unmark proxy'
-          : multi
-            ? `Mark as proxy (${selectionCount})`
-            : 'Mark as proxy'}
-      </button>
+      {onToggleProxy ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onToggleProxy();
+            onClose();
+          }}
+        >
+          <span className={`db-card-context-proxy${proxy ? ' is-proxy' : ''}`}>
+            <ProxyIcon filled={proxy} />
+          </span>
+          {proxy
+            ? multi
+              ? `Unmark proxy (${selectionCount})`
+              : 'Unmark proxy'
+            : multi
+              ? `Mark as proxy (${selectionCount})`
+              : 'Mark as proxy'}
+        </button>
+      ) : null}
       {onToggleSeeking ? (
         <button
           type="button"
@@ -193,7 +196,11 @@ export function CardContextMenu({
               onClose();
             }}
           >
-            {coverActionLabel === 'primary' ? 'Clear primary' : 'Clear cover'}
+            {coverActionLabel === 'primary'
+              ? 'Clear primary'
+              : coverActionLabel === 'binder'
+                ? 'Clear Binder'
+                : 'Clear cover'}
           </button>
         ) : (
           <button
@@ -205,7 +212,11 @@ export function CardContextMenu({
               onClose();
             }}
           >
-            {coverActionLabel === 'primary' ? 'Set as primary' : 'Set as cover'}
+            {coverActionLabel === 'primary'
+              ? 'Set as primary'
+              : coverActionLabel === 'binder'
+                ? 'Set as Binder'
+                : 'Set as cover'}
           </button>
         )
       ) : null}

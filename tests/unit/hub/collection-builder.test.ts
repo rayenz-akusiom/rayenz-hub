@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COLLECTION_REPRESENTATIVE_INSTANCE_ID,
+  cardMatchesCollectionRepresentative,
   collectionCardIsSought,
   collectionNeededQuantity,
   collectionSeekingToggleEnabled,
@@ -101,6 +102,65 @@ describe('collection builder helpers', () => {
     expect(defaultCollectionBrowseView('planeswalkers')).toBe('planeswalker_subtype');
     expect(defaultCollectionBrowseView('partners')).toBe('partner_pairing');
     expect(defaultCollectionBrowseView('generic')).toBe('all_cards');
+  });
+
+  it('matches inventory cards to Binder cover by printing identity', () => {
+    const rep = {
+      name: 'Jace Beleren',
+      scryfallId: 'sf-jace',
+      setCode: 'm10',
+      collectorNumber: '60',
+      foil: false,
+      imageUrl: null,
+      printedName: null,
+      flavorName: null,
+    };
+    expect(
+      cardMatchesCollectionRepresentative(
+        collectionCard({ instanceId: 'a', name: 'Jace Beleren', scryfallId: 'sf-jace' }),
+        rep,
+      ),
+    ).toBe(true);
+    expect(
+      cardMatchesCollectionRepresentative(
+        collectionCard({
+          instanceId: 'b',
+          name: 'Jace Beleren',
+          scryfallId: null,
+          setCode: 'M10',
+          collectorNumber: '60',
+        }),
+        { ...rep, scryfallId: null },
+      ),
+    ).toBe(true);
+    expect(
+      cardMatchesCollectionRepresentative(
+        collectionCard({ instanceId: 'c', name: 'Jace Beleren', scryfallId: 'other' }),
+        rep,
+      ),
+    ).toBe(false);
+    expect(cardMatchesCollectionRepresentative(collectionCard({ instanceId: 'd', name: 'Jace' }), null)).toBe(
+      false,
+    );
+  });
+
+  it('falls back to template browse view when browseViewDefault is unset', () => {
+    const partners = {
+      ...collectionDoc([]),
+      browseViewDefault: null,
+      collectionTemplate: 'partners' as const,
+    };
+    expect(
+      partners.browseViewDefault || defaultCollectionBrowseView(partners.collectionTemplate) || 'all_cards',
+    ).toBe('partner_pairing');
+    const plain = {
+      ...collectionDoc([]),
+      browseViewDefault: null,
+      collectionTemplate: 'generic' as const,
+    };
+    expect(
+      plain.browseViewDefault || defaultCollectionBrowseView(plain.collectionTemplate) || 'all_cards',
+    ).toBe('all_cards');
   });
 
   it('parses planeswalker subtypes from the oracle type line', () => {

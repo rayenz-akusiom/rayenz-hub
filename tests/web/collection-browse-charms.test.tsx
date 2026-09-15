@@ -43,6 +43,7 @@ function collectionCard(
     foil: false,
     proxy: false,
     collectionSource: 'search',
+    collectionIgnored: false,
     ...partial,
   };
 }
@@ -192,5 +193,28 @@ describe('collection browse charms', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Clear Binder' })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /proxy/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /cover/i })).not.toBeInTheDocument();
+  });
+
+  it("moves a card into the Won't collect lane without marking it collected", async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={collectionDoc(1, 0)} />);
+
+    const inventory = screen.getByRole('button', { name: /Jace Beleren, sought/i });
+    await user.click(inventory);
+    expect(screen.getByRole('heading', { name: /All Cards/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Won't collect/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: "Won't collect" }));
+
+    expect(screen.getByRole('heading', { name: /Won't collect \(1\)/i })).toBeInTheDocument();
+    const ignored = screen.getByRole('button', { name: /^Jace Beleren$/i });
+    expect(ignored).toHaveClass('is-collection-ignored');
+    expect(ignored).not.toHaveClass('is-sought-ghost');
+
+    await user.click(ignored);
+    expect(screen.getByRole('button', { name: 'Will collect' })).toBeInTheDocument();
+    const stats = screen.getByText('Jace Beleren', { selector: 'strong' }).closest('.db-collection-stats');
+    expect(stats).toBeTruthy();
+    expect(within(stats as HTMLElement).getByLabelText('Owned')).toHaveValue(0);
   });
 });

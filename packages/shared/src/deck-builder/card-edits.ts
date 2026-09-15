@@ -467,6 +467,7 @@ export function addCardToDeck(
     archidektCardId: null,
     foil: printing.foil,
     proxy,
+    collectionIgnored: false,
   };
   const cards = normalizeCardQuantities([...deck.cards, instance], deck.format, nextId);
   const key = oracleKey(instance);

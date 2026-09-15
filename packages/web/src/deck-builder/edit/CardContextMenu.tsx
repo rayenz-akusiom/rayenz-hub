@@ -21,6 +21,7 @@ export function CardContextMenu({
   foilEnabled,
   proxy,
   seeking = false,
+  wontCollect = false,
   secondaryCategories = [],
   categoryOptions = [],
   format = 'commander',
@@ -29,6 +30,7 @@ export function CardContextMenu({
   onToggleFoil,
   onToggleProxy,
   onToggleSeeking,
+  onToggleWontCollect,
   onSetCover,
   onClearCover,
   onMove,
@@ -52,6 +54,7 @@ export function CardContextMenu({
   foilEnabled: boolean;
   proxy: boolean;
   seeking?: boolean;
+  wontCollect?: boolean;
   secondaryCategories?: string[];
   /** Categories available to add as secondary (excludes current memberships). */
   categoryOptions?: string[];
@@ -62,6 +65,7 @@ export function CardContextMenu({
   /** Omit to hide the proxy menu item (e.g. collection binders). */
   onToggleProxy?: () => void;
   onToggleSeeking?: () => void;
+  onToggleWontCollect?: () => void;
   onSetCover: () => void;
   onClearCover: () => void;
   onMove?: () => void;
@@ -183,6 +187,25 @@ export function CardContextMenu({
             : multi
               ? `Mark as seeking (${selectionCount})`
               : 'Mark as seeking'}
+        </button>
+      ) : null}
+      {onToggleWontCollect ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="db-card-context-item"
+          onClick={() => {
+            onToggleWontCollect();
+            onClose();
+          }}
+        >
+          {wontCollect
+            ? multi
+              ? `Will collect (${selectionCount})`
+              : 'Will collect'
+            : multi
+              ? `Won't collect (${selectionCount})`
+              : "Won't collect"}
         </button>
       ) : null}
       {!multi ? (

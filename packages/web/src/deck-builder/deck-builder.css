@@ -1575,6 +1575,11 @@ body,
   z-index: 1;
 }
 
+.db-card-tile.is-collection-ignored {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+
 .db-card-tile.is-selected.is-swap-in-ghost::after {
   background: rgba(31, 111, 235, 0.13);
 }

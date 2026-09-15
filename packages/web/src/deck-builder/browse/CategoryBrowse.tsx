@@ -25,6 +25,8 @@ import {
   cardIsSeekingMarked,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
+  collectionCardIsIgnored,
+  WONT_COLLECT,
   type BrowseView,
   type CardLayout,
   type CardSortMode,
@@ -1450,14 +1452,33 @@ export function CategoryBrowse({
       ),
     [deck],
   );
-  const { header, included, excluded, headerKeys, includedKeys, excludedKeys } = useMemo(
-    () =>
-      partitionCategories(
-        { ...deck, cards: resolved },
-        { multi, keySort },
-      ),
-    [deck, resolved, multi, keySort],
-  );
+  const { header, included, excluded, headerKeys, includedKeys, excludedKeys } = useMemo(() => {
+    const partitioned = partitionCategories(
+      { ...deck, cards: resolved },
+      { multi, keySort },
+    );
+    if (format !== 'collection') return partitioned;
+    const ignored: (typeof partitioned.included)[string] = [];
+    const nextIncluded: typeof partitioned.included = {};
+    for (const key of partitioned.includedKeys) {
+      const active: (typeof partitioned.included)[string] = [];
+      for (const card of partitioned.included[key] || []) {
+        if (collectionCardIsIgnored(card)) ignored.push(card);
+        else active.push(card);
+      }
+      if (active.length) nextIncluded[key] = active;
+    }
+    const nextKeys = partitioned.includedKeys.filter((key) => (nextIncluded[key] || []).length > 0);
+    if (ignored.length) {
+      nextIncluded[WONT_COLLECT] = ignored;
+      nextKeys.push(WONT_COLLECT);
+    }
+    return {
+      ...partitioned,
+      included: nextIncluded,
+      includedKeys: nextKeys,
+    };
+  }, [deck, resolved, multi, keySort, format]);
   const deckName = 'name' in deck && typeof deck.name === 'string' ? deck.name : undefined;
   const categories = deck.categories || [];
   const dropHandler = multi ? undefined : onDropCard;
@@ -1484,11 +1505,18 @@ export function CategoryBrowse({
       );
     });
     if (allCards) {
-      const combined = includedKeys.flatMap((cat) => included[cat] || []);
+      const normalKeys = includedKeys.filter((cat) => cat !== WONT_COLLECT);
+      const combined = normalKeys.flatMap((cat) => included[cat] || []);
       const bodyIds = sortCardsInGroup(combined, cardSort, undefined, swapInIds).map(
         (c) => c.instanceId,
       );
-      return [...headerIds, ...bodyIds];
+      const ignoredIds = sortCardsInGroup(
+        included[WONT_COLLECT] || [],
+        cardSort,
+        undefined,
+        swapInIds,
+      ).map((c) => c.instanceId);
+      return [...headerIds, ...bodyIds, ...ignoredIds];
     }
     const bodyIds = includedKeys.flatMap((cat) =>
       sortCardsInGroup(included[cat] || [], cardSort, undefined, swapInIds).map(
@@ -1585,32 +1613,63 @@ export function CategoryBrowse({
 
   const allCardsSection = (() => {
     if (!allCards) return null;
+    const normalKeys = includedKeys.filter((cat) => cat !== WONT_COLLECT);
     const cards = sortCardsInGroup(
-      includedKeys.flatMap((cat) => included[cat] || []),
+      normalKeys.flatMap((cat) => included[cat] || []),
       cardSort,
       undefined,
       swapInIds,
     );
+    const ignored = sortCardsInGroup(
+      included[WONT_COLLECT] || [],
+      cardSort,
+      undefined,
+      swapInIds,
+    );
+    const sectionClass = layout === 'grid' ? 'db-section' : 'db-cat-column';
     return (
-      <section className={layout === 'grid' ? 'db-section' : 'db-cat-column'}>
-        <h3 className="db-section-title">
-          All Cards <span className="db-count">({cards.length})</span>
-        </h3>
-        <CardGroup
-          cards={cards}
-          layout={layout}
-          selectedId={selectedId}
-          selectedIds={selectedIds}
-          onSelectCard={onSelectCard}
-          draggable={Boolean(onDropCard)}
-          onCardContextMenu={onCardContextMenu}
-          categoryKey="all_cards"
-          swapInIds={swapInIds}
-          filtersActive={filtersActive}
-          enableSoughtGhost={enableSoughtGhost}
-          cardSort={cardSort}
-        />
-      </section>
+      <>
+        <section className={sectionClass}>
+          <h3 className="db-section-title">
+            All Cards <span className="db-count">({cards.length})</span>
+          </h3>
+          <CardGroup
+            cards={cards}
+            layout={layout}
+            selectedId={selectedId}
+            selectedIds={selectedIds}
+            onSelectCard={onSelectCard}
+            draggable={Boolean(onDropCard)}
+            onCardContextMenu={onCardContextMenu}
+            categoryKey="all_cards"
+            swapInIds={swapInIds}
+            filtersActive={filtersActive}
+            enableSoughtGhost={enableSoughtGhost}
+            cardSort={cardSort}
+          />
+        </section>
+        {ignored.length ? (
+          <section className={sectionClass}>
+            <h3 className="db-section-title">
+              {WONT_COLLECT} <span className="db-count">({ignored.length})</span>
+            </h3>
+            <CardGroup
+              cards={ignored}
+              layout={layout}
+              selectedId={selectedId}
+              selectedIds={selectedIds}
+              onSelectCard={onSelectCard}
+              draggable={Boolean(onDropCard)}
+              onCardContextMenu={onCardContextMenu}
+              categoryKey={WONT_COLLECT}
+              swapInIds={swapInIds}
+              filtersActive={filtersActive}
+              enableSoughtGhost={enableSoughtGhost}
+              cardSort={cardSort}
+            />
+          </section>
+        ) : null}
+      </>
     );
   })();
 

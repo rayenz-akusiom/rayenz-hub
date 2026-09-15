@@ -14,6 +14,8 @@ import { scryfallImageFromId } from './scryfall-images.js';
 export const COLLECTION_FORMAT = 'collection';
 export const COLLECTION_DEFAULT_CATEGORY = 'Collection';
 export const COLLECTION_CARD_LIMIT = 2500;
+/** Swim-lane label for cards marked won't collect. */
+export const WONT_COLLECT = "Won't collect";
 /** Synthetic Binder cover — not inventory; never sought / foil / seeking. */
 export const COLLECTION_REPRESENTATIVE_INSTANCE_ID = '__collection_representative__';
 
@@ -74,16 +76,57 @@ export function collectionInDeckQuantity(
   return Math.min(owned, Math.max(0, Math.floor(Number(card.inDeckQuantity) || 0)));
 }
 
+export function collectionCardIsIgnored(
+  card: Pick<CardInstance, 'collectionIgnored'> | null | undefined,
+): boolean {
+  return Boolean(card?.collectionIgnored);
+}
+
 export function collectionNeededQuantity(
-  card: Pick<CardInstance, 'quantity' | 'ownedQuantity'>,
+  card: Pick<CardInstance, 'quantity' | 'ownedQuantity' | 'collectionIgnored'>,
 ): number {
+  if (collectionCardIsIgnored(card)) return 0;
   return Math.max(0, collectionTargetQuantity(card) - collectionOwnedQuantity(card));
 }
 
 export function collectionCardIsSought(
-  card: Pick<CardInstance, 'quantity' | 'ownedQuantity'>,
+  card: Pick<CardInstance, 'quantity' | 'ownedQuantity' | 'collectionIgnored'>,
 ): boolean {
   return collectionNeededQuantity(card) > 0;
+}
+
+export function splitCollectionIgnored<T extends Pick<CardInstance, 'collectionIgnored'>>(
+  cards: readonly T[] | null | undefined,
+): { active: T[]; ignored: T[] } {
+  const active: T[] = [];
+  const ignored: T[] = [];
+  for (const card of cards || []) {
+    if (collectionCardIsIgnored(card)) ignored.push(card);
+    else active.push(card);
+  }
+  return { active, ignored };
+}
+
+/** Strip ignored cards from lane groups and append a trailing Won't collect lane when non-empty. */
+export function withWontCollectLane<T extends Pick<CardInstance, 'collectionIgnored'>>(
+  groups: ReadonlyArray<readonly [string, T[]]>,
+): Array<[string, T[]]> {
+  const ignored: T[] = [];
+  const next: Array<[string, T[]]> = [];
+  for (const [lane, cards] of groups) {
+    if (lane === WONT_COLLECT) {
+      ignored.push(...cards.filter(collectionCardIsIgnored));
+      continue;
+    }
+    const active: T[] = [];
+    for (const card of cards) {
+      if (collectionCardIsIgnored(card)) ignored.push(card);
+      else active.push(card);
+    }
+    if (active.length) next.push([lane, active]);
+  }
+  if (ignored.length) next.push([WONT_COLLECT, ignored]);
+  return next;
 }
 
 export function collectionDefaultTargetQuantity(
@@ -105,15 +148,17 @@ export function syncCollectionCard(card: CardInstance): CardInstance {
     Math.max(0, Math.floor(Number(card.inDeckQuantity) || 0)),
   );
   const quantity = collectionTargetQuantity(card);
+  const collectionIgnored = collectionCardIsIgnored(card);
   const categories = new Set((card.categories || []).filter(Boolean));
   categories.add(card.primaryCategory || COLLECTION_DEFAULT_CATEGORY);
-  if (quantity > owned) categories.add(SEEKING);
+  if (!collectionIgnored && quantity > owned) categories.add(SEEKING);
   else categories.delete(SEEKING);
   return {
     ...card,
     quantity,
     ownedQuantity: owned,
     inDeckQuantity,
+    collectionIgnored,
     categories: [...categories],
   };
 }
@@ -147,10 +192,29 @@ export function toggleCollectionCardsSeeking(
     let owned = collectionOwnedQuantity(card);
     if (anyUnmarked) {
       if (owned >= target) owned = target - 1;
-    } else if (owned < target) {
+      return { ...card, ownedQuantity: owned, collectionIgnored: false };
+    }
+    if (owned < target) {
       owned = target;
     }
     return { ...card, ownedQuantity: owned };
+  });
+  return syncCollectionDeck({ ...deck, cards });
+}
+
+export function toggleCollectionCardsIgnored(
+  deck: DeckDocument,
+  instanceIds: string[],
+): DeckDocument {
+  if (!isCollectionDeck(deck)) return deck;
+  const ids = new Set((instanceIds || []).filter(Boolean));
+  if (!ids.size) return deck;
+  const targets = (deck.cards || []).filter((card) => ids.has(card.instanceId));
+  if (!targets.length) return deck;
+  const anyActive = targets.some((card) => !collectionCardIsIgnored(card));
+  const cards = deck.cards.map((card) => {
+    if (!ids.has(card.instanceId)) return card;
+    return { ...card, collectionIgnored: anyActive };
   });
   return syncCollectionDeck({ ...deck, cards });
 }
@@ -175,6 +239,7 @@ export function toRepresentativeCardView(
     foil: false,
     proxy: false,
     collectionSource: 'manual',
+    collectionIgnored: false,
   };
   return resolveCardView(card, {
     scryfallId: rep.scryfallId ?? null,

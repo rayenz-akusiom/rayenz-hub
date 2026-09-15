@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest';
 import {
   COLLECTION_REPRESENTATIVE_INSTANCE_ID,
   cardMatchesCollectionRepresentative,
+  collectionCardIsIgnored,
   collectionCardIsSought,
   collectionNeededQuantity,
   collectionSeekingToggleEnabled,
   defaultCollectionBrowseView,
   isCollectionRepresentativeCard,
   parsePlaneswalkerSubtype,
+  splitCollectionIgnored,
   syncCollectionDeck,
   toRepresentativeCardView,
+  toggleCollectionCardsIgnored,
   toggleCollectionCardsSeeking,
+  withWontCollectLane,
+  WONT_COLLECT,
   type CardInstance,
   type DeckDocument,
 } from '../../../packages/shared/src/index.ts';
@@ -30,6 +35,7 @@ function collectionCard(partial: Partial<CardInstance> & Pick<CardInstance, 'ins
     foil: false,
     proxy: false,
     collectionSource: 'search',
+    collectionIgnored: false,
     ...partial,
   };
 }
@@ -218,6 +224,7 @@ describe('collection builder helpers', () => {
           foil: false,
           proxy: false,
           collectionSource: 'search',
+          collectionIgnored: false,
         },
       ],
       oracle: {},
@@ -279,5 +286,60 @@ describe('collection builder helpers', () => {
     const filled = toggleCollectionCardsSeeking(seeking, ['c1']);
     expect(filled.cards[0]?.ownedQuantity).toBe(3);
     expect(collectionCardIsSought(filled.cards[0]!)).toBe(false);
+  });
+
+  it('treats ignored cards as not sought without changing quantities', () => {
+    expect(
+      collectionCardIsSought({ quantity: 1, ownedQuantity: 0, collectionIgnored: true }),
+    ).toBe(false);
+    expect(
+      collectionNeededQuantity({ quantity: 3, ownedQuantity: 1, collectionIgnored: true }),
+    ).toBe(0);
+
+    const sought = collectionDoc([
+      collectionCard({ instanceId: 'c1', name: 'Jace', quantity: 1, ownedQuantity: 0 }),
+    ]);
+    const ignored = toggleCollectionCardsIgnored(sought, ['c1']);
+    expect(collectionCardIsIgnored(ignored.cards[0]!)).toBe(true);
+    expect(ignored.cards[0]?.ownedQuantity).toBe(0);
+    expect(collectionCardIsSought(ignored.cards[0]!)).toBe(false);
+    expect(ignored.cards[0]?.categories).not.toContain('Seeking');
+
+    const restored = toggleCollectionCardsIgnored(ignored, ['c1']);
+    expect(collectionCardIsIgnored(restored.cards[0]!)).toBe(false);
+    expect(collectionCardIsSought(restored.cards[0]!)).toBe(true);
+    expect(restored.cards[0]?.categories).toContain('Seeking');
+  });
+
+  it('clears ignore when marking seeking on', () => {
+    const ignored = collectionDoc([
+      collectionCard({
+        instanceId: 'c1',
+        name: 'Jace',
+        quantity: 1,
+        ownedQuantity: 1,
+        collectionIgnored: true,
+      }),
+    ]);
+    const seeking = toggleCollectionCardsSeeking(ignored, ['c1']);
+    expect(collectionCardIsIgnored(seeking.cards[0]!)).toBe(false);
+    expect(seeking.cards[0]?.ownedQuantity).toBe(0);
+    expect(collectionCardIsSought(seeking.cards[0]!)).toBe(true);
+  });
+
+  it('partitions ignored cards into a trailing Won\'t collect lane', () => {
+    const a = collectionCard({ instanceId: 'a', name: 'Ajani' });
+    const b = collectionCard({ instanceId: 'b', name: 'Jace', collectionIgnored: true });
+    const c = collectionCard({ instanceId: 'c', name: 'Liliana', collectionIgnored: true });
+    expect(splitCollectionIgnored([a, b, c])).toEqual({ active: [a], ignored: [b, c] });
+    expect(
+      withWontCollectLane([
+        ['Jace', [a, b]],
+        ['Liliana', [c]],
+      ]),
+    ).toEqual([
+      ['Jace', [a]],
+      [WONT_COLLECT, [b, c]],
+    ]);
   });
 });

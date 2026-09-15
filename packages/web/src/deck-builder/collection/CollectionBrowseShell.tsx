@@ -6,6 +6,7 @@ import {
   cardMatchesSetMembership,
   cardMatchesSyntaxMembership,
   changeCardPrinting,
+  collectionCardIsIgnored,
   collectionCardIsSought,
   collectionInDeckQuantity,
   collectionOwnedQuantity,
@@ -16,8 +17,10 @@ import {
   isCollectionDeck,
   resolveDeckCards,
   syncCollectionDeck,
+  toggleCollectionCardsIgnored,
   toggleCollectionCardsSeeking,
   toRepresentativeCardView,
+  WONT_COLLECT,
   type BrowseView,
   type CardLayout,
   type CardSortMode,
@@ -166,6 +169,7 @@ export function CollectionBrowseShell({
   const [proxyFilter, setProxyFilter] = useState<FlagFilterMode>('all');
   const [foilFilter, setFoilFilter] = useState<FlagFilterMode>('all');
   const [seekingFilter, setSeekingFilter] = useState<FlagFilterMode>('all');
+  const [wontCollectFilter, setWontCollectFilter] = useState<FlagFilterMode>('all');
   const [cardCharmsEnabled, setCardCharmsEnabled] = useState(() => loadCardCharmsPref().enabled);
   const toggleSeekingRef = useRef<() => void>(() => {});
 
@@ -233,10 +237,11 @@ export function CollectionBrowseShell({
         if (!cardMatchesFlagFilter(Boolean(card.proxy), proxyFilter)) return false;
         if (!cardMatchesFlagFilter(Boolean(card.foil), foilFilter)) return false;
         if (!cardMatchesFlagFilter(collectionCardIsSought(card), seekingFilter)) return false;
+        if (!cardMatchesFlagFilter(collectionCardIsIgnored(card), wontCollectFilter)) return false;
         return true;
       }),
     };
-  }, [liveDeck, resolvedCards, setFilter.active, setFilter.membership, syntaxFilter.active, syntaxFilter.membership, proxyFilter, foilFilter, seekingFilter]);
+  }, [liveDeck, resolvedCards, setFilter.active, setFilter.membership, syntaxFilter.active, syntaxFilter.membership, proxyFilter, foilFilter, seekingFilter, wontCollectFilter]);
 
   const viewOptions =
     deck.collectionTemplate === 'planeswalkers'
@@ -251,6 +256,13 @@ export function CollectionBrowseShell({
   if (proxyFilter !== 'all') filterChips.push({ id: 'proxy', label: `Proxy ${proxyFilter}`, onDismiss: () => setProxyFilter('all') });
   if (foilFilter !== 'all') filterChips.push({ id: 'foil', label: `Foil ${foilFilter}`, onDismiss: () => setFoilFilter('all') });
   if (seekingFilter !== 'all') filterChips.push({ id: 'seeking', label: `Seeking ${seekingFilter}`, onDismiss: () => setSeekingFilter('all') });
+  if (wontCollectFilter !== 'all') {
+    filterChips.push({
+      id: 'wont-collect',
+      label: `${WONT_COLLECT} ${wontCollectFilter}`,
+      onDismiss: () => setWontCollectFilter('all'),
+    });
+  }
 
   function setSelectedCardField(
     instanceId: string,
@@ -324,6 +336,15 @@ export function CollectionBrowseShell({
     onToggleSeekingFor(selectionIdList);
   }
 
+  function onToggleWontCollectFor(instanceIds: string[]) {
+    if (readOnly || !instanceIds.length) return;
+    commit(toggleCollectionCardsIgnored(liveDeck, instanceIds));
+  }
+
+  function onToggleWontCollect() {
+    onToggleWontCollectFor(selectionIdList);
+  }
+
   toggleSeekingRef.current = onToggleSeeking;
 
   const overlayBlocksShortcuts =
@@ -356,6 +377,7 @@ export function CollectionBrowseShell({
   }, [overlayBlocksShortcuts, readOnly, seekingToggleEnabled, selectedIds.size]);
 
   const anySeeking = selectedCards.some((card) => collectionCardIsSought(card));
+  const anyWontCollect = selectedCards.some((card) => collectionCardIsIgnored(card));
 
   const cardFlagCharmValue = useMemo(
     () => ({
@@ -474,6 +496,8 @@ export function CollectionBrowseShell({
             onFoilFilterChange={setFoilFilter}
             seekingFilter={seekingFilter}
             onSeekingFilterChange={setSeekingFilter}
+            wontCollectFilter={wontCollectFilter}
+            onWontCollectFilterChange={setWontCollectFilter}
             cardCharmsEnabled={cardCharmsEnabled}
             onCardCharmsEnabledChange={(enabled) => {
               setCardCharmsEnabled(enabled);
@@ -509,6 +533,7 @@ export function CollectionBrowseShell({
             setProxyFilter('all');
             setFoilFilter('all');
             setSeekingFilter('all');
+            setWontCollectFilter('all');
           }}
         />
         {error ? <p className="hub-warn">{error}</p> : null}
@@ -561,6 +586,20 @@ export function CollectionBrowseShell({
                 <SeekingIcon filled={anySeeking} />
               </button>
             ) : null}
+            <button
+              type="button"
+              className={`db-btn${anyWontCollect ? ' is-active' : ''}`}
+              aria-pressed={anyWontCollect}
+              aria-label={anyWontCollect ? 'Will collect' : "Won't collect"}
+              title={
+                anyWontCollect
+                  ? "Won't collect — click to restore"
+                  : "Mark as won't collect"
+              }
+              onClick={onToggleWontCollect}
+            >
+              {anyWontCollect ? 'Will collect' : "Won't collect"}
+            </button>
             <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelection}>
               Remove
             </button>
@@ -739,9 +778,11 @@ export function CollectionBrowseShell({
           foilEnabled
           proxy={Boolean(contextCard.proxy)}
           seeking={collectionCardIsSought(contextCard)}
+          wontCollect={collectionCardIsIgnored(contextCard)}
           onClose={() => setContextMenu(null)}
           onToggleFoil={() => commit({ ...liveDeck, cards: liveDeck.cards.map((card) => card.instanceId === contextCard.instanceId ? { ...card, foil: !card.foil } : card) })}
           onToggleSeeking={seekingToggleEnabled ? onToggleSeeking : undefined}
+          onToggleWontCollect={onToggleWontCollect}
           onSetCover={() => commit({ ...liveDeck, representativeCard: representativeFromPrinting({
             name: contextCard.name,
             scryfallId: contextCard.scryfallId || '',

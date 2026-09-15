@@ -69,6 +69,8 @@ export function ExportBar({
   onFoilFilterChange,
   seekingFilter,
   onSeekingFilterChange,
+  wontCollectFilter,
+  onWontCollectFilterChange,
   cardCharmsEnabled,
   onCardCharmsEnabledChange,
   viewOptions = DEFAULT_VIEW_OPTIONS,
@@ -89,6 +91,8 @@ export function ExportBar({
   onFoilFilterChange?: (next: FlagFilterMode) => void;
   seekingFilter?: FlagFilterMode;
   onSeekingFilterChange?: (next: FlagFilterMode) => void;
+  wontCollectFilter?: FlagFilterMode;
+  onWontCollectFilterChange?: (next: FlagFilterMode) => void;
   cardCharmsEnabled?: boolean;
   onCardCharmsEnabledChange?: (enabled: boolean) => void;
   viewOptions?: BrowseView[];
@@ -99,6 +103,7 @@ export function ExportBar({
     (proxyFilter != null && onProxyFilterChange != null) ||
     (foilFilter != null && onFoilFilterChange != null) ||
     (seekingFilter != null && onSeekingFilterChange != null) ||
+    (wontCollectFilter != null && onWontCollectFilterChange != null) ||
     onCardCharmsEnabledChange != null;
   const filtersLoading = Boolean(setFilter?.loading || syntaxFilter?.loading);
   const filtersValue = filtersMenuLabel([
@@ -110,6 +115,9 @@ export function ExportBar({
     foilFilter && foilFilter !== 'all' ? `Foil ${FLAG_FILTER_MODE_LABELS[foilFilter]}` : '',
     seekingFilter && seekingFilter !== 'all'
       ? `Seeking ${FLAG_FILTER_MODE_LABELS[seekingFilter]}`
+      : '',
+    wontCollectFilter && wontCollectFilter !== 'all'
+      ? `Won't collect ${FLAG_FILTER_MODE_LABELS[wontCollectFilter]}`
       : '',
     cardCharmsEnabled === false ? 'Charms off' : '',
   ]);
@@ -127,6 +135,7 @@ export function ExportBar({
     onProxyFilterChange?.('all');
     onFoilFilterChange?.('all');
     onSeekingFilterChange?.('all');
+    onWontCollectFilterChange?.('all');
     onCardCharmsEnabledChange?.(true);
   }
   return (
@@ -200,6 +209,13 @@ export function ExportBar({
               label="Seeking"
               mode={seekingFilter}
               onModeChange={onSeekingFilterChange}
+            />
+          ) : null}
+          {wontCollectFilter != null && onWontCollectFilterChange ? (
+            <FlagFilterRow
+              label="Won't collect"
+              mode={wontCollectFilter}
+              onModeChange={onWontCollectFilterChange}
             />
           ) : null}
           {onCardCharmsEnabledChange ? (

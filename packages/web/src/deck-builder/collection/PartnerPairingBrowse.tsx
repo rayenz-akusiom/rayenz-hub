@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   partnerPairingLane,
   sortPartnerPairingLaneKeys,
+  withWontCollectLane,
   type CardLayout,
   type CardSortMode,
   type CardView,
@@ -50,8 +51,10 @@ export function PartnerPairingBrowse({
       list.push(card);
       out.set(lane, list);
     }
-    return sortPartnerPairingLaneKeys([...out.keys()]).map(
-      (key) => [key, out.get(key)!] as const,
+    return withWontCollectLane(
+      sortPartnerPairingLaneKeys([...out.keys()]).map(
+        (key) => [key, out.get(key)!] as const,
+      ),
     );
   }, [deck.cards, deck.oracle]);
 

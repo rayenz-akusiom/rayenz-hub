@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   parsePlaneswalkerSubtype,
+  withWontCollectLane,
   type CardLayout,
   type CardSortMode,
   type CardView,
@@ -49,7 +50,7 @@ export function PlaneswalkerSubtypeBrowse({
       list.push(card);
       out.set(subtype, list);
     }
-    return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return withWontCollectLane([...out.entries()].sort((a, b) => a[0].localeCompare(b[0])));
   }, [deck.cards, deck.oracle]);
 
   return (

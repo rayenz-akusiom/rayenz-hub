@@ -3,6 +3,7 @@ import {
   cardHasBackFace,
   cardImageUrl,
   cardIsSeekingMarked,
+  collectionCardIsIgnored,
   collectionCardIsSought,
   type CardView,
   type CategoryMembership,
@@ -99,6 +100,7 @@ export function CardTile({
   const foil = Boolean(card.foil);
   const proxy = Boolean(card.proxy);
   const seeking = cardIsSeekingMarked(card);
+  const ignored = collectionCardIsIgnored(card);
   const soughtGhost = enableSoughtGhost && collectionCardIsSought(card);
   const displayName = cardDisplayName(card);
   const secondary = membership === 'secondary';
@@ -123,7 +125,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}`}
       onClick={(e) => {
         if (longPress.consumeClick()) return;
         onSelect?.(card, e);

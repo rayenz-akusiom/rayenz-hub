@@ -123,6 +123,8 @@ export const CardInstanceSchema = z.object({
   proxy: z.boolean().default(false),
   /** Collection builder sync source. */
   collectionSource: z.enum(['search', 'manual']).optional().default('manual'),
+  /** Collection builder: set aside — not seeking, not collected; own swim lane. */
+  collectionIgnored: z.boolean().optional().default(false),
 });
 export type CardInstance = z.infer<typeof CardInstanceSchema>;
 

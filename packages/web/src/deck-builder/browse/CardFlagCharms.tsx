@@ -5,6 +5,7 @@ import { ProxyIcon } from '../../cards/ProxyIcon';
 import { SeekingIcon } from '../../cards/SeekingIcon';
 import {
   foilCharmEnabled,
+  proxyCharmEnabled,
   seekingCharmEnabled,
   stopCharmClick,
   useCardFlagCharms,
@@ -19,7 +20,8 @@ export function CardFlagCharms({ card, selected }: { card: CardView; selected?: 
   const proxy = Boolean(card.proxy);
   const seeking = cardIsSeekingMarked(card);
   const foilEnabled = foilCharmEnabled(ctx.deck, card);
-  const showSeeking = seekingCharmEnabled(card, ctx.queuesReadOnly);
+  const showProxy = proxyCharmEnabled(ctx.deck);
+  const showSeeking = seekingCharmEnabled(ctx.deck, ctx.queuesReadOnly);
 
   function toggle(
     e: MouseEvent,
@@ -50,16 +52,18 @@ export function CardFlagCharms({ card, selected }: { card: CardView; selected?: 
       >
         <FoilIcon filled={foil} />
       </button>
-      <button
-        type="button"
-        className={`db-card-charm db-card-charm-proxy${proxy ? ' is-active' : ''}`}
-        aria-label={proxy ? 'Unmark proxy' : 'Mark as proxy'}
-        aria-pressed={proxy}
-        title={proxy ? 'Proxy — click to unmark' : 'Mark as proxy'}
-        onClick={(e) => toggle(e, ctx.onToggleProxy, true)}
-      >
-        <ProxyIcon filled={proxy} />
-      </button>
+      {showProxy ? (
+        <button
+          type="button"
+          className={`db-card-charm db-card-charm-proxy${proxy ? ' is-active' : ''}`}
+          aria-label={proxy ? 'Unmark proxy' : 'Mark as proxy'}
+          aria-pressed={proxy}
+          title={proxy ? 'Proxy — click to unmark' : 'Mark as proxy'}
+          onClick={(e) => toggle(e, ctx.onToggleProxy, true)}
+        >
+          <ProxyIcon filled={proxy} />
+        </button>
+      ) : null}
       {showSeeking ? (
         <button
           type="button"

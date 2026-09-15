@@ -1,6 +1,7 @@
 import {
-  cardIsSeekingMarked,
   cardSupportsFoilToggle,
+  collectionDefaultTargetQuantity,
+  isCollectionDeck,
   type CardView,
   type DeckDocument,
 } from '@rayenz-hub/shared';
@@ -35,11 +36,18 @@ export function useCardFlagCharms(): CardFlagCharmContextValue | null {
 }
 
 export function foilCharmEnabled(deck: DeckDocument, card: CardView): boolean {
+  if (isCollectionDeck(deck)) return true;
   return cardSupportsFoilToggle(deck, card) || Boolean(card.foil);
 }
 
-export function seekingCharmEnabled(_card: CardView, queuesReadOnly: boolean): boolean {
-  return !queuesReadOnly;
+export function proxyCharmEnabled(deck: DeckDocument): boolean {
+  return !isCollectionDeck(deck);
+}
+
+export function seekingCharmEnabled(deck: DeckDocument, queuesReadOnly: boolean): boolean {
+  if (queuesReadOnly) return false;
+  if (isCollectionDeck(deck) && collectionDefaultTargetQuantity(deck) !== 1) return false;
+  return true;
 }
 
 export function stopCharmClick(e: MouseEvent) {

@@ -9,10 +9,12 @@ import {
   collectionInDeckQuantity,
   collectionOwnedQuantity,
   collectionSearchNeedsReleaseRefresh,
+  collectionSeekingToggleEnabled,
   collectionTargetQuantity,
   isCollectionDeck,
   resolveDeckCards,
   syncCollectionDeck,
+  toggleCollectionCardsSeeking,
   toRepresentativeCardView,
   type BrowseView,
   type CardLayout,
@@ -36,7 +38,9 @@ import {
 import { ActiveFilterChips, type ActiveFilterChip } from '../ui/ActiveFilterChips';
 import { loadCardCharmsPref, saveCardCharmsPref } from '../card-charms-pref';
 import { AddCardFab } from '../browse/AddCardFab';
+import { CardFlagCharmProvider } from '../browse/CardFlagCharmContext';
 import { CardContextMenu, type CardContextMenuState } from '../edit/CardContextMenu';
+import { SeekingIcon } from '../../cards/SeekingIcon';
 import { PlaneswalkerSubtypeBrowse } from './PlaneswalkerSubtypeBrowse';
 import {
   collectionSummaryText,
@@ -157,8 +161,10 @@ export function CollectionBrowseShell({
   const [foilFilter, setFoilFilter] = useState<FlagFilterMode>('all');
   const [seekingFilter, setSeekingFilter] = useState<FlagFilterMode>('all');
   const [cardCharmsEnabled, setCardCharmsEnabled] = useState(() => loadCardCharmsPref().enabled);
+  const toggleSeekingRef = useRef<() => void>(() => {});
 
   const liveDeck = useMemo(() => syncCollectionDeck(deck), [deck]);
+  const seekingToggleEnabled = collectionSeekingToggleEnabled(liveDeck);
 
   useEffect(() => {
     setView(deck.browseViewDefault || 'all_cards');
@@ -261,6 +267,103 @@ export function CollectionBrowseShell({
     commit(next);
     setAddOpen(false);
   }
+
+  const selectionIdList = useMemo(() => [...selectedIds], [selectedIds]);
+
+  function resolveCharmTargetIds(card: CardView): string[] {
+    if (selectedIds.has(card.instanceId) && selectedIds.size > 1) return selectionIdList;
+    return [card.instanceId];
+  }
+
+  function onToggleFoilFor(instanceIds: string[]) {
+    if (!instanceIds.length) return;
+    const idSet = new Set(instanceIds);
+    const targets = liveDeck.cards.filter((card) => idSet.has(card.instanceId));
+    const anyNonFoil = targets.some((card) => !card.foil);
+    commit({
+      ...liveDeck,
+      cards: liveDeck.cards.map((card) =>
+        idSet.has(card.instanceId) ? { ...card, foil: anyNonFoil } : card,
+      ),
+    });
+  }
+
+  function onToggleProxyFor(instanceIds: string[]) {
+    if (!instanceIds.length) return;
+    const idSet = new Set(instanceIds);
+    const targets = liveDeck.cards.filter((card) => idSet.has(card.instanceId));
+    const anyNonProxy = targets.some((card) => !card.proxy);
+    commit({
+      ...liveDeck,
+      cards: liveDeck.cards.map((card) =>
+        idSet.has(card.instanceId) ? { ...card, proxy: anyNonProxy } : card,
+      ),
+    });
+  }
+
+  function onToggleSeekingFor(instanceIds: string[]) {
+    if (readOnly || !seekingToggleEnabled || !instanceIds.length) return;
+    commit(toggleCollectionCardsSeeking(liveDeck, instanceIds));
+  }
+
+  function onToggleSeeking() {
+    onToggleSeekingFor(selectionIdList);
+  }
+
+  toggleSeekingRef.current = onToggleSeeking;
+
+  const overlayBlocksShortcuts =
+    printingOpen ||
+    addOpen ||
+    representativeOpen ||
+    searchSettingsOpen ||
+    Boolean(contextMenu) ||
+    Boolean(deckSyncPlan);
+
+  useEffect(() => {
+    function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      return target.isContentEditable;
+    }
+    function onKey(e: KeyboardEvent) {
+      if (overlayBlocksShortcuts) return;
+      if (document.querySelector('.db-modal, .hub-picker-dialog')) return;
+      if (isEditableKeyboardTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod || readOnly || !seekingToggleEnabled || !selectedIds.size) return;
+      if (e.key.toLowerCase() !== 's') return;
+      e.preventDefault();
+      toggleSeekingRef.current();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [overlayBlocksShortcuts, readOnly, seekingToggleEnabled, selectedIds.size]);
+
+  const anySeeking = selectedCards.some((card) => collectionCardIsSought(card));
+
+  const cardFlagCharmValue = useMemo(
+    () => ({
+      enabled: cardCharmsEnabled,
+      readOnly,
+      queuesReadOnly: false,
+      deck: liveDeck,
+      selectedIds,
+      resolveTargetIds: resolveCharmTargetIds,
+      onToggleFoil: onToggleFoilFor,
+      onToggleProxy: onToggleProxyFor,
+      onToggleSeeking: onToggleSeekingFor,
+    }),
+    [
+      cardCharmsEnabled,
+      readOnly,
+      liveDeck,
+      selectedIds,
+      selectionIdList,
+      seekingToggleEnabled,
+    ],
+  );
 
   function onRemoveSelection() {
     if (!selectedIds.size) return;
@@ -432,6 +535,18 @@ export function CollectionBrowseShell({
             <button type="button" className="db-btn" onClick={() => setPrintingOpen(true)}>
               Printing
             </button>
+            {seekingToggleEnabled ? (
+              <button
+                type="button"
+                className={`db-btn db-seeking-toggle${anySeeking ? ' is-seeking' : ''}`}
+                aria-pressed={anySeeking}
+                aria-label={anySeeking ? 'Seeking' : 'Not seeking'}
+                title={anySeeking ? 'Seeking — click to unmark' : 'Mark as seeking'}
+                onClick={onToggleSeeking}
+              >
+                <SeekingIcon filled={anySeeking} />
+              </button>
+            ) : null}
             <button type="button" className="db-btn db-btn-danger" onClick={onRemoveSelection}>
               Remove
             </button>
@@ -439,6 +554,7 @@ export function CollectionBrowseShell({
         ) : null}
       </div>
 
+      <CardFlagCharmProvider value={cardFlagCharmValue}>
       <div className="db-main">
         {view === 'planeswalker_subtype' ? (
           <PlaneswalkerSubtypeBrowse
@@ -481,6 +597,7 @@ export function CollectionBrowseShell({
           />
         )}
       </div>
+      </CardFlagCharmProvider>
 
       {addOpen ? (
         <ScryfallSearchModal
@@ -572,6 +689,7 @@ export function CollectionBrowseShell({
           onClose={() => setContextMenu(null)}
           onToggleFoil={() => commit({ ...liveDeck, cards: liveDeck.cards.map((card) => card.instanceId === contextCard.instanceId ? { ...card, foil: !card.foil } : card) })}
           onToggleProxy={() => commit({ ...liveDeck, cards: liveDeck.cards.map((card) => card.instanceId === contextCard.instanceId ? { ...card, proxy: !card.proxy } : card) })}
+          onToggleSeeking={seekingToggleEnabled ? onToggleSeeking : undefined}
           onSetCover={() => commit({ ...liveDeck, representativeCard: representativeFromPrinting({
             name: contextCard.name,
             scryfallId: contextCard.scryfallId || '',

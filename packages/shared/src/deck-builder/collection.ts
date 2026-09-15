@@ -54,6 +54,18 @@ export function collectionCardIsSought(
   return collectionNeededQuantity(card) > 0;
 }
 
+export function collectionDefaultTargetQuantity(
+  deck: Pick<DeckDocument, 'collectionSearch'> | null | undefined,
+): number {
+  return Math.max(1, Math.floor(Number(deck?.collectionSearch?.defaultQuantity) || 1));
+}
+
+export function collectionSeekingToggleEnabled(
+  deck: Pick<DeckDocument, 'format' | 'collectionSearch'> | null | undefined,
+): boolean {
+  return isCollectionDeck(deck) && collectionDefaultTargetQuantity(deck) === 1;
+}
+
 export function syncCollectionCard(card: CardInstance): CardInstance {
   const owned = collectionOwnedQuantity(card);
   const inDeckQuantity = Math.min(
@@ -85,6 +97,30 @@ export function syncCollectionDeck(deck: DeckDocument): DeckDocument {
       SEEKING,
     ),
   };
+}
+
+export function toggleCollectionCardsSeeking(
+  deck: DeckDocument,
+  instanceIds: string[],
+): DeckDocument {
+  if (!isCollectionDeck(deck)) return deck;
+  const ids = new Set((instanceIds || []).filter(Boolean));
+  if (!ids.size) return deck;
+  const targets = (deck.cards || []).filter((card) => ids.has(card.instanceId));
+  if (!targets.length) return deck;
+  const anyUnmarked = targets.some((card) => !collectionCardIsSought(card));
+  const cards = deck.cards.map((card) => {
+    if (!ids.has(card.instanceId)) return card;
+    const target = collectionTargetQuantity(card);
+    let owned = collectionOwnedQuantity(card);
+    if (anyUnmarked) {
+      if (owned >= target) owned = target - 1;
+    } else if (owned < target) {
+      owned = target;
+    }
+    return { ...card, ownedQuantity: owned };
+  });
+  return syncCollectionDeck({ ...deck, cards });
 }
 
 export function toRepresentativeCardView(

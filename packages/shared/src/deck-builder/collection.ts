@@ -143,9 +143,21 @@ export function collectionSearchNeedsReleaseRefresh(
   return Date.now() - openedAt >= dayMs;
 }
 
+const PLANESWALKER_SUBTYPE = /Planeswalker\s+[—-]\s+(.+)$/i;
+
 export function parsePlaneswalkerSubtype(typeLine: string | null | undefined): string | null {
-  const raw = String(typeLine || '');
-  const match = raw.match(/Planeswalker\s+[—-]\s+(.+)$/i);
-  if (!match) return null;
-  return match[1]?.trim() || null;
+  const raw = String(typeLine || '').trim();
+  if (!raw) return null;
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const face of raw.split(/\s+\/\/\s+/)) {
+    const match = face.match(PLANESWALKER_SUBTYPE);
+    const name = match?.[1]?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names.length ? names.join(' & ') : null;
 }

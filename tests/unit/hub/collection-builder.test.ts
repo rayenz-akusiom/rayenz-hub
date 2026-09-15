@@ -23,6 +23,19 @@ describe('collection builder helpers', () => {
   it('parses planeswalker subtypes from the oracle type line', () => {
     expect(parsePlaneswalkerSubtype('Legendary Planeswalker - Jace')).toBe('Jace');
     expect(parsePlaneswalkerSubtype('Legendary Creature - Human')).toBeNull();
+    expect(parsePlaneswalkerSubtype(null)).toBeNull();
+    expect(parsePlaneswalkerSubtype('')).toBeNull();
+    expect(
+      parsePlaneswalkerSubtype('Legendary Planeswalker — Oko // Legendary Planeswalker — Oko'),
+    ).toBe('Oko');
+    expect(
+      parsePlaneswalkerSubtype('Legendary Creature — God // Legendary Planeswalker — Tibalt'),
+    ).toBe('Tibalt');
+    expect(
+      parsePlaneswalkerSubtype(
+        'Legendary Planeswalker — Will // Legendary Planeswalker — Rowan',
+      ),
+    ).toBe('Will & Rowan');
   });
 
   it('syncs collection cards into Seeking when owned is below target', () => {

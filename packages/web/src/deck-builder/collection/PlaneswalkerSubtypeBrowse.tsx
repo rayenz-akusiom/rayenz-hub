@@ -87,6 +87,7 @@ export function PlaneswalkerSubtypeBrowse({
         representativeCard={representativeCard ? toRepresentativeCardView(representativeCard) : null}
         representativeLabel="Binder"
         onPickRepresentative={onPickRepresentative}
+        enableSoughtGhost
       />
       {layout === 'stacked' ? (
         <MasonryColumns>
@@ -103,6 +104,7 @@ export function PlaneswalkerSubtypeBrowse({
                 draggable={false}
                 onCardContextMenu={onCardContextMenu}
                 categoryKey={subtype}
+                enableSoughtGhost
               />
             </section>
           ))}
@@ -121,6 +123,7 @@ export function PlaneswalkerSubtypeBrowse({
               draggable={false}
               onCardContextMenu={onCardContextMenu}
               categoryKey={subtype}
+              enableSoughtGhost
             />
           </section>
         ))

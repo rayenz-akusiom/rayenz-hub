@@ -200,5 +200,57 @@ describe('builder browse smoke', () => {
       'title',
       'Jace Beleren (sought)',
     );
+    expect(screen.getByRole('button', { name: /Jace Beleren, sought/i })).toHaveClass('is-sought-ghost');
+  });
+
+  it('ghosts unmet copies in the default planeswalker subtype browse', async () => {
+    const subtypeDoc: DeckDocument = {
+      ...collectionDoc,
+      deckId: 'collection-subtype',
+      browseViewDefault: 'planeswalker_subtype',
+      oracle: {
+        'id:jace-beleren': {
+          scryfallId: 'jace-beleren',
+          colourIdentity: ['U'],
+          typeLine: 'Legendary Planeswalker — Jace',
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 3,
+          imageUrl: null,
+          colours: ['U'],
+          finishes: null,
+          hasCommonPrinting: null,
+          manaCost: '{1}{U}{U}',
+          producedMana: null,
+          updatedAt: null,
+        },
+      },
+    };
+    const summaries = [toDeckSummary(subtypeDoc)];
+    listDecks.mockResolvedValue(summaries);
+    readLibraryIndex.mockReturnValue(summaries);
+    getDeck.mockImplementation(async (id) => (id === subtypeDoc.deckId ? subtypeDoc : null));
+
+    const user = userEvent.setup();
+    window.location.hash = '#/collection-builder';
+    render(<CollectionBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Planeswalker Binder', { selector: '.db-library-tile-name' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Jace Beleren, sought/i })).toBeInTheDocument();
+    });
+
+    const tile = screen.getByRole('button', { name: /Jace Beleren, sought/i });
+    expect(tile).toHaveAttribute('title', 'Jace Beleren (sought)');
+    expect(tile).toHaveClass('is-sought-ghost');
   });
 });

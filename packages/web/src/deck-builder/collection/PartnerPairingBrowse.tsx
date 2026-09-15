@@ -108,6 +108,7 @@ export function PartnerPairingBrowse({
                 onCardContextMenu={onCardContextMenu}
                 categoryKey={lane}
                 enableSoughtGhost
+                cardSort={cardSort}
               />
             </section>
           ))}
@@ -127,6 +128,7 @@ export function PartnerPairingBrowse({
               onCardContextMenu={onCardContextMenu}
               categoryKey={lane}
               enableSoughtGhost
+              cardSort={cardSort}
             />
           </section>
         ))

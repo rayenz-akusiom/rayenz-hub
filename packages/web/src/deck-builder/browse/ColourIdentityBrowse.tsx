@@ -194,6 +194,7 @@ export function ColourIdentityBrowse({
             onCardContextMenu={onCardContextMenu}
             swapInIds={swapInIds}
             filtersActive={filtersActive}
+            cardSort={cardSort}
           />
         </section>
       );

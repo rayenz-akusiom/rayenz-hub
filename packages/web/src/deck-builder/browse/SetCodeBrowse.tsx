@@ -166,6 +166,7 @@ export function SetCodeBrowse({
             filtersActive={filtersActive}
             enableSoughtGhost={enableSoughtGhost}
             categoryKey={setKey}
+            cardSort={cardSort}
           />
         </section>
       );

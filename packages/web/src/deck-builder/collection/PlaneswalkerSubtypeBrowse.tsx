@@ -105,6 +105,7 @@ export function PlaneswalkerSubtypeBrowse({
                 onCardContextMenu={onCardContextMenu}
                 categoryKey={subtype}
                 enableSoughtGhost
+                cardSort={cardSort}
               />
             </section>
           ))}
@@ -124,6 +125,7 @@ export function PlaneswalkerSubtypeBrowse({
               onCardContextMenu={onCardContextMenu}
               categoryKey={subtype}
               enableSoughtGhost
+              cardSort={cardSort}
             />
           </section>
         ))

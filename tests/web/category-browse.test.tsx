@@ -177,6 +177,37 @@ describe('CardGroup and DropSection', () => {
 
     expect(document.querySelector('.db-card-tile.is-swap-in-ghost')).toBeNull();
   });
+
+  it('shows collector captions in grid when sorting by collector', () => {
+    const withCn = cardAt(0);
+    const withoutCn = { ...cardAt(1), collectorNumber: null };
+    render(
+      <CardGroup
+        cards={[withCn, withoutCn]}
+        layout="grid"
+        cardSort="collector_asc"
+      />,
+    );
+
+    const captions = document.querySelectorAll('.db-card-collector');
+    expect(captions).toHaveLength(2);
+    expect(captions[0]).toHaveTextContent('165');
+    expect(captions[1]).toHaveTextContent('—');
+  });
+
+  it('hides collector captions when not sorting by collector', () => {
+    render(
+      <CardGroup cards={[cardAt(0)]} layout="grid" cardSort="name_asc" />,
+    );
+    expect(document.querySelector('.db-card-collector')).toBeNull();
+  });
+
+  it('hides collector captions in stacked layout even with collector sort', () => {
+    render(
+      <CardGroup cards={[cardAt(0)]} layout="stacked" cardSort="collector_desc" />,
+    );
+    expect(document.querySelector('.db-card-collector')).toBeNull();
+  });
 });
 
 describe('DeckHeaderRow', () => {

@@ -142,6 +142,11 @@ function CardStackPeek({
   );
 }
 
+function collectorCaption(card: CardView): string {
+  const cn = String(card.collectorNumber ?? '').trim();
+  return cn || '—';
+}
+
 export function CardGroup({
   cards,
   layout,
@@ -155,6 +160,7 @@ export function CardGroup({
   swapInIds,
   filtersActive = false,
   enableSoughtGhost = false,
+  cardSort = 'name_asc',
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
   layout: CardLayout;
@@ -173,7 +179,10 @@ export function CardGroup({
   filtersActive?: boolean;
   /** Collection builder only — unmet targets render as sought ghosts. */
   enableSoughtGhost?: boolean;
+  cardSort?: CardSortMode;
 }) {
+  const showCollector =
+    layout === 'grid' && (cardSort === 'collector_asc' || cardSort === 'collector_desc');
   const placeholders = Array.from({ length: Math.max(0, placeholderCount) }, (_, i) => (
     <div
       key={`placeholder:${categoryKey || ''}:${i}`}
@@ -220,20 +229,29 @@ export function CardGroup({
   }
   return (
     <div className="db-card-grid">
-      {cards.map((card) => (
-        <CardTile
-          key={`${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`}
-          card={card}
-          selected={cardIsSelected(card.instanceId, selectedIds, selectedId)}
-          selectedIds={selectedIds}
-          onSelect={onSelectCard}
-          draggable={draggable}
-          onContextMenu={onCardContextMenu}
-          membership={card.membership || 'primary'}
-          swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
-          enableSoughtGhost={enableSoughtGhost}
-        />
-      ))}
+      {cards.map((card) => {
+        const key = `${card.instanceId}:${categoryKey || ''}:${card.membership || 'primary'}`;
+        const tileProps = {
+          card,
+          selected: cardIsSelected(card.instanceId, selectedIds, selectedId),
+          selectedIds,
+          onSelect: onSelectCard,
+          draggable,
+          onContextMenu: onCardContextMenu,
+          membership: card.membership || ('primary' as const),
+          swapInGhost: !filtersActive && Boolean(swapInIds?.has(card.instanceId)),
+          enableSoughtGhost,
+        };
+        if (!showCollector) {
+          return <CardTile key={key} {...tileProps} />;
+        }
+        return (
+          <div key={key} className="db-card-grid-item">
+            <CardTile {...tileProps} />
+            <span className="db-card-collector">{collectorCaption(card)}</span>
+          </div>
+        );
+      })}
       {placeholders}
     </div>
   );
@@ -375,6 +393,7 @@ export function DropSection({
         swapInIds={swapInIds}
         filtersActive={filtersActive}
         enableSoughtGhost={enableSoughtGhost}
+        cardSort={cardSort}
       />
     </section>
   );
@@ -1589,6 +1608,7 @@ export function CategoryBrowse({
           swapInIds={swapInIds}
           filtersActive={filtersActive}
           enableSoughtGhost={enableSoughtGhost}
+          cardSort={cardSort}
         />
       </section>
     );

@@ -42,6 +42,7 @@ import {
   shouldOfferSampleCommander,
 } from '../sample/sample-deck';
 import { duplicateDeckDocument, emptyDeckDocument, uniqueDeckName } from '../import-export/import-deck';
+import { copyDeckProfile } from '../profile/copy-deck-profile';
 
 function builderHashKeepingPair(
   format: BuilderFormat,
@@ -632,6 +633,13 @@ export function BuilderApp({
       setSyncStatus('synced');
     } else if (isApiConfigured() && getHubAuthSession()) {
       setSyncStatus('local');
+    }
+    try {
+      await copyDeckProfile(doc, saved);
+    } catch (e) {
+      setApiWarning(
+        e instanceof Error ? e.message : 'Deck copied, but profile could not be copied.',
+      );
     }
     if (redirectToCorrectBuilder(saved)) return;
     setReadOnly(false);

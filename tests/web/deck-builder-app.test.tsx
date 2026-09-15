@@ -21,6 +21,7 @@ import {
   setLocalLibraryScope,
   __resetLocalLibraryScopeForTests,
 } from '../../packages/web/src/deck-builder/store/local-library-scope';
+import { ProfileSync } from '../../packages/web/src/mtg/profile-sync';
 
 const apiConfigured = vi.hoisted(() => ({ value: false }));
 
@@ -81,6 +82,25 @@ vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
     readProfileYaml: vi.fn(async () => null),
   },
 }));
+
+const pushProfile = vi.fn(async () => ({}));
+const hubApiGetConfig = vi.fn(() =>
+  apiConfigured.value
+    ? { url: 'http://127.0.0.1:3000', enabled: true }
+    : { url: '', enabled: false },
+);
+
+vi.mock('../../packages/web/src/api/hub-api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/api/hub-api-client')>();
+  return {
+    ...actual,
+    HubApiClient: {
+      ...actual.HubApiClient,
+      getConfig: () => hubApiGetConfig(),
+      pushProfile: (...args: Parameters<typeof pushProfile>) => pushProfile(...args),
+    },
+  };
+});
 
 function withLayouts(doc: DeckDocument): DeckDocument {
   return {
@@ -188,6 +208,11 @@ function defaultMocks() {
   apiDeleteDeck.mockResolvedValue(undefined);
   apiGetPublicDeck.mockResolvedValue(null);
   mergeDeckDocuments.mockImplementation((local, remote) => remote ?? local);
+  pushProfile.mockReset();
+  pushProfile.mockResolvedValue({});
+  hubApiGetConfig.mockClear();
+  vi.mocked(ProfileSync.readProfileYaml).mockReset();
+  vi.mocked(ProfileSync.readProfileYaml).mockResolvedValue(null);
 }
 
 afterEach(() => {
@@ -1345,6 +1370,59 @@ describe('CommanderBuilderApp', () => {
     expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument();
     const saved = saveDeck.mock.calls.at(-1)?.[0] as DeckDocument;
     expect(saved.deckId).not.toBe(commanderDoc.deckId);
+  });
+
+  it('copies the source profile under the new deck id when duplicating', async () => {
+    apiConfigured.value = true;
+    vi.mocked(ProfileSync.readProfileYaml).mockImplementation(async (key) => {
+      if (
+        key === commanderDoc.deckId ||
+        key === String(commanderDoc.archidektId) ||
+        key === `deck-${commanderDoc.archidektId}`
+      ) {
+        return [
+          `deck_id: ${commanderDoc.deckId}`,
+          `deck_name: ${commanderDoc.name}`,
+          'protected_cards:',
+          '  - Sol Ring',
+          'themes:',
+          '  - tokens',
+          '',
+        ].join('\n');
+      }
+      return null;
+    });
+
+    const user = userEvent.setup();
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    });
+
+    const ownedTile = screen
+      .getByText('Fixture Commander', { selector: '.db-library-tile-name' })
+      .closest('li')!;
+    await user.pointer({ keys: '[MouseRight>]', target: ownedTile });
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Copy of Fixture Commander/i })).toBeInTheDocument();
+    });
+    const saved = saveDeck.mock.calls.find(
+      (call) => (call[0] as DeckDocument).name === 'Copy of Fixture Commander',
+    )?.[0] as DeckDocument;
+    expect(saved.deckId).not.toBe(commanderDoc.deckId);
+
+    await waitFor(() => {
+      expect(pushProfile).toHaveBeenCalledOnce();
+    });
+    expect(pushProfile.mock.calls[0][0]).toBe(saved.deckId);
+    const body = pushProfile.mock.calls[0][1] as { yaml: string; deckName: string };
+    expect(body.deckName).toBe('Copy of Fixture Commander');
+    expect(body.yaml).toContain(`deck_id: ${saved.deckId}`);
+    expect(body.yaml).toContain('deck_name: Copy of Fixture Commander');
+    expect(body.yaml).toContain('  - Sol Ring');
   });
 
   it('duplicates the open deck from deck actions', async () => {

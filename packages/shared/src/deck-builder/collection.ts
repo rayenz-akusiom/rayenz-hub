@@ -13,7 +13,7 @@ import { scryfallImageFromId } from './scryfall-images.js';
 
 export const COLLECTION_FORMAT = 'collection';
 export const COLLECTION_DEFAULT_CATEGORY = 'Collection';
-export const COLLECTION_CARD_LIMIT = 1000;
+export const COLLECTION_CARD_LIMIT = 2500;
 
 export function isCollectionDeck(
   deck: Pick<DeckDocument, 'format'> | null | undefined,

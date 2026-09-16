@@ -17,8 +17,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderNav() {
-  return render(<HubNav path="/dailies" open={false} onClose={() => {}} />);
+function renderNav(onClose: () => void = () => {}) {
+  return render(<HubNav path="/dailies" open={false} onClose={onClose} />);
 }
 
 describe('HubNavAuth', () => {
@@ -119,14 +119,36 @@ describe('HubNavAuth', () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it('shows Profile and Sign out when the username control is open', async () => {
+    const user = userEvent.setup();
+    setHubAuthSession({ accessToken: 'access', username: 'Rayenz' });
+    renderNav();
+    await user.click(screen.getByRole('button', { name: 'Rayenz' }));
+    const profile = screen.getByRole('link', { name: 'Profile' });
+    expect(profile).toHaveAttribute('href', '#/u/rayenz');
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+  });
+
+  it('closes the nav drawer when Profile is clicked', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    setHubAuthSession({ accessToken: 'access', username: 'Rayenz' });
+    renderNav(onClose);
+    await user.click(screen.getByRole('button', { name: 'Rayenz' }));
+    await user.click(screen.getByRole('link', { name: 'Profile' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('toggles the sign-out control closed without signing out', async () => {
     const user = userEvent.setup();
     setHubAuthSession({ accessToken: 'access', username: 'Rayenz' });
     renderNav();
     await user.click(screen.getByRole('button', { name: 'Rayenz' }));
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Rayenz' }));
     expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Profile' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Rayenz' })).toBeInTheDocument();
   });
 

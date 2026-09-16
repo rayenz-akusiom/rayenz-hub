@@ -6,6 +6,7 @@ import {
   HUB_AUTH_REQUIRED_EVENT,
   getHubAuthSession,
 } from '../lib/hub-auth-session';
+import { hubUserSlug, userProfileHash } from './routes';
 
 function sessionUsername(): string | null {
   const session = getHubAuthSession();
@@ -13,7 +14,7 @@ function sessionUsername(): string | null {
   return session.username || 'user';
 }
 
-export function HubNavAuth() {
+export function HubNavAuth({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [usernameLabel, setUsernameLabel] = useState(() => sessionUsername());
   const [formOpen, setFormOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -66,7 +67,14 @@ export function HubNavAuth() {
     setError(null);
   }
 
+  function handleProfileClick() {
+    setSignOutOpen(false);
+    setError(null);
+    onNavigate?.();
+  }
+
   const signedIn = Boolean(usernameLabel);
+  const profileHref = userProfileHash(hubUserSlug());
 
   return (
     <>
@@ -103,9 +111,14 @@ export function HubNavAuth() {
         </p>
       )}
       {signedIn && signOutOpen && (
-        <button type="button" className="hub-nav-auth-sign-out" onClick={handleSignOut}>
-          Sign out
-        </button>
+        <div className="hub-nav-auth-actions">
+          <a className="hub-nav-auth-action" href={profileHref} onClick={handleProfileClick}>
+            Profile
+          </a>
+          <button type="button" className="hub-nav-auth-action" onClick={handleSignOut}>
+            Sign out
+          </button>
+        </div>
       )}
       {!signedIn && formOpen && (
         <form className="hub-nav-auth-form" onSubmit={(e) => void handleSignIn(e)}>

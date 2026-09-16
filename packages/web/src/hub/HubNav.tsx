@@ -158,7 +158,7 @@ export function HubNav({
     <nav id="hub-nav" className={`hub-nav${open ? ' open' : ''}`} aria-label="Apps">
       <div className="hub-nav-header">
         <h1>Rayenz Hub</h1>
-        <HubNavAuth />
+        <HubNavAuth onNavigate={onClose} />
       </div>
       <div className="hub-nav-group">
         <p className="hub-nav-group-title">MTG</p>

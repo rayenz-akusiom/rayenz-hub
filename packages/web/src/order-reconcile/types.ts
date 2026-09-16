@@ -1,9 +1,11 @@
-import type { OrderReconcileSettingsPayload } from '@rayenz-hub/shared';
+import type { DeckDocument, OrderReconcileSettingsPayload } from '@rayenz-hub/shared';
 
 export const ASSIGN_PHASE_ID = '__assign__';
+export const COLLECTION_PHASE_ID = '__collection__';
 
-export type Phase = 'input' | 'assign' | 'reconcile';
+export type Phase = 'input' | 'collection' | 'assign' | 'reconcile';
 export type InputMode = 'list' | 'email';
+export type CollectionApplyMode = 'broadcast' | 'consume';
 
 export type AcquiredCard = {
   id?: string;
@@ -152,6 +154,35 @@ export type OrderReconcileDeck = {
   deck_snapshot?: DeckSnapshot;
 };
 
+export type CollectionMarkHit = {
+  hitId: string;
+  copyId: string;
+  deckId: string;
+  deckName: string;
+  instanceId: string;
+  cardName: string;
+  currentSet: string | null;
+  currentCollector: string | null;
+  currentFoil: boolean;
+  currentScryfallId: string | null;
+  currentImageUrl: string;
+  acquiredSet: string | null;
+  acquiredCollector: string | null;
+  acquiredFinish: string | null;
+  acquiredImageUrl: string;
+  kind: 'exact' | 'replaceable';
+};
+
+export type CollectionMarkPlan = {
+  exact: CollectionMarkHit[];
+  replaceable: CollectionMarkHit[];
+  /** Distinct binder rows that would receive an owned bump from exact hits. */
+  exactRowCount: number;
+  /** Total ownedQuantity increments from exact hits. */
+  exactBumpCount: number;
+  replaceableRowCount: number;
+};
+
 export type OrderReconcileProgress = {
   decisions: Record<string, ItemDecision>;
   assignments?: Assignment[];
@@ -163,6 +194,9 @@ export type OrderReconcileProgress = {
   activeDeckId?: string | null;
   phase?: Phase;
   isProxyOrder?: boolean;
+  collectionApplyMode?: CollectionApplyMode;
+  collectionReplaceSelected?: Record<string, boolean>;
+  collectionCopiesRemaining?: CardCopy[];
 };
 
 export type OrderReconcileState = {
@@ -183,4 +217,10 @@ export type OrderReconcileState = {
   colorIdentityCache: Record<string, string[]>;
   progress: OrderReconcileProgress;
   statusMessage: string;
+  collectionApplyMode: CollectionApplyMode;
+  collections: DeckDocument[];
+  collectionPlan: CollectionMarkPlan | null;
+  collectionReplaceSelected: Record<string, boolean>;
+  /** Acquired copies still available for collection mark-off after prior applies. */
+  collectionCopiesRemaining: CardCopy[];
 };

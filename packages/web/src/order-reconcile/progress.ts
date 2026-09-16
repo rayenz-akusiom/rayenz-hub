@@ -1,6 +1,8 @@
 import { DEFAULT_ORDER_RECONCILE_SETTINGS } from '@rayenz-hub/shared';
 import { loadOrderReconcileProgress, loadOrderReconcileSettings, saveOrderReconcileProgress } from '../lib/hub-storage';
-import type { OrderReconcileProgress, OrderReconcileState } from './types';
+import type { CollectionApplyMode, OrderReconcileProgress, OrderReconcileState } from './types';
+
+const DEFAULT_COLLECTION_MODE: CollectionApplyMode = 'broadcast';
 
 export function createInitialState(): OrderReconcileState {
   const settings = loadOrderReconcileSettings() as OrderReconcileState['settings'];
@@ -30,6 +32,11 @@ export function createInitialState(): OrderReconcileState {
       decisions: progress.decisions || {},
     },
     statusMessage: '',
+    collectionApplyMode: progress.collectionApplyMode || DEFAULT_COLLECTION_MODE,
+    collections: [],
+    collectionPlan: null,
+    collectionReplaceSelected: progress.collectionReplaceSelected || {},
+    collectionCopiesRemaining: (progress.collectionCopiesRemaining as OrderReconcileState['collectionCopiesRemaining']) || [],
   };
 }
 
@@ -45,6 +52,9 @@ export function saveStateProgress(state: OrderReconcileState): void {
     activeDeckId: state.activeDeckId,
     phase: state.phase,
     isProxyOrder: state.isProxyOrder,
+    collectionApplyMode: state.collectionApplyMode,
+    collectionReplaceSelected: state.collectionReplaceSelected,
+    collectionCopiesRemaining: state.collectionCopiesRemaining,
   });
 }
 
@@ -75,5 +85,10 @@ export function resetSession(state: OrderReconcileState): OrderReconcileState {
     isProxyOrder: false,
     activeDeckId: null,
     progress: { decisions: {} },
+    collectionApplyMode: DEFAULT_COLLECTION_MODE,
+    collections: [],
+    collectionPlan: null,
+    collectionReplaceSelected: {},
+    collectionCopiesRemaining: [],
   };
 }

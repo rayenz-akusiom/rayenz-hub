@@ -1,17 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { persistReconcileDeckToHub } from './apply-hub';
-import { buildAssignmentPlan } from './assign';
+import { buildAssignmentPlan, expandToCopies } from './assign';
+import {
+  applyCollectionPrintingReplaces,
+  applyExactCollectionMarks,
+  buildCollectionMarkPlan,
+  copiesRemainingAfterHits,
+  loadCollectionDecks,
+  persistCollectionDecks,
+} from './collection-mark';
 import { loadHubLibrarySnapshots } from './data';
 import { itemsForDeck } from './helpers';
 import { parseInputToAcquired } from './input';
 import { OrderReconcileAssign } from './OrderReconcileAssign';
+import { OrderReconcileCollection } from './OrderReconcileCollection';
 import { OrderReconcileDeckPanel } from './OrderReconcileDeck';
 import { OrderReconcileInput } from './OrderReconcileInput';
 import { createInitialState, resetSession, saveStateProgress, setDecision } from './progress';
 import { getNextDeckId } from './reconcile';
-import type { ItemDecision, OrderReconcileState, ReconcileItem } from './types';
-import { ASSIGN_PHASE_ID } from './types';
+import type {
+  CollectionApplyMode,
+  ItemDecision,
+  OrderReconcileState,
+  ReconcileItem,
+} from './types';
+import { ASSIGN_PHASE_ID, COLLECTION_PHASE_ID } from './types';
 import './order-reconcile.css';
 
 export function OrderReconcileApp() {
@@ -51,10 +65,57 @@ export function OrderReconcileApp() {
     progressRef.current?.finish({ label, variant });
   }, []);
 
+  function withCollectionPlan(
+    base: OrderReconcileState,
+    patch: Partial<OrderReconcileState> = {},
+  ): OrderReconcileState {
+    const next = { ...base, ...patch };
+    const copies = Object.prototype.hasOwnProperty.call(patch, 'collectionCopiesRemaining')
+      ? patch.collectionCopiesRemaining || []
+      : next.collectionCopiesRemaining.length
+        ? next.collectionCopiesRemaining
+        : next.copies.length
+          ? next.copies
+          : expandToCopies(next.acquiredCards);
+    const collectionPlan = buildCollectionMarkPlan(
+      copies,
+      next.collections,
+      next.collectionApplyMode,
+    );
+    return {
+      ...next,
+      copies: next.copies.length ? next.copies : copies,
+      collectionCopiesRemaining: copies,
+      collectionPlan,
+      collectionReplaceSelected: {},
+    };
+  }
+
   useEffect(() => {
     async function resume() {
       if (state.phase === 'input' || !state.acquiredCards.length) return;
-      if (state.decks.length && state.decks[0].deck_snapshot) return;
+      if (state.decks.length && state.decks[0].deck_snapshot) {
+        if (state.phase === 'collection' && !state.collections.length) {
+          try {
+            setStatus('Restoring session — loading collections…');
+            const collections = await loadCollectionDecks();
+            persist(
+              withCollectionPlan({
+                ...state,
+                collections,
+                collectionCopiesRemaining:
+                  state.collectionCopiesRemaining.length
+                    ? state.collectionCopiesRemaining
+                    : expandToCopies(state.acquiredCards),
+              }),
+            );
+            setStatus('');
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }
+        return;
+      }
       try {
         setStatus('Restoring session — loading Hub decks…');
         const result = await loadHubLibrarySnapshots(state, {
@@ -62,7 +123,19 @@ export function OrderReconcileApp() {
           onStatus: setStatus,
           onFinish: finishProgress,
         });
-        persist({ ...state, ...result });
+        let next = { ...state, ...result };
+        if (state.phase === 'collection') {
+          const collections = await loadCollectionDecks();
+          next = withCollectionPlan({
+            ...next,
+            collections,
+            collectionCopiesRemaining:
+              state.collectionCopiesRemaining.length
+                ? state.collectionCopiesRemaining
+                : expandToCopies(state.acquiredCards),
+          });
+        }
+        persist(next);
         setStatus('');
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -91,21 +164,148 @@ export function OrderReconcileApp() {
         onStatus: setStatus,
         onFinish: finishProgress,
       });
-      next = {
+      showProgress(0, 1, 'Loading collections…');
+      const collections = await loadCollectionDecks();
+      const copies = expandToCopies(acquiredCards);
+      next = withCollectionPlan({
         ...next,
         ...loaded,
         progress: { decisions: {} },
         completedDecks: {},
-      };
-      const plan = await buildAssignmentPlan(next);
-      next = {
-        ...next,
+        collections,
+        copies,
+        collectionCopiesRemaining: copies,
+        collectionApplyMode: state.collectionApplyMode || 'broadcast',
+        phase: 'collection',
+        activeDeckId: COLLECTION_PHASE_ID,
+      });
+      finishProgress(
+        collections.length
+          ? `Loaded ${loaded.decks.length} decks · ${collections.length} binders.`
+          : `Loaded ${loaded.decks.length} decks.`,
+      );
+      persist(next);
+      setStatus('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleContinueToDecks() {
+    setError('');
+    try {
+      setStatus('Building deck assignment plan…');
+      const plan = await buildAssignmentPlan(state);
+      persist({
+        ...state,
         ...plan,
         phase: 'assign',
         activeDeckId: ASSIGN_PHASE_ID,
-      };
-      persist(next);
+        statusMessage: '',
+      });
+      scrollToTop();
     } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleCollectionModeChange(mode: CollectionApplyMode) {
+    persist(
+      withCollectionPlan({
+        ...state,
+        collectionApplyMode: mode,
+        collectionCopiesRemaining: state.collectionCopiesRemaining,
+      }),
+    );
+  }
+
+  function handleToggleReplace(hitId: string, selected: boolean) {
+    persist({
+      ...state,
+      collectionReplaceSelected: {
+        ...state.collectionReplaceSelected,
+        [hitId]: selected,
+      },
+    });
+  }
+
+  async function handleMarkExact() {
+    setError('');
+    const hits = state.collectionPlan?.exact || [];
+    if (!hits.length) return;
+    try {
+      showProgress(0, 1, 'Marking exact collection matches…');
+      const updated = applyExactCollectionMarks(state.collections, hits);
+      const dirtyIds = new Set(hits.map((h) => h.deckId));
+      const toSave = updated.filter((d) => dirtyIds.has(d.deckId));
+      const { saved, errors } = await persistCollectionDecks(toSave);
+      const byId = new Map(saved.map((d) => [d.deckId, d]));
+      const collections = updated.map((d) => byId.get(d.deckId) || d);
+      const remaining = copiesRemainingAfterHits(state.collectionCopiesRemaining, hits);
+      const next = withCollectionPlan({
+        ...state,
+        collections,
+        collectionCopiesRemaining: remaining,
+      });
+      finishProgress(
+        `Marked ${hits.length} exact match${hits.length === 1 ? '' : 'es'}.`,
+        errors.length ? 'error' : 'success',
+      );
+      persist({
+        ...next,
+        statusMessage: errors.length
+          ? `Marked exact matches with save warnings: ${errors.join('; ')}`
+          : `Marked ${hits.length} exact collection match${hits.length === 1 ? '' : 'es'}.`,
+      });
+    } catch (err) {
+      finishProgress(err instanceof Error ? err.message : String(err), 'error');
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleApplyReplaces() {
+    setError('');
+    const selectedKeys = new Set(
+      Object.entries(state.collectionReplaceSelected)
+        .filter(([, on]) => on)
+        .map(([id]) => id),
+    );
+    if (!selectedKeys.size) return;
+    const selectedHits = (state.collectionPlan?.replaceable || []).filter((hit) => {
+      if (selectedKeys.has(hit.hitId)) return true;
+      const rowKey = `${hit.deckId}:${hit.instanceId}`;
+      return [...selectedKeys].some((id) => {
+        const row = (state.collectionPlan?.replaceable || []).find((h) => h.hitId === id);
+        return row && `${row.deckId}:${row.instanceId}` === rowKey;
+      });
+    });
+    if (!selectedHits.length) return;
+    try {
+      showProgress(0, 1, 'Applying collection printing replacements…');
+      const updated = applyCollectionPrintingReplaces(state.collections, selectedHits);
+      const dirtyIds = new Set(selectedHits.map((h) => h.deckId));
+      const toSave = updated.filter((d) => dirtyIds.has(d.deckId));
+      const { saved, errors } = await persistCollectionDecks(toSave);
+      const byId = new Map(saved.map((d) => [d.deckId, d]));
+      const collections = updated.map((d) => byId.get(d.deckId) || d);
+      const remaining = copiesRemainingAfterHits(state.collectionCopiesRemaining, selectedHits);
+      const next = withCollectionPlan({
+        ...state,
+        collections,
+        collectionCopiesRemaining: remaining,
+      });
+      finishProgress(
+        `Applied ${selectedHits.length} replacement${selectedHits.length === 1 ? '' : 's'}.`,
+        errors.length ? 'error' : 'success',
+      );
+      persist({
+        ...next,
+        statusMessage: errors.length
+          ? `Applied replacements with save warnings: ${errors.join('; ')}`
+          : `Applied ${selectedHits.length} collection replacement${selectedHits.length === 1 ? '' : 's'}.`,
+      });
+    } catch (err) {
+      finishProgress(err instanceof Error ? err.message : String(err), 'error');
       setError(err instanceof Error ? err.message : String(err));
     }
   }
@@ -172,6 +372,20 @@ export function OrderReconcileApp() {
   }
 
   function renderDeckNav() {
+    if (state.phase === 'collection') {
+      return (
+        <button
+          type="button"
+          className={'hub-deck-chip' + (state.activeDeckId === COLLECTION_PHASE_ID ? ' active' : '')}
+          onClick={() => handleDeckSelect(COLLECTION_PHASE_ID)}
+        >
+          Collection
+          <span className="hub-deck-chip-count">
+            {(state.collectionPlan?.exactBumpCount || 0) + (state.collectionPlan?.replaceableRowCount || 0)}
+          </span>
+        </button>
+      );
+    }
     if (state.phase === 'assign') {
       return (
         <button
@@ -223,6 +437,18 @@ export function OrderReconcileApp() {
           onAcquiredCardsChange={(acquiredCards) => persist({ ...state, acquiredCards })}
           onParse={() => {}}
           onContinue={() => void handleContinue()}
+        />
+      );
+    }
+    if (state.phase === 'collection') {
+      return (
+        <OrderReconcileCollection
+          state={state}
+          onApplyModeChange={handleCollectionModeChange}
+          onToggleReplace={handleToggleReplace}
+          onMarkExact={() => void handleMarkExact()}
+          onApplyReplaces={() => void handleApplyReplaces()}
+          onContinueToDecks={() => void handleContinueToDecks()}
         />
       );
     }

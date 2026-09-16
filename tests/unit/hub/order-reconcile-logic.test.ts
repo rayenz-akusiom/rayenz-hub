@@ -134,6 +134,11 @@ function baseState(overrides: Partial<OrderReconcileState> = {}): OrderReconcile
     colorIdentityCache: {},
     progress: { decisions: {} },
     statusMessage: '',
+    collectionApplyMode: 'broadcast',
+    collections: [],
+    collectionPlan: null,
+    collectionReplaceSelected: {},
+    collectionCopiesRemaining: [],
     ...overrides,
   };
 }

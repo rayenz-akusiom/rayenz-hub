@@ -21,6 +21,32 @@ async function resolvePublicUserDeck(
   return { sub: record.sub, doc };
 }
 
+/** Public library index: summaries with visibility !== private. */
+export async function handlePublicUserDecks(
+  username: string,
+  headers: Record<string, string | undefined>,
+  services: AppServices = getAppServices(),
+) {
+  try {
+    await services.rateLimit.consume('publicDeck', clientIp(headers));
+    const record = await resolvePublicUsername(services, username);
+    if (!record) {
+      return errorResponse(404, 'Not found', 'NOT_FOUND');
+    }
+    const summaries = await services.deckRepository.listByUserId(record.sub);
+    const decks = summaries.filter((s) => s.visibility !== 'private');
+    return jsonResponse(200, {
+      username: record.username,
+      slug: record.slug,
+      decks,
+    });
+  } catch (e) {
+    const mapped = mapHandlerError(e, services.authService);
+    if (mapped) return mapped;
+    throw e;
+  }
+}
+
 export async function handlePublicUserDeck(
   username: string,
   deckSlug: string,

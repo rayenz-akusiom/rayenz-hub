@@ -1,5 +1,6 @@
 import { parseYamlList, profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
 import { HubApiClient } from '../../api/hub-api-client';
+import { toKebabCase } from '../../lib/string-utils';
 import { ProfileSync } from '../../mtg/profile-sync';
 
 /** Replace or insert a top-level YAML scalar (`key: value`) without touching other content. */
@@ -36,8 +37,9 @@ function isApiProfilesAvailable(): boolean {
  * Throws on push failure so the caller can soft-fail.
  */
 export async function copyDeckProfile(
-  source: Pick<DeckDocument, 'deckId' | 'archidektId'>,
+  source: Pick<DeckDocument, 'deckId' | 'archidektId' | 'name'>,
   saved: Pick<DeckDocument, 'deckId' | 'name'>,
+  opts?: { publicUsername?: string | null },
 ): Promise<void> {
   let yaml: string | null = null;
   for (const key of profileLookupKeys(source)) {
@@ -46,6 +48,12 @@ export async function copyDeckProfile(
       yaml = text;
       break;
     }
+  }
+  if (!yaml && opts?.publicUsername) {
+    yaml = await HubApiClient.pullPublicProfileYaml(
+      opts.publicUsername,
+      toKebabCase(source.name),
+    );
   }
   if (!yaml) return;
 

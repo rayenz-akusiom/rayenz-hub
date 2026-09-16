@@ -39,6 +39,9 @@ const apiGetDeck = vi.fn<(deckId: string) => Promise<DeckDocument | null>>();
 const apiPutDeck = vi.fn<(doc: DeckDocument) => Promise<DeckDocument>>();
 const apiDeleteDeck = vi.fn<(deckId: string) => Promise<void>>();
 const apiGetPublicDeck = vi.fn<(username: string, deckSlug: string) => Promise<DeckDocument | null>>();
+const apiListPublicDecks = vi.fn<
+  (username: string) => Promise<{ username: string; slug: string; decks: DeckSummary[] } | null>
+>();
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
@@ -65,6 +68,7 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
   apiPutDeck: (doc: DeckDocument) => apiPutDeck(doc),
   apiDeleteDeck: (deckId: string) => apiDeleteDeck(deckId),
   apiGetPublicDeck: (username: string, deckSlug: string) => apiGetPublicDeck(username, deckSlug),
+  apiListPublicDecks: (username: string) => apiListPublicDecks(username),
 }));
 
 vi.mock('../../packages/web/src/deck-builder/scryfall/useScryfallEnrich', () => ({
@@ -184,6 +188,7 @@ function defaultMocks() {
   apiPutDeck.mockReset();
   apiDeleteDeck.mockReset();
   apiGetPublicDeck.mockReset();
+  apiListPublicDecks.mockReset();
   mergeDeckDocuments.mockReset();
   const nowIso = new Date().toISOString();
   listDecks.mockResolvedValue([
@@ -207,6 +212,7 @@ function defaultMocks() {
   apiPutDeck.mockImplementation(async (doc) => doc);
   apiDeleteDeck.mockResolvedValue(undefined);
   apiGetPublicDeck.mockResolvedValue(null);
+  apiListPublicDecks.mockResolvedValue(null);
   mergeDeckDocuments.mockImplementation((local, remote) => remote ?? local);
   pushProfile.mockReset();
   pushProfile.mockResolvedValue({});
@@ -621,6 +627,69 @@ describe('CommanderBuilderApp', () => {
     expect(screen.queryByRole('button', { name: 'Rename Fixture Commander' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Theory deck — swap queue is view-only/i)).not.toBeInTheDocument();
     expect(window.location.hash).toBe('#/commander-builder/rayenz/fixture-commander');
+    expect(screen.getByRole('button', { name: 'Deck actions' })).toBeInTheDocument();
+  });
+
+  it('loads a foreign public library grid without private decks', async () => {
+    apiListPublicDecks.mockResolvedValue({
+      username: 'Rayenz',
+      slug: 'rayenz',
+      decks: [commanderSummary],
+    });
+    window.location.hash = '#/commander-builder/rayenz';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Rayenz's Commander Builder/i })).toBeInTheDocument();
+    });
+    expect(apiListPublicDecks).toHaveBeenCalledWith('rayenz');
+    expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Commander deck' })).not.toBeInTheDocument();
+  });
+
+  it('asks unsigned visitors to sign in before forking a public deck', async () => {
+    const user = userEvent.setup();
+    apiGetPublicDeck.mockResolvedValue(commanderDoc);
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Deck actions' })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Duplicate to my library' })).toBeDisabled();
+  });
+
+  it('duplicates a public deck into the signed-in viewer library', async () => {
+    const user = userEvent.setup();
+    signInWithAccountBuffers();
+    apiListDecks.mockResolvedValue([commanderSummary]);
+    apiGetDeck.mockResolvedValue(commanderDoc);
+    apiGetPublicDeck.mockResolvedValue(commanderDoc);
+    rememberSavedDecks([commanderDoc]);
+    window.location.hash = '#/commander-builder/other-user/fixture-commander';
+    render(<CommanderBuilderApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Deck actions' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Add card' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Deck actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate to my library' }));
+
+    await waitFor(() => {
+      expect(saveDeck).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Copy of Fixture Commander',
+          archidektId: null,
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Copy of Fixture Commander/i })).toBeInTheDocument();
+    });
+    expect(window.location.hash).toMatch(/^#\/commander-builder\/rayenz\/copy-of-fixture-commander/);
+    expect(screen.getByRole('button', { name: 'Add card' })).toBeInTheDocument();
   });
 
   it('switches a public self-link to edit mode after sign-in', async () => {

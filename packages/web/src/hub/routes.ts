@@ -65,6 +65,11 @@ export type DeckBuilderRoute = {
   pairEntryId?: string;
 };
 
+/** `#/{builder}/{userSlug}` public library browse (no deck segment). */
+export type BuilderLibraryRoute = {
+  userSlug: string;
+};
+
 export type BuilderFormat = 'commander' | 'cube' | 'collection';
 
 export type SwapQueueRoute = {
@@ -243,6 +248,20 @@ function parseBuilderRouteFromPrefix(path: string, prefix: string): DeckBuilderR
   return null;
 }
 
+function parseBuilderLibraryRouteFromPrefix(
+  path: string,
+  prefix: string,
+): BuilderLibraryRoute | null {
+  if (path === prefix) return null;
+  if (!path.startsWith(`${prefix}/`)) return null;
+  const rest = path.slice(prefix.length + 1);
+  const parts = rest.split('/').filter(Boolean);
+  if (parts.length !== 1) return null;
+  const userSlug = parts[0];
+  if (!userSlug) return null;
+  return { userSlug };
+}
+
 /**
  * Parse `#/{builder}/:user/:deck` deep links for commander, cube, or legacy deck-builder.
  * Returns null for library routes or malformed nested paths.
@@ -267,7 +286,31 @@ export function parseBuilderRoute(
   return null;
 }
 
-/** Build `#/{builder}` or `#/{builder}/:user/:deck` (`/swap/:entryId` when focusing a pair). */
+/**
+ * Parse `#/{builder}/:user` public library browse hashes.
+ * Returns null for own-library (`#/{builder}`), deck deep links, or malformed paths.
+ */
+export function parseBuilderLibraryRoute(
+  hash?: string | null,
+  format?: BuilderFormat,
+): BuilderLibraryRoute | null {
+  const normalized = normalizeHash(
+    hash ?? (typeof window !== 'undefined' ? window.location.hash : ''),
+  );
+  const path = normalized.slice(1);
+
+  if (format) {
+    return parseBuilderLibraryRouteFromPrefix(path, builderBasePath(format));
+  }
+
+  for (const prefix of ALL_BUILDER_PREFIXES) {
+    const route = parseBuilderLibraryRouteFromPrefix(path, prefix);
+    if (route) return route;
+  }
+  return null;
+}
+
+/** Build `#/{builder}`, `#/{builder}/:user`, or `#/{builder}/:user/:deck` (`/swap/:entryId` when focusing a pair). */
 export function builderHash(
   format: BuilderFormat,
   userSlug?: string | null,
@@ -280,7 +323,19 @@ export function builderHash(
     if (pairEntryId) return `${deck}/swap/${encodeURIComponent(pairEntryId)}`;
     return deck;
   }
+  if (userSlug) {
+    return `#${base}/${userSlug}`;
+  }
   return `#${base}`;
+}
+
+/** Absolute share URL for a public builder library (`#/{builder}/{slug}`). */
+export function builderLibraryShareUrl(
+  format: BuilderFormat,
+  userSlug: string,
+  loc: Pick<Location, 'origin' | 'pathname'> = window.location,
+): string {
+  return `${loc.origin}${loc.pathname}${builderHash(format, userSlug)}`;
 }
 
 /** Builder deep-link that opens a formal swap pair. */

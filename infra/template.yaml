@@ -277,6 +277,12 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/decks/{deckId}
             Method: GET
+        PublicUserDecksGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/users/{username}/decks
+            Method: GET
         PublicUserDeckGet:
           Type: HttpApi
           Properties:

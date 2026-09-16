@@ -5,6 +5,7 @@ import { handleProfile } from '../../packages/api/src/handlers/profiles.ts';
 import {
   handlePublicUserDeck,
   handlePublicUserDeckProfile,
+  handlePublicUserDecks,
 } from '../../packages/api/src/handlers/public-decks.ts';
 import { encodeTestJwt } from '../../packages/api/src/lib/jwt.ts';
 import { createMemoryStores, TEST_AUTH_HEADERS } from './helpers/test-services.ts';
@@ -126,6 +127,54 @@ describe('public user deck GET', () => {
     const ownerGet = await handleDeck('GET', 'cmd-fixture', ownerHeaders, null, services);
     expect(ownerGet.statusCode).toBe(200);
     expect(JSON.parse(String(ownerGet.body)).visibility).toBe('private');
+  });
+});
+
+describe('public user decks list GET', () => {
+  it('returns only public deck summaries for a known user', async () => {
+    const { services } = createMemoryStores();
+    const putPublic = await handleDeck(
+      'PUT',
+      'cmd-fixture',
+      RAYENZ_HEADERS,
+      JSON.stringify(commander),
+      services,
+    );
+    expect(putPublic.statusCode).toBe(200);
+    const putPrivate = await handleDeck(
+      'PUT',
+      'cmd-private',
+      RAYENZ_HEADERS,
+      JSON.stringify({
+        ...commander,
+        deckId: 'cmd-private',
+        name: 'Private Commander',
+        visibility: 'private',
+      }),
+      services,
+    );
+    expect(putPrivate.statusCode).toBe(200);
+
+    const pub = await handlePublicUserDecks('rayenz', {}, services);
+    expect(pub.statusCode).toBe(200);
+    const body = JSON.parse(String(pub.body)) as {
+      username?: string;
+      slug?: string;
+      decks?: Array<{ deckId: string; name: string; visibility?: string }>;
+    };
+    expect(body.username).toBe('rayenz');
+    expect(body.slug).toBe('rayenz');
+    expect(body.decks?.map((d) => d.deckId).sort()).toEqual(['cmd-fixture']);
+    expect(body.decks?.[0]?.visibility).not.toBe('private');
+  });
+
+  it('returns 404 for unknown user and sandbox', async () => {
+    const { services } = createMemoryStores();
+    const unknown = await handlePublicUserDecks('nobody', {}, services);
+    expect(unknown.statusCode).toBe(404);
+
+    const sandbox = await handlePublicUserDecks('sandbox', {}, services);
+    expect(sandbox.statusCode).toBe(404);
   });
 });
 

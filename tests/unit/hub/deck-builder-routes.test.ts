@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   builderHash,
   builderBasePath,
+  builderLibraryShareUrl,
   parseBuilderRoute,
+  parseBuilderLibraryRoute,
   resolveLegacyDeckBuilderHash,
   pathFromHash,
   hubUserSlug,
@@ -22,6 +24,7 @@ describe('builder routes', () => {
   it('builderHash builds library and deep links', () => {
     expect(builderHash('commander')).toBe('#/commander-builder');
     expect(builderHash('cube')).toBe('#/cube-builder');
+    expect(builderHash('commander', 'rayenz')).toBe('#/commander-builder/rayenz');
     expect(builderHash('commander', hubUserSlug(), 'my-deck')).toBe(
       `#/commander-builder/${SANDBOX_USER_SLUG}/my-deck`,
     );
@@ -31,6 +34,12 @@ describe('builder routes', () => {
     expect(builderHash('commander', hubUserSlug(), 'my-deck', 's1')).toBe(
       `#/commander-builder/${SANDBOX_USER_SLUG}/my-deck/swap/s1`,
     );
+    expect(
+      builderLibraryShareUrl('commander', 'rayenz', {
+        origin: 'https://example.test',
+        pathname: '/',
+      }),
+    ).toBe('https://example.test/#/commander-builder/rayenz');
     expect(usernameToSlug('Rayenz')).toBe('rayenz');
     expect(isLocalLibrarySlug(SANDBOX_USER_SLUG)).toBe(true);
     expect(isLocalLibrarySlug('rayenz')).toBe(false);
@@ -43,6 +52,7 @@ describe('builder routes', () => {
 
   it('parseBuilderRoute parses commander, cube, and legacy prefixes', () => {
     expect(parseBuilderRoute('#/commander-builder')).toBeNull();
+    expect(parseBuilderRoute('#/commander-builder/rayenz')).toBeNull();
     expect(parseBuilderRoute('#/commander-builder/default/my-deck')).toEqual({
       userSlug: 'default',
       deckSlug: 'my-deck',
@@ -64,6 +74,18 @@ describe('builder routes', () => {
       pairEntryId: 'entry-1',
     });
     expect(parseBuilderRoute('#/commander-builder/default/my-deck/swap')).toBeNull();
+  });
+
+  it('parseBuilderLibraryRoute parses foreign library hashes', () => {
+    expect(parseBuilderLibraryRoute('#/commander-builder')).toBeNull();
+    expect(parseBuilderLibraryRoute('#/commander-builder/rayenz')).toEqual({
+      userSlug: 'rayenz',
+    });
+    expect(parseBuilderLibraryRoute('#/cube-builder/friend', 'cube')).toEqual({
+      userSlug: 'friend',
+    });
+    expect(parseBuilderLibraryRoute('#/commander-builder/rayenz/my-deck')).toBeNull();
+    expect(parseBuilderLibraryRoute('#/cube-builder/friend', 'commander')).toBeNull();
   });
 
   it('parseBuilderRoute respects format filter', () => {
@@ -100,6 +122,7 @@ describe('builder routes', () => {
 
   it('pathFromHash maps builder paths including nested deep links', () => {
     expect(pathFromHash('#/commander-builder')).toBe('/commander-builder');
+    expect(pathFromHash('#/commander-builder/rayenz')).toBe('/commander-builder');
     expect(pathFromHash('#/commander-builder/default/foo')).toBe('/commander-builder');
     expect(pathFromHash('#/cube-builder/default/foo')).toBe('/cube-builder');
     expect(pathFromHash('#/deck-builder/default/foo')).toBe('/deck-builder');

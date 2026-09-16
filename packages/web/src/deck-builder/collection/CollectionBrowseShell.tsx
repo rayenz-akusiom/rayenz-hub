@@ -64,6 +64,7 @@ import {
   type CollectionDeckSyncPlan,
   type DeckCopy,
 } from './sync-from-decks';
+import { DeckActionsMenu } from '../import-export/DeckActionsMenu';
 import { HubProgress, type HubProgressController } from '../../lib/hub-progress';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
@@ -137,12 +138,16 @@ export function CollectionBrowseShell({
   onBack,
   syncStatus = null,
   readOnly = false,
+  onDuplicate,
+  duplicateDisabled,
 }: {
   deck: DeckDocument;
   onChange: (next: DeckDocument) => void;
   onBack: () => void;
   syncStatus?: DeckSyncStatus | null;
   readOnly?: boolean;
+  onDuplicate?: (deck: DeckDocument) => void;
+  duplicateDisabled?: boolean;
 }) {
   const initialBrowseView =
     deck.browseViewDefault || defaultCollectionBrowseView(deck.collectionTemplate) || 'all_cards';
@@ -522,6 +527,15 @@ export function CollectionBrowseShell({
                 Representative
               </button>
             </>
+          ) : onDuplicate ? (
+            <DeckActionsMenu
+              deck={liveDeck}
+              onDeckChange={() => {}}
+              variant="duplicate-only"
+              duplicateLabel="Duplicate to my library"
+              onDuplicate={() => onDuplicate(liveDeck)}
+              duplicateDisabled={duplicateDisabled}
+            />
           ) : null}
         </header>
         <div className="hub-progress-host" ref={progressHostRef} id="collection-progress-host" />

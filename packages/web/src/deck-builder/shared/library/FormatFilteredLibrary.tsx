@@ -245,6 +245,7 @@ export function FormatFilteredLibrary({
   error,
   atDeckCap = false,
   capMessage,
+  publicMode = false,
   onOpen,
   onAdd,
   onAddVariant,
@@ -253,6 +254,7 @@ export function FormatFilteredLibrary({
   onSetOwnership,
   onSetVisibility,
   onRefreshRemote,
+  onCopyShareLink,
 }: {
   builderFormat: BuilderFormat;
   title: string;
@@ -264,6 +266,8 @@ export function FormatFilteredLibrary({
   error?: string | null;
   atDeckCap?: boolean;
   capMessage?: string;
+  /** Foreign public library: no add/edit; duplicate forks into the viewer's library. */
+  publicMode?: boolean;
   onOpen: (deckId: string) => void;
   onAdd: () => void;
   onAddVariant?: (kind: CommanderAddVariant) => void;
@@ -272,13 +276,15 @@ export function FormatFilteredLibrary({
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
   onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
   onRefreshRemote?: () => void;
+  onCopyShareLink?: () => void;
 }) {
   const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort());
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [menu, setMenu] = useState<DeckOwnershipMenuState | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const sorted = useMemo(() => sortLibraryDecks(decks, sort), [decks, sort]);
-  const ownershipLanes = builderFormat !== 'collection';
+  const ownershipLanes = builderFormat !== 'collection' && !publicMode;
   const { owned, theory } = useMemo(() => partitionLibraryByOwnership(sorted), [sorted]);
   const commanderDecks = useMemo(
     () => sorted.filter((d) => d.format === 'commander'),
@@ -290,8 +296,8 @@ export function FormatFilteredLibrary({
   );
   const ownershipHandler = ownershipLanes ? onSetOwnership : undefined;
   const sampleIds = useMemo(
-    () => (sampleDeck ? new Set([sampleDeck.deckId]) : new Set<string>()),
-    [sampleDeck],
+    () => (sampleDeck && !publicMode ? new Set([sampleDeck.deckId]) : new Set<string>()),
+    [sampleDeck, publicMode],
   );
 
   function onSortChange(next: LibrarySort) {
@@ -334,8 +340,12 @@ export function FormatFilteredLibrary({
     ['--db-card-w']: `${CARD_SIZE_PX.M}px`,
   } as CSSProperties;
 
-  const emptyCopy =
-    builderFormat === 'commander'
+  const emptyCopy = publicMode
+    ? {
+        lead: 'No public decks in this library.',
+        hint: 'Private decks stay hidden. Ask the owner to mark a deck Public to share it here.',
+      }
+    : builderFormat === 'commander'
       ? {
           lead: 'No Commander or Pendragon decks saved in Hub yet.',
           hint: 'Add a Commander deck, or use the menu to create Pendragon or import paste.',
@@ -351,8 +361,9 @@ export function FormatFilteredLibrary({
         };
 
   const showEmptyOnboarding = !decks.length;
-  const showSample = Boolean(sampleDeck && showEmptyOnboarding);
+  const showSample = Boolean(sampleDeck && showEmptyOnboarding && !publicMode);
   const addDisabled = atDeckCap;
+  const duplicateLabel = publicMode ? 'Duplicate to my library' : 'Duplicate';
 
   function openOwnershipMenu(d: DeckSummary, x: number, y: number) {
     setMenu({
@@ -363,6 +374,13 @@ export function FormatFilteredLibrary({
       visibility: deckVisibility(d),
       isSample: sampleIds.has(d.deckId),
     });
+  }
+
+  async function copyShareLink() {
+    if (!onCopyShareLink) return;
+    onCopyShareLink();
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 1500);
   }
 
   return (
@@ -378,17 +396,24 @@ export function FormatFilteredLibrary({
               Sync from API
             </button>
           ) : null}
-          <SplitAddButton
-            addLabel={addLabel}
-            disabled={addDisabled}
-            disabledTitle={capMessage}
-            onAdd={onAdd}
-            onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
-          />
+          {onCopyShareLink && !publicMode ? (
+            <button type="button" className="db-btn" onClick={() => void copyShareLink()}>
+              {shareCopied ? 'Copied' : 'Copy share link'}
+            </button>
+          ) : null}
+          {!publicMode ? (
+            <SplitAddButton
+              addLabel={addLabel}
+              disabled={addDisabled}
+              disabledTitle={capMessage}
+              onAdd={onAdd}
+              onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
+            />
+          ) : null}
         </div>
       </header>
       {error ? <p className="db-error">{error}</p> : null}
-      {atDeckCap && capMessage ? <p className="hub-muted">{capMessage}</p> : null}
+      {atDeckCap && capMessage && !publicMode ? <p className="hub-muted">{capMessage}</p> : null}
       {loading ? (
         <LibrarySkeleton />
       ) : (
@@ -419,13 +444,15 @@ export function FormatFilteredLibrary({
                   Or open the sample deck above to explore Hub — changes stay on this device.
                 </p>
               ) : null}
-              <SplitAddButton
-                addLabel={addLabel}
-                disabled={addDisabled}
-                disabledTitle={capMessage}
-                onAdd={onAdd}
-                onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
-              />
+              {!publicMode ? (
+                <SplitAddButton
+                  addLabel={addLabel}
+                  disabled={addDisabled}
+                  disabledTitle={capMessage}
+                  onAdd={onAdd}
+                  onAddVariant={builderFormat === 'commander' ? onAddVariant : undefined}
+                />
+              ) : null}
             </div>
           ) : (
             <div className="db-library-sections">
@@ -502,14 +529,15 @@ export function FormatFilteredLibrary({
           )}
         </>
       )}
-      {menu && (onDuplicate || (!menu.isSample && (ownershipHandler || onSetVisibility))) ? (
+      {menu && (onDuplicate || (!menu.isSample && !publicMode && (ownershipHandler || onSetVisibility))) ? (
         <DeckOwnershipContextMenu
           state={menu}
           onClose={() => setMenu(null)}
           onDuplicate={onDuplicate}
           duplicateDisabled={atDeckCap}
-          onSetOwnership={menu.isSample ? undefined : ownershipHandler}
-          onSetVisibility={menu.isSample ? undefined : onSetVisibility}
+          duplicateLabel={duplicateLabel}
+          onSetOwnership={menu.isSample || publicMode ? undefined : ownershipHandler}
+          onSetVisibility={menu.isSample || publicMode ? undefined : onSetVisibility}
         />
       ) : null}
     </div>

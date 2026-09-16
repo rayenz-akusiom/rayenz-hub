@@ -12,7 +12,7 @@ vi.mock('../../../packages/web/src/api/hub-api.ts', () => ({
   isApiConfigured: () => false,
 }));
 
-import { apiGetPublicDeck, apiGetPublicSwaps } from '../../../packages/web/src/deck-builder/store/deck-api.ts';
+import { apiGetPublicDeck, apiGetPublicSwaps, apiListPublicDecks } from '../../../packages/web/src/deck-builder/store/deck-api.ts';
 
 describe('apiGetPublicDeck', () => {
   beforeEach(() => {
@@ -36,6 +36,37 @@ describe('apiGetPublicDeck', () => {
     await expect(apiGetPublicDeck('rayenz', 'fixture-commander')).resolves.toMatchObject({
       name: commander.name,
       deckId: commander.deckId,
+    });
+  });
+});
+
+describe('apiListPublicDecks', () => {
+  beforeEach(() => {
+    publicApiFetch.mockReset();
+  });
+
+  it('returns null when the public API has no user', async () => {
+    publicApiFetch.mockResolvedValue(null);
+    await expect(apiListPublicDecks('nobody')).resolves.toBeNull();
+  });
+
+  it('throws when the body is not a library payload', async () => {
+    publicApiFetch.mockResolvedValue({ error: 'Not found' });
+    await expect(apiListPublicDecks('rayenz')).rejects.toThrow(
+      'Public library response was not valid',
+    );
+  });
+
+  it('returns username, slug, and decks', async () => {
+    publicApiFetch.mockResolvedValue({
+      username: 'Rayenz',
+      slug: 'rayenz',
+      decks: [{ deckId: 'cmd-fixture', name: 'Fixture Commander', format: 'commander' }],
+    });
+    await expect(apiListPublicDecks('rayenz')).resolves.toMatchObject({
+      username: 'Rayenz',
+      slug: 'rayenz',
+      decks: [expect.objectContaining({ deckId: 'cmd-fixture' })],
     });
   });
 });

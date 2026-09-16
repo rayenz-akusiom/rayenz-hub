@@ -1265,7 +1265,18 @@ export function BrowseShell({
               saveCardCharmsPref({ enabled });
             }}
           />
-          {readOnly ? null : (
+          {readOnly ? (
+            onDuplicate ? (
+              <DeckActionsMenu
+                deck={liveDeck}
+                onDeckChange={() => {}}
+                variant="duplicate-only"
+                duplicateLabel="Duplicate to my library"
+                onDuplicate={() => onDuplicate(liveDeck)}
+                duplicateDisabled={duplicateDisabled}
+              />
+            ) : null
+          ) : (
             <DeckActionsMenu
               deck={liveDeck}
               onDeckChange={(next) => {

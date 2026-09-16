@@ -13,10 +13,13 @@ import { isApiConfigured } from '../../api/hub-api';
 import {
   builderHash,
   builderBasePath,
+  builderLibraryShareUrl,
   hubUserSlug,
+  isForeignUserSlug,
   isLocalLibrarySlug,
   normalizeHash,
   parseBuilderRoute,
+  parseBuilderLibraryRoute,
   rewriteRetiredUserSlug,
   SANDBOX_USER_SLUG,
   type BuilderFormat,
@@ -51,6 +54,13 @@ import {
 } from '../sample/sample-deck';
 import { duplicateDeckDocument, emptyDeckDocument, uniqueDeckName } from '../import-export/import-deck';
 import { copyDeckProfile } from '../profile/copy-deck-profile';
+import { copyText } from '../../swap-queue/export-ui';
+
+type PublicBrowseState = {
+  slug: string;
+  username: string;
+  decks: DeckSummary[];
+};
 
 function builderHashKeepingPair(
   format: BuilderFormat,
@@ -139,15 +149,29 @@ export function BuilderApp({
   const applyingRouteRef = useRef(false);
   const readOnlyRef = useRef(false);
   const [readOnly, setReadOnly] = useState(false);
+  const [publicBrowse, setPublicBrowse] = useState<PublicBrowseState | null>(null);
+  const publicBrowseRef = useRef<PublicBrowseState | null>(null);
 
   const filteredDecks = useMemo(
     () => filterLibraryByFormat(decks, builderFormat).filter((d) => !isSampleDeckId(d.deckId)),
     [decks, builderFormat],
   );
 
+  const publicFilteredDecks = useMemo(
+    () =>
+      publicBrowse
+        ? filterLibraryByFormat(publicBrowse.decks, builderFormat)
+        : [],
+    [publicBrowse, builderFormat],
+  );
+
   useEffect(() => {
     decksRef.current = decks;
   }, [decks]);
+
+  useEffect(() => {
+    publicBrowseRef.current = publicBrowse;
+  }, [publicBrowse]);
 
   useEffect(() => {
     activeRef.current = active;
@@ -156,6 +180,13 @@ export function BuilderApp({
   const syncDeckHash = useCallback(
     (doc: DeckDocument | null) => {
       const route = parseBuilderRoute(window.location.hash, builderFormat);
+      if (!doc && route && isForeignUserSlug(route.userSlug)) {
+        const next = builderHash(builderFormat, route.userSlug);
+        if (normalizeHash(window.location.hash) !== normalizeHash(next)) {
+          navigateHub(next);
+        }
+        return;
+      }
       const userSlug =
         route?.userSlug === SANDBOX_USER_SLUG ? SANDBOX_USER_SLUG : hubUserSlug();
       const next = doc
@@ -259,8 +290,52 @@ export function BuilderApp({
         return;
       }
 
+      const libraryRoute = parseBuilderLibraryRoute(hash, builderFormat);
+      if (libraryRoute) {
+        if (rewriteRetiredUserSlug(libraryRoute.userSlug) !== libraryRoute.userSlug) {
+          navigateHub(builderHash(builderFormat, rewriteRetiredUserSlug(libraryRoute.userSlug)));
+          return;
+        }
+        if (isLocalLibrarySlug(libraryRoute.userSlug)) {
+          navigateHub(builderHash(builderFormat));
+          return;
+        }
+        if (activeRef.current) {
+          invalidatePersist();
+          activeRef.current = null;
+          setActive(null);
+          setSyncStatus(null);
+          setReadOnly(false);
+          readOnlyRef.current = false;
+        }
+        applyingRouteRef.current = true;
+        try {
+          const payload = await deckApi.apiListPublicDecks(libraryRoute.userSlug);
+          if (!stillCurrent()) return;
+          if (!payload) {
+            setPublicBrowse(null);
+            setError('Library not found');
+            return;
+          }
+          setError(null);
+          setPublicBrowse({
+            slug: payload.slug,
+            username: payload.username,
+            decks: payload.decks,
+          });
+        } catch (e) {
+          if (!stillCurrent()) return;
+          setPublicBrowse(null);
+          setError(e instanceof Error && e.message ? e.message : 'Library not found');
+        } finally {
+          if (stillCurrent()) applyingRouteRef.current = false;
+        }
+        return;
+      }
+
       const route = parseBuilderRoute(hash, builderFormat);
       if (!route) {
+        setPublicBrowse(null);
         if (activeRef.current) {
           invalidatePersist();
           activeRef.current = null;
@@ -322,6 +397,7 @@ export function BuilderApp({
         }
         return;
       }
+      setPublicBrowse(null);
       // Drop a stale public-fetch lock so hash changes are not ignored after login.
       applyingRouteRef.current = false;
       const matchList =
@@ -623,18 +699,49 @@ export function BuilderApp({
   }
 
   async function duplicateDeck(source: DeckDocument | string) {
+    const publicSource = publicBrowseRef.current;
+    const foreignRoute = parseBuilderRoute(window.location.hash, builderFormat);
+    const publicUsername =
+      publicSource?.slug ||
+      (foreignRoute && isForeignUserSlug(foreignRoute.userSlug) ? foreignRoute.userSlug : null);
+    const forkingPublic = Boolean(publicUsername);
+
+    if (forkingPublic && !getHubAuthSession()) {
+      setError('Sign in to duplicate a deck to your library.');
+      return;
+    }
     if (libraryAtCap()) {
       setError(libraryDeckCapMessage());
       return;
     }
     setApiWarning(null);
-    const doc = typeof source === 'string' ? await resolveLibraryDocument(source) : source;
+
+    let doc: DeckDocument | null = null;
+    if (typeof source === 'string') {
+      if (publicSource) {
+        const summary = publicSource.decks.find((d) => d.deckId === source);
+        if (!summary) {
+          setError('Deck not found');
+          return;
+        }
+        try {
+          doc = await deckApi.apiGetPublicDeck(publicSource.slug, toKebabCase(summary.name));
+        } catch (e) {
+          setError(e instanceof Error && e.message ? e.message : 'Deck not found');
+          return;
+        }
+      } else {
+        doc = await resolveLibraryDocument(source);
+      }
+    } else {
+      doc = source;
+    }
     if (!doc) {
       setError('Deck not found');
       return;
     }
     const existingNames = decksRef.current
-      .filter((d) => d.format === doc.format)
+      .filter((d) => d.format === doc!.format)
       .map((d) => d.name);
     const copy = duplicateDeckDocument(doc, existingNames);
     const { saved, apiError, uploaded } = await saveDualMode(copy);
@@ -647,12 +754,13 @@ export function BuilderApp({
       setSyncStatus('local');
     }
     try {
-      await copyDeckProfile(doc, saved);
+      await copyDeckProfile(doc, saved, { publicUsername });
     } catch (e) {
       setApiWarning(
         e instanceof Error ? e.message : 'Deck copied, but profile could not be copied.',
       );
     }
+    setPublicBrowse(null);
     if (redirectToCorrectBuilder(saved)) return;
     setReadOnly(false);
     readOnlyRef.current = false;
@@ -660,6 +768,23 @@ export function BuilderApp({
     setActive(saved);
     syncDeckHash(saved);
     await refreshLibrary({ applyRoute: false });
+  }
+
+  function backFromActiveDeck() {
+    const route = parseBuilderRoute(window.location.hash, builderFormat);
+    invalidatePersist();
+    setActive(null);
+    activeRef.current = null;
+    setSyncStatus(null);
+    setReadOnly(false);
+    readOnlyRef.current = false;
+    if (route && isForeignUserSlug(route.userSlug)) {
+      navigateHub(builderHash(builderFormat, route.userSlug));
+      void refreshLibrary();
+      return;
+    }
+    syncDeckHash(null);
+    void refreshLibrary({ applyRoute: false });
   }
 
   if (active) {
@@ -671,15 +796,9 @@ export function BuilderApp({
             deck={active}
             syncStatus={syncStatus}
             readOnly={readOnly}
-            onBack={() => {
-              invalidatePersist();
-              setActive(null);
-              setSyncStatus(null);
-              setReadOnly(false);
-              readOnlyRef.current = false;
-              syncDeckHash(null);
-              void refreshLibrary({ applyRoute: false });
-            }}
+            onDuplicate={(doc) => void duplicateDeck(doc)}
+            duplicateDisabled={libraryAtCap() || (readOnly && !getHubAuthSession())}
+            onBack={backFromActiveDeck}
             onChange={(next) => {
               if (readOnlyRef.current) return;
               void persist(next);
@@ -694,16 +813,8 @@ export function BuilderApp({
               parseBuilderRoute(window.location.hash, builderFormat)?.pairEntryId ?? null
             }
             onDuplicate={(doc) => void duplicateDeck(doc)}
-            duplicateDisabled={libraryAtCap()}
-            onBack={() => {
-              invalidatePersist();
-              setActive(null);
-              setSyncStatus(null);
-              setReadOnly(false);
-              readOnlyRef.current = false;
-              syncDeckHash(null);
-              void refreshLibrary({ applyRoute: false });
-            }}
+            duplicateDisabled={libraryAtCap() || (readOnly && !getHubAuthSession())}
+            onBack={backFromActiveDeck}
             onChange={(next) => {
               if (readOnlyRef.current) return;
               void persist(next);
@@ -715,34 +826,56 @@ export function BuilderApp({
   }
 
   const deepLinkRoute = parseBuilderRoute(window.location.hash, builderFormat);
+  const libraryRoute = parseBuilderLibraryRoute(window.location.hash, builderFormat);
+  const foreignLibrary =
+    libraryRoute && isForeignUserSlug(libraryRoute.userSlug) ? libraryRoute : null;
   // Deep link still resolving — show minimal chrome (avoid library skeleton flash).
-  if (deepLinkRoute && !error && loading) {
+  if ((deepLinkRoute || foreignLibrary) && !error && loading) {
     return (
       <div className="db-app db-deep-link-loading" aria-busy="true">
         <p className="hub-muted" role="status">
-          Opening deck…
+          {foreignLibrary ? 'Opening library…' : 'Opening deck…'}
         </p>
       </div>
     );
   }
 
   const atDeckCap = libraryAtCap();
+  const viewingPublic = Boolean(publicBrowse);
+  const libraryTitle = viewingPublic
+    ? `${publicBrowse!.username}'s ${title}`
+    : title;
+  const libraryDecks = viewingPublic ? publicFilteredDecks : filteredDecks;
 
   return (
     <div className="db-app">
       <FormatFilteredLibrary
         builderFormat={builderFormat}
-        title={title}
+        title={libraryTitle}
         addLabel={addLabel}
-        decks={filteredDecks}
-        sampleDeck={builderFormat === 'commander' ? sampleDeck : null}
+        decks={libraryDecks}
+        sampleDeck={builderFormat === 'commander' && !viewingPublic ? sampleDeck : null}
         loading={loading}
         error={error}
         atDeckCap={atDeckCap}
         capMessage={libraryDeckCapMessage()}
-        onOpen={(id) => void openDeck(id)}
+        publicMode={viewingPublic}
+        onOpen={(id) => {
+          if (publicBrowse) {
+            const summary = publicBrowse.decks.find((d) => d.deckId === id);
+            if (!summary) {
+              setError('Deck not found');
+              return;
+            }
+            navigateHub(
+              builderHash(builderFormat, publicBrowse.slug, toKebabCase(summary.name)),
+            );
+            return;
+          }
+          void openDeck(id);
+        }}
         onAdd={() => {
-          if (atDeckCap) return;
+          if (viewingPublic || atDeckCap) return;
           if (builderFormat === 'commander') {
             void createEmptyDeck('commander');
             return;
@@ -755,7 +888,7 @@ export function BuilderApp({
           setAddOpen(true);
         }}
         onAddVariant={(kind) => {
-          if (atDeckCap) return;
+          if (viewingPublic || atDeckCap) return;
           if (kind === 'pendragon') {
             void createEmptyDeck('pendragon');
             return;
@@ -763,13 +896,33 @@ export function BuilderApp({
           setImportFormat(kind === 'import-pendragon' ? 'pendragon' : 'commander');
           setAddOpen(true);
         }}
-        onDelete={(id) => void removeDeck(id)}
+        onDelete={(id) => {
+          if (viewingPublic) return;
+          void removeDeck(id);
+        }}
         onDuplicate={(id) => void duplicateDeck(id)}
-        onSetOwnership={(id, ownership) => void setDeckOwnership(id, ownership)}
-        onSetVisibility={(id, visibility) => void setDeckVisibility(id, visibility)}
-        onRefreshRemote={isApiConfigured() ? () => void refreshLibrary() : undefined}
+        onSetOwnership={
+          viewingPublic ? undefined : (id, ownership) => void setDeckOwnership(id, ownership)
+        }
+        onSetVisibility={
+          viewingPublic ? undefined : (id, visibility) => void setDeckVisibility(id, visibility)
+        }
+        onRefreshRemote={
+          viewingPublic
+            ? () => void refreshLibrary()
+            : isApiConfigured()
+              ? () => void refreshLibrary()
+              : undefined
+        }
+        onCopyShareLink={
+          viewingPublic || !getHubAuthSession()
+            ? undefined
+            : () => {
+                void copyText(builderLibraryShareUrl(builderFormat, hubUserSlug()));
+              }
+        }
       />
-      {addOpen ? (
+      {addOpen && !viewingPublic ? (
         <CreateDialog
           onClose={() => {
             setAddOpen(false);

@@ -32,6 +32,26 @@ export async function apiGetPublicDeck(
   return parsed.data;
 }
 
+export type PublicLibraryPayload = {
+  username: string;
+  slug: string;
+  decks: DeckSummary[];
+};
+
+export async function apiListPublicDecks(username: string): Promise<PublicLibraryPayload | null> {
+  const data = await publicApiFetch(`/v1/users/${encodeURIComponent(username)}/decks`);
+  if (!data) return null;
+  const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
+  if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {
+    throw new Error('Public library response was not valid');
+  }
+  return {
+    username: body.username,
+    slug: body.slug,
+    decks: body.decks as DeckSummary[],
+  };
+}
+
 export type PublicSwapsPayload = {
   username: string;
   slug: string;

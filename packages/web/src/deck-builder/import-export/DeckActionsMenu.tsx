@@ -19,6 +19,8 @@ export function DeckActionsMenu({
   deck,
   onDuplicate,
   duplicateDisabled,
+  duplicateLabel = 'Duplicate deck',
+  variant = 'full',
   onOpenCategories,
   onOpenBasics,
   trimMode,
@@ -29,6 +31,9 @@ export function DeckActionsMenu({
   onDeckChange: (next: DeckDocument) => void;
   onDuplicate?: () => void;
   duplicateDisabled?: boolean;
+  duplicateLabel?: string;
+  /** `duplicate-only` — public/read-only fork affordance. */
+  variant?: 'full' | 'duplicate-only';
   onOpenCategories?: () => void;
   onOpenBasics?: () => void;
   trimMode?: boolean;
@@ -37,6 +42,7 @@ export function DeckActionsMenu({
 }) {
   const [copied, setCopied] = useState(false);
   const text = buildArchidektImportText(deck);
+  const full = variant === 'full';
 
   async function copy() {
     await navigator.clipboard.writeText(text);
@@ -51,7 +57,7 @@ export function DeckActionsMenu({
       align="end"
       triggerClassName="db-btn db-menu-icon-btn"
     >
-      {onToggleTrim ? (
+      {full && onToggleTrim ? (
         <DbMenuItem
           active={trimMode}
           onSelect={onToggleTrim}
@@ -60,21 +66,23 @@ export function DeckActionsMenu({
           {trimMode ? 'Exit trim' : 'Trim'}
         </DbMenuItem>
       ) : null}
-      {onOpenCategories ? (
+      {full && onOpenCategories ? (
         <DbMenuItem onSelect={onOpenCategories}>Categories…</DbMenuItem>
       ) : null}
-      {onOpenBasics ? (
+      {full && onOpenBasics ? (
         <DbMenuItem onSelect={onOpenBasics}>Basics…</DbMenuItem>
       ) : null}
-      {onGenerateGlance ? (
+      {full && onGenerateGlance ? (
         <DbMenuItem onSelect={onGenerateGlance}>Generate glance</DbMenuItem>
       ) : null}
       {onDuplicate ? (
         <DbMenuItem disabled={duplicateDisabled} onSelect={() => onDuplicate()}>
-          Duplicate deck
+          {duplicateLabel}
         </DbMenuItem>
       ) : null}
-      <DbMenuItem onSelect={() => void copy()}>{copied ? 'Copied' : 'Copy Archidekt import'}</DbMenuItem>
+      {full ? (
+        <DbMenuItem onSelect={() => void copy()}>{copied ? 'Copied' : 'Copy Archidekt import'}</DbMenuItem>
+      ) : null}
     </DbMenu>
   );
 }

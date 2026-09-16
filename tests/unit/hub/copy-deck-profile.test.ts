@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readProfileYaml = vi.fn<(deckId: string) => Promise<string | null>>();
+const pullPublicProfileYaml = vi.fn<(username: string, deckSlug: string) => Promise<string | null>>();
 const pushProfile = vi.fn<(deckId: string, body: unknown) => Promise<unknown>>();
 const getConfig = vi.fn(() => ({ url: 'http://127.0.0.1:3000', enabled: true }));
 
@@ -14,6 +15,8 @@ vi.mock('../../../packages/web/src/api/hub-api-client.ts', () => ({
   HubApiClient: {
     getConfig: () => getConfig(),
     pushProfile: (deckId: string, body: unknown) => pushProfile(deckId, body),
+    pullPublicProfileYaml: (username: string, deckSlug: string) =>
+      pullPublicProfileYaml(username, deckSlug),
   },
 }));
 
@@ -62,10 +65,12 @@ describe('rewriteProfileIdentity', () => {
 describe('copyDeckProfile', () => {
   beforeEach(() => {
     readProfileYaml.mockReset();
+    pullPublicProfileYaml.mockReset();
     pushProfile.mockReset();
     getConfig.mockReset();
     getConfig.mockReturnValue({ url: 'http://127.0.0.1:3000', enabled: true });
     pushProfile.mockResolvedValue({});
+    pullPublicProfileYaml.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -75,7 +80,7 @@ describe('copyDeckProfile', () => {
   it('no-ops when no source profile exists', async () => {
     readProfileYaml.mockResolvedValue(null);
     await copyDeckProfile(
-      { deckId: 'src', archidektId: 99 },
+      { deckId: 'src', archidektId: 99, name: 'Src' },
       { deckId: 'copy', name: 'Copy of Src' },
     );
     expect(readProfileYaml).toHaveBeenCalled();
@@ -88,7 +93,7 @@ describe('copyDeckProfile', () => {
       return null;
     });
     await copyDeckProfile(
-      { deckId: 'hub-local', archidektId: 99 },
+      { deckId: 'hub-local', archidektId: 99, name: 'Hub' },
       { deckId: 'copy-1', name: 'Copy of Hub' },
     );
     expect(readProfileYaml.mock.calls.map((c) => c[0])).toEqual([
@@ -99,10 +104,22 @@ describe('copyDeckProfile', () => {
     expect(pushProfile.mock.calls[0][0]).toBe('copy-1');
   });
 
+  it('falls back to a public profile when local YAML is missing', async () => {
+    readProfileYaml.mockResolvedValue(null);
+    pullPublicProfileYaml.mockResolvedValue(SOURCE_YAML);
+    await copyDeckProfile(
+      { deckId: 'foreign-deck', archidektId: null, name: 'Source Deck' },
+      { deckId: 'copy', name: 'Copy of Source Deck' },
+      { publicUsername: 'rayenz' },
+    );
+    expect(pullPublicProfileYaml).toHaveBeenCalledWith('rayenz', 'source-deck');
+    expect(pushProfile).toHaveBeenCalledOnce();
+  });
+
   it('pushes under the new deck id with rewritten identity and preserved body', async () => {
     readProfileYaml.mockResolvedValue(SOURCE_YAML);
     await copyDeckProfile(
-      { deckId: 'source-deck', archidektId: null },
+      { deckId: 'source-deck', archidektId: null, name: 'Source Deck' },
       { deckId: 'new-deck', name: 'Copy of Source Deck' },
     );
     expect(pushProfile).toHaveBeenCalledOnce();
@@ -131,7 +148,7 @@ describe('copyDeckProfile', () => {
     getConfig.mockReturnValue({ url: '', enabled: false });
     readProfileYaml.mockResolvedValue(SOURCE_YAML);
     await copyDeckProfile(
-      { deckId: 'source-deck', archidektId: null },
+      { deckId: 'source-deck', archidektId: null, name: 'Source Deck' },
       { deckId: 'new-deck', name: 'Copy' },
     );
     expect(pushProfile).not.toHaveBeenCalled();

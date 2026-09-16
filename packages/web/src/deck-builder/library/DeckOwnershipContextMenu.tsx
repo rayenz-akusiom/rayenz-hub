@@ -16,6 +16,7 @@ export function DeckOwnershipContextMenu({
   onClose,
   onDuplicate,
   duplicateDisabled,
+  duplicateLabel = 'Duplicate',
   onSetOwnership,
   onSetVisibility,
 }: {
@@ -23,6 +24,7 @@ export function DeckOwnershipContextMenu({
   onClose: () => void;
   onDuplicate?: (deckId: string) => void;
   duplicateDisabled?: boolean;
+  duplicateLabel?: string;
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
   onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
 }) {
@@ -74,7 +76,7 @@ export function DeckOwnershipContextMenu({
             onClose();
           }}
         >
-          Duplicate
+          {duplicateLabel}
         </button>
       ) : null}
       {showMeta && onSetOwnership ? (

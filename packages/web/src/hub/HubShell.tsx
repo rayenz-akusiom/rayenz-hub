@@ -43,6 +43,10 @@ const OrderReconcileApp = lazyNamed(
   'OrderReconcileApp',
 );
 const SwapQueueApp = lazyNamed(() => import('../swap-queue/SwapQueueApp'), 'SwapQueueApp');
+const PlayerProfileApp = lazyNamed(
+  () => import('../player-profile/PlayerProfileApp'),
+  'PlayerProfileApp',
+);
 const InviteRedeemPage = lazyNamed(() => import('../pages/InviteRedeemPage'), 'InviteRedeemPage');
 const SettingsShell = lazyNamed(() => import('../SettingsShell'), 'SettingsShell');
 
@@ -78,6 +82,9 @@ function AppOutlet({ path }: { path: string }) {
   }
   if (path === '/wishlist' || path.startsWith('/wishlist/')) {
     return <SwapQueueApp entryPath="wishlist" />;
+  }
+  if (path === '/u' || path.startsWith('/u/')) {
+    return <PlayerProfileApp />;
   }
   if (path === '/invite') return <InviteRedeemPage />;
   if (isSettingsPath(path)) {

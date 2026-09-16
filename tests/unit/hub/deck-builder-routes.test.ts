@@ -5,12 +5,15 @@ import {
   builderLibraryShareUrl,
   parseBuilderRoute,
   parseBuilderLibraryRoute,
-  resolveLegacyDeckBuilderHash,
+  parseUserProfileRoute,
   pathFromHash,
+  resolveLegacyDeckBuilderHash,
   hubUserSlug,
   rewriteRetiredUserSlug,
   isForeignUserSlug,
   isLocalLibrarySlug,
+  userProfileHash,
+  userProfileShareUrl,
   SANDBOX_USER_SLUG,
 } from '../../../packages/web/src/hub/routes.ts';
 import { usernameToSlug } from '../../../packages/shared/src/usernames.ts';
@@ -126,5 +129,18 @@ describe('builder routes', () => {
     expect(pathFromHash('#/commander-builder/default/foo')).toBe('/commander-builder');
     expect(pathFromHash('#/cube-builder/default/foo')).toBe('/cube-builder');
     expect(pathFromHash('#/deck-builder/default/foo')).toBe('/deck-builder');
+  });
+
+  it('parses and builds player profile hashes', () => {
+    expect(parseUserProfileRoute('#/u')).toBeNull();
+    expect(parseUserProfileRoute('#/u/rayenz')).toEqual({ userSlug: 'rayenz' });
+    expect(parseUserProfileRoute('#/u/default')).toEqual({ userSlug: 'rayenz' });
+    expect(parseUserProfileRoute('#/u/friend/extra')).toBeNull();
+    expect(userProfileHash('Rayenz')).toBe('#/u/rayenz');
+    expect(
+      userProfileShareUrl('friend', { origin: 'https://example.test', pathname: '/' }),
+    ).toBe('https://example.test/#/u/friend');
+    expect(pathFromHash('#/u')).toBe('/u');
+    expect(pathFromHash('#/u/rayenz')).toBe('/u');
   });
 });

@@ -19,6 +19,7 @@ export type HubPath =
   | '/order-reconcile'
   | '/swap-queue'
   | '/wishlist'
+  | '/u'
   | '/settings'
   | '/settings/profile'
   | '/settings/hub-api'
@@ -79,6 +80,11 @@ export type SwapQueueRoute = {
 };
 
 export type SwapQueueEntryPath = 'swap-queue' | 'wishlist';
+
+/** `#/u/{username}` player profile (public library + swap preview). */
+export type UserProfileRoute = {
+  userSlug: string;
+};
 
 export type SwapQueueBrowseMode = 'default' | 'unified';
 
@@ -196,6 +202,9 @@ export function pathFromHash(hash?: string | null): HubPath {
   }
   if (path === '/invite' || path.startsWith('/invite/')) {
     return '/invite';
+  }
+  if (path === '/u' || path.startsWith('/u/')) {
+    return '/u';
   }
   if (KNOWN_PATHS.has(path)) {
     return path as HubPath;
@@ -446,6 +455,39 @@ export function swapQueueShareUrl(
   loc: Pick<Location, 'origin' | 'pathname'> = window.location,
 ): string {
   return `${loc.origin}${loc.pathname}${swapQueueHash(userSlug)}`;
+}
+
+/**
+ * Parse `#/u/:user` player profile hashes.
+ * Returns null for `#/u` alone or malformed nested paths.
+ */
+export function parseUserProfileRoute(hash?: string | null): UserProfileRoute | null {
+  const normalized = normalizeHash(
+    hash ?? (typeof window !== 'undefined' ? window.location.hash : ''),
+  );
+  const path = normalized.slice(1);
+  if (path === '/u') return null;
+  if (!path.startsWith('/u/')) return null;
+  const parts = path.slice('/u/'.length).split('/').filter(Boolean);
+  if (parts.length !== 1) return null;
+  const userSlug = parts[0];
+  if (!userSlug) return null;
+  return { userSlug: rewriteRetiredUserSlug(userSlug) };
+}
+
+/** Build `#/u/{slug}` player profile hash. */
+export function userProfileHash(userSlug: string): string {
+  const rewritten = rewriteRetiredUserSlug(userSlug);
+  const slug = usernameToSlug(rewritten) || rewritten;
+  return `#/u/${slug}`;
+}
+
+/** Absolute share URL for a player profile (`#/u/{slug}`). */
+export function userProfileShareUrl(
+  userSlug: string,
+  loc: Pick<Location, 'origin' | 'pathname'> = window.location,
+): string {
+  return `${loc.origin}${loc.pathname}${userProfileHash(userSlug)}`;
 }
 
 export function isSettingsPath(path: string): boolean {

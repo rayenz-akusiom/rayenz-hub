@@ -337,7 +337,7 @@ export function PlayerProfileApp() {
         <div className="hub-progress-host" id="pp-progress-host" ref={progressHostRef} />
       </div>
 
-      <div className="pp-body db-body">
+      <div className="pp-body">
         {error ? (
           <p className="hub-banner-error" role="alert">
             {error}

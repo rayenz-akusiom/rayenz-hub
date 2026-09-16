@@ -121,6 +121,9 @@ describe('PlayerProfileApp', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Friend' })).toBeInTheDocument();
     });
+    const body = document.querySelector('.pp-body');
+    expect(body).toBeTruthy();
+    expect(body).not.toHaveClass('db-body');
     expect(screen.getByRole('link', { name: /Commander Deck/i })).toHaveAttribute(
       'href',
       '#/commander-builder/friend/commander-deck',

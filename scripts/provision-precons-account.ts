@@ -8,6 +8,9 @@
  * Env: COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, AWS_REGION,
  *      HUB_PRECONS_USERNAME (default precons), HUB_PRECONS_PASSWORD (required),
  *      HUB_PRECONS_EMAIL (required), HUB_TABLE_NAME
+ *
+ * Safe to re-run: sets a permanent password (clears FORCE_CHANGE_PASSWORD) and
+ * upserts the username directory for public deep links.
  */
 import { PRECONS_USERNAME } from '../packages/shared/src/usernames.ts';
 import { AwsCognitoAuthPort } from '../packages/api/src/services/cognito-auth.ts';
@@ -38,6 +41,8 @@ async function main(): Promise<void> {
   const user = existing ?? (await cognito.adminCreateUser(username, password, email));
   if (existing) {
     console.log(`Precons account ${username} already exists. sub=${existing.sub}`);
+    await cognito.adminSetPermanentPassword(username, password);
+    console.log('Set permanent password (cleared FORCE_CHANGE_PASSWORD if present)');
   } else {
     console.log(`Created precons account ${user.username} sub=${user.sub}`);
   }

@@ -33,6 +33,8 @@ export interface CognitoAuthPort {
   confirmSignUp(username: string, code: string): Promise<void>;
   resendConfirmationCode(username: string): Promise<void>;
   adminCreateUser(username: string, password: string, email: string): Promise<{ sub: string; username: string }>;
+  /** Mark password permanent (fixes FORCE_CHANGE_PASSWORD after console create). */
+  adminSetPermanentPassword(username: string, password: string): Promise<void>;
   findUser(username: string): Promise<{ sub: string; username: string } | null>;
 }
 
@@ -297,6 +299,29 @@ export class AwsCognitoAuthPort implements CognitoAuthPort {
     }
   }
 
+  async adminSetPermanentPassword(username: string, password: string): Promise<void> {
+    const { poolId } = this.requirePool();
+    const normalized = normalizeUsername(username);
+    try {
+      await this.client.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: poolId,
+          Username: normalized,
+          Password: password,
+          Permanent: true,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof UserNotFoundException) {
+        throw new AuthError();
+      }
+      if (err instanceof InvalidPasswordException) {
+        throw new BadRequestError(err.message || 'Password does not meet policy');
+      }
+      throw err;
+    }
+  }
+
   async findUser(username: string): Promise<{ sub: string; username: string } | null> {
     const { poolId } = this.requirePool();
     const normalized = normalizeUsername(username);
@@ -405,6 +430,15 @@ export class MemoryCognitoAuthPort implements CognitoAuthPort {
     const sub = crypto.randomUUID();
     this.users.set(key, { sub, password, email, confirmed: true });
     return { sub, username: key };
+  }
+
+  async adminSetPermanentPassword(username: string, password: string): Promise<void> {
+    const key = normalizeUsername(username);
+    const user = this.users.get(key);
+    if (!user) {
+      throw new AuthError();
+    }
+    user.password = password;
   }
 
   async findUser(username: string): Promise<{ sub: string; username: string } | null> {

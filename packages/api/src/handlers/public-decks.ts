@@ -1,4 +1,4 @@
-import { profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
+import { previewDecksPerFormat, profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
 import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
 import { clientIp } from '../services/rate-limit.js';
@@ -21,11 +21,19 @@ async function resolvePublicUserDeck(
   return { sub: record.sub, doc };
 }
 
+function parsePreviewPerFormat(raw: string | undefined): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(50, Math.floor(n));
+}
+
 /** Public library index: summaries with visibility !== private. */
 export async function handlePublicUserDecks(
   username: string,
   headers: Record<string, string | undefined>,
   services: AppServices = getAppServices(),
+  query?: { previewPerFormat?: string | undefined },
 ) {
   try {
     await services.rateLimit.consume('publicDeck', clientIp(headers));
@@ -34,7 +42,11 @@ export async function handlePublicUserDecks(
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }
     const summaries = await services.deckRepository.listByUserId(record.sub);
-    const decks = summaries.filter((s) => s.visibility !== 'private');
+    let decks = summaries.filter((s) => s.visibility !== 'private');
+    const previewLimit = parsePreviewPerFormat(query?.previewPerFormat);
+    if (previewLimit != null) {
+      decks = previewDecksPerFormat(decks, previewLimit);
+    }
     return jsonResponse(200, {
       username: record.username,
       slug: record.slug,

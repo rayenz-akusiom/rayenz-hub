@@ -233,8 +233,20 @@ export const DeckSummarySchema = z.object({
   coverPartnerStatus: z.enum(['legal', 'illegal']).nullable().optional().default(null),
   /** Display name of the highlighted cover card (for library sort). */
   coverCardName: z.string().nullable().optional().default(null),
+  /**
+   * Dynamo summary flag: deck has formal and/or seeking queue entries.
+   * Absent on legacy rows (callers should treat as unknown).
+   */
+  hasSwapEntries: z.boolean().optional(),
 });
 export type DeckSummary = z.infer<typeof DeckSummarySchema>;
+
+/** True when the deck document has any public-facing swap queue entries. */
+export function deckHasSwapEntries(
+  doc: Pick<DeckDocument, 'formalSwapEntries' | 'lookingForEntries'>,
+): boolean {
+  return (doc.formalSwapEntries?.length ?? 0) > 0 || (doc.lookingForEntries?.length ?? 0) > 0;
+}
 
 /** Normalize ownership; missing/legacy → owned. */
 export function deckOwnership(
@@ -276,5 +288,6 @@ export function toDeckSummary(doc: DeckDocument): DeckSummary {
     coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
     coverPartnerStatus: doc.format === 'commander' ? pickCoverPartnerStatus(doc) : null,
     coverCardName: coverCard ? cardDisplayName(coverCard) : null,
+    hasSwapEntries: deckHasSwapEntries(doc),
   };
 }

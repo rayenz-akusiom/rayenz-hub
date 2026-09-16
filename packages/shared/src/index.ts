@@ -24,6 +24,7 @@ export * from './deck-builder/format';
 export * from './deck-builder/pendragon';
 export * from './deck-builder/force-format';
 export * from './deck-builder/library-filter';
+export * from './deck-builder/public-library-preview';
 export * from './deck-builder/browse';
 export * from './deck-builder/quantities';
 export * from './deck-builder/color-identity-map';

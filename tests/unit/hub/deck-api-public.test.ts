@@ -69,6 +69,12 @@ describe('apiListPublicDecks', () => {
       decks: [expect.objectContaining({ deckId: 'cmd-fixture' })],
     });
   });
+
+  it('passes previewPerFormat as a query param', async () => {
+    publicApiFetch.mockResolvedValue({ username: 'Rayenz', slug: 'rayenz', decks: [] });
+    await apiListPublicDecks('rayenz', { previewPerFormat: 5 });
+    expect(publicApiFetch).toHaveBeenCalledWith('/v1/users/rayenz/decks?previewPerFormat=5');
+  });
 });
 
 describe('apiGetPublicSwaps', () => {

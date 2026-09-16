@@ -122,7 +122,9 @@ export async function route(
   const publicDecksMatch = /^\/v1\/users\/([^/]+)\/decks$/.exec(path);
   if (publicDecksMatch && method === 'GET') {
     const { handlePublicUserDecks } = await import('./handlers/public-decks.js');
-    return handlePublicUserDecks(decodeURIComponent(publicDecksMatch[1]), headers);
+    return handlePublicUserDecks(decodeURIComponent(publicDecksMatch[1]), headers, undefined, {
+      previewPerFormat: event.queryStringParameters?.previewPerFormat,
+    });
   }
 
   const deckMatch = /^\/v1\/decks\/([^/]+)$/.exec(path);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   builderFormatForDeck,
   partitionWantSourcesBySwimlane,
+  previewDecksPerFormat,
   resolveDeckCards,
   type CardView,
   type DeckDocument,
@@ -14,6 +15,7 @@ import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
 import { CARD_SIZE_PX } from '../deck-builder/card-size';
 import { FormatBadge, formatDisplayName } from '../deck-builder/ui/FormatBadge';
 import { MiniCard } from '../deck-builder/swaps/swap-pair-faces';
+import { sortLibraryDecks } from '../deck-builder/library/library-sort';
 import '../deck-builder/deck-builder.css';
 import {
   builderHash,
@@ -25,10 +27,12 @@ import { toKebabCase } from '../lib/string-utils';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import { navigateHub } from '../lib/hub-storage';
 import { loadPublicSwapWantSources } from '../swap-queue/aggregate';
+import { enrichWantSourcesUsd } from '../swap-queue/enrich-prices';
 import { copyText } from '../swap-queue/export-ui';
 import './player-profile.css';
 
 const SWAP_PREVIEW_CAP = 12;
+const PROFILE_DECKS_PER_FORMAT = 5;
 
 const FORMAT_ORDER: DeckFormat[] = ['commander', 'pendragon', 'cube', 'collection', 'other'];
 
@@ -111,6 +115,26 @@ function ProfileLibrarySection({
   );
 }
 
+function ShareLinkIcon() {
+  return (
+    <svg
+      className="pp-share-icon"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
 export function PlayerProfileApp() {
   const progressHostRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HubProgressController | null>(null);
@@ -123,7 +147,8 @@ export function PlayerProfileApp() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [swapsLoading, setSwapsLoading] = useState(true);
 
   useEffect(() => {
     if (progressHostRef.current && !progressRef.current) {
@@ -142,7 +167,8 @@ export function PlayerProfileApp() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLoading(true);
+      setLibraryLoading(true);
+      setSwapsLoading(true);
       setError(null);
       setNotFound(false);
       setCopyStatus('');
@@ -154,36 +180,75 @@ export function PlayerProfileApp() {
 
       if (!routeSlug) {
         setNotFound(true);
-        setLoading(false);
+        setLibraryLoading(false);
+        setSwapsLoading(false);
         progressRef.current?.dismiss();
         return;
       }
 
       progressRef.current?.start({ label: 'Loading profile…', indeterminate: true });
-      try {
-        const [library, swaps] = await Promise.all([
-          apiListPublicDecks(routeSlug),
-          loadPublicSwapWantSources(routeSlug),
-        ]);
-        if (cancelled) return;
-        if (!library && !swaps) {
-          setNotFound(true);
-          progressRef.current?.dismiss();
-          return;
-        }
-        setUsername(library?.username ?? swaps?.username ?? routeSlug);
-        setSlug(library?.slug ?? swaps?.slug ?? routeSlug);
-        setDecks(library?.decks ?? []);
-        setSwapDecks(swaps?.decks ?? []);
-        setSources(swaps?.sources ?? []);
+
+      let libraryOk = false;
+      let swapsOk = false;
+      let libraryMiss = false;
+      let swapsMiss = false;
+
+      const libraryPromise = apiListPublicDecks(routeSlug, {
+        previewPerFormat: PROFILE_DECKS_PER_FORMAT,
+      })
+        .then((library) => {
+          if (cancelled) return;
+          if (!library) {
+            libraryMiss = true;
+            return;
+          }
+          libraryOk = true;
+          setUsername(library.username);
+          setSlug(library.slug);
+          setDecks(library.decks);
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          const message = e instanceof Error ? e.message : 'Could not load profile.';
+          setError(message);
+          progressRef.current?.finish({ label: message, variant: 'error' });
+        })
+        .finally(() => {
+          if (!cancelled) setLibraryLoading(false);
+        });
+
+      const swapsPromise = loadPublicSwapWantSources(routeSlug)
+        .then(async (swaps) => {
+          if (cancelled) return;
+          if (!swaps) {
+            swapsMiss = true;
+            return;
+          }
+          swapsOk = true;
+          setUsername((prev) => prev ?? swaps.username);
+          setSlug((prev) => prev ?? swaps.slug);
+          setSwapDecks(swaps.decks);
+          const priced = await enrichWantSourcesUsd(swaps.sources);
+          if (cancelled) return;
+          setSources(priced);
+        })
+        .catch(() => {
+          // Library can still render; leave swap section empty on failure.
+        })
+        .finally(() => {
+          if (!cancelled) setSwapsLoading(false);
+        });
+
+      await Promise.all([libraryPromise, swapsPromise]);
+      if (cancelled) return;
+
+      if (libraryMiss && swapsMiss) {
+        setNotFound(true);
         progressRef.current?.dismiss();
-      } catch (e) {
-        if (cancelled) return;
-        const message = e instanceof Error ? e.message : 'Could not load profile.';
-        setError(message);
-        progressRef.current?.finish({ label: message, variant: 'error' });
-      } finally {
-        if (!cancelled) setLoading(false);
+        return;
+      }
+      if (libraryOk || swapsOk) {
+        progressRef.current?.dismiss();
       }
     }
     void load();
@@ -200,25 +265,35 @@ export function PlayerProfileApp() {
   }, [swapDecks]);
 
   const previewCards = useMemo(() => {
-    const ordered = [...lanes.seeking, ...lanes.queued_in, ...lanes.queued_out];
+    const ordered = [...sources].sort((a, b) => {
+      const au = a.usd;
+      const bu = b.usd;
+      if (au == null && bu == null) return 0;
+      if (au == null) return 1;
+      if (bu == null) return -1;
+      return bu - au;
+    });
     return ordered.slice(0, SWAP_PREVIEW_CAP).map((s) => ({
       key: `${s.deckId}:${s.entryId}:${s.kind}`,
       card: resolveWantCard(s, byDeck),
     }));
-  }, [lanes, byDeck]);
+  }, [sources, byDeck]);
 
   const decksByFormat = useMemo(() => {
+    // API already caps when previewPerFormat is set; re-sort/slice for defense.
+    const capped = previewDecksPerFormat(decks, PROFILE_DECKS_PER_FORMAT);
     const groups = new Map<DeckFormat, DeckSummary[]>();
     for (const format of FORMAT_ORDER) groups.set(format, []);
-    for (const d of decks) {
+    for (const d of capped) {
       const format = (FORMAT_ORDER.includes(d.format) ? d.format : 'other') as DeckFormat;
       const list = groups.get(format) ?? [];
       list.push(d);
       groups.set(format, list);
     }
-    return FORMAT_ORDER.map((format) => ({ format, decks: groups.get(format) ?? [] })).filter(
-      (g) => g.decks.length > 0,
-    );
+    return FORMAT_ORDER.map((format) => ({
+      format,
+      decks: sortLibraryDecks(groups.get(format) ?? [], 'recent'),
+    })).filter((g) => g.decks.length > 0);
   }, [decks]);
 
   const libraryStyle = {
@@ -227,6 +302,7 @@ export function PlayerProfileApp() {
 
   const displayName = username || routeSlug || 'Player';
   const profileSlug = slug || routeSlug;
+  const showBody = !notFound && !libraryLoading;
 
   async function onCopyShare() {
     if (!profileSlug) return;
@@ -240,12 +316,16 @@ export function PlayerProfileApp() {
         <header className="db-header pp-header">
           <div className="pp-title-row">
             <h1>{notFound ? 'Profile' : displayName}</h1>
-            {profileSlug && !notFound ? (
-              <div className="pp-header-actions">
-                <button type="button" className="hub-btn" onClick={() => void onCopyShare()}>
-                  Copy share link
-                </button>
-              </div>
+            {profileSlug && !notFound && !libraryLoading ? (
+              <button
+                type="button"
+                className="pp-share-btn"
+                onClick={() => void onCopyShare()}
+                aria-label="Copy share link"
+                title={copyStatus || 'Copy share link'}
+              >
+                <ShareLinkIcon />
+              </button>
             ) : null}
           </div>
           {copyStatus ? (
@@ -264,7 +344,7 @@ export function PlayerProfileApp() {
           </p>
         ) : null}
 
-        {notFound && !loading ? (
+        {notFound && !libraryLoading && !swapsLoading ? (
           <div className="db-empty-state" data-testid="pp-not-found">
             <p>
               {routeSlug
@@ -274,7 +354,7 @@ export function PlayerProfileApp() {
           </div>
         ) : null}
 
-        {!notFound && !loading ? (
+        {showBody ? (
           <>
             <section className="pp-section" aria-labelledby="pp-libraries-heading">
               <div className="pp-section-head">
@@ -316,30 +396,38 @@ export function PlayerProfileApp() {
                   </a>
                 ) : null}
               </div>
-              <p className="pp-queue-counts hub-muted" data-testid="pp-queue-counts">
-                Seeking {lanes.seeking.length} · Queued In {lanes.queued_in.length} · Out{' '}
-                {lanes.queued_out.length}
-              </p>
-              {!sources.length ? (
-                <div className="db-empty-state">
-                  <p>No public swap queue entries.</p>
-                </div>
+              {swapsLoading ? (
+                <p className="hub-muted" data-testid="pp-swaps-loading">
+                  Loading swap queues…
+                </p>
               ) : (
-                <ul
-                  className="pp-swap-strip"
-                  style={
-                    {
-                      ['--db-card-w']: `${CARD_SIZE_PX.S}px`,
-                    } as CSSProperties
-                  }
-                  aria-label="Swap queue preview"
-                >
-                  {previewCards.map(({ key, card }) => (
-                    <li key={key} className="pp-swap-strip-item">
-                      <MiniCard card={card} />
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="pp-queue-counts hub-muted" data-testid="pp-queue-counts">
+                    Seeking {lanes.seeking.length} · Queued In {lanes.queued_in.length} · Out{' '}
+                    {lanes.queued_out.length}
+                  </p>
+                  {!sources.length ? (
+                    <div className="db-empty-state">
+                      <p>No public swap queue entries.</p>
+                    </div>
+                  ) : (
+                    <ul
+                      className="pp-swap-strip"
+                      style={
+                        {
+                          ['--db-card-w']: `${CARD_SIZE_PX.S}px`,
+                        } as CSSProperties
+                      }
+                      aria-label="Swap queue preview"
+                    >
+                      {previewCards.map(({ key, card }) => (
+                        <li key={key} className="pp-swap-strip-item">
+                          <MiniCard card={card} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </section>
           </>

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { aggregateSwapWants, type DeckSummary } from '@rayenz-hub/shared';
+import { aggregateSwapWants, type DeckSummary, type WantSource } from '@rayenz-hub/shared';
 import { pairDeck } from './helpers/swap-queue-harness';
 import { PlayerProfileApp } from '../../packages/web/src/player-profile/PlayerProfileApp';
 import { navigateHub } from '../../packages/web/src/lib/hub-storage';
@@ -9,6 +9,7 @@ import { copyText } from '../../packages/web/src/swap-queue/export-ui';
 
 const apiListPublicDecks = vi.fn();
 const loadPublicSwapWantSources = vi.fn();
+const enrichWantSourcesUsd = vi.fn(async (sources: WantSource[]) => sources);
 
 vi.mock('../../packages/web/src/lib/hub-progress', () => ({
   HubProgress: {
@@ -17,14 +18,14 @@ vi.mock('../../packages/web/src/lib/hub-progress', () => ({
       update: vi.fn(),
       finish: vi.fn(),
       dismiss: vi.fn(),
-      isActive: () => false,
-      isFinished: () => false,
     }),
+    isActive: () => false,
+    isFinished: () => false,
   },
 }));
 
 vi.mock('../../packages/web/src/deck-builder/store/deck-api', () => ({
-  apiListPublicDecks: (username: string) => apiListPublicDecks(username),
+  apiListPublicDecks: (...args: unknown[]) => apiListPublicDecks(...args),
 }));
 
 vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) => {
@@ -35,6 +36,10 @@ vi.mock('../../packages/web/src/swap-queue/aggregate', async (importOriginal) =>
     loadPublicSwapWantSources: (...args: unknown[]) => loadPublicSwapWantSources(...args),
   };
 });
+
+vi.mock('../../packages/web/src/swap-queue/enrich-prices', () => ({
+  enrichWantSourcesUsd: (sources: WantSource[]) => enrichWantSourcesUsd(sources),
+}));
 
 vi.mock('../../packages/web/src/swap-queue/export-ui', async (importOriginal) => {
   const actual =
@@ -80,6 +85,8 @@ describe('PlayerProfileApp', () => {
   beforeEach(() => {
     apiListPublicDecks.mockReset();
     loadPublicSwapWantSources.mockReset();
+    enrichWantSourcesUsd.mockReset();
+    enrichWantSourcesUsd.mockImplementation(async (sources: WantSource[]) => sources);
     apiListPublicDecks.mockResolvedValue(null);
     loadPublicSwapWantSources.mockResolvedValue(null);
   });
@@ -91,7 +98,7 @@ describe('PlayerProfileApp', () => {
     await waitFor(() => {
       expect(screen.getByTestId('pp-not-found')).toHaveTextContent('nobody');
     });
-    expect(apiListPublicDecks).toHaveBeenCalledWith('nobody');
+    expect(apiListPublicDecks).toHaveBeenCalledWith('nobody', { previewPerFormat: 5 });
     expect(loadPublicSwapWantSources).toHaveBeenCalledWith('nobody');
   });
 
@@ -118,9 +125,72 @@ describe('PlayerProfileApp', () => {
       'href',
       '#/commander-builder/friend/commander-deck',
     );
-    expect(screen.getByTestId('pp-queue-counts')).toHaveTextContent(/Seeking 0/);
+    await waitFor(() => {
+      expect(screen.getByTestId('pp-queue-counts')).toHaveTextContent(/Seeking 0/);
+    });
     expect(screen.getByTestId('pp-queue-counts')).toHaveTextContent(/Queued In 1/);
     expect(screen.getByTestId('pp-queue-counts')).toHaveTextContent(/Out 1/);
+  });
+
+  it('shows library before swaps finish', async () => {
+    let resolveSwaps: (value: unknown) => void = () => {};
+    const swapsPending = new Promise((resolve) => {
+      resolveSwaps = resolve;
+    });
+    apiListPublicDecks.mockResolvedValue({
+      username: 'Friend',
+      slug: 'friend',
+      decks: [summary({ deckId: 'd1', name: 'Fast Deck' })],
+    });
+    loadPublicSwapWantSources.mockReturnValue(swapsPending);
+    window.location.hash = '#/u/friend';
+    render(<PlayerProfileApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Fast Deck/i })).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('pp-swaps-loading')).toBeInTheDocument();
+
+    resolveSwaps({
+      username: 'Friend',
+      slug: 'friend',
+      decks: [],
+      sources: [],
+    });
+    await waitFor(() => {
+      expect(screen.getByText('No public swap queue entries.')).toBeInTheDocument();
+    });
+  });
+
+  it('caps each format to five most recent decks', async () => {
+    const decks = Array.from({ length: 7 }, (_, i) =>
+      summary({
+        deckId: `c${i}`,
+        name: `Commander ${i}`,
+        updatedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+      }),
+    );
+    apiListPublicDecks.mockResolvedValue({
+      username: 'Friend',
+      slug: 'friend',
+      decks,
+    });
+    loadPublicSwapWantSources.mockResolvedValue({
+      username: 'Friend',
+      slug: 'friend',
+      decks: [],
+      sources: [],
+    });
+    window.location.hash = '#/u/friend';
+    render(<PlayerProfileApp />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Friend' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('link', { name: /Commander 6/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Commander 2/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Commander 0/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Commander 1/i })).not.toBeInTheDocument();
   });
 
   it('shows empty sections when the user has no public decks or queues', async () => {
@@ -142,7 +212,9 @@ describe('PlayerProfileApp', () => {
       expect(screen.getByRole('heading', { name: 'Empty' })).toBeInTheDocument();
     });
     expect(screen.getByText('No public decks.')).toBeInTheDocument();
-    expect(screen.getByText('No public swap queue entries.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('No public swap queue entries.')).toBeInTheDocument();
+    });
   });
 
   it('copies the profile share link', async () => {

@@ -176,6 +176,36 @@ describe('public user decks list GET', () => {
     const sandbox = await handlePublicUserDecks('sandbox', {}, services);
     expect(sandbox.statusCode).toBe(404);
   });
+
+  it('previewPerFormat returns the most recent decks per format', async () => {
+    const { services } = createMemoryStores();
+    for (let i = 0; i < 4; i++) {
+      const put = await handleDeck(
+        'PUT',
+        `cmd-${i}`,
+        RAYENZ_HEADERS,
+        JSON.stringify({
+          ...commander,
+          deckId: `cmd-${i}`,
+          name: `Commander ${i}`,
+          updatedAt: `2026-01-0${i + 1}T00:00:00.000Z`,
+        }),
+        services,
+      );
+      expect(put.statusCode).toBe(200);
+      // Stagger so put()'s server now doesn't collapse all updatedAt values.
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    const pub = await handlePublicUserDecks('rayenz', {}, services, { previewPerFormat: '2' });
+    expect(pub.statusCode).toBe(200);
+    const body = JSON.parse(String(pub.body)) as {
+      decks?: Array<{ deckId: string; name: string }>;
+    };
+    expect(body.decks).toHaveLength(2);
+    // Last two puts win on updatedAt (server stamps now on put).
+    expect(body.decks?.map((d) => d.deckId)).toEqual(['cmd-3', 'cmd-2']);
+  });
 });
 
 describe('public user deck profile GET', () => {

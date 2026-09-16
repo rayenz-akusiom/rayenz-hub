@@ -38,8 +38,17 @@ export type PublicLibraryPayload = {
   decks: DeckSummary[];
 };
 
-export async function apiListPublicDecks(username: string): Promise<PublicLibraryPayload | null> {
-  const data = await publicApiFetch(`/v1/users/${encodeURIComponent(username)}/decks`);
+export async function apiListPublicDecks(
+  username: string,
+  opts?: { previewPerFormat?: number },
+): Promise<PublicLibraryPayload | null> {
+  const params = new URLSearchParams();
+  if (opts?.previewPerFormat != null && opts.previewPerFormat > 0) {
+    params.set('previewPerFormat', String(opts.previewPerFormat));
+  }
+  const qs = params.toString();
+  const path = `/v1/users/${encodeURIComponent(username)}/decks${qs ? `?${qs}` : ''}`;
+  const data = await publicApiFetch(path);
   if (!data) return null;
   const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
   if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {

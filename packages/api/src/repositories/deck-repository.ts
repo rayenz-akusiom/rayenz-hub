@@ -4,6 +4,7 @@ import {
   DeckDocumentSchema,
   deckCoverImageUrl,
   deckCoverImageUrlSecondary,
+  deckHasSwapEntries,
   pickCoverPartnerStatus,
   deckSk,
   isUnlimitedLibraryUsername,
@@ -60,6 +61,7 @@ export class DeckRepository {
         item.coverPartnerStatus === 'legal' || item.coverPartnerStatus === 'illegal'
           ? item.coverPartnerStatus
           : null,
+      ...(typeof item.hasSwapEntries === 'boolean' ? { hasSwapEntries: item.hasSwapEntries } : {}),
     }));
   }
 
@@ -137,6 +139,7 @@ export class DeckRepository {
           coverImageUrl: deckCoverImageUrl(doc),
           coverImageUrlSecondary: deckCoverImageUrlSecondary(doc),
           coverPartnerStatus: pickCoverPartnerStatus(doc),
+          hasSwapEntries: deckHasSwapEntries(doc),
         },
       }),
     );

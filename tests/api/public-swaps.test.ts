@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { handleAuthSignIn } from '../../packages/api/src/handlers/auth-sign-in.ts';
 import { handleDeck } from '../../packages/api/src/handlers/decks.ts';
 import { handlePublicUserSwaps } from '../../packages/api/src/handlers/public-swaps.ts';
@@ -95,6 +95,29 @@ describe('public user swaps GET', () => {
     const pub = await handlePublicUserSwaps('rayenz', {}, services);
     expect(pub.statusCode).toBe(200);
     expect(JSON.parse(String(pub.body)).decks).toEqual([]);
+  });
+
+  it('does not load full docs when hasSwapEntries is false', async () => {
+    const { services } = createMemoryStores();
+    const ownerHeaders = {
+      authorization: `Bearer ${encodeTestJwt({ sub: 'rayenz-sub', username: 'Rayenz' })}`,
+    };
+    await handleDeck(
+      'PUT',
+      'cmd-empty',
+      ownerHeaders,
+      JSON.stringify({ ...commander, deckId: 'cmd-empty', name: 'Empty Queue' }),
+      services,
+    );
+    await handleDeck('PUT', 'cmd-fixture', ownerHeaders, JSON.stringify(swapDeck()), services);
+
+    const getSpy = vi.spyOn(services.deckRepository, 'getByUserId');
+    const pub = await handlePublicUserSwaps('rayenz', {}, services);
+    expect(pub.statusCode).toBe(200);
+    expect(JSON.parse(String(pub.body)).decks).toHaveLength(1);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).toHaveBeenCalledWith('rayenz-sub', 'cmd-fixture');
+    getSpy.mockRestore();
   });
 
   it('skips private decks', async () => {

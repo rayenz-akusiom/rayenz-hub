@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   aggregateSwapWants,
+  isSwapAggregateSummary,
   redactDeckForPublicSwaps,
   unifyWantSources,
   type WantSource,
@@ -274,5 +275,42 @@ describe('wants-aggregate', () => {
     expect(redacted.oracle['name:island']).toBeUndefined();
     expect(redacted.formalSwapEntries).toHaveLength(1);
     expect(redacted.lookingForEntries).toHaveLength(1);
+  });
+
+  it('isSwapAggregateSummary skips empty, theory, and non-queue formats', () => {
+    expect(
+      isSwapAggregateSummary({
+        format: 'commander',
+        ownership: 'owned',
+        hasSwapEntries: true,
+      }),
+    ).toBe(true);
+    expect(
+      isSwapAggregateSummary({
+        format: 'commander',
+        ownership: 'owned',
+        hasSwapEntries: false,
+      }),
+    ).toBe(false);
+    expect(
+      isSwapAggregateSummary({
+        format: 'commander',
+        ownership: 'theory',
+        hasSwapEntries: true,
+      }),
+    ).toBe(false);
+    expect(
+      isSwapAggregateSummary({
+        format: 'collection',
+        ownership: 'owned',
+        hasSwapEntries: true,
+      }),
+    ).toBe(false);
+    expect(
+      isSwapAggregateSummary({
+        format: 'pendragon',
+        ownership: 'owned',
+      }),
+    ).toBe(true);
   });
 });

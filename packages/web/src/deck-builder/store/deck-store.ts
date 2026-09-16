@@ -90,7 +90,8 @@ async function ensureLibraryCovers(summaries: DeckSummary[]): Promise<DeckSummar
       summary.format !== s.format ||
       summary.archidektId !== s.archidektId ||
       summary.ownership !== s.ownership ||
-      summary.visibility !== s.visibility
+      summary.visibility !== s.visibility ||
+      summary.hasSwapEntries !== s.hasSwapEntries
     ) {
       changed = true;
     }

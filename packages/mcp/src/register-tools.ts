@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import {
   DeckDocumentSchema,
   DeckPatchSchema,
+  DeckSummarySchema,
   ProfileUpsertSchema,
   ReviewProgressUpsertSchema,
   SetPoolUpsertSchema,
@@ -9,9 +10,13 @@ import {
   buildArchidektImportText,
   buildArchidektWantsText,
   buildNameQtyWantsText,
+  deckHasSwapEntries,
   filterAcquireSources,
   filterWantSources,
+  isSwapAggregateSummary,
+  mapPool,
   profileLookupKeys,
+  SWAP_AGGREGATE_GET_CONCURRENCY,
   type DeckDocument,
   type WantsPriceFilter,
 } from '@rayenz-hub/shared';
@@ -26,15 +31,23 @@ function asDeck(data: unknown): DeckDocument {
   return DeckDocumentSchema.parse(data);
 }
 
+/** Load decks that may have swap queues (skip known-empty, concurrent gets). */
 async function fetchAllDecks(client: HubClient): Promise<DeckDocument[]> {
-  const listed = (await client.listDecks()) as { decks?: Array<{ deckId: string }> } | null;
-  const summaries = listed?.decks || [];
-  const decks: DeckDocument[] = [];
-  for (const s of summaries) {
+  const listed = (await client.listDecks()) as { decks?: unknown[] } | null;
+  const summaries = (listed?.decks || [])
+    .map((raw) => DeckSummarySchema.safeParse(raw))
+    .filter((r) => r.success)
+    .map((r) => r.data)
+    .filter(isSwapAggregateSummary);
+
+  const loaded = await mapPool(summaries, SWAP_AGGREGATE_GET_CONCURRENCY, async (s) => {
     const doc = await client.getDeck(s.deckId);
-    if (doc) decks.push(asDeck(doc));
-  }
-  return decks;
+    if (!doc) return null;
+    const deck = asDeck(doc);
+    if (!deckHasSwapEntries(deck)) return null;
+    return deck;
+  });
+  return loaded.filter((d): d is DeckDocument => d != null);
 }
 
 async function resolveProfileForDeck(client: HubClient, deck: DeckDocument) {

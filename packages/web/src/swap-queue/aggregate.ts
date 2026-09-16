@@ -1,5 +1,8 @@
 import {
   aggregateSwapWants,
+  isSwapAggregateSummary,
+  mapPool,
+  SWAP_AGGREGATE_GET_CONCURRENCY,
   type DeckDocument,
   type DeckSummary,
   type WantSource,
@@ -7,14 +10,13 @@ import {
 import { apiGetPublicSwaps } from '../deck-builder/store/deck-api';
 import { listFallbackLibrary, resolveLibraryDocument } from '../deck-builder/store/library-sync';
 
-async function documentsForSummaries(summaries: DeckSummary[]): Promise<DeckDocument[]> {
-  const decks: DeckDocument[] = [];
-  for (const s of summaries) {
-    if (s.format !== 'commander' && s.format !== 'cube' && s.format !== 'pendragon') continue;
-    const doc = await resolveLibraryDocument(s.deckId);
-    if (doc) decks.push(doc);
-  }
-  return decks;
+/** Load deck docs that may contribute to swap aggregation (concurrent, skip known-empty). */
+export async function documentsForSummaries(summaries: DeckSummary[]): Promise<DeckDocument[]> {
+  const candidates = (summaries || []).filter(isSwapAggregateSummary);
+  const loaded = await mapPool(candidates, SWAP_AGGREGATE_GET_CONCURRENCY, async (s) =>
+    resolveLibraryDocument(s.deckId),
+  );
+  return loaded.filter((doc): doc is DeckDocument => doc != null);
 }
 
 /** Load commander + cube decks from the Hub library and aggregate want sources. */

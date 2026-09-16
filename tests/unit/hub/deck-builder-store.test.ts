@@ -56,6 +56,27 @@ describe('deck-store local persistence', () => {
     expect(list.some((d) => d.deckId === 'cover-test' && d.coverCardName)).toBe(true);
   });
 
+  it('refreshes stale hasSwapEntries from stored decks', async () => {
+    const { saveDeck, listDecks, readLibraryIndex } = await import(
+      '../../../packages/web/src/deck-builder/store/deck-store.ts'
+    );
+    await saveDeck({
+      ...commander,
+      deckId: 'swap-flag-test',
+      lookingForEntries: [{ id: 'lf1', instanceId: 'c3', sortIndex: 0, notes: null }],
+    } as DeckDocument);
+    const stale = readLibraryIndex().map((s) =>
+      s.deckId === 'swap-flag-test' ? { ...s, hasSwapEntries: false } : s,
+    );
+    localStorage.setItem('rayenz-deck-builder-library', JSON.stringify(stale));
+
+    const list = await listDecks();
+    expect(list.find((d) => d.deckId === 'swap-flag-test')?.hasSwapEntries).toBe(true);
+    expect(readLibraryIndex().find((d) => d.deckId === 'swap-flag-test')?.hasSwapEntries).toBe(
+      true,
+    );
+  });
+
   it('treats untagged local decks as sandbox and purges them after 30 days', async () => {
     const { __putDeckForTests, getDeck, listDecks } = await import(
       '../../../packages/web/src/deck-builder/store/deck-store.ts'

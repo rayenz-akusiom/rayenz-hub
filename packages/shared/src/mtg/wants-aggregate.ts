@@ -1,5 +1,33 @@
-import { isTheoryDeck, type CardInstance, type CardOracle, type DeckDocument } from '../schemas/deck-builder.js';
+import {
+  isTheoryDeck,
+  type CardInstance,
+  type CardOracle,
+  type DeckDocument,
+  type DeckSummary,
+} from '../schemas/deck-builder.js';
 import { cardDisplayName, getOracle, oracleKey, resolveCardView } from '../deck-builder/card-oracle.js';
+
+/** Bounded concurrency for multi-deck swap document loads. */
+export const SWAP_AGGREGATE_GET_CONCURRENCY = 12;
+
+/**
+ * Summaries that may contribute to library-wide swap aggregation.
+ * Missing `hasSwapEntries` (legacy) still loads; explicit false skips.
+ */
+export function isSwapAggregateSummary(
+  summary: Pick<DeckSummary, 'format' | 'ownership' | 'hasSwapEntries'>,
+): boolean {
+  if (
+    summary.format !== 'commander' &&
+    summary.format !== 'cube' &&
+    summary.format !== 'pendragon'
+  ) {
+    return false;
+  }
+  if (isTheoryDeck(summary)) return false;
+  if (summary.hasSwapEntries === false) return false;
+  return true;
+}
 
 export type WantSourceKind = 'seeking' | 'queued_in' | 'queued_out';
 

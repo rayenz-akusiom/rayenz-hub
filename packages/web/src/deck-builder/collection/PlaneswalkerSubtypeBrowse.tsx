@@ -69,6 +69,7 @@ export function PlaneswalkerSubtypeBrowse({
       deckMeta={deckMeta}
       syncStatus={syncStatus}
       onPickRepresentative={onPickRepresentative}
+      showExtras
     />
   );
 }

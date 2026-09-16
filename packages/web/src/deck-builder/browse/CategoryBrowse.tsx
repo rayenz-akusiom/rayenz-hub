@@ -42,6 +42,7 @@ import {
   DECK_DESCRIPTION_SPLIT_MIN_REM,
   headerRemainderMode,
   isCommandZoneFormat,
+  mainDeckSourceCards,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
@@ -57,8 +58,10 @@ import {
   type SelectCardHandler,
 } from './CardTile';
 import { DeckDescriptionField } from './DeckDescriptionField';
+import { ExtrasSection } from './ExtrasSection';
 import { MasonryColumns } from './MasonryColumns';
 import { useDeckBuilderHeaderDragHover } from './useDeckBuilderDragging';
+import { useDeckExtras } from '../scryfall/useDeckExtras';
 import { useLongPress } from '../useLongPress';
 
 function cssLengthPx(value: string, fallback: number): number {
@@ -1445,6 +1448,15 @@ export function CategoryBrowse({
   const multi = browseView === 'category_multi';
   const allCards = browseView === 'all_cards';
   const keySort = categoryKeySortFor(browseView, format);
+  const extrasEnabled = mode === 'main' && format !== 'collection';
+  const extrasSource = useMemo(
+    () =>
+      extrasEnabled
+        ? mainDeckSourceCards({ cards: deck.cards, categories: deck.categories || [] })
+        : [],
+    [extrasEnabled, deck.cards, deck.categories],
+  );
+  const extrasCards = useDeckExtras(extrasSource, extrasEnabled);
   const swapInIds = useMemo(
     () =>
       formalSwapInIds(
@@ -1732,6 +1744,7 @@ export function CategoryBrowse({
         enableSoughtGhost={enableSoughtGhost}
       />
       {body}
+      <ExtrasSection cards={extrasCards} layout={layout} />
     </div>
   );
 }

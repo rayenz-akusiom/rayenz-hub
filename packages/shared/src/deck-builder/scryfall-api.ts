@@ -1,5 +1,12 @@
 import type { CardInstance } from '../schemas/deck-builder.js';
 import { normalizeColourIdentity, type ColourLetter } from './color-identity-map.js';
+import {
+  collectExtrasRelatedIds,
+  isExtrasRelatedPart,
+  sortExtrasDisplayCards,
+  type ExtrasDisplayCard,
+  type ExtrasRelatedPart,
+} from './extras.js';
 import { parsePartnerWithName } from './partner.js';
 import { isBasicLand } from './quantities.js';
 import { scryfallImageFromId } from './scryfall-images.js';
@@ -29,6 +36,9 @@ export function withPaperGameQuery(q: string): string {
   return `(${trimmed}) ${SCRYFALL_PAPER_GAME_CLAUSE}`;
 }
 
+/** Scryfall related-card entry from `all_parts`. */
+export type ScryfallRelatedPart = ExtrasRelatedPart;
+
 /** Minimal Scryfall card fields we use for search / printings. */
 export type ScryfallCard = {
   id: string;
@@ -48,6 +58,7 @@ export type ScryfallCard = {
   cmc?: number;
   mana_cost?: string;
   produced_mana?: string[];
+  all_parts?: ScryfallRelatedPart[];
 };
 
 /** Local card identity for collection-scoped syntax search. */
@@ -109,6 +120,11 @@ const inSetMembershipCache = new Map<string, ReadonlySet<string>>();
 /** Printing Scryfall id → oracle_id (session). */
 const oracleIdByPrintingId = new Map<string, string>();
 
+/** Parent printing id → filtered extras related ids (session). */
+const extrasRelatedIdsByPrintingId = new Map<string, string[]>();
+/** Related extras id → display fields (session). */
+const extrasDisplayById = new Map<string, ExtrasDisplayCard>();
+
 export function clearScryfallPrintCache(): void {
   for (const key of Object.keys(printCache)) {
     delete printCache[key];
@@ -121,6 +137,11 @@ export function clearInSetMembershipCache(): void {
 
 export function clearOracleIdCache(): void {
   oracleIdByPrintingId.clear();
+}
+
+export function clearExtrasCache(): void {
+  extrasRelatedIdsByPrintingId.clear();
+  extrasDisplayById.clear();
 }
 
 /** Parse comma/whitespace set codes → uppercase unique list. */
@@ -261,10 +282,26 @@ async function parseError(res: Response, fallback: string): Promise<Error> {
   return new Error(fallback);
 }
 
+function asRelatedPart(raw: unknown): ScryfallRelatedPart | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = raw as Record<string, unknown>;
+  if (typeof p.id !== 'string' || !p.id.trim()) return null;
+  if (typeof p.component !== 'string' || !p.component.trim()) return null;
+  return {
+    id: p.id,
+    component: p.component,
+    name: typeof p.name === 'string' ? p.name : undefined,
+    type_line: typeof p.type_line === 'string' ? p.type_line : undefined,
+  };
+}
+
 function asScryfallCard(raw: unknown): ScryfallCard | null {
   if (!raw || typeof raw !== 'object') return null;
   const c = raw as Record<string, unknown>;
   if (typeof c.id !== 'string' || typeof c.name !== 'string') return null;
+  const allParts = Array.isArray(c.all_parts)
+    ? c.all_parts.map(asRelatedPart).filter((p): p is ScryfallRelatedPart => Boolean(p))
+    : undefined;
   return {
     id: c.id,
     name: c.name,
@@ -286,7 +323,135 @@ function asScryfallCard(raw: unknown): ScryfallCard | null {
     produced_mana: Array.isArray(c.produced_mana)
       ? (c.produced_mana as string[]).map(String)
       : undefined,
+    all_parts: allParts?.length ? allParts : undefined,
   };
+}
+
+function extrasDisplayFromScryfallCard(card: ScryfallCard): ExtrasDisplayCard {
+  return {
+    scryfallId: card.id,
+    name: card.name,
+    typeLine: card.type_line || null,
+    layout: card.layout || null,
+    setCode: card.set || '',
+    collectorNumber: card.collector_number || '',
+  };
+}
+
+function cacheParentExtras(card: ScryfallCard): void {
+  const key = card.id.toLowerCase();
+  const parts = card.all_parts || [];
+  const relatedIds = parts
+    .filter((p) => isExtrasRelatedPart(p, card.id))
+    .map((p) => p.id);
+  extrasRelatedIdsByPrintingId.set(key, relatedIds);
+  for (const part of parts) {
+    if (!isExtrasRelatedPart(part, card.id)) continue;
+    const partKey = part.id.toLowerCase();
+    if (extrasDisplayById.has(partKey)) continue;
+    extrasDisplayById.set(partKey, {
+      scryfallId: part.id,
+      name: part.name || 'Unknown',
+      typeLine: part.type_line || null,
+      layout: null,
+      setCode: '',
+      collectorNumber: '',
+    });
+  }
+}
+
+/**
+ * Resolve unique token/emblem/dungeon extras for the given source Scryfall ids.
+ * Uses a session cache; fetches missing parents and related printings via /cards/collection.
+ */
+export async function resolveExtrasDisplayCards(
+  sourceScryfallIds: readonly string[],
+  opts?: {
+    fetchImpl?: typeof fetch;
+    signal?: AbortSignal;
+  },
+): Promise<ExtrasDisplayCard[]> {
+  const uniqueParents = [
+    ...new Set(
+      sourceScryfallIds
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+        .map((id) => id.toLowerCase()),
+    ),
+  ];
+  if (!uniqueParents.length) return [];
+
+  const missingParents = uniqueParents.filter((id) => !extrasRelatedIdsByPrintingId.has(id));
+  if (missingParents.length) {
+    const result = await fetchCardsCollection(
+      missingParents.map((id) => ({ id })),
+      opts,
+    );
+    if (opts?.signal?.aborted) return [];
+    for (const card of result.data) {
+      cacheParentExtras(card);
+      extrasDisplayById.set(card.id.toLowerCase(), extrasDisplayFromScryfallCard(card));
+    }
+    for (const nf of result.not_found) {
+      if ('id' in nf && typeof nf.id === 'string' && nf.id.trim()) {
+        extrasRelatedIdsByPrintingId.set(nf.id.trim().toLowerCase(), []);
+      }
+    }
+    // Parents that vanished without not_found entry still need a cache slot.
+    for (const id of missingParents) {
+      if (!extrasRelatedIdsByPrintingId.has(id)) {
+        extrasRelatedIdsByPrintingId.set(id, []);
+      }
+    }
+  }
+
+  const partsByCardId = new Map<string, ExtrasRelatedPart[]>();
+  for (const parentId of uniqueParents) {
+    const related = extrasRelatedIdsByPrintingId.get(parentId) || [];
+    partsByCardId.set(
+      parentId,
+      related.map((id) => {
+        const cached = extrasDisplayById.get(id.toLowerCase());
+        return {
+          id,
+          component: 'token',
+          name: cached?.name,
+          type_line: cached?.typeLine,
+        };
+      }),
+    );
+  }
+
+  // Prefer ids collected via filter on live all_parts; fall back to cached related lists.
+  const relatedIds = collectExtrasRelatedIds(partsByCardId);
+  if (!relatedIds.length) return [];
+
+  const missingRelated = relatedIds.filter((id) => {
+    const cached = extrasDisplayById.get(id.toLowerCase());
+    return !cached || !cached.setCode;
+  });
+  if (missingRelated.length) {
+    const result = await fetchCardsCollection(
+      missingRelated.map((id) => ({ id })),
+      opts,
+    );
+    if (opts?.signal?.aborted) return [];
+    for (const card of result.data) {
+      extrasDisplayById.set(card.id.toLowerCase(), extrasDisplayFromScryfallCard(card));
+    }
+  }
+
+  const out: ExtrasDisplayCard[] = [];
+  const seen = new Set<string>();
+  for (const id of relatedIds) {
+    const key = id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const display = extrasDisplayById.get(key);
+    if (!display) continue;
+    out.push(display);
+  }
+  return sortExtrasDisplayCards(out);
 }
 
 export function scryfallCardImageUrl(card: Pick<ScryfallCard, 'id'>): string {

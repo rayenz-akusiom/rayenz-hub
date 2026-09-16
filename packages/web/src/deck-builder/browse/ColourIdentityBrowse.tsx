@@ -5,6 +5,7 @@ import {
   colourIdentitySectionsFor,
   formalSwapInIds,
   groupByColourIdentity,
+  mainDeckSourceCards,
   partitionCategories,
   resolveDeckCards,
   sortCardsInGroup,
@@ -26,7 +27,9 @@ import {
   type SelectCardHandler,
 } from './CategoryBrowse';
 import { type ContextMenuPoint } from './CardTile';
+import { ExtrasSection } from './ExtrasSection';
 import { MasonryColumns } from './MasonryColumns';
+import { useDeckExtras } from '../scryfall/useDeckExtras';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 function mergeStyle(remote: DeckBuilderSettingsPayload | null): DeckBuilderSettingsPayload {
@@ -141,6 +144,16 @@ export function ColourIdentityBrowse({
   }, []);
 
   const { header, headerKeys, included, includedKeys } = partitionCategories(resolvedDeck);
+  const format = ('format' in resolvedDeck ? resolvedDeck.format : undefined) || 'other';
+  const extrasEnabled = format !== 'collection';
+  const extrasSource = useMemo(
+    () =>
+      extrasEnabled
+        ? mainDeckSourceCards({ cards: deck.cards, categories: deck.categories || [] })
+        : [],
+    [extrasEnabled, deck.cards, deck.categories],
+  );
+  const extrasCards = useDeckExtras(extrasSource, extrasEnabled);
   const mainCards = useMemo(
     () => includedKeys.flatMap((k) => included[k]),
     [includedKeys, included],
@@ -243,6 +256,7 @@ export function ColourIdentityBrowse({
       ) : (
         sections
       )}
+      <ExtrasSection cards={extrasCards} layout={layout} />
     </div>
   );
 }

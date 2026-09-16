@@ -2,6 +2,7 @@ import { useEffect, useMemo, type MouseEvent } from 'react';
 import {
   formalSwapInIds,
   groupBySetCode,
+  mainDeckSourceCards,
   partitionCategories,
   resolveDeckCards,
   sortCardsInGroup,
@@ -24,7 +25,9 @@ import {
   type SelectCardHandler,
 } from './CategoryBrowse';
 import { type ContextMenuPoint } from './CardTile';
+import { ExtrasSection } from './ExtrasSection';
 import { MasonryColumns } from './MasonryColumns';
+import { useDeckExtras } from '../scryfall/useDeckExtras';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 export function SetCodeBrowse({
@@ -119,6 +122,15 @@ export function SetCodeBrowse({
 
   const { header, headerKeys, included, includedKeys } = partitionCategories(resolvedDeck);
   const format = ('format' in resolvedDeck ? resolvedDeck.format : undefined) || 'other';
+  const extrasEnabled = format !== 'collection';
+  const extrasSource = useMemo(
+    () =>
+      extrasEnabled
+        ? mainDeckSourceCards({ cards: deck.cards, categories: deck.categories || [] })
+        : [],
+    [extrasEnabled, deck.cards, deck.categories],
+  );
+  const extrasCards = useDeckExtras(extrasSource, extrasEnabled);
   const mainCards = useMemo(
     () => includedKeys.flatMap((k) => included[k]),
     [includedKeys, included],
@@ -260,6 +272,7 @@ export function SetCodeBrowse({
       ) : (
         sections
       )}
+      <ExtrasSection cards={extrasCards} layout={layout} />
     </div>
   );
 }

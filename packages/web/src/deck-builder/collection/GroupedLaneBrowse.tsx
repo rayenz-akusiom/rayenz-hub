@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import {
+  collectionBinderSourceCards,
   resolveDeckCards,
   sortCardsInGroup,
   type CardLayout,
@@ -8,8 +9,10 @@ import {
   type DeckDocument,
 } from '@rayenz-hub/shared';
 import { CardGroup, DeckHeaderRow, type SelectCardHandler } from '../browse/CategoryBrowse';
+import { ExtrasSection } from '../browse/ExtrasSection';
 import { MasonryColumns } from '../browse/MasonryColumns';
 import { type ContextMenuPoint } from '../browse/CardTile';
+import { useDeckExtras } from '../scryfall/useDeckExtras';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 export type GroupedLaneBrowseProps = {
@@ -27,6 +30,8 @@ export type GroupedLaneBrowseProps = {
   deckMeta?: string;
   syncStatus?: DeckSyncStatus | null;
   onPickRepresentative?: () => void;
+  /** Planeswalker browse only — show Scryfall-derived extras. */
+  showExtras?: boolean;
 };
 
 export function GroupedLaneBrowse({
@@ -44,11 +49,17 @@ export function GroupedLaneBrowse({
   deckMeta,
   syncStatus = null,
   onPickRepresentative,
+  showExtras = false,
 }: GroupedLaneBrowseProps) {
   const visibleOrder = useMemo(
     () => groups.flatMap(([, cards]) => sortCardsInGroup(cards, cardSort).map((card) => card.instanceId)),
     [groups, cardSort],
   );
+  const extrasSource = useMemo(
+    () => (showExtras ? collectionBinderSourceCards(deck) : []),
+    [showExtras, deck.cards, deck.oracle],
+  );
+  const extrasCards = useDeckExtras(extrasSource, showExtras);
 
   useEffect(() => {
     onVisibleOrderChange?.(visibleOrder);
@@ -114,6 +125,7 @@ export function GroupedLaneBrowse({
           </section>
         ))
       )}
+      <ExtrasSection cards={extrasCards} layout={layout} />
     </div>
   );
 }

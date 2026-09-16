@@ -38,6 +38,21 @@ export type PublicLibraryPayload = {
   decks: DeckSummary[];
 };
 
+function parsePublicUserEnvelope(
+  data: unknown,
+  label: 'library' | 'swaps',
+): { username: string; slug: string; decks: unknown[] } {
+  const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
+  if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {
+    throw new Error(
+      label === 'library'
+        ? 'Public library response was not valid'
+        : 'Public swaps response was not valid',
+    );
+  }
+  return { username: body.username, slug: body.slug, decks: body.decks };
+}
+
 export async function apiListPublicDecks(
   username: string,
   opts?: { previewPerFormat?: number },
@@ -50,14 +65,11 @@ export async function apiListPublicDecks(
   const path = `/v1/users/${encodeURIComponent(username)}/decks${qs ? `?${qs}` : ''}`;
   const data = await publicApiFetch(path);
   if (!data) return null;
-  const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
-  if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {
-    throw new Error('Public library response was not valid');
-  }
+  const envelope = parsePublicUserEnvelope(data, 'library');
   return {
-    username: body.username,
-    slug: body.slug,
-    decks: body.decks as DeckSummary[],
+    username: envelope.username,
+    slug: envelope.slug,
+    decks: envelope.decks as DeckSummary[],
   };
 }
 
@@ -70,19 +82,16 @@ export type PublicSwapsPayload = {
 export async function apiGetPublicSwaps(username: string): Promise<PublicSwapsPayload | null> {
   const data = await publicApiFetch(`/v1/users/${encodeURIComponent(username)}/swaps`);
   if (!data) return null;
-  const body = data as { username?: unknown; slug?: unknown; decks?: unknown };
-  if (typeof body.username !== 'string' || typeof body.slug !== 'string' || !Array.isArray(body.decks)) {
-    throw new Error('Public swaps response was not valid');
-  }
+  const envelope = parsePublicUserEnvelope(data, 'swaps');
   const decks: DeckDocument[] = [];
-  for (const raw of body.decks) {
+  for (const raw of envelope.decks) {
     const parsed = DeckDocumentSchema.safeParse(raw);
     if (!parsed.success) {
       throw new Error('Public swaps response was not a valid deck document');
     }
     decks.push(parsed.data);
   }
-  return { username: body.username, slug: body.slug, decks };
+  return { username: envelope.username, slug: envelope.slug, decks };
 }
 
 export async function apiPutDeck(doc: DeckDocument): Promise<DeckDocument> {

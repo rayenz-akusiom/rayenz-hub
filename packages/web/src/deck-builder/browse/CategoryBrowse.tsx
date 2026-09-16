@@ -42,7 +42,6 @@ import {
   DECK_DESCRIPTION_SPLIT_MIN_REM,
   headerRemainderMode,
   isCommandZoneFormat,
-  mainDeckSourceCards,
 } from '@rayenz-hub/shared';
 import { FormatBadge } from '../ui/FormatBadge';
 import { SyncStatusCharm, type DeckSyncStatus } from '../ui/SyncStatusCharm';
@@ -61,7 +60,7 @@ import { DeckDescriptionField } from './DeckDescriptionField';
 import { ExtrasSection } from './ExtrasSection';
 import { MasonryColumns } from './MasonryColumns';
 import { useDeckBuilderHeaderDragHover } from './useDeckBuilderDragging';
-import { useDeckExtras } from '../scryfall/useDeckExtras';
+import { useDeckBrowseExtras } from './useDeckBrowseExtras';
 import { useLongPress } from '../useLongPress';
 
 function cssLengthPx(value: string, fallback: number): number {
@@ -1449,14 +1448,7 @@ export function CategoryBrowse({
   const allCards = browseView === 'all_cards';
   const keySort = categoryKeySortFor(browseView, format);
   const extrasEnabled = mode === 'main' && format !== 'collection';
-  const extrasSource = useMemo(
-    () =>
-      extrasEnabled
-        ? mainDeckSourceCards({ cards: deck.cards, categories: deck.categories || [] })
-        : [],
-    [extrasEnabled, deck.cards, deck.categories],
-  );
-  const extrasCards = useDeckExtras(extrasSource, extrasEnabled);
+  const extrasCards = useDeckBrowseExtras(deck, extrasEnabled);
   const swapInIds = useMemo(
     () =>
       formalSwapInIds(

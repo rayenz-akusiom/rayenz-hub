@@ -2,7 +2,6 @@ import { useEffect, useMemo, type MouseEvent } from 'react';
 import {
   formalSwapInIds,
   groupBySetCode,
-  mainDeckSourceCards,
   partitionCategories,
   resolveDeckCards,
   sortCardsInGroup,
@@ -20,14 +19,12 @@ import {
 } from '@rayenz-hub/shared';
 import {
   CardGroup,
-  DeckHeaderRow,
   type DropCardHandler,
   type SelectCardHandler,
 } from './CategoryBrowse';
 import { type ContextMenuPoint } from './CardTile';
-import { ExtrasSection } from './ExtrasSection';
-import { MasonryColumns } from './MasonryColumns';
-import { useDeckExtras } from '../scryfall/useDeckExtras';
+import { DeckBrowseFrame } from './DeckBrowseFrame';
+import { useDeckBrowseExtras } from './useDeckBrowseExtras';
 import type { DeckSyncStatus } from '../ui/SyncStatusCharm';
 
 export function SetCodeBrowse({
@@ -122,15 +119,7 @@ export function SetCodeBrowse({
 
   const { header, headerKeys, included, includedKeys } = partitionCategories(resolvedDeck);
   const format = ('format' in resolvedDeck ? resolvedDeck.format : undefined) || 'other';
-  const extrasEnabled = format !== 'collection';
-  const extrasSource = useMemo(
-    () =>
-      extrasEnabled
-        ? mainDeckSourceCards({ cards: deck.cards, categories: deck.categories || [] })
-        : [],
-    [extrasEnabled, deck.cards, deck.categories],
-  );
-  const extrasCards = useDeckExtras(extrasSource, extrasEnabled);
+  const extrasCards = useDeckBrowseExtras(deck, format !== 'collection');
   const mainCards = useMemo(
     () => includedKeys.flatMap((k) => included[k]),
     [includedKeys, included],
@@ -229,50 +218,46 @@ export function SetCodeBrowse({
       : undefined;
 
   return (
-    <div className="db-browse">
-      <DeckHeaderRow
-        header={header}
-        headerKeys={headerKeys}
-        selectedId={selectedId}
-        selectedIds={selectedIds}
-        onSelectCard={onSelectCard}
-        onDropCard={onDropCard}
-        onCardContextMenu={onCardContextMenu}
-        onPickSlot={onPickSlot}
-        format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
-        cardSort={cardSort}
-        deckName={deckName}
-        deckId={'deckId' in resolvedDeck ? resolvedDeck.deckId : undefined}
-        ownership={'ownership' in resolvedDeck ? resolvedDeck.ownership : undefined}
-        onSetOwnership={onSetOwnership}
-        visibility={'visibility' in resolvedDeck ? resolvedDeck.visibility : undefined}
-        onSetVisibility={onSetVisibility}
-        onRename={onRename}
-        description={
-          'description' in resolvedDeck && typeof resolvedDeck.description === 'string'
-            ? resolvedDeck.description
-            : ''
-        }
-        onSetDescription={onSetDescription}
-        deckMeta={deckMeta}
-        deckMetaWarn={deckMetaWarn}
-        syncStatus={syncStatus}
-        swapInIds={swapInIds}
-        coverInstanceId={
-          'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
-        }
-        filtersActive={filtersActive}
-        enableSoughtGhost={enableSoughtGhost}
-        representativeCard={representativeCard}
-        representativeLabel={representativeLabel}
-        onPickRepresentative={onPickRepresentative}
-      />
-      {layout === 'stacked' ? (
-        <MasonryColumns>{sections}</MasonryColumns>
-      ) : (
-        sections
-      )}
-      <ExtrasSection cards={extrasCards} />
-    </div>
+    <DeckBrowseFrame
+      layout={layout}
+      extrasCards={extrasCards}
+      header={header}
+      headerKeys={headerKeys}
+      selectedId={selectedId}
+      selectedIds={selectedIds}
+      onSelectCard={onSelectCard}
+      onDropCard={onDropCard}
+      onCardContextMenu={onCardContextMenu}
+      onPickSlot={onPickSlot}
+      format={'format' in resolvedDeck ? resolvedDeck.format : undefined}
+      cardSort={cardSort}
+      deckName={deckName}
+      deckId={'deckId' in resolvedDeck ? resolvedDeck.deckId : undefined}
+      ownership={'ownership' in resolvedDeck ? resolvedDeck.ownership : undefined}
+      onSetOwnership={onSetOwnership}
+      visibility={'visibility' in resolvedDeck ? resolvedDeck.visibility : undefined}
+      onSetVisibility={onSetVisibility}
+      onRename={onRename}
+      description={
+        'description' in resolvedDeck && typeof resolvedDeck.description === 'string'
+          ? resolvedDeck.description
+          : ''
+      }
+      onSetDescription={onSetDescription}
+      deckMeta={deckMeta}
+      deckMetaWarn={deckMetaWarn}
+      syncStatus={syncStatus}
+      swapInIds={swapInIds}
+      coverInstanceId={
+        'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
+      }
+      filtersActive={filtersActive}
+      enableSoughtGhost={enableSoughtGhost}
+      representativeCard={representativeCard}
+      representativeLabel={representativeLabel}
+      onPickRepresentative={onPickRepresentative}
+    >
+      {sections}
+    </DeckBrowseFrame>
   );
 }

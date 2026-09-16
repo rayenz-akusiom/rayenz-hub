@@ -5,25 +5,17 @@
 import {
   PRECONS_USERNAME,
   RELEASE_ENSURE_JOB_ID,
-  SET_POOL_FORMAT_VERSION,
   buildPreconFromMtgjson,
   filterCommanderDecksForSet,
   listDueReleaseScheduleSets,
   loadMtgjsonCommanderDeckList,
   loadMtgjsonDeck,
-  normalizeSetCodesKey,
   uniquifyMtgjsonDeckNames,
   fetchSetCards,
+  type ReleaseEnsureJob,
   type ReleaseScheduleSet,
 } from '@rayenz-hub/shared';
-import { createDocClient } from '../repositories/settings-repository.js';
-import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
-import { DeckRepository } from '../repositories/deck-repository.js';
-import { SetPoolRepository } from '../repositories/set-pool-repository.js';
-import { UsernameDirectory } from '../repositories/username-directory.js';
-import { UsernameDirectoryService } from '../services/username-directory-service.js';
-import { ReleaseScheduleService } from '../services/release-schedule.js';
-import { readEnv } from '../lib/auth.js';
+import { ensureSystemSetPool } from '../lib/set-pool-ensure.js';
 import type { AppServices } from '../ioc/index.js';
 
 const USER_AGENT = 'rayenz-hub-release-ensure/1.0';
@@ -49,13 +41,23 @@ export async function runReleaseEnsure(
   const loadDeck = deps.loadDeck || loadMtgjsonDeck;
   const fetchCards = deps.fetchSetCards || fetchSetCards;
 
+  async function markJob(
+    patch: Omit<ReleaseEnsureJob, 'jobId' | 'updatedAt'> &
+      Partial<Pick<ReleaseEnsureJob, 'updatedAt'>>,
+  ): Promise<void> {
+    await services.releaseSchedule.putJob({
+      jobId: RELEASE_ENSURE_JOB_ID,
+      ...patch,
+      updatedAt: patch.updatedAt || nowFn().toISOString(),
+    });
+  }
+
   const started = nowFn().toISOString();
   const schedule = await services.releaseSchedule.getSchedule();
   const due = listDueReleaseScheduleSets(schedule, nowFn());
 
   if (!due.length) {
-    await services.releaseSchedule.putJob({
-      jobId: RELEASE_ENSURE_JOB_ID,
+    await markJob({
       status: 'complete',
       startedAt: started,
       finishedAt: nowFn().toISOString(),
@@ -63,20 +65,17 @@ export async function runReleaseEnsure(
       total: 0,
       label: 'Nothing due',
       error: null,
-      updatedAt: nowFn().toISOString(),
     });
     return { ok: true, processed: 0 };
   }
 
-  await services.releaseSchedule.putJob({
-    jobId: RELEASE_ENSURE_JOB_ID,
+  await markJob({
     status: 'running',
     startedAt: started,
     current: 0,
     total: due.length,
     label: `Ensuring ${due.length} set(s)…`,
     error: null,
-    updatedAt: nowFn().toISOString(),
   });
 
   const preconsRecord =
@@ -88,13 +87,11 @@ export async function runReleaseEnsure(
     ));
   if (!preconsRecord?.sub) {
     const msg = `Username directory missing "${PRECONS_USERNAME}" account`;
-    await services.releaseSchedule.putJob({
-      jobId: RELEASE_ENSURE_JOB_ID,
+    await markJob({
       status: 'error',
       startedAt: started,
       finishedAt: nowFn().toISOString(),
       error: msg,
-      updatedAt: nowFn().toISOString(),
     });
     throw new Error(msg);
   }
@@ -105,13 +102,11 @@ export async function runReleaseEnsure(
     deckList = await loadList({ userAgent: USER_AGENT });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await services.releaseSchedule.putJob({
-      jobId: RELEASE_ENSURE_JOB_ID,
+    await markJob({
       status: 'error',
       startedAt: started,
       finishedAt: nowFn().toISOString(),
       error: `MTGJSON DeckList: ${msg}`,
-      updatedAt: nowFn().toISOString(),
     });
     throw e;
   }
@@ -123,15 +118,13 @@ export async function runReleaseEnsure(
   for (const dueSet of due) {
     index += 1;
     const code = dueSet.setCode.toUpperCase();
-    await services.releaseSchedule.putJob({
-      jobId: RELEASE_ENSURE_JOB_ID,
+    await markJob({
       status: 'running',
       startedAt: started,
       current: index,
       total: due.length,
       label: `Ensuring ${code} (${index}/${due.length})…`,
       error: null,
-      updatedAt: nowFn().toISOString(),
     });
 
     const patched: ReleaseScheduleSet = {
@@ -178,31 +171,12 @@ export async function runReleaseEnsure(
     }
 
     try {
-      const codes = [code];
-      const codesKey = normalizeSetCodesKey(codes);
-      const existingPool = await services.setPoolRepository.getSystem(codesKey);
-      if (
-        existingPool?.cards?.length &&
-        Number(existingPool.formatVersion) >= SET_POOL_FORMAT_VERSION
-      ) {
-        patched.setPoolStatus = 'ready';
-      } else {
-        const fetched = await fetchCards(codes, { dedupe: true });
-        if (fetched.cards.length > 0) {
-          await services.setPoolRepository.putSystem(codesKey, {
-            codes: fetched.set_codes.length ? fetched.set_codes : codes,
-            complete: true,
-            primaryCode: fetched.primary_set_code || code,
-            setName: dueSet.name || fetched.product_name,
-            cards: fetched.cards as unknown as Record<string, unknown>[],
-            formatVersion: SET_POOL_FORMAT_VERSION,
-            poolKind: 'release',
-          });
-          patched.setPoolStatus = 'ready';
-        } else {
-          patched.setPoolStatus = 'pending';
-        }
-      }
+      const pool = await ensureSystemSetPool(services.setPoolRepository, [code], {
+        primaryCode: code,
+        setName: dueSet.name,
+        fetchSetCards: fetchCards,
+      });
+      patched.setPoolStatus = pool ? 'ready' : 'pending';
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       patched.setPoolStatus = 'error';
@@ -214,8 +188,7 @@ export async function runReleaseEnsure(
     await services.releaseSchedule.replaceScheduleSets(currentSets);
   }
 
-  await services.releaseSchedule.putJob({
-    jobId: RELEASE_ENSURE_JOB_ID,
+  await markJob({
     status: 'complete',
     startedAt: started,
     finishedAt: nowFn().toISOString(),
@@ -223,7 +196,6 @@ export async function runReleaseEnsure(
     total: due.length,
     label: 'Done',
     error: null,
-    updatedAt: nowFn().toISOString(),
   });
 
   return { ok: true, processed: due.length };
@@ -232,19 +204,6 @@ export async function runReleaseEnsure(
 export async function handler(
   _event?: unknown,
 ): Promise<{ ok: true; processed: number }> {
-  const env = readEnv();
-  const doc = createDocClient(env);
-  const s3 = new S3BlobStore(createS3Client(env), env.HUB_BUCKET_NAME || 'rayenz-hub-data-local');
-  const table = env.HUB_TABLE_NAME || 'HubTable';
-  const directory = new UsernameDirectory(doc, table);
   const { createAppServices } = await import('../ioc/index.js');
-  const services = createAppServices({
-    apiEnv: env,
-    docClient: doc,
-    deckRepository: new DeckRepository(doc, table, s3),
-    setPoolRepository: new SetPoolRepository(doc, table, s3),
-    usernameDirectory: new UsernameDirectoryService(directory),
-    releaseSchedule: new ReleaseScheduleService(doc, table),
-  });
-  return runReleaseEnsure(services);
+  return runReleaseEnsure(createAppServices());
 }

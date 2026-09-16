@@ -31,6 +31,10 @@ import { errorResponse, jsonResponse } from '../lib/response.js';
 import { mapHandlerError, mapScryfallUpstreamError } from '../lib/handler-errors.js';
 import { parseJsonBody } from '../lib/keyed-resource-handler.js';
 import { requireSpendUnlocked } from '../lib/route-policy.js';
+import {
+  copySystemPoolToUser,
+  isCurrentSetPool,
+} from '../lib/set-pool-ensure.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 import type { SetPoolRecord } from '../repositories/set-pool-repository.js';
 import type {
@@ -55,13 +59,6 @@ export type SuggestGenerateDeps = {
   buildUpgradeThemePools?: typeof buildUpgradeThemePools;
 };
 
-function isCurrentSetPool(pool: SetPoolRecord | null | undefined): pool is SetPoolRecord {
-  return !!(
-    pool?.cards?.length &&
-    Number(pool.formatVersion) >= SET_POOL_FORMAT_VERSION
-  );
-}
-
 async function ensureSetPoolFromCodes(
   services: AppServices,
   auth: Parameters<AppServices['setPoolRepository']['get']>[0],
@@ -76,15 +73,7 @@ async function ensureSetPoolFromCodes(
   }
   const systemPool = await services.setPoolRepository.getSystem(codesKey);
   if (isCurrentSetPool(systemPool)) {
-    return services.setPoolRepository.put(auth, env, codesKey, {
-      codes: systemPool.codes,
-      complete: systemPool.complete,
-      primaryCode: systemPool.primaryCode,
-      setName: systemPool.setName,
-      cards: systemPool.cards,
-      formatVersion: systemPool.formatVersion,
-      poolKind: systemPool.poolKind || 'release',
-    });
+    return copySystemPoolToUser(services.setPoolRepository, auth, env, codesKey, systemPool);
   }
 
   const fetchCards = opts?.fetchSetCards || fetchSetCards;
@@ -140,15 +129,7 @@ async function ensureSetPoolFromRelease(
   }
   const systemPool = await services.setPoolRepository.getSystem(codesKey);
   if (isCurrentSetPool(systemPool)) {
-    return services.setPoolRepository.put(auth, env, codesKey, {
-      codes: systemPool.codes,
-      complete: systemPool.complete,
-      primaryCode: systemPool.primaryCode,
-      setName: systemPool.setName,
-      cards: systemPool.cards,
-      formatVersion: systemPool.formatVersion,
-      poolKind: systemPool.poolKind || 'release',
-    });
+    return copySystemPoolToUser(services.setPoolRepository, auth, env, codesKey, systemPool);
   }
   return services.setPoolRepository.put(auth, env, codesKey, {
     codes,

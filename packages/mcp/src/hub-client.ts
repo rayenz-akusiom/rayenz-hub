@@ -216,6 +216,19 @@ export function createHubClient(config: HubClientConfig) {
         body,
         nullOn404: false,
       }),
+    getReleaseSchedule: () => hubFetch('/v1/system/release-schedule'),
+    putReleaseSchedule: (body: unknown) =>
+      hubFetch('/v1/system/release-schedule', {
+        method: 'PUT',
+        body,
+        nullOn404: false,
+      }),
+    kickReleaseEnsure: () =>
+      hubFetch('/v1/system/release-ensure', {
+        method: 'POST',
+        nullOn404: false,
+      }),
+    getReleaseEnsure: () => hubFetch('/v1/system/release-ensure'),
   };
 }
 

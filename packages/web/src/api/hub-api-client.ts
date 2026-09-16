@@ -349,6 +349,84 @@ export function pushSetPool(codesKey: string, scope: Partial<SetPoolRemote>): Pr
   });
 }
 
+export type ReleaseScheduleRemote = {
+  version: 1;
+  updatedAt: string;
+  sets: Array<{
+    setCode: string;
+    name?: string;
+    finalRevealDate: string;
+    expectedCommanderDecks: number;
+    loadedCommanderDecks?: number;
+    preconStatus?: string;
+    setPoolStatus?: string;
+    lastEnsuredAt?: string;
+    lastError?: string | null;
+  }>;
+};
+
+export type ReleaseEnsureJobRemote = {
+  jobId: string;
+  status: 'idle' | 'running' | 'complete' | 'error';
+  startedAt?: string;
+  finishedAt?: string;
+  current?: number;
+  total?: number;
+  label?: string;
+  error?: string | null;
+  updatedAt: string;
+};
+
+export type ReleaseEnsureKickRemote = {
+  jobId: string;
+  status: 'idle' | 'running' | 'complete' | 'error';
+  dueSetCodes?: string[];
+};
+
+export function pullReleaseSchedule(): Promise<ReleaseScheduleRemote | null> {
+  return clientApiFetch('/v1/system/release-schedule').then((data) => {
+    if (!data || typeof data !== 'object') return null;
+    return data as ReleaseScheduleRemote;
+  });
+}
+
+export function pushReleaseSchedule(sets: ReleaseScheduleRemote['sets']): Promise<ReleaseScheduleRemote> {
+  return clientApiFetch('/v1/system/release-schedule', {
+    method: 'PUT',
+    body: { sets },
+  }) as Promise<ReleaseScheduleRemote>;
+}
+
+export function kickReleaseEnsure(): Promise<ReleaseEnsureKickRemote> {
+  return clientApiFetch('/v1/system/release-ensure', { method: 'POST' }) as Promise<ReleaseEnsureKickRemote>;
+}
+
+export function pullReleaseEnsureJob(): Promise<ReleaseEnsureJobRemote> {
+  return clientApiFetch('/v1/system/release-ensure') as Promise<ReleaseEnsureJobRemote>;
+}
+
+export type SuggestReleasesRemote = {
+  formatVersion: 1;
+  generatedAt: string;
+  releases: Array<{
+    id: string;
+    kind: 'group' | 'block' | 'pinned';
+    code: string;
+    name: string;
+    released_at: string | null;
+    set_codes: string[];
+    scheduleReady?: boolean;
+    finalRevealDate?: string;
+  }>;
+};
+
+export function pullSuggestReleases(): Promise<SuggestReleasesRemote | null> {
+  return clientApiFetch('/v1/suggest/releases').then((data) => {
+    if (!data || typeof data !== 'object') return null;
+    return data as SuggestReleasesRemote;
+  });
+}
+
 function applyMainPetFromPayload(payload: Record<string, unknown>): void {
   const w = window as Window & {
     DailiesSettings?: { saveMainPet?: (name: string, slug: string | null) => void };

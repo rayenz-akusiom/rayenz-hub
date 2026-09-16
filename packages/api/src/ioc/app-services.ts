@@ -10,6 +10,7 @@ import type { SetPoolRepository } from '../repositories/set-pool-repository.js';
 import type { DeckRepository } from '../repositories/deck-repository.js';
 import type { SettingsRepository } from '../repositories/settings-repository.js';
 import type { UsernameDirectoryService } from '../services/username-directory-service.js';
+import type { ReleaseScheduleService } from '../services/release-schedule.js';
 import { TYPES } from './types.js';
 
 export interface AppServices {
@@ -24,6 +25,7 @@ export interface AppServices {
   setPoolRepository: SetPoolRepository;
   deckRepository: DeckRepository;
   usernameDirectory: UsernameDirectoryService;
+  releaseSchedule: ReleaseScheduleService;
 }
 
 export function resolveAppServices(container: Container): AppServices {
@@ -39,5 +41,6 @@ export function resolveAppServices(container: Container): AppServices {
     setPoolRepository: container.get<SetPoolRepository>(TYPES.SetPoolRepository),
     deckRepository: container.get<DeckRepository>(TYPES.DeckRepository),
     usernameDirectory: container.get<UsernameDirectoryService>(TYPES.UsernameDirectoryService),
+    releaseSchedule: container.get<ReleaseScheduleService>(TYPES.ReleaseScheduleService),
   };
 }

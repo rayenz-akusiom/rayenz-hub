@@ -5,6 +5,7 @@ import {
   DeckSummarySchema,
   ProfileUpsertSchema,
   ReviewProgressUpsertSchema,
+  ReleaseSchedulePutSchema,
   SetPoolUpsertSchema,
   aggregateSwapWants,
   buildArchidektImportText,
@@ -88,6 +89,9 @@ export const HUB_MCP_TOOL_NAMES = [
   'hub_put_set_pool',
   'hub_get_review_progress',
   'hub_put_review_progress',
+  'hub_get_release_schedule',
+  'hub_put_release_schedule',
+  'hub_ensure_release_schedule',
   'scryfall_resolve_sets',
   'scryfall_fetch_set_cards',
 ] as const;
@@ -515,6 +519,78 @@ export function registerHubTools(server: McpServer, client: HubClient): void {
         const { fileId, ...rest } = args;
         const body = ReviewProgressUpsertSchema.parse(rest);
         return jsonResult(await client.putReviewProgress(fileId, body));
+      } catch (e) {
+        return catchTool(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'hub_get_release_schedule',
+    {
+      description:
+        'Get the global MTG release schedule (set codes, final reveal dates, expected precon counts, ensure status).',
+      inputSchema: z.object({}),
+    },
+    async () => {
+      try {
+        return jsonResult(await client.getReleaseSchedule());
+      } catch (e) {
+        return catchTool(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'hub_put_release_schedule',
+    {
+      description:
+        'Replace MTG release schedule line items (owner). Worker status fields are preserved when omitted.',
+      inputSchema: z.object({
+        sets: z.array(
+          z.object({
+            setCode: z.string(),
+            name: z.string().optional(),
+            finalRevealDate: z.string().describe('YYYY-MM-DD UTC'),
+            expectedCommanderDecks: z.number().int().min(0),
+            loadedCommanderDecks: z.number().int().min(0).optional(),
+            preconStatus: z.enum(['pending', 'partial', 'complete', 'error']).optional(),
+            setPoolStatus: z.enum(['pending', 'ready', 'error']).optional(),
+            lastEnsuredAt: z.string().optional(),
+            lastError: z.string().nullable().optional(),
+          }),
+        ),
+      }),
+    },
+    async (args) => {
+      try {
+        const body = ReleaseSchedulePutSchema.parse(args);
+        return jsonResult(await client.putReleaseSchedule(body));
+      } catch (e) {
+        return catchTool(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'hub_ensure_release_schedule',
+    {
+      description:
+        'Kick (or poll) release-ensure: seed due precons from MTGJSON and warm set pools. Returns job status.',
+      inputSchema: z.object({
+        kick: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('When true, POST ensure; when false, GET latest job status only'),
+      }),
+    },
+    async ({ kick }) => {
+      try {
+        if (kick === false) {
+          return jsonResult(await client.getReleaseEnsure());
+        }
+        return jsonResult(await client.kickReleaseEnsure());
       } catch (e) {
         return catchTool(e);
       }

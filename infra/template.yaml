@@ -180,6 +180,48 @@ Resources:
         EntryPoints:
           - src/handlers/spend-lock-events.ts
 
+  ReleaseEnsureFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../packages/api
+      Handler: src/handlers/release-ensure-worker.handler
+      Timeout: 120
+      MemorySize: 1024
+      Environment:
+        Variables:
+          HUB_TABLE_NAME: !Ref HubTable
+          HUB_BUCKET_NAME: !Ref HubDataBucket
+          HUB_OWNER_USERNAME: !Ref HubOwnerUsername
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_CLIENT_SECRET: !Ref CognitoClientSecret
+          DYNAMODB_ENDPOINT: !If [UseLocalDynamo, !Ref DynamoDbEndpoint, !Ref AWS::NoValue]
+          S3_ENDPOINT: !If [UseLocalS3, !Ref S3Endpoint, '']
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HubTable
+        - S3CrudPolicy:
+            BucketName: !Ref HubDataBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+              Resource: !Ref CognitoUserPoolArn
+      Events:
+        DailyEnsure:
+          Type: Schedule
+          Properties:
+            Schedule: cron(15 6 * * ? *)
+            Input: '{"source":"schedule","jobId":"release-ensure"}'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/release-ensure-worker.ts
+
   HubApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -194,6 +236,7 @@ Resources:
           HUB_PAGES_ORIGIN: !Ref HubPagesOrigin
           HUB_SUGGEST_DECK_CAP: '20'
           HUB_UPGRADE_POOL_CAP: '250'
+          HUB_RELEASE_ENSURE_FUNCTION_NAME: !Ref ReleaseEnsureFunction
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
           COGNITO_CLIENT_ID: !Ref CognitoClientId
           COGNITO_CLIENT_SECRET: !Ref CognitoClientSecret
@@ -228,6 +271,10 @@ Resources:
                 - cognito-idp:ResendConfirmationCode
                 - cognito-idp:ChangePassword
               Resource: '*'
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt ReleaseEnsureFunction.Arn
       Events:
         Health:
           Type: HttpApi
@@ -367,6 +414,30 @@ Resources:
             ApiId: !Ref HubHttpApi
             Path: /v1/suggest/releases
             Method: GET
+        ReleaseScheduleGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/system/release-schedule
+            Method: GET
+        ReleaseSchedulePut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/system/release-schedule
+            Method: PUT
+        ReleaseEnsureGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/system/release-ensure
+            Method: GET
+        ReleaseEnsurePost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HubHttpApi
+            Path: /v1/system/release-ensure
+            Method: POST
         AuthSignIn:
           Type: HttpApi
           Properties:

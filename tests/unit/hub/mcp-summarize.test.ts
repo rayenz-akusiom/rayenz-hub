@@ -114,8 +114,10 @@ describe('mcp summarize + helpers', () => {
   it('registers the expected tool names', () => {
     expect(HUB_MCP_TOOL_NAMES).toContain('hub_list_decks');
     expect(HUB_MCP_TOOL_NAMES).toContain('hub_patch_deck');
+    expect(HUB_MCP_TOOL_NAMES).toContain('hub_get_release_schedule');
+    expect(HUB_MCP_TOOL_NAMES).toContain('hub_ensure_release_schedule');
     expect(HUB_MCP_TOOL_NAMES).toContain('scryfall_fetch_set_cards');
-    expect(HUB_MCP_TOOL_NAMES).toHaveLength(20);
+    expect(HUB_MCP_TOOL_NAMES).toHaveLength(23);
   });
 
   it('profileLookupKeys tries deckId and archidekt aliases', () => {

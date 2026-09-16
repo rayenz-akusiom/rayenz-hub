@@ -12,6 +12,7 @@ import { SetPoolRepository } from '../repositories/set-pool-repository.js';
 import { DeckRepository } from '../repositories/deck-repository.js';
 import { UsernameDirectory } from '../repositories/username-directory.js';
 import { UsernameDirectoryService } from '../services/username-directory-service.js';
+import { ReleaseScheduleService } from '../services/release-schedule.js';
 import { createDocClient, SettingsRepository } from '../repositories/settings-repository.js';
 import { createS3Client, S3BlobStore } from '../repositories/s3-blob-store.js';
 import { TYPES } from './types.js';
@@ -29,6 +30,7 @@ export interface ContainerOverrides {
   setPoolRepository?: SetPoolRepository;
   deckRepository?: DeckRepository;
   usernameDirectory?: UsernameDirectoryService;
+  releaseSchedule?: ReleaseScheduleService;
   docClient?: { send: (command: unknown) => Promise<unknown> };
 }
 
@@ -139,6 +141,14 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   } else {
     const directory = new UsernameDirectory(doc, env.HUB_TABLE_NAME || 'HubTable');
     container.bind(TYPES.UsernameDirectoryService).toConstantValue(new UsernameDirectoryService(directory));
+  }
+
+  if (overrides.releaseSchedule) {
+    container.bind(TYPES.ReleaseScheduleService).toConstantValue(overrides.releaseSchedule);
+  } else {
+    container.bind(TYPES.ReleaseScheduleService).toConstantValue(
+      new ReleaseScheduleService(doc, env.HUB_TABLE_NAME || 'HubTable'),
+    );
   }
 
   return container;

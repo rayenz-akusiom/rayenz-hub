@@ -1,9 +1,12 @@
-import { FOCUS_TAGS_MAX, type DeckSummary } from '@rayenz-hub/shared';
+import { FOCUS_TAGS_MAX, type DeckSummary, type ReleaseCatalogEntry } from '@rayenz-hub/shared';
 import { useEffect, useState } from 'react';
 import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
 import { LibrarySkeleton } from '../deck-builder/library/library-chrome';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { CARD_SIZE_PX } from '../deck-builder/card-size';
+import { isApiConfigured } from '../api/hub-api';
+import { pullSuggestReleases } from '../api/hub-api-client';
+import { getHubAuthSession } from '../lib/hub-auth-session';
 import { selectAllDecks, toggleDeckSelection } from './deck-load';
 import { readProfileForDeck } from './data';
 import { findReleaseEntry, formatSetCodesPreview, listReleaseOptions } from './releases';
@@ -74,8 +77,10 @@ export function DeckSuggestSetup({
 }: SetupProps) {
   const decks = deckSelection.decks || [];
   const selected = deckSelection.selectedIds || [];
-  const releases = listReleaseOptions();
-  const selectedRelease = findReleaseEntry(releaseId);
+  const [apiReleases, setApiReleases] = useState<ReleaseCatalogEntry[] | null>(null);
+  const releases = apiReleases ?? listReleaseOptions();
+  const selectedRelease =
+    (apiReleases && apiReleases.find((r) => r.id === releaseId)) || findReleaseEntry(releaseId);
   const previewCodes = resolvedSetCodes.length
     ? resolvedSetCodes
     : selectedRelease?.set_codes || [];
@@ -85,6 +90,36 @@ export function DeckSuggestSetup({
   const [profileLevel, setProfileLevel] = useState<'none' | 'partial' | 'ready'>('none');
   const [profileTagChips, setProfileTagChips] = useState<string[]>([]);
   const [focusOpen, setFocusOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isApiConfigured() || !getHubAuthSession()?.accessToken) {
+      setApiReleases(null);
+      return;
+    }
+    let cancelled = false;
+    void pullSuggestReleases()
+      .then((payload) => {
+        if (cancelled || !payload?.releases?.length) return;
+        setApiReleases(
+          payload.releases.map((r) => ({
+            id: r.id,
+            kind: r.kind,
+            code: r.code,
+            name: r.name,
+            released_at: r.released_at,
+            set_codes: r.set_codes,
+            ...(r.scheduleReady != null ? { scheduleReady: r.scheduleReady } : {}),
+            ...(r.finalRevealDate ? { finalRevealDate: r.finalRevealDate } : {}),
+          })) as ReleaseCatalogEntry[],
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setApiReleases(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!budgetMode || !selectedDeckId) {

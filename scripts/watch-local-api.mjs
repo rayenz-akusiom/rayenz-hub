@@ -36,6 +36,15 @@ export function localApiEsbuildTargets(rootDir) {
       entry: path.join(apiRoot, 'src/handlers/spend-lock-events.ts'),
       outfile: path.join(rootDir, '.aws-sam/build/SpendLockFunction/spend-lock-events.js'),
     },
+    {
+      name: 'ReleaseEnsureFunction',
+      absWorkingDir: apiRoot,
+      entry: path.join(apiRoot, 'src/handlers/release-ensure-worker.ts'),
+      outfile: path.join(
+        rootDir,
+        '.aws-sam/build/ReleaseEnsureFunction/release-ensure-worker.js',
+      ),
+    },
   ];
 }
 

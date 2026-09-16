@@ -49,7 +49,11 @@ describe('local API watch enable', () => {
 describe('local API esbuild targets', () => {
   it('writes SAM artifact filenames with Lambda esbuild options', () => {
     const targets = localApiEsbuildTargets(repoRoot);
-    expect(targets.map((t) => t.name)).toEqual(['HubApiFunction', 'SpendLockFunction']);
+    expect(targets.map((t) => t.name)).toEqual([
+      'HubApiFunction',
+      'SpendLockFunction',
+      'ReleaseEnsureFunction',
+    ]);
     expect(targets[0].entry).toBe(path.join(repoRoot, 'packages/api/src/handler.ts'));
     expect(targets[0].outfile).toBe(path.join(repoRoot, '.aws-sam/build/HubApiFunction/handler.js'));
     expect(targets[1].entry).toBe(
@@ -57,6 +61,12 @@ describe('local API esbuild targets', () => {
     );
     expect(targets[1].outfile).toBe(
       path.join(repoRoot, '.aws-sam/build/SpendLockFunction/spend-lock-events.js'),
+    );
+    expect(targets[2].entry).toBe(
+      path.join(repoRoot, 'packages/api/src/handlers/release-ensure-worker.ts'),
+    );
+    expect(targets[2].outfile).toBe(
+      path.join(repoRoot, '.aws-sam/build/ReleaseEnsureFunction/release-ensure-worker.js'),
     );
 
     const opts = localApiEsbuildOptions(targets[0]);
@@ -116,6 +126,7 @@ describe('startLocalApiWatch', () => {
     const root = tempRoot();
     mkdirSync(path.join(root, '.aws-sam/build/HubApiFunction'), { recursive: true });
     mkdirSync(path.join(root, '.aws-sam/build/SpendLockFunction'), { recursive: true });
+    mkdirSync(path.join(root, '.aws-sam/build/ReleaseEnsureFunction'), { recursive: true });
     mkdirSync(path.join(root, 'infra'), { recursive: true });
 
     const contexts: { watch: number; dispose: number; opts: Record<string, unknown> }[] = [];
@@ -135,13 +146,16 @@ describe('startLocalApiWatch', () => {
     };
 
     const handle = await startLocalApiWatch(root, { esbuild: fakeEsbuild, log: silentLog() });
-    expect(contexts).toHaveLength(2);
+    expect(contexts).toHaveLength(3);
     expect(contexts.every((c) => c.watch === 1)).toBe(true);
     expect(contexts[0].opts.outfile).toBe(
       path.join(root, '.aws-sam/build/HubApiFunction/handler.js'),
     );
     expect(contexts[1].opts.outfile).toBe(
       path.join(root, '.aws-sam/build/SpendLockFunction/spend-lock-events.js'),
+    );
+    expect(contexts[2].opts.outfile).toBe(
+      path.join(root, '.aws-sam/build/ReleaseEnsureFunction/release-ensure-worker.js'),
     );
     await handle.stop();
     expect(contexts.every((c) => c.dispose === 1)).toBe(true);

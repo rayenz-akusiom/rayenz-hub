@@ -8,8 +8,10 @@ import {
   builderFormatForDeck,
   deckBelongsToBuilder,
   defaultPendragonCategoryDefs,
+  PRECONS_USERNAME,
 } from '@rayenz-hub/shared';
 import { isApiConfigured } from '../../api/hub-api';
+import { maybeEnsureReleaseSchedule } from '../../api/release-ensure';
 import {
   builderHash,
   builderBasePath,
@@ -323,6 +325,25 @@ export function BuilderApp({
             username: payload.username,
             decks: payload.decks,
           });
+          if (
+            libraryRoute.userSlug === PRECONS_USERNAME ||
+            payload.slug === PRECONS_USERNAME
+          ) {
+            void maybeEnsureReleaseSchedule().then(async (result) => {
+              if (!stillCurrent() || !result.refreshed) return;
+              try {
+                const again = await deckApi.apiListPublicDecks(libraryRoute.userSlug);
+                if (!stillCurrent() || !again) return;
+                setPublicBrowse({
+                  slug: again.slug,
+                  username: again.username,
+                  decks: again.decks,
+                });
+              } catch {
+                /* keep first list */
+              }
+            });
+          }
         } catch (e) {
           if (!stillCurrent()) return;
           setPublicBrowse(null);

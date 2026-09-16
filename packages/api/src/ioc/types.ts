@@ -11,4 +11,5 @@ export const TYPES = {
   SetPoolRepository: Symbol.for('SetPoolRepository'),
   DeckRepository: Symbol.for('DeckRepository'),
   UsernameDirectoryService: Symbol.for('UsernameDirectoryService'),
+  ReleaseScheduleService: Symbol.for('ReleaseScheduleService'),
 } as const;

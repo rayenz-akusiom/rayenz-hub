@@ -41,7 +41,17 @@ export function settingsDomainFromPath(domain: string): SettingsDomain | null {
 
 export const SYSTEM_PK = 'SYSTEM';
 export const SPEND_LOCK_SK = 'SPEND_LOCK';
+export const RELEASE_SCHEDULE_SK = 'RELEASE_SCHEDULE';
+export const RELEASE_ENSURE_JOB_ID = 'release-ensure';
 export const INVITE_TTL_DAYS = 7;
+
+export function jobSk(jobId: string): string {
+  return `JOB::${jobId}`;
+}
+
+export function releaseEnsureJobSk(): string {
+  return jobSk(RELEASE_ENSURE_JOB_ID);
+}
 
 export function inviteItemSk(inviteId: string): string {
   return `INVITE::${inviteId}`;
@@ -87,6 +97,10 @@ export function profileLookupKeys(deck: {
 
 export function userSetPoolS3Key(userId: string, codesKey: string): string {
   return `${userS3Prefix(userId)}/set-pools/${codesKey}.json`;
+}
+
+export function systemSetPoolS3Key(codesKey: string): string {
+  return `system/set-pools/${codesKey}.json`;
 }
 
 export function userGlanceCacheKey(

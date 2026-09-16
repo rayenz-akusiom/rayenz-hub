@@ -10,6 +10,7 @@ import { MemoryCognitoAuthPort } from '../../../packages/api/src/services/cognit
 import { SpendLockService } from '../../../packages/api/src/services/spend-lock.ts';
 import { RateLimitService } from '../../../packages/api/src/services/rate-limit.ts';
 import { InviteRepository, InviteService } from '../../../packages/api/src/services/invite-service.ts';
+import { ReleaseScheduleService } from '../../../packages/api/src/services/release-schedule.ts';
 import { MemoryDocClient } from './memory-dynamo.ts';
 import { MemoryS3Store } from './memory-s3.ts';
 import { asBlobStore } from './test-blob-store.ts';
@@ -68,6 +69,7 @@ export function createMemoryStores() {
       reviewProgressRepository: new ReviewProgressRepository(memory, 'HubTable'),
       setPoolRepository: new SetPoolRepository(memory, 'HubTable', blob),
       deckRepository: new DeckRepository(memory, 'HubTable', blob),
+      releaseSchedule: new ReleaseScheduleService(memory, 'HubTable'),
     }),
   };
 }

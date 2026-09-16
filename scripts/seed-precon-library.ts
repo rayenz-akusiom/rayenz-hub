@@ -14,25 +14,21 @@
  *   2. HUB_API_URL=… HUB_PASSWORD=… npm run seed:precon-library
  */
 import {
-  DeckDocumentSchema,
-  emptyCardOracle,
-  ensureCategoryDef,
-  normalizeCardQuantities,
-  normalizeColourIdentity,
-  oracleKey,
+  MTGJSON_COMMANDER_DECK_TYPE,
   PRECONS_USERNAME,
-  provisionalLayoutFromCard,
-  scryfallImageFromId,
-  toKebabCase,
-  upsertOracle,
-  type CardInstance,
-  type CategoryDef,
+  buildPreconFromMtgjson,
+  documentFromMtgjsonDeck,
+  categoryFromMtgjsonCard,
+  loadMtgjsonCommanderDeckList,
+  loadMtgjsonDeck,
+  uniquifyMtgjsonDeckNames,
+  type BuiltMtgjsonPrecon,
   type DeckDocument,
 } from '../packages/shared/src/index.ts';
 import { signInHubSession } from './hub-cli-session.ts';
 
-const MTGJSON_BASE = 'https://mtgjson.com/api/v5';
-const COMMANDER_DECK_TYPE = 'Commander Deck';
+export { documentFromMtgjsonDeck, categoryFromMtgjsonCard };
+
 const USER_AGENT = 'rayenz-hub-seed-precon-library/1.0';
 const REQUEST_DELAY_MS = 120;
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
@@ -44,47 +40,6 @@ interface CliOptions {
   dryRun: boolean;
   limit: number | null;
   fileName: string | null;
-}
-
-interface DeckListEntry {
-  code: string;
-  fileName: string;
-  name: string;
-  releaseDate: string | null;
-  type: string;
-}
-
-interface MtgjsonCardDeck {
-  name?: string;
-  count?: number;
-  number?: string;
-  setCode?: string;
-  isFoil?: boolean;
-  type?: string;
-  types?: string[];
-  colorIdentity?: string[];
-  identifiers?: { scryfallId?: string };
-  uuid?: string;
-}
-
-interface MtgjsonDeck {
-  code?: string;
-  name?: string;
-  releaseDate?: string | null;
-  type?: string;
-  commander?: MtgjsonCardDeck[];
-  mainBoard?: MtgjsonCardDeck[];
-  sideBoard?: MtgjsonCardDeck[];
-  tokens?: unknown[] | null;
-}
-
-interface BuiltPrecon {
-  deckId: string;
-  name: string;
-  slug: string;
-  fileName: string;
-  document: DeckDocument;
-  missingPrintings: number;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -114,16 +69,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-  });
-  if (!res.ok) {
-    throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
-
 async function apiPutDeck(
   apiUrl: string,
   accessToken: string,
@@ -145,167 +90,13 @@ async function apiPutDeck(
   }
 }
 
-let idSeq = 0;
-function nextId(prefix: string): string {
-  idSeq += 1;
-  return `${prefix}-${Date.now()}-${idSeq}`;
-}
-
-/** Prefer MTGJSON card types for Hub browse categories. */
-export function categoryFromMtgjsonCard(card: MtgjsonCardDeck): string {
-  const types = Array.isArray(card.types) ? card.types.map((t) => String(t)) : [];
-  const typeLine = typeof card.type === 'string' ? card.type : types.join(' ');
-  const hay = `${types.join(' ')} ${typeLine}`;
-  if (/\bLand\b/i.test(hay)) return 'Land';
-  if (/\bCreature\b/i.test(hay)) return 'Creature';
-  if (/\bPlaneswalker\b/i.test(hay)) return 'Planeswalker';
-  if (/\bBattle\b/i.test(hay)) return 'Battle';
-  if (/\bArtifact\b/i.test(hay)) return 'Artifact';
-  if (/\bEnchantment\b/i.test(hay)) return 'Enchantment';
-  if (/\bInstant\b/i.test(hay)) return 'Instant';
-  if (/\bSorcery\b/i.test(hay)) return 'Sorcery';
-  return 'Other';
-}
-
-function uniquifyNames(entries: DeckListEntry[]): Map<string, string> {
-  const counts = new Map<string, number>();
-  for (const e of entries) {
-    counts.set(e.name, (counts.get(e.name) || 0) + 1);
-  }
-  const names = new Map<string, string>();
-  for (const e of entries) {
-    const dup = (counts.get(e.name) || 0) > 1;
-    names.set(e.fileName, dup ? `${e.name} (${e.code})` : e.name);
-  }
-  return names;
-}
-
-function cardFromMtgjson(
-  raw: MtgjsonCardDeck,
-  primaryCategory: string,
-  idx: number,
-): { card: CardInstance; missingPrinting: boolean } {
-  const name = String(raw.name || 'Unknown').trim() || 'Unknown';
-  const setCode = raw.setCode ? String(raw.setCode).toLowerCase() : null;
-  const collectorNumber = raw.number != null ? String(raw.number) : null;
-  const scryfallId = raw.identifiers?.scryfallId?.trim() || null;
-  const missingPrinting = !scryfallId && !(setCode && collectorNumber);
-  const typeLine = typeof raw.type === 'string' ? raw.type : null;
-  const ci = normalizeColourIdentity(raw.colorIdentity);
-
-  const card: CardInstance = {
-    instanceId: nextId(`c${idx}`),
-    name,
-    quantity: Math.max(1, Number(raw.count) || 1),
-    primaryCategory,
-    categories: [primaryCategory],
-    stack: null,
-    setCode,
-    collectorNumber,
-    scryfallId,
-    archidektCardId: null,
-    foil: raw.isFoil === true,
-    proxy: false,
-  };
-
-  return { card, missingPrinting };
-}
-
-export function documentFromMtgjsonDeck(
-  deck: MtgjsonDeck,
-  opts: { deckId: string; name: string; fileName: string; code: string; releaseDate: string | null },
-): { document: DeckDocument; missingPrintings: number } {
-  const now = new Date().toISOString();
-  let oracle: DeckDocument['oracle'] = {};
-  let categories: CategoryDef[] = [];
-  const rawCards: CardInstance[] = [];
-  let missingPrintings = 0;
-  let idx = 0;
-
-  const pushCard = (raw: MtgjsonCardDeck, primaryCategory: string) => {
-    const { card, missingPrinting } = cardFromMtgjson(raw, primaryCategory, idx++);
-    if (missingPrinting) missingPrintings += 1;
-    categories = ensureCategoryDef(categories, primaryCategory);
-    const typeLine = typeof raw.type === 'string' ? raw.type : null;
-    const ci = normalizeColourIdentity(raw.colorIdentity);
-    oracle = upsertOracle(oracle, oracleKey(card), {
-      ...emptyCardOracle(),
-      scryfallId: card.scryfallId,
-      colourIdentity: ci,
-      typeLine,
-      layout: provisionalLayoutFromCard(card.name, typeLine),
-      imageUrl: card.scryfallId ? scryfallImageFromId(card.scryfallId) : null,
-    });
-    rawCards.push(card);
-  };
-
-  for (const raw of deck.commander || []) {
-    pushCard(raw, 'Commander');
-  }
-  for (const raw of deck.mainBoard || []) {
-    pushCard(raw, categoryFromMtgjsonCard(raw));
-  }
-
-  const cards = normalizeCardQuantities(rawCards, 'commander', nextId);
-  const release = opts.releaseDate || deck.releaseDate || null;
-  const description = [
-    `Official Commander precon (${opts.code}).`,
-    release ? `Released ${release}.` : null,
-    `MTGJSON: ${opts.fileName}.`,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const document = DeckDocumentSchema.parse({
-    schemaVersion: 1,
-    deckId: opts.deckId,
-    name: opts.name,
-    description,
-    format: 'commander',
-    ownership: 'owned',
-    visibility: 'public',
-    archidektId: null,
-    archidektUrl: null,
-    categories,
-    cards,
-    oracle,
-    formalSwapEntries: [],
-    lookingForEntries: [],
-    browseViewDefault: null,
-    cardLayoutDefault: 'stacked',
-    cardSortDefault: 'name_asc',
-    createdAt: now,
-    updatedAt: now,
-    lastArchidektSyncAt: null,
-    lastArchidektImportAt: null,
-  });
-
-  return { document, missingPrintings };
-}
-
-async function loadCommanderDeckList(): Promise<DeckListEntry[]> {
-  const payload = await fetchJson<{ data: DeckListEntry[] }>(`${MTGJSON_BASE}/DeckList.json`);
-  const list = Array.isArray(payload.data) ? payload.data : [];
-  return list.filter((e) => e && e.type === COMMANDER_DECK_TYPE && e.fileName);
-}
-
-async function loadDeck(fileName: string): Promise<MtgjsonDeck> {
-  const payload = await fetchJson<{ data: MtgjsonDeck }>(
-    `${MTGJSON_BASE}/decks/${encodeURIComponent(fileName)}.json`,
-  );
-  if (!payload.data) {
-    throw new Error(`No data for deck ${fileName}`);
-  }
-  return payload.data;
-}
-
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   console.log(
-    `Precon seed: type="${COMMANDER_DECK_TYPE}" dryRun=${opts.dryRun} limit=${opts.limit ?? 'all'}`,
+    `Precon seed: type="${MTGJSON_COMMANDER_DECK_TYPE}" dryRun=${opts.dryRun} limit=${opts.limit ?? 'all'}`,
   );
 
-  let entries = await loadCommanderDeckList();
+  let entries = await loadMtgjsonCommanderDeckList({ userAgent: USER_AGENT });
   if (opts.fileName) {
     entries = entries.filter((e) => e.fileName === opts.fileName);
     if (!entries.length) {
@@ -323,36 +114,24 @@ async function main(): Promise<void> {
   }
   console.log(`Found ${entries.length} decks to process`);
 
-  const displayNames = uniquifyNames(entries);
-  const built: BuiltPrecon[] = [];
+  const displayNames = uniquifyMtgjsonDeckNames(entries);
+  const built: BuiltMtgjsonPrecon[] = [];
   const failures: { fileName: string; error: string }[] = [];
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     try {
-      const deck = await loadDeck(entry.fileName);
+      const deck = await loadMtgjsonDeck(entry.fileName, { userAgent: USER_AGENT });
       const name = displayNames.get(entry.fileName) || entry.name;
-      const deckId = `precon-${entry.fileName}`;
-      const { document, missingPrintings } = documentFromMtgjsonDeck(deck, {
-        deckId,
-        name,
-        fileName: entry.fileName,
-        code: entry.code,
-        releaseDate: entry.releaseDate,
-      });
-      built.push({
-        deckId,
-        name,
-        slug: toKebabCase(name),
-        fileName: entry.fileName,
-        document,
-        missingPrintings,
-      });
-      if (missingPrintings > 0) {
-        console.warn(`  warn ${entry.fileName}: ${missingPrintings} card(s) missing scryfallId and set+cn`);
+      const row = buildPreconFromMtgjson(entry, deck, name);
+      built.push(row);
+      if (row.missingPrintings > 0) {
+        console.warn(
+          `  warn ${entry.fileName}: ${row.missingPrintings} card(s) missing scryfallId and set+cn`,
+        );
       }
       console.log(
-        `  [${i + 1}/${entries.length}] ${name} — ${document.cards.length} cards (cmd=${(deck.commander || []).length})`,
+        `  [${i + 1}/${entries.length}] ${name} — ${row.document.cards.length} cards (cmd=${(deck.commander || []).length})`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

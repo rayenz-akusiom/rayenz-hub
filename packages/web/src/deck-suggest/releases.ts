@@ -93,14 +93,15 @@ export function partitionReleaseOptions(
 }
 
 export function formatReleaseOptionLabel(
-  entry: ReleaseCatalogEntry,
+  entry: ReleaseCatalogEntry & { scheduleReady?: boolean },
   opts?: { includeReleaseDate?: boolean },
 ): string {
   const base = `${entry.name} (${entry.code})`;
+  const ready = entry.scheduleReady ? ' ✓' : '';
   if (opts?.includeReleaseDate && entry.released_at) {
-    return `${base} — ${entry.released_at}`;
+    return `${base} — ${entry.released_at}${ready}`;
   }
-  return base;
+  return `${base}${ready}`;
 }
 
 const SET_CHIP_PREVIEW_MAX = 8;

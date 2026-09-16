@@ -139,6 +139,8 @@ export const SuggestReleasesResponseSchema = z.object({
       name: z.string(),
       released_at: z.string().nullable(),
       set_codes: z.array(z.string()),
+      scheduleReady: z.boolean().optional(),
+      finalRevealDate: z.string().optional(),
     }),
   ),
   secretLairSets: z

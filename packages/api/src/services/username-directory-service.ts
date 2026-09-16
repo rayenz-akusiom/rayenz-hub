@@ -5,6 +5,10 @@ import type { UsernameDirectory, UsernameRecord } from '../repositories/username
 export class UsernameDirectoryService {
   constructor(private readonly directory: UsernameDirectory) {}
 
+  async getBySlug(slug: string): Promise<UsernameRecord | null> {
+    return this.directory.getBySlug(slug);
+  }
+
   async upsert(username: string, sub: string): Promise<UsernameRecord | null> {
     return this.directory.put(username, sub);
   }

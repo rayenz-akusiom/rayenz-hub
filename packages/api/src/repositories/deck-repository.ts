@@ -108,6 +108,11 @@ export class DeckRepository {
     ) {
       throw new ConflictError(libraryDeckCapMessage());
     }
+    return this.putByUserId(userId, deckId, input);
+  }
+
+  /** System/worker write into a known partition (e.g. precons). Skips library cap. */
+  async putByUserId(userId: string, deckId: string, input: DeckDocument): Promise<DeckDocument> {
     const now = new Date().toISOString();
     const doc = DeckDocumentSchema.parse({
       ...input,

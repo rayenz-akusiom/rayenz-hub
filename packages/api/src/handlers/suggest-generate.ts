@@ -74,6 +74,18 @@ async function ensureSetPoolFromCodes(
   if (isCurrentSetPool(existing)) {
     return existing;
   }
+  const systemPool = await services.setPoolRepository.getSystem(codesKey);
+  if (isCurrentSetPool(systemPool)) {
+    return services.setPoolRepository.put(auth, env, codesKey, {
+      codes: systemPool.codes,
+      complete: systemPool.complete,
+      primaryCode: systemPool.primaryCode,
+      setName: systemPool.setName,
+      cards: systemPool.cards,
+      formatVersion: systemPool.formatVersion,
+      poolKind: systemPool.poolKind || 'release',
+    });
+  }
 
   const fetchCards = opts?.fetchSetCards || fetchSetCards;
   const fetched = await fetchCards(codes, { dedupe: true });
@@ -125,6 +137,18 @@ async function ensureSetPoolFromRelease(
   const existing = await services.setPoolRepository.get(auth, env, codesKey);
   if (isCurrentSetPool(existing)) {
     return existing;
+  }
+  const systemPool = await services.setPoolRepository.getSystem(codesKey);
+  if (isCurrentSetPool(systemPool)) {
+    return services.setPoolRepository.put(auth, env, codesKey, {
+      codes: systemPool.codes,
+      complete: systemPool.complete,
+      primaryCode: systemPool.primaryCode,
+      setName: systemPool.setName,
+      cards: systemPool.cards,
+      formatVersion: systemPool.formatVersion,
+      poolKind: systemPool.poolKind || 'release',
+    });
   }
   return services.setPoolRepository.put(auth, env, codesKey, {
     codes,

@@ -3,6 +3,8 @@ import {
   INLINE_SET_POOL_MAX_BYTES,
   resolveUserId,
   setPoolSk,
+  SYSTEM_PK,
+  systemSetPoolS3Key,
   userPk,
   userSetPoolS3Key,
   type AuthContext,
@@ -37,10 +39,27 @@ export class SetPoolRepository {
 
   async get(auth: AuthContext, env: ApiEnv, codesKey: string): Promise<SetPoolRecord | null> {
     const userId = resolveUserId(auth, env);
+    return this.getForPk(userPk(userId), codesKey);
+  }
+
+  async getSystem(codesKey: string): Promise<SetPoolRecord | null> {
+    return this.getForPk(SYSTEM_PK, codesKey);
+  }
+
+  async put(auth: AuthContext, env: ApiEnv, codesKey: string, input: SetPoolUpsert): Promise<SetPoolRecord> {
+    const userId = resolveUserId(auth, env);
+    return this.putForPk(userPk(userId), codesKey, input, userSetPoolS3Key(userId, codesKey));
+  }
+
+  async putSystem(codesKey: string, input: SetPoolUpsert): Promise<SetPoolRecord> {
+    return this.putForPk(SYSTEM_PK, codesKey, input, systemSetPoolS3Key(codesKey));
+  }
+
+  private async getForPk(pk: string, codesKey: string): Promise<SetPoolRecord | null> {
     const result = await this.doc.send(
       new GetCommand({
         TableName: this.tableName,
-        Key: { PK: userPk(userId), SK: setPoolSk(codesKey) },
+        Key: { PK: pk, SK: setPoolSk(codesKey) },
       }),
     );
     if (!result.Item) {
@@ -49,15 +68,18 @@ export class SetPoolRepository {
     return mapItem(codesKey, result.Item, await loadCards(result.Item, this.s3));
   }
 
-  async put(auth: AuthContext, env: ApiEnv, codesKey: string, input: SetPoolUpsert): Promise<SetPoolRecord> {
-    const userId = resolveUserId(auth, env);
+  private async putForPk(
+    pk: string,
+    codesKey: string,
+    input: SetPoolUpsert,
+    s3Key: string,
+  ): Promise<SetPoolRecord> {
     const now = new Date().toISOString();
     const cards = input.cards ?? [];
     const cardsJson = JSON.stringify(cards);
     const useS3 = Buffer.byteLength(cardsJson, 'utf8') > INLINE_SET_POOL_MAX_BYTES;
-    const s3Key = userSetPoolS3Key(userId, codesKey);
     const item: Record<string, unknown> = {
-      PK: userPk(userId),
+      PK: pk,
       SK: setPoolSk(codesKey),
       entityType: 'SET_POOL',
       codesKey,
@@ -73,7 +95,11 @@ export class SetPoolRepository {
     };
     if (useS3) {
       item.s3Key = s3Key;
-      await this.s3.putText(s3Key, JSON.stringify({ codes: input.codes, cards, complete: input.complete }), 'application/json');
+      await this.s3.putText(
+        s3Key,
+        JSON.stringify({ codes: input.codes, cards, complete: input.complete }),
+        'application/json',
+      );
     } else {
       item.payload = { cards };
     }

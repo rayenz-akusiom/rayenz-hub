@@ -149,6 +149,22 @@ export async function route(
     return handleSuggestReleases(headers);
   }
 
+  if (
+    path === '/v1/system/release-schedule' &&
+    (method === 'GET' || method === 'PUT')
+  ) {
+    const { handleReleaseSchedule } = await import('./handlers/release-schedule.js');
+    return handleReleaseSchedule(method, headers, event.body);
+  }
+
+  if (
+    path === '/v1/system/release-ensure' &&
+    (method === 'GET' || method === 'POST')
+  ) {
+    const { handleReleaseEnsure } = await import('./handlers/release-ensure.js');
+    return handleReleaseEnsure(method, headers);
+  }
+
   if (method === 'POST' && path === '/v1/suggest/generate') {
     const { handleSuggestGenerate } = await import('./handlers/suggest-generate.js');
     return handleSuggestGenerate(headers, event.body);

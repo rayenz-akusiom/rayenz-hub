@@ -256,7 +256,7 @@ export function ColourIdentityBrowse({
       ) : (
         sections
       )}
-      <ExtrasSection cards={extrasCards} layout={layout} />
+      <ExtrasSection cards={extrasCards} />
     </div>
   );
 }

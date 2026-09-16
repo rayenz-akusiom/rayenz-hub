@@ -157,6 +157,51 @@ describe('builder extras section', () => {
     expect(screen.getByAltText(/Soldier/i)).toBeInTheDocument();
   });
 
+  it('keeps Extras in grid layout when browse is stacked', async () => {
+    mockCollectionFetch();
+    const base = commanderFixture as DeckDocument;
+    const deck: DeckDocument = {
+      ...base,
+      cards: [
+        {
+          ...base.cards[0]!,
+          scryfallId: 'cmd-sf',
+          name: 'Token Maker',
+        },
+      ],
+      oracle: {
+        'id:cmd-sf': {
+          scryfallId: 'cmd-sf',
+          colourIdentity: ['W'],
+          colours: null,
+          typeLine: 'Creature',
+          layout: 'normal',
+          keywords: null,
+          partnerWith: null,
+          oracleText: null,
+          printedName: null,
+          flavorName: null,
+          manaValue: 1,
+          imageUrl: null,
+          finishes: null,
+          hasCommonPrinting: null,
+          manaCost: '{W}',
+          producedMana: [],
+          updatedAt: null,
+        },
+      },
+    };
+
+    render(<CategoryBrowse deck={deck} layout="stacked" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('db-extras-section')).toBeInTheDocument();
+    });
+    const extras = screen.getByTestId('db-extras-section');
+    expect(extras.querySelector('.db-card-grid')).toBeTruthy();
+    expect(extras.querySelector('.db-card-stack')).toBeNull();
+  });
+
   it('shows Extras under planeswalker subtype browse', async () => {
     mockCollectionFetch();
     const now = new Date().toISOString();

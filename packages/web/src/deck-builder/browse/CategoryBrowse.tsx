@@ -1744,7 +1744,7 @@ export function CategoryBrowse({
         enableSoughtGhost={enableSoughtGhost}
       />
       {body}
-      <ExtrasSection cards={extrasCards} layout={layout} />
+      <ExtrasSection cards={extrasCards} />
     </div>
   );
 }

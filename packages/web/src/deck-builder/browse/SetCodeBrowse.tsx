@@ -272,7 +272,7 @@ export function SetCodeBrowse({
       ) : (
         sections
       )}
-      <ExtrasSection cards={extrasCards} layout={layout} />
+      <ExtrasSection cards={extrasCards} />
     </div>
   );
 }

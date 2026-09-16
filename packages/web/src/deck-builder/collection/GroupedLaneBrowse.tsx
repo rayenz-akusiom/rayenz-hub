@@ -125,7 +125,7 @@ export function GroupedLaneBrowse({
           </section>
         ))
       )}
-      <ExtrasSection cards={extrasCards} layout={layout} />
+      <ExtrasSection cards={extrasCards} />
     </div>
   );
 }

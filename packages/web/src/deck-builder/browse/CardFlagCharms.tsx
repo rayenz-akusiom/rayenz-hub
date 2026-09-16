@@ -38,7 +38,6 @@ export function CardFlagCharms({ card, selected }: { card: CardView; selected?: 
     <span
       className={`db-card-charms${selected ? ' is-selected' : ''}`}
       onClick={stopCharmClick}
-      onPointerDown={stopCharmClick}
     >
       <button
         type="button"

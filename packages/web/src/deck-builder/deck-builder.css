@@ -2527,22 +2527,39 @@ body,
   pointer-events: auto;
 }
 
-.db-card-stack .db-card-charms {
-  opacity: 0;
-  transition-delay: 0s;
-}
-
+/*
+ * Stacked: keep the charm chrome out of the peek hit-test band so middle
+ * cards stay draggable. Beat .db-card-tile.is-selected .db-card-charms so
+ * selected buried cards do not show interactive charms until revealed.
+ * pointer-events cannot be transition-delayed — leave the bar itself none
+ * and only arm the individual charm buttons on hover/focus.
+ */
+.db-card-stack .db-card-charms,
+.db-card-stack .db-card-tile.is-selected .db-card-charms,
 .db-card-stack-item:last-child .db-card-charms {
   opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
 }
 
 .db-card-stack-item:hover .db-card-charms,
 .db-card-stack-item:focus-within .db-card-charms,
 .db-card-stack-item:last-child:hover .db-card-charms,
-.db-card-stack-item:last-child:focus-within .db-card-charms {
+.db-card-stack-item:last-child:focus-within .db-card-charms,
+.db-card-stack-item:hover .db-card-tile.is-selected .db-card-charms,
+.db-card-stack-item:focus-within .db-card-tile.is-selected .db-card-charms,
+.db-card-stack-item:last-child:hover .db-card-tile.is-selected .db-card-charms,
+.db-card-stack-item:last-child:focus-within .db-card-tile.is-selected .db-card-charms {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
   transition-delay: 0.35s;
+}
+
+.db-card-stack-item:hover .db-card-charm,
+.db-card-stack-item:focus-within .db-card-charm,
+.db-card-stack-item:last-child:hover .db-card-charm,
+.db-card-stack-item:last-child:focus-within .db-card-charm {
+  pointer-events: auto;
 }
 
 .db-card-charm {

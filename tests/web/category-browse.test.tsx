@@ -8,6 +8,7 @@ import {
   DeckHeaderRow,
   DropSection,
 } from '../../packages/web/src/deck-builder/browse/CategoryBrowse';
+import { CardFlagCharmProvider } from '../../packages/web/src/deck-builder/browse/CardFlagCharmContext';
 import { DRAG_MIME, DRAG_MIME_MULTI } from '../../packages/web/src/deck-builder/browse/CardTile';
 import commanderFixture from '../fixtures/deck-builder/commander-slice.json';
 
@@ -41,6 +42,55 @@ describe('CardGroup and DropSection', () => {
     );
     fireEvent.click(document.querySelector('.db-card-stack-peek')!);
     expect(onSelect).toHaveBeenCalledWith(cards[0], expect.anything());
+  });
+
+  it('starts a drag from a non-top stacked card when charms are enabled', () => {
+    const cards = [cardAt(0), cardAt(1)];
+    const setData = vi.fn();
+    render(
+      <CardFlagCharmProvider
+        value={{
+          enabled: true,
+          readOnly: false,
+          queuesReadOnly: false,
+          deck: commanderDoc,
+          selectedIds: new Set([cards[0]!.instanceId]),
+          resolveTargetIds: (c) => [c.instanceId],
+          onToggleFoil: vi.fn(),
+          onToggleProxy: vi.fn(),
+          onToggleSeeking: vi.fn(),
+        }}
+      >
+        <DropSection
+          category="Ramp"
+          cards={cards}
+          layout="stacked"
+          selectedId={cards[0]!.instanceId}
+          selectedIds={new Set([cards[0]!.instanceId])}
+          onDropCard={vi.fn()}
+        />
+      </CardFlagCharmProvider>,
+    );
+
+    const items = document.querySelectorAll('.db-card-stack-item');
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    const buried = items[0]!;
+    expect(buried).not.toBe(items[items.length - 1]);
+    const tile = buried.querySelector('.db-card-tile') as HTMLElement;
+    expect(tile).toBeTruthy();
+    expect(buried.querySelector('.db-card-charms')).toBeTruthy();
+
+    fireEvent.mouseEnter(buried);
+    fireEvent.dragStart(tile, {
+      dataTransfer: {
+        types: [DRAG_MIME],
+        setData,
+        effectAllowed: 'move',
+      },
+    });
+    expect(setData).toHaveBeenCalledWith(DRAG_MIME, cards[0]!.instanceId);
+    expect(tile.classList.contains('is-drag-source')).toBe(true);
+    fireEvent.dragEnd(tile);
   });
 
   it('handles drag-over and drop into a section', () => {

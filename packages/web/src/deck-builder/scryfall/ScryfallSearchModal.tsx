@@ -17,6 +17,7 @@ import {
   fetchPrintingsPage,
   formatScryfallClause,
   isBasicLand,
+  isCollectionDeck,
   isCommandZoneFormat,
   mapScryfallCardToPrinting,
   MAYBEBOARD,
@@ -203,6 +204,7 @@ export function ScryfallSearchModal({
   onInDeckContextMenu?: (card: ScryfallCard, pos: PickerMenuPosition) => void;
 }) {
   const isCommandZone = isCommandZoneFormat(deck.format);
+  const proxyEnabled = !isCollectionDeck(deck);
   const overlayRef = useRef<HTMLDivElement>(null);
   useDialogA11y(!embedded, onClose, overlayRef);
   const [query, setQuery] = useState('');
@@ -541,6 +543,7 @@ export function ScryfallSearchModal({
         cardName={pending.name}
         defaultScryfallId={pending.id}
         selectedScryfallId={pending.id}
+        proxyEnabled={proxyEnabled}
         categoryOptions={categories}
         format={deck.format}
         categoryOrder={(deck.categories || []).map((c) => c.name)}

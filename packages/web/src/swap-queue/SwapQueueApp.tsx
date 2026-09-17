@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   addCardToDeck,
   aggregateSwapWants,
+  aggregateTheorySeekingWants,
   filterAcquireSources,
   filterWantSources,
   finalizeFormalSwap,
@@ -42,6 +43,8 @@ import { toKebabCase } from '../lib/string-utils';
 import { CardSizePicker } from '../deck-builder/CardSizePicker';
 import { useCardSize, type CardSizeKey } from '../deck-builder/card-size';
 import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
+import { SelectableLibraryGrid } from '../deck-builder/library/SelectableLibraryGrid';
+import { CARD_SIZE_PX } from '../deck-builder/card-size';
 import {
   draftFromFormalEntry,
   SwapEditChrome,
@@ -72,7 +75,14 @@ import {
 import { navigateHub } from '../lib/hub-storage';
 import { HubProgress, type HubProgressController } from '../lib/hub-progress';
 import '../deck-builder/deck-builder.css';
-import { findDeck, loadPublicSwapWantSources, loadSwapWantSources } from './aggregate';
+import {
+  findDeck,
+  loadPublicSwapWantSources,
+  loadSwapWantSources,
+  loadTheorySeekingSources,
+  mergeOwnedAndTheorySources,
+  theorySwapSummaries,
+} from './aggregate';
 import { enrichWantSourcesUsd } from './enrich-prices';
 import { cadToUsd, fetchFxUsdCad, type FxUsdCad } from './fx-cad';
 import { LookingForEditChrome } from './LookingForEditChrome';
@@ -87,6 +97,11 @@ import { QueueTilesView } from './QueueTilesView';
 import { SourceInterstitial } from './SourceInterstitial';
 import { SwapsGlanceDialog } from './SwapsGlanceDialog';
 import { copyArchidektWants, copyNameQtyWants, copyText } from './export-ui';
+import {
+  loadSelectedTheoryDeckIds,
+  saveSelectedTheoryDeckIds,
+  useSqToolbarOverflow,
+} from './theory-prefs';
 import './swap-queue.css';
 
 export type { SwapQueueEntryPath } from '../hub/routes';
@@ -444,15 +459,23 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   const [pairOriginDeckId, setPairOriginDeckId] = useState<string | null>(null);
   const [originDeckWorking, setOriginDeckWorking] = useState<DeckDocument | null>(null);
   const [addPickerOpen, setAddPickerOpen] = useState(false);
+  const [theoryPickerOpen, setTheoryPickerOpen] = useState(false);
+  const [theoryLibrarySummaries, setTheoryLibrarySummaries] = useState<DeckSummary[]>([]);
+  const [selectedTheoryDeckIds, setSelectedTheoryDeckIds] = useState<string[]>(() =>
+    loadSelectedTheoryDeckIds(),
+  );
   const [swapsGlanceOpen, setSwapsGlanceOpen] = useState(false);
   const [highlightPairKey, setHighlightPairKey] = useState<string | null>(null);
   const isOwner = useIsHubOwner();
+  const { actionsInMenu, coreInMenu } = useSqToolbarOverflow();
   const { size: cardSize, widthPx: cardWidthPx, setSize: setCardSize } = useCardSize();
   const editingDeckRef = useRef(editingDeck);
   const pairDraftRef = useRef(pairDraft);
   const pairOriginDeckIdRef = useRef(pairOriginDeckId);
   const originDeckWorkingRef = useRef(originDeckWorking);
   const decksRef = useRef(decks);
+  const selectedTheoryDeckIdsRef = useRef(selectedTheoryDeckIds);
+  const librarySummariesRef = useRef<DeckSummary[]>([]);
   const autosaveTimerRef = useRef(0);
   const progressHostRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HubProgressController | null>(null);
@@ -463,7 +486,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
   pairOriginDeckIdRef.current = pairOriginDeckId;
   originDeckWorkingRef.current = originDeckWorking;
   decksRef.current = decks;
+  selectedTheoryDeckIdsRef.current = selectedTheoryDeckIds;
   const readOnly = isForeignUserSlug(routeUserSlug);
+  const canEditTheory = !readOnly;
 
   useEffect(() => {
     function syncRoute() {
@@ -511,11 +536,15 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           setShareUsername(null);
           setDecks([]);
           setSources([]);
+          setTheoryLibrarySummaries([]);
+          librarySummariesRef.current = [];
           setError(`Unknown user “${userSlug}”`);
           progress?.finish({ label: 'Could not load library.', variant: 'error' });
           return;
         }
         setShareUsername(result.username || result.slug);
+        setTheoryLibrarySummaries([]);
+        librarySummariesRef.current = [];
         setDecks(result.decks);
         setSources(result.sources);
         void enrichWantSourcesUsd(result.sources).then((enriched) => {
@@ -542,14 +571,37 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           );
           setDecks([]);
           setSources([]);
+          setTheoryLibrarySummaries([]);
+          librarySummariesRef.current = [];
           progress?.finish({ label: 'Could not load library.', variant: 'error' });
           return;
         }
       }
-      const result = await loadSwapWantSources(list);
-      setDecks(result.decks);
-      setSources(result.sources);
-      void enrichWantSourcesUsd(result.sources).then((enriched) => {
+      const summaries = list || [];
+      librarySummariesRef.current = summaries;
+      const theorySummaries = theorySwapSummaries(summaries);
+      setTheoryLibrarySummaries(theorySummaries);
+      const theoryIds = selectedTheoryDeckIdsRef.current.filter((id) =>
+        theorySummaries.some((s) => s.deckId === id),
+      );
+      if (theoryIds.length !== selectedTheoryDeckIdsRef.current.length) {
+        selectedTheoryDeckIdsRef.current = theoryIds;
+        setSelectedTheoryDeckIds(theoryIds);
+        saveSelectedTheoryDeckIds(theoryIds);
+      }
+      const owned = await loadSwapWantSources(summaries);
+      const theory = canEditTheory
+        ? await loadTheorySeekingSources(summaries, theoryIds)
+        : { decks: [] as DeckDocument[], sources: [] as WantSource[] };
+      const merged = mergeOwnedAndTheorySources(
+        owned.decks,
+        owned.sources,
+        theory.decks,
+        theory.sources,
+      );
+      setDecks(merged.decks);
+      setSources(merged.sources);
+      void enrichWantSourcesUsd(merged.sources).then((enriched) => {
         setSources(enriched);
       });
       progress?.dismiss();
@@ -677,7 +729,18 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [decks]);
 
+  const seekingDeckOptions = useMemo((): DeckFilterOption[] => {
+    return [...decks]
+      .map((d) => ({ deckId: d.deckId, deckName: d.name }))
+      .sort((a, b) => a.deckName.localeCompare(b.deckName));
+  }, [decks]);
+
   const deckById = useMemo(() => new Map(decks.map((d) => [d.deckId, d])), [decks]);
+
+  const theoryDeckIdSet = useMemo(
+    () => new Set(canEditTheory ? selectedTheoryDeckIds : []),
+    [canEditTheory, selectedTheoryDeckIds],
+  );
 
   const visible = useMemo(
     () =>
@@ -716,8 +779,34 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     ],
   );
 
-  const lanes = useMemo(() => partitionWantSourcesBySwimlane(visible), [visible]);
+  const lanes = useMemo(
+    () => partitionWantSourcesBySwimlane(visible, { theoryDeckIds: theoryDeckIdSet }),
+    [visible, theoryDeckIdSet],
+  );
   const exportSources = useMemo(() => filterAcquireSources(visible), [visible]);
+
+  async function applyTheoryDeckSelection(nextIds: string[]) {
+    const cleaned = nextIds.filter((id) =>
+      theoryLibrarySummaries.some((s) => s.deckId === id),
+    );
+    selectedTheoryDeckIdsRef.current = cleaned;
+    setSelectedTheoryDeckIds(cleaned);
+    saveSelectedTheoryDeckIds(cleaned);
+    const theory = await loadTheorySeekingSources(librarySummariesRef.current, cleaned);
+    const ownedDecks = decksRef.current.filter((d) => !isTheoryDeck(d));
+    const ownedSources = aggregateSwapWants(ownedDecks);
+    const merged = mergeOwnedAndTheorySources(
+      ownedDecks,
+      ownedSources,
+      theory.decks,
+      theory.sources,
+    );
+    setDecks(merged.decks);
+    setSources(merged.sources);
+    void enrichWantSourcesUsd(merged.sources).then((enriched) => {
+      setSources(enriched);
+    });
+  }
 
   function setBrowseMode(next: SwapQueueBrowseMode) {
     setBrowse(next);
@@ -757,7 +846,12 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     const nextDecks = [...byId.values()];
     decksRef.current = nextDecks;
     setDecks(nextDecks);
-    const nextSources = aggregateSwapWants(nextDecks);
+    const theoryIds = new Set(selectedTheoryDeckIdsRef.current);
+    const ownedSources = aggregateSwapWants(nextDecks);
+    const theorySources = aggregateTheorySeekingWants(
+      nextDecks.filter((d) => isTheoryDeck(d) && theoryIds.has(d.deckId)),
+    );
+    const nextSources = [...ownedSources, ...theorySources];
     setSources(nextSources);
     void enrichWantSourcesUsd(nextSources).then((enriched) => {
       setSources(enriched);
@@ -791,7 +885,9 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
     window.clearTimeout(autosaveTimerRef.current);
     setInterstitial(null);
     const deck = findDeck(decksRef.current, source.deckId);
-    if (!deck || isTheoryDeck(deck)) return;
+    if (!deck) return;
+    // Theory decks: Seeking is editable; formal In/Out stays blocked.
+    if (isTheoryDeck(deck) && source.kind !== 'seeking') return;
     setEditing(source);
     setEditingDeck(deck);
     setPairOriginDeckId(deck.deckId);
@@ -1121,7 +1217,12 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
 
   const unified = browse === 'unified';
   const hasAny =
-    lanes.seeking.length + lanes.queued_in.length + lanes.queued_out.length > 0;
+    lanes.seeking.length +
+      lanes.theory.length +
+      lanes.queued_in.length +
+      lanes.queued_out.length >
+    0;
+  const showQueueBody = !loading && (hasAny || canEditTheory);
   const hasUnfiltered = sources.length > 0;
   const filtersActive =
     priceFilterActive ||
@@ -1251,26 +1352,30 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         </div>
 
         <header className="db-header sq-header" role="toolbar" aria-label="Swap Queue controls">
-        <div className="db-toolbar-controls">
-          <DbMenu label="Browse" value={BROWSE_LABELS[browse]}>
-            <DbMenuItem active={browse === 'default'} onSelect={() => setBrowseMode('default')}>
-              Default
-            </DbMenuItem>
-            <DbMenuItem active={browse === 'unified'} onSelect={() => setBrowseMode('unified')}>
-              Unified
-            </DbMenuItem>
-          </DbMenu>
-          <DbMenu label="Layout" value={LAYOUT_LABELS[layout]}>
-            <DbMenuItem active={layout === 'tiles'} onSelect={() => setLayoutMode('tiles')}>
-              Tiles
-            </DbMenuItem>
-            <DbMenuItem active={layout === 'stacked'} onSelect={() => setLayoutMode('stacked')}>
-              Stacked
-            </DbMenuItem>
-            <DbMenuItem active={layout === 'grid'} onSelect={() => setLayoutMode('grid')}>
-              Grid
-            </DbMenuItem>
-          </DbMenu>
+        <div className="db-toolbar-controls" data-testid="sq-core-controls">
+          {!coreInMenu ? (
+            <>
+              <DbMenu label="Browse" value={BROWSE_LABELS[browse]}>
+                <DbMenuItem active={browse === 'default'} onSelect={() => setBrowseMode('default')}>
+                  Default
+                </DbMenuItem>
+                <DbMenuItem active={browse === 'unified'} onSelect={() => setBrowseMode('unified')}>
+                  Unified
+                </DbMenuItem>
+              </DbMenu>
+              <DbMenu label="Layout" value={LAYOUT_LABELS[layout]}>
+                <DbMenuItem active={layout === 'tiles'} onSelect={() => setLayoutMode('tiles')}>
+                  Tiles
+                </DbMenuItem>
+                <DbMenuItem active={layout === 'stacked'} onSelect={() => setLayoutMode('stacked')}>
+                  Stacked
+                </DbMenuItem>
+                <DbMenuItem active={layout === 'grid'} onSelect={() => setLayoutMode('grid')}>
+                  Grid
+                </DbMenuItem>
+              </DbMenu>
+            </>
+          ) : null}
           <FiltersMenu
             value={filtersValue}
             loading={setFilter.loading || syntaxFilter.loading}
@@ -1331,20 +1436,97 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           </FiltersMenu>
           <CardSizePicker size={cardSize} onChange={onCardSizeChange} />
         </div>
-        <DbMenu
-          icon={<HamburgerIcon />}
-          ariaLabel="Swap Queue actions"
-          align="end"
-          triggerClassName="db-btn db-menu-icon-btn"
-        >
-          <DbMenuItem onSelect={() => void onExportArchidekt()}>Export Archidekt</DbMenuItem>
-          <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
-          <DbMenuItem onSelect={() => void onCopyShareLink()}>Copy share link</DbMenuItem>
-          {isOwner && !readOnly ? (
-            <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>Swaps at a glance…</DbMenuItem>
-          ) : null}
-          <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
-        </DbMenu>
+        {!actionsInMenu ? (
+          <div className="db-toolbar-controls sq-action-controls" data-testid="sq-action-controls">
+            {canEditTheory ? (
+              <button
+                type="button"
+                className="db-btn"
+                onClick={() => setTheoryPickerOpen(true)}
+              >
+                Theory
+                {selectedTheoryDeckIds.length
+                  ? ` (${selectedTheoryDeckIds.length})`
+                  : ''}
+              </button>
+            ) : null}
+            <button type="button" className="db-btn" onClick={() => void onExportArchidekt()}>
+              Export Archidekt
+            </button>
+            <button type="button" className="db-btn" onClick={() => void onExportNameQty()}>
+              Export name/qty
+            </button>
+            <button type="button" className="db-btn" onClick={() => void onCopyShareLink()}>
+              Copy share link
+            </button>
+            {isOwner && !readOnly ? (
+              <button type="button" className="db-btn" onClick={() => setSwapsGlanceOpen(true)}>
+                Swaps at a glance…
+              </button>
+            ) : null}
+            <button type="button" className="db-btn" onClick={() => void refresh()}>
+              Refresh
+            </button>
+          </div>
+        ) : null}
+        {actionsInMenu || coreInMenu ? (
+          <DbMenu
+            icon={<HamburgerIcon />}
+            ariaLabel="Swap Queue actions"
+            align="end"
+            triggerClassName="db-btn db-menu-icon-btn"
+          >
+            {coreInMenu ? (
+              <>
+                <DbMenuItem
+                  active={browse === 'default'}
+                  onSelect={() => setBrowseMode('default')}
+                >
+                  Browse: Default
+                </DbMenuItem>
+                <DbMenuItem
+                  active={browse === 'unified'}
+                  onSelect={() => setBrowseMode('unified')}
+                >
+                  Browse: Unified
+                </DbMenuItem>
+                <DbMenuItem active={layout === 'tiles'} onSelect={() => setLayoutMode('tiles')}>
+                  Layout: Tiles
+                </DbMenuItem>
+                <DbMenuItem
+                  active={layout === 'stacked'}
+                  onSelect={() => setLayoutMode('stacked')}
+                >
+                  Layout: Stacked
+                </DbMenuItem>
+                <DbMenuItem active={layout === 'grid'} onSelect={() => setLayoutMode('grid')}>
+                  Layout: Grid
+                </DbMenuItem>
+              </>
+            ) : null}
+            {actionsInMenu ? (
+              <>
+                {canEditTheory ? (
+                  <DbMenuItem onSelect={() => setTheoryPickerOpen(true)}>
+                    Theory
+                    {selectedTheoryDeckIds.length
+                      ? ` (${selectedTheoryDeckIds.length})`
+                      : ''}
+                  </DbMenuItem>
+                ) : null}
+                <DbMenuItem onSelect={() => void onExportArchidekt()}>Export Archidekt</DbMenuItem>
+                <DbMenuItem onSelect={() => void onExportNameQty()}>Export name/qty</DbMenuItem>
+                <DbMenuItem onSelect={() => void onCopyShareLink()}>Copy share link</DbMenuItem>
+                {isOwner && !readOnly ? (
+                  <DbMenuItem onSelect={() => setSwapsGlanceOpen(true)}>
+                    Swaps at a glance…
+                  </DbMenuItem>
+                ) : null}
+                <DbMenuItem onSelect={() => void refresh()}>Refresh</DbMenuItem>
+              </>
+            ) : null}
+          </DbMenu>
+        ) : null}
       </header>
         <div className="hub-progress-host" ref={progressHostRef} id="sq-progress-host" />
         <ActiveFilterChips chips={filterChips} onClearAll={clearAllFilters} />
@@ -1359,7 +1541,7 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         loadingFilters={setFilter.loading || syntaxFilter.loading}
       />
 
-      {!loading && !error && !hasAny ? (
+      {!loading && !error && !hasAny && !canEditTheory ? (
         <div className="db-empty-state" data-testid="swap-queue-empty">
           {hasUnfiltered && filtersActive ? (
             <p>No queue items match the current filters.</p>
@@ -1398,9 +1580,16 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         </div>
       ) : null}
 
-      {!loading && hasAny ? (
+      {!loading && !error && !hasAny && canEditTheory && filtersActive && hasUnfiltered ? (
+        <div className="db-empty-state" data-testid="swap-queue-empty">
+          <p>No queue items match the current filters.</p>
+        </div>
+      ) : null}
+
+      {showQueueBody && !(filtersActive && !hasAny && hasUnfiltered) ? (
         <QueueTilesView
           seeking={lanes.seeking}
+          theory={lanes.theory}
           queuedIn={lanes.queued_in}
           queuedOut={lanes.queued_out}
           decks={decks}
@@ -1413,6 +1602,23 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           showPrices={showPrices}
           formatPrice={(usd) => formatPricePrimary(usd, effectiveCurrency, fxRate)}
           priceTitle={(usd) => priceBadgeTitle(usd, effectiveCurrency, fxRate)}
+          showTheoryLane={canEditTheory}
+          theoryEmptyContent={
+            <div className="sq-swimlane-empty-cta">
+              <p className="hub-muted sq-swimlane-empty">
+                {selectedTheoryDeckIds.length
+                  ? 'No Seeking cards in the selected theory decks.'
+                  : 'Choose theory decks to include in Seeking for purchase lists.'}
+              </p>
+              <button
+                type="button"
+                className="db-btn"
+                onClick={() => setTheoryPickerOpen(true)}
+              >
+                {selectedTheoryDeckIds.length ? 'Edit theory decks' : 'Choose theory decks'}
+              </button>
+            </div>
+          }
         />
       ) : null}
       </div>
@@ -1475,6 +1681,44 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
         </div>
       ) : null}
 
+      {theoryPickerOpen && canEditTheory ? (
+        <div
+          className="db-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Include theory decks"
+        >
+          <div
+            className="db-modal-card db-modal-wide"
+            data-testid="swap-queue-theory-decks"
+            style={{ ['--db-card-w' as string]: `${CARD_SIZE_PX.M}px` }}
+          >
+            <h3>Theory decks</h3>
+            <p className="hub-muted">
+              Include Seeking from theory decks you are ready to make real. They appear in the
+              Theory swimlane and in purchase-list exports.
+            </p>
+            <SelectableLibraryGrid
+              decks={theoryLibrarySummaries}
+              selectedIds={selectedTheoryDeckIds}
+              ariaLabel="Theory decks"
+              onChange={(ids) => void applyTheoryDeckSelection(ids)}
+              empty={
+                <div className="db-empty-state">
+                  <p>No theory decks in your library.</p>
+                  <p>Mark a deck as Theory in Builder, then mark cards Seeking.</p>
+                </div>
+              }
+            />
+            <div className="db-modal-actions">
+              <button type="button" className="db-btn" onClick={() => setTheoryPickerOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {editing &&
       (editing.kind === 'queued_in' || editing.kind === 'queued_out') &&
       editingDeck &&
@@ -1524,12 +1768,13 @@ export function SwapQueueApp({ entryPath = 'swap-queue' }: SwapQueueAppProps) {
           onClose={clearEdit}
           onRemove={removeLookingFor}
           onReplace={replaceLookingFor}
-          deckOptions={libraryDeckOptions}
+          deckOptions={seekingDeckOptions}
           onRetarget={retargetSeeking}
         />
       ) : null}
 
-      {readOnly || (!loading && !error && !hasAny && !(hasUnfiltered && filtersActive)) ? null : (
+      {readOnly ||
+      (!loading && !error && !hasAny && !canEditTheory && !(hasUnfiltered && filtersActive)) ? null : (
       <button
         type="button"
         className="db-add-fab"

@@ -10,7 +10,7 @@ import { createContext, useContext, type MouseEvent, type ReactNode } from 'reac
 export type CardFlagCharmContextValue = {
   enabled: boolean;
   readOnly: boolean;
-  queuesReadOnly: boolean;
+  seekingReadOnly: boolean;
   deck: DeckDocument;
   selectedIds: ReadonlySet<string>;
   resolveTargetIds: (card: CardView) => string[];
@@ -44,8 +44,8 @@ export function proxyCharmEnabled(deck: DeckDocument): boolean {
   return !isCollectionDeck(deck);
 }
 
-export function seekingCharmEnabled(deck: DeckDocument, queuesReadOnly: boolean): boolean {
-  if (queuesReadOnly) return false;
+export function seekingCharmEnabled(deck: DeckDocument, seekingReadOnly: boolean): boolean {
+  if (seekingReadOnly) return false;
   if (isCollectionDeck(deck)) return collectionSeekingToggleEnabled(deck);
   return true;
 }

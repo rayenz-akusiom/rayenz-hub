@@ -6,6 +6,7 @@ import {
   type UnifiedWantRow,
   type WantSource,
 } from '@rayenz-hub/shared';
+import type { ReactNode } from 'react';
 import { DropSection } from '../deck-builder/browse/CategoryBrowse';
 import { MasonryColumns } from '../deck-builder/browse/MasonryColumns';
 import { useCardSize } from '../deck-builder/card-size';
@@ -15,6 +16,7 @@ import { SwapFaceTile, SwapPairQueueTile } from './SwapFaceTile';
 
 type Props = {
   seeking: WantSource[];
+  theory?: WantSource[];
   queuedIn: WantSource[];
   queuedOut: WantSource[];
   decks: DeckDocument[];
@@ -28,6 +30,9 @@ type Props = {
   showPrices?: boolean;
   formatPrice?: (usd: number | null) => string;
   priceTitle?: (usd: number | null) => string;
+  /** Empty Theory lane CTA (owner opt-in picker). */
+  theoryEmptyContent?: ReactNode;
+  showTheoryLane?: boolean;
 };
 
 function deckMap(decks: DeckDocument[]) {
@@ -258,6 +263,7 @@ function FaceLane({
 
 function TilesView({
   seeking,
+  theory,
   queuedIn,
   queuedOut,
   decks,
@@ -267,8 +273,11 @@ function TilesView({
   showPrices,
   formatPrice,
   priceTitle,
+  theoryEmptyContent,
+  showTheoryLane = false,
 }: {
   seeking: WantSource[];
+  theory: WantSource[];
   queuedIn: WantSource[];
   queuedOut: WantSource[];
   decks: DeckDocument[];
@@ -278,11 +287,19 @@ function TilesView({
   showPrices?: boolean;
   formatPrice?: (usd: number | null) => string;
   priceTitle?: (usd: number | null) => string;
+  theoryEmptyContent?: ReactNode;
+  showTheoryLane?: boolean;
 }) {
   const { widthPx } = useCardSize();
   const byDeck = deckMap(decks);
   const pairs = buildPairUnits(queuedIn, queuedOut, decks);
   const seekingSorted = [...seeking].sort(
+    (a, b) =>
+      a.deckName.localeCompare(b.deckName) ||
+      a.cardName.localeCompare(b.cardName) ||
+      a.entryId.localeCompare(b.entryId),
+  );
+  const theorySorted = [...theory].sort(
     (a, b) =>
       a.deckName.localeCompare(b.deckName) ||
       a.cardName.localeCompare(b.cardName) ||
@@ -373,6 +390,36 @@ function TilesView({
           })}
         </ul>
       </SwimlaneSection>
+
+      {showTheoryLane ? (
+        <SwimlaneSection
+          lane="theory"
+          hasItems={theorySorted.length > 0}
+          count={theorySorted.length}
+          emptyMessage="Choose theory decks to include in Seeking for purchase lists."
+          emptyContent={theoryEmptyContent}
+        >
+          <ul className="sq-lane-grid is-grid db-card-grid">
+            {theorySorted.map((s) => {
+              const deck = byDeck.get(s.deckId);
+              const cards = deck ? resolveDeckCards(deck) : [];
+              const card = cards.find((c) => c.instanceId === s.cardInstanceId) || null;
+              return (
+                <li key={`${s.deckId}:${s.entryId}`}>
+                  <SwapFaceTile
+                    card={card}
+                    deckLabel={s.deckName}
+                    actionLabel={`${s.cardName}, Theory Seeking, ${s.deckName}`}
+                    onClick={() => onSelect?.(s)}
+                    priceLabel={showPrices && formatPrice ? formatPrice(s.usd) : null}
+                    priceTitle={showPrices && priceTitle ? priceTitle(s.usd) : null}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </SwimlaneSection>
+      ) : null}
     </div>
   );
 }
@@ -380,6 +427,7 @@ function TilesView({
 /** Default / Unified browse body driven by Layout (Tiles | Stacked | Grid). */
 export function QueueTilesView({
   seeking,
+  theory = [],
   queuedIn,
   queuedOut,
   decks,
@@ -392,11 +440,14 @@ export function QueueTilesView({
   showPrices,
   formatPrice,
   priceTitle,
+  theoryEmptyContent,
+  showTheoryLane = false,
 }: Props) {
   if (layout === 'tiles') {
     return (
       <TilesView
         seeking={seeking}
+        theory={theory}
         queuedIn={queuedIn}
         queuedOut={queuedOut}
         decks={decks}
@@ -406,6 +457,8 @@ export function QueueTilesView({
         showPrices={showPrices}
         formatPrice={formatPrice}
         priceTitle={priceTitle}
+        theoryEmptyContent={theoryEmptyContent}
+        showTheoryLane={showTheoryLane}
       />
     );
   }
@@ -465,6 +518,25 @@ export function QueueTilesView({
           onActivateUnified={onActivateUnified}
         />
       </SwimlaneSection>
+
+      {showTheoryLane ? (
+        <SwimlaneSection
+          lane="theory"
+          hasItems={theory.length > 0}
+          count={theory.length}
+          emptyMessage="Choose theory decks to include in Seeking for purchase lists."
+          emptyContent={theoryEmptyContent}
+        >
+          <FaceLane
+            sources={theory}
+            decks={decks}
+            layout={faceLayout}
+            unified={unified}
+            onSelect={onSelect}
+            onActivateUnified={onActivateUnified}
+          />
+        </SwimlaneSection>
+      ) : null}
     </div>
   );
 }

@@ -45,6 +45,7 @@ export function PrintingPickerModal({
   defaultScryfallId = null,
   foilDefault = false,
   proxyDefault = false,
+  proxyEnabled = true,
   selectedScryfallId = null,
   categoryOptions,
   format = 'commander',
@@ -65,6 +66,8 @@ export function PrintingPickerModal({
   defaultScryfallId?: string | null;
   foilDefault?: boolean;
   proxyDefault?: boolean;
+  /** When false, hide Proxy (e.g. collection binders). */
+  proxyEnabled?: boolean;
   selectedScryfallId?: string | null;
   /** When set, shows a category select (add flow). */
   categoryOptions?: string[];
@@ -102,7 +105,7 @@ export function PrintingPickerModal({
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ScryfallCard | null>(null);
   const [foil, setFoil] = useState(foilDefault);
-  const [proxy, setProxy] = useState(proxyDefault);
+  const [proxy, setProxy] = useState(proxyEnabled ? proxyDefault : false);
   const [category, setCategory] = useState(
     defaultCategory || categoryOptions?.[0] || 'Maybeboard',
   );
@@ -207,6 +210,18 @@ export function PrintingPickerModal({
   });
 
   const anyFoil = prints.some(printingSupportsFoil);
+  const pickedSupportsFoil = Boolean(picked && printingSupportsFoil(picked));
+  const showProxy = proxyEnabled && proxy;
+
+  useEffect(() => {
+    if (!proxyEnabled) setProxy(false);
+  }, [proxyEnabled]);
+
+  useEffect(() => {
+    if (picked && foil && !printingSupportsFoil(picked)) {
+      setFoil(false);
+    }
+  }, [picked, foil]);
 
   function resolvedCategory(): string | undefined {
     if (!categoryOptions) return undefined;
@@ -223,7 +238,7 @@ export function PrintingPickerModal({
     const printing = mapScryfallCardToPrinting(picked, {
       foil: foil && printingSupportsFoil(picked),
     });
-    onConfirm(printing, cat, { proxy });
+    onConfirm(printing, cat, { proxy: proxyEnabled ? proxy : false });
   }
 
   const card = (
@@ -245,19 +260,22 @@ export function PrintingPickerModal({
               {expanded ? 'Collapse' : 'Expand'}
             </button>
           ) : null}
-          <label className="db-check">
-            <input
-              type="checkbox"
-              checked={proxy}
-              onChange={(e) => setProxy(e.target.checked)}
-            />
-            Proxy
-          </label>
-          {anyFoil ? (
+          {proxyEnabled ? (
             <label className="db-check">
               <input
                 type="checkbox"
-                checked={foil}
+                checked={proxy}
+                onChange={(e) => setProxy(e.target.checked)}
+              />
+              Proxy
+            </label>
+          ) : null}
+          {anyFoil ? (
+            <label className={`db-check${pickedSupportsFoil ? '' : ' is-disabled'}`}>
+              <input
+                type="checkbox"
+                checked={foil && pickedSupportsFoil}
+                disabled={!pickedSupportsFoil}
                 onChange={(e) => setFoil(e.target.checked)}
               />
               Foil
@@ -376,7 +394,7 @@ export function PrintingPickerModal({
                       backSrc={backSrc}
                       name={label}
                       foil={showFoil}
-                      proxy={proxy}
+                      proxy={showProxy}
                       faceKey={p.id}
                       doubleFaced={doubleFaced}
                     />

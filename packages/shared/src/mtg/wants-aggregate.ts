@@ -71,13 +71,14 @@ export type UnifiedWantRow = {
   maxUsd: number | null;
 };
 
-export type SwimlaneId = 'swaps' | 'seeking' | 'queued_in' | 'queued_out';
+export type SwimlaneId = 'swaps' | 'seeking' | 'queued_in' | 'queued_out' | 'theory';
 
 export const SWIMLANE_LABELS: Record<SwimlaneId, string> = {
   swaps: 'Swaps',
   seeking: 'Seeking',
   queued_in: 'Queued In',
   queued_out: 'Out',
+  theory: 'Theory',
 };
 
 function normalizeMergeName(name: string): string {
@@ -120,19 +121,55 @@ export function filterAcquireSources(sources: WantSource[]): WantSource[] {
 
 export function partitionWantSourcesBySwimlane(
   sources: WantSource[],
+  opts?: { theoryDeckIds?: ReadonlySet<string> | string[] },
 ): Record<SwimlaneId, WantSource[]> {
+  const theoryIds =
+    opts?.theoryDeckIds instanceof Set
+      ? opts.theoryDeckIds
+      : new Set(opts?.theoryDeckIds || []);
   const out: Record<SwimlaneId, WantSource[]> = {
     swaps: [],
     seeking: [],
     queued_in: [],
     queued_out: [],
+    theory: [],
   };
   for (const s of sources || []) {
-    if (s.kind === 'seeking') out.seeking.push(s);
-    else if (s.kind === 'queued_in') out.queued_in.push(s);
+    if (s.kind === 'seeking') {
+      if (theoryIds.has(s.deckId)) out.theory.push(s);
+      else out.seeking.push(s);
+    } else if (s.kind === 'queued_in') out.queued_in.push(s);
     else if (s.kind === 'queued_out') out.queued_out.push(s);
   }
   return out;
+}
+
+function pushSeekingSources(deck: DeckDocument, byId: Map<string, CardInstance>, sources: WantSource[]) {
+  for (const entry of deck.lookingForEntries || []) {
+    const card = byId.get(entry.instanceId);
+    if (!card) continue;
+    const cardName = printingSoughtName(deck, card);
+    sources.push({
+      deckId: deck.deckId,
+      deckName: deck.name,
+      format: deck.format,
+      kind: 'seeking',
+      entryId: entry.id,
+      cardInstanceId: entry.instanceId,
+      cardName,
+      mergeKey: wantMergeKey(card, cardName),
+      quantity: quantityOf(card),
+      usd: null,
+      ...printingFields(card),
+      outInstanceId: null,
+      inInstanceId: null,
+      pairIncomplete: false,
+    });
+  }
+}
+
+function isSwapAggregateFormat(format: DeckDocument['format']): boolean {
+  return format === 'commander' || format === 'cube' || format === 'pendragon';
 }
 
 /**
@@ -142,8 +179,8 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
   const sources: WantSource[] = [];
 
   for (const deck of decks || []) {
-    if (deck.format !== 'commander' && deck.format !== 'cube' && deck.format !== 'pendragon') continue;
-    // Theory decks are speculative — queues are not acquire/trade intent.
+    if (!isSwapAggregateFormat(deck.format)) continue;
+    // Theory decks are speculative — queues are not acquire/trade intent by default.
     if (isTheoryDeck(deck)) continue;
     const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));
 
@@ -197,29 +234,24 @@ export function aggregateSwapWants(decks: DeckDocument[]): WantSource[] {
       }
     }
 
-    for (const entry of deck.lookingForEntries || []) {
-      const card = byId.get(entry.instanceId);
-      if (!card) continue;
-      const cardName = printingSoughtName(deck, card);
-      sources.push({
-        deckId: deck.deckId,
-        deckName: deck.name,
-        format: deck.format,
-        kind: 'seeking',
-        entryId: entry.id,
-        cardInstanceId: entry.instanceId,
-        cardName,
-        mergeKey: wantMergeKey(card, cardName),
-        quantity: quantityOf(card),
-        usd: null,
-        ...printingFields(card),
-        outInstanceId: null,
-        inInstanceId: null,
-        pairIncomplete: false,
-      });
-    }
+    pushSeekingSources(deck, byId, sources);
   }
 
+  return sources;
+}
+
+/**
+ * Opt-in Seeking rows from theory decks (formal In/Out ignored).
+ * Callers choose which theory docs to pass; default library aggregate skips theory.
+ */
+export function aggregateTheorySeekingWants(decks: DeckDocument[]): WantSource[] {
+  const sources: WantSource[] = [];
+  for (const deck of decks || []) {
+    if (!isSwapAggregateFormat(deck.format)) continue;
+    if (!isTheoryDeck(deck)) continue;
+    const byId = new Map((deck.cards || []).map((c) => [c.instanceId, c]));
+    pushSeekingSources(deck, byId, sources);
+  }
   return sources;
 }
 

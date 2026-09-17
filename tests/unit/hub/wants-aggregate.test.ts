@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   aggregateSwapWants,
+  aggregateTheorySeekingWants,
   isSwapAggregateSummary,
+  partitionWantSourcesBySwimlane,
   redactDeckForPublicSwaps,
   unifyWantSources,
   type WantSource,
@@ -240,6 +242,84 @@ describe('wants-aggregate', () => {
     const sources = aggregateSwapWants([owned, theory]);
     expect(sources.every((s) => s.deckId === 'owned')).toBe(true);
     expect(sources).toHaveLength(2);
+  });
+
+  it('aggregateTheorySeekingWants returns Seeking only from theory decks', () => {
+    const theory = deck({
+      deckId: 'theory',
+      name: 'Theory',
+      format: 'commander',
+      ownership: 'theory',
+      cards: [card('lf1', 'Sol Ring'), card('in1', 'Queued In')],
+      formalSwapEntries: [
+        {
+          id: 's1',
+          inInstanceId: 'in1',
+          outInstanceId: null,
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [{ id: 'lf', instanceId: 'lf1', sortIndex: 0, notes: null }],
+    });
+    const owned = deck({
+      deckId: 'owned',
+      name: 'Owned',
+      format: 'commander',
+      ownership: 'owned',
+      cards: [card('lf2', 'Counterspell')],
+      lookingForEntries: [{ id: 'lf2', instanceId: 'lf2', sortIndex: 0, notes: null }],
+    });
+    const sources = aggregateTheorySeekingWants([theory, owned]);
+    expect(sources).toHaveLength(1);
+    expect(sources[0]!.kind).toBe('seeking');
+    expect(sources[0]!.deckId).toBe('theory');
+    expect(sources[0]!.cardName).toBe('Sol Ring');
+  });
+
+  it('partitionWantSourcesBySwimlane routes opted-in theory Seeking to theory lane', () => {
+    const sources: WantSource[] = [
+      {
+        deckId: 'owned',
+        deckName: 'Owned',
+        format: 'commander',
+        kind: 'seeking',
+        entryId: '1',
+        cardInstanceId: 'c1',
+        cardName: 'Sol Ring',
+        mergeKey: 'sol ring',
+        quantity: 1,
+        usd: null,
+        setCode: null,
+        collectorNumber: null,
+        foil: false,
+        outInstanceId: null,
+        inInstanceId: null,
+        pairIncomplete: false,
+      },
+      {
+        deckId: 'theory',
+        deckName: 'Theory',
+        format: 'commander',
+        kind: 'seeking',
+        entryId: '2',
+        cardInstanceId: 'c2',
+        cardName: 'Counterspell',
+        mergeKey: 'counterspell',
+        quantity: 1,
+        usd: null,
+        setCode: null,
+        collectorNumber: null,
+        foil: false,
+        outInstanceId: null,
+        inInstanceId: null,
+        pairIncomplete: false,
+      },
+    ];
+    const lanes = partitionWantSourcesBySwimlane(sources, { theoryDeckIds: ['theory'] });
+    expect(lanes.seeking.map((s) => s.deckId)).toEqual(['owned']);
+    expect(lanes.theory.map((s) => s.deckId)).toEqual(['theory']);
   });
 
   it('redactDeckForPublicSwaps keeps queue cards and drops the rest', () => {

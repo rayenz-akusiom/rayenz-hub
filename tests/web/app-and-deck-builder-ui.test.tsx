@@ -138,7 +138,7 @@ describe('CardTile', () => {
         value={{
           enabled: true,
           readOnly: false,
-          queuesReadOnly: false,
+          seekingReadOnly: false,
           deck,
           selectedIds: new Set(),
           resolveTargetIds: (c) => [c.instanceId],

@@ -29,7 +29,7 @@ Keep on the strip: Browse / Layout / Sort / Filters / size.
 Overflow (hamburger): Categories, Basics, Trim, Glance, copy/export.
 
 - Builder: `packages/web/src/deck-builder/import-export/DeckActionsMenu.tsx`
-- Swap Queue: existing actions hamburger
+- **Swap Queue exception:** Theory / Export Archidekt / Export name-qty / Copy share link / Swaps at a glance / Refresh live on the strip by default. Progressive `matchMedia` overflow (`theory-prefs.ts`): actions move into the hamburger first (~1100px); Browse / Layout join the hamburger last (~720px). Filters and size stay on the strip.
 
 ## Nav drawer
 

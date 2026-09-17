@@ -30,8 +30,7 @@ describe('SwapQueueApp export actions', () => {
     render(<SwapQueueApp entryPath="wishlist" />);
     await waitFor(() => expect(screen.getByText(/Sol Ring/)).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Export Archidekt' }));
+    await user.click(screen.getByRole('button', { name: 'Export Archidekt' }));
 
     expect(mockCopyArchidektWants).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ cardName: 'Sol Ring' })]),
@@ -47,8 +46,7 @@ describe('SwapQueueApp export actions', () => {
     render(<SwapQueueApp entryPath="wishlist" />);
     await waitFor(() => expect(screen.getByText(/Sol Ring/)).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Export name/qty' }));
+    await user.click(screen.getByRole('button', { name: 'Export name/qty' }));
 
     expect(mockCopyNameQtyWants).toHaveBeenCalled();
     await waitFor(() => {

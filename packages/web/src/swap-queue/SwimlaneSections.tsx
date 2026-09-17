@@ -8,12 +8,14 @@ export function SwimlaneSection({
   lane,
   children,
   emptyMessage,
+  emptyContent,
   hasItems,
   count,
 }: {
   lane: SwimlaneId;
   children: ReactNode;
   emptyMessage: string;
+  emptyContent?: ReactNode;
   hasItems: boolean;
   count: number;
 }) {
@@ -23,7 +25,13 @@ export function SwimlaneSection({
         {SWIMLANE_LABELS[lane]}{' '}
         <span className="db-count">({count})</span>
       </h2>
-      {hasItems ? children : <p className="hub-muted sq-swimlane-empty">{emptyMessage}</p>}
+      {hasItems ? (
+        children
+      ) : emptyContent ? (
+        emptyContent
+      ) : (
+        <p className="hub-muted sq-swimlane-empty">{emptyMessage}</p>
+      )}
     </section>
   );
 }

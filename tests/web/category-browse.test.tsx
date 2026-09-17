@@ -52,7 +52,7 @@ describe('CardGroup and DropSection', () => {
         value={{
           enabled: true,
           readOnly: false,
-          queuesReadOnly: false,
+          seekingReadOnly: false,
           deck: commanderDoc,
           selectedIds: new Set([cards[0]!.instanceId]),
           resolveTargetIds: (c) => [c.instanceId],

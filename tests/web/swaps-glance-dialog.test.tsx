@@ -103,8 +103,7 @@ describe('Swaps at a glance dialog', () => {
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => expect(screen.getByText(/Swap In Spell/)).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Swaps at a glance…' }));
+    await user.click(screen.getByRole('button', { name: 'Swaps at a glance…' }));
 
     expect(await screen.findByRole('dialog', { name: 'Swaps at a glance' })).toBeInTheDocument();
     expect(screen.getByText(/2 rows from current filters/i)).toBeInTheDocument();
@@ -118,8 +117,7 @@ describe('Swaps at a glance dialog', () => {
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => expect(screen.getByText(/Swap In Spell/)).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Swaps at a glance…' }));
+    await user.click(screen.getByRole('button', { name: 'Swaps at a glance…' }));
     await user.click(screen.getByRole('button', { name: 'Generate' }));
 
     await waitFor(() => expect(postSwapsGlance).toHaveBeenCalled());
@@ -206,8 +204,6 @@ describe('Swaps at a glance dialog', () => {
     setHubAuthSession({ accessToken: 't', username: 'friend', isOwner: false });
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => expect(screen.getByText(/Swap In Spell/)).toBeInTheDocument());
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    expect(screen.queryByRole('menuitem', { name: 'Swaps at a glance…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Swaps at a glance…' })).not.toBeInTheDocument();
   });
 });

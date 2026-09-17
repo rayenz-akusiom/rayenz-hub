@@ -399,7 +399,10 @@ export function BrowseShell({
     if (!cardIsSeekingMarked(card)) return sum;
     return sum + (Number(card.quantity) || 1);
   }, 0);
-  const queuesReadOnly = isTheoryDeck(liveDeck) || readOnly;
+  /** Formal In/Out / add-to-swap — theory decks stay view-only. */
+  const formalQueuesReadOnly = isTheoryDeck(liveDeck) || readOnly;
+  /** Seeking is allowed on theory; only guest/read-only blocks it. */
+  const seekingReadOnly = readOnly;
 
   const deckRef = useRef(liveDeck);
   const draftRef = useRef(draft);
@@ -634,7 +637,7 @@ export function BrowseShell({
       if (
         !mod &&
         !readOnly &&
-        !queuesReadOnly &&
+        !seekingReadOnly &&
         !trimMode &&
         selectedIds.size &&
         key === 's'
@@ -663,7 +666,7 @@ export function BrowseShell({
     editHistory,
     readOnly,
     enterTrim,
-    queuesReadOnly,
+    seekingReadOnly,
   ]);
 
   // Drop selection entries that no longer exist on the deck.
@@ -790,7 +793,7 @@ export function BrowseShell({
   }
 
   function onToggleSeekingFor(instanceIds: string[]) {
-    if (queuesReadOnly || !instanceIds.length) return;
+    if (seekingReadOnly || !instanceIds.length) return;
     commit(toggleCardsSeeking(deckRef.current, instanceIds));
   }
 
@@ -830,7 +833,7 @@ export function BrowseShell({
   }
 
   function onAddToSwapQueue() {
-    if (queuesReadOnly || !selectionCount) return;
+    if (formalQueuesReadOnly || !selectionCount) return;
     commit(queueCardsAsOut(deckRef.current, selectionIdList));
   }
 
@@ -840,7 +843,7 @@ export function BrowseShell({
   }
 
   function onMarkMainDeckSeeking() {
-    if (queuesReadOnly) return;
+    if (seekingReadOnly) return;
     const before = new Set(
       (deckRef.current.cards || []).filter((c) => cardIsSeekingMarked(c)).map((c) => c.instanceId),
     );
@@ -1213,7 +1216,7 @@ export function BrowseShell({
     () => ({
       enabled: cardCharmsEnabled,
       readOnly,
-      queuesReadOnly,
+      seekingReadOnly,
       deck: liveDeck,
       selectedIds,
       resolveTargetIds: resolveCharmTargetIds,
@@ -1224,7 +1227,7 @@ export function BrowseShell({
     [
       cardCharmsEnabled,
       readOnly,
-      queuesReadOnly,
+      seekingReadOnly,
       liveDeck,
       selectedIds,
       selectionIdList,
@@ -1322,7 +1325,7 @@ export function BrowseShell({
           <p className="hub-muted hub-shortcut-hint">
             {trimMode
               ? 'Trim mode · Esc exit'
-              : queuesReadOnly
+              : seekingReadOnly
                 ? 'Esc clear · Del remove · T trim'
                 : 'Esc clear · Del remove · T trim · S seeking'}
           </p>
@@ -1373,7 +1376,7 @@ export function BrowseShell({
                 >
                   <ProxyIcon filled={anyProxy} />
                 </button>
-                {!queuesReadOnly ? (
+                {!seekingReadOnly ? (
                   <button
                     type="button"
                     className={`db-btn db-seeking-toggle${anySeeking ? ' is-seeking' : ''}`}
@@ -1532,7 +1535,7 @@ export function BrowseShell({
             <SwapQueuePanel
               deck={liveDeck}
               setMembership={setFilter.active ? setFilter.membership : null}
-              readOnly={queuesReadOnly}
+              readOnly={formalQueuesReadOnly}
               onChange={(next) => {
                 commit(next);
               }}
@@ -1552,7 +1555,7 @@ export function BrowseShell({
               onRemoveEdit={removeSwapEdit}
               onFinalizeEdit={finalizeSwapEdit}
               onViewInSwapQueue={
-                queuesReadOnly || !draft
+                formalQueuesReadOnly || !draft
                   ? undefined
                   : () => {
                       navigateHub(
@@ -1573,7 +1576,7 @@ export function BrowseShell({
               onMarkMainDeckSeeking={onMarkMainDeckSeeking}
               seekingCountPulse={seekingCountPulse}
               onVisibleOrderChange={onAsideVisibleOrderChange}
-              queuesReadOnly={queuesReadOnly}
+              seekingReadOnly={seekingReadOnly}
               mode="aside"
               browseView={isCategoryBrowseView(view) ? view : 'category'}
               filtersActive={filtersActive}
@@ -1723,8 +1726,8 @@ export function BrowseShell({
           onClearCover={onClearCover}
           onMove={() => setMoveOpen(true)}
           onMoveToDefault={onMoveToDefault}
-          onAddToSwapQueue={queuesReadOnly ? undefined : onAddToSwapQueue}
-          onToggleSeeking={queuesReadOnly ? undefined : onToggleSeeking}
+          onAddToSwapQueue={formalQueuesReadOnly ? undefined : onAddToSwapQueue}
+          onToggleSeeking={seekingReadOnly ? undefined : onToggleSeeking}
           onChangePrinting={() => setPrintingOpen(true)}
           onCopyImage={() => {
             void copyCardImageToClipboard(contextCard);

@@ -70,11 +70,10 @@ describe('SwapQueueApp username share links', () => {
     });
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Swap Queue actions' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy share link' })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Copy share link' }));
+    await user.click(screen.getByRole('button', { name: 'Copy share link' }));
 
     expect(writeText).toHaveBeenCalledWith(
       `${window.location.origin}${window.location.pathname}#/swap-queue/rayenz`,
@@ -105,8 +104,7 @@ describe('SwapQueueApp username share links', () => {
       expect(screen.getByRole('heading', { name: "Rayenz's Swap Queue" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Copy share link' }));
+    await user.click(screen.getByRole('button', { name: 'Copy share link' }));
 
     expect(writeText).toHaveBeenCalledWith(
       `${window.location.origin}${window.location.pathname}#/swap-queue/rayenz`,
@@ -148,11 +146,10 @@ describe('SwapQueueApp username share links', () => {
     const user = userEvent.setup();
     render(<SwapQueueApp entryPath="swap-queue" />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Swap Queue actions' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy share link' })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Swap Queue actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Copy share link' }));
+    await user.click(screen.getByRole('button', { name: 'Copy share link' }));
 
     await waitFor(() => {
       expect(screen.getByText('Sign in to copy a share link')).toBeInTheDocument();

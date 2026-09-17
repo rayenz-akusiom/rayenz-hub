@@ -285,8 +285,13 @@ export function CollectionBrowseShell({
     });
   }
 
-  function onAddCard(printing: PrintingFields) {
+  function onAddCard(
+    printing: PrintingFields,
+    _category?: string,
+    meta?: { proxy?: boolean; keepOpen?: boolean },
+  ) {
     const defaultQuantity = liveDeck.collectionSearch?.defaultQuantity || 1;
+    // Collections never persist proxy; foil comes from printing.foil.
     const next = addCardToDeck(liveDeck, printing, 'Collection', { quantity: defaultQuantity });
     const added = next.cards[next.cards.length - 1];
     if (added) {
@@ -296,7 +301,7 @@ export function CollectionBrowseShell({
       setSelectedIds(new Set([added.instanceId]));
     }
     commit(next);
-    setAddOpen(false);
+    if (!meta?.keepOpen) setAddOpen(false);
   }
 
   const selectionIdList = useMemo(() => [...selectedIds], [selectedIds]);
@@ -388,7 +393,7 @@ export function CollectionBrowseShell({
     () => ({
       enabled: cardCharmsEnabled,
       readOnly,
-      queuesReadOnly: false,
+      seekingReadOnly: false,
       deck: liveDeck,
       selectedIds,
       resolveTargetIds: resolveCharmTargetIds,
@@ -708,7 +713,7 @@ export function CollectionBrowseShell({
         <ScryfallSearchModal
           deck={liveDeck}
           onClose={() => setAddOpen(false)}
-          onAdd={(printing) => onAddCard(printing)}
+          onAdd={onAddCard}
           allowQuickAdd
         />
       ) : null}
@@ -771,7 +776,7 @@ export function CollectionBrowseShell({
           defaultScryfallId={primarySelected.scryfallId}
           selectedScryfallId={primarySelected.scryfallId}
           foilDefault={primarySelected.foil}
-          proxyDefault={Boolean(primarySelected.proxy)}
+          proxyEnabled={false}
           confirmLabel="Apply printing"
           title={`Printing - ${cardDisplayName(primarySelected)}`}
           onClose={() => setPrintingOpen(false)}

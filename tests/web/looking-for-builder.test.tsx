@@ -93,36 +93,39 @@ describe('CategoryBrowse aside Seeking section', () => {
     expect(onMarkMainDeckSeeking).toHaveBeenCalledTimes(1);
   });
 
-  it('uses the Theory tooltip only for theory decks', () => {
+  it('disables Mark main deck Seeking when seekingReadOnly', () => {
     const onMarkMainDeckSeeking = vi.fn();
-    const { rerender } = render(
-      <CategoryBrowse
-        deck={baseDeck({ ownership: 'owned' })}
-        mode="aside"
-        layout="stacked"
-        queuesReadOnly
-        onDropCard={vi.fn()}
-        onMarkMainDeckSeeking={onMarkMainDeckSeeking}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Mark main deck Seeking' })).not.toHaveAttribute(
-      'title',
-    );
-
-    rerender(
+    render(
       <CategoryBrowse
         deck={baseDeck({ ownership: 'theory' })}
         mode="aside"
         layout="stacked"
-        queuesReadOnly
+        seekingReadOnly
         onDropCard={vi.fn()}
         onMarkMainDeckSeeking={onMarkMainDeckSeeking}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Mark main deck Seeking' })).toHaveAttribute(
-      'title',
-      'Theory decks do not use Seeking queues',
+    const btn = screen.getByRole('button', { name: 'Mark main deck Seeking' });
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(onMarkMainDeckSeeking).not.toHaveBeenCalled();
+  });
+
+  it('allows Mark main deck Seeking on theory decks when not seekingReadOnly', () => {
+    const onMarkMainDeckSeeking = vi.fn();
+    render(
+      <CategoryBrowse
+        deck={baseDeck({ ownership: 'theory' })}
+        mode="aside"
+        layout="stacked"
+        onDropCard={vi.fn()}
+        onMarkMainDeckSeeking={onMarkMainDeckSeeking}
+      />,
     );
+    const btn = screen.getByRole('button', { name: 'Mark main deck Seeking' });
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(onMarkMainDeckSeeking).toHaveBeenCalledTimes(1);
   });
 
   it('does not treat Maybeboard cards as Seeking', () => {

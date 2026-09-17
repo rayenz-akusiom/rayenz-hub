@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COLLECTION_REPRESENTATIVE_INSTANCE_ID,
+  addCardToDeck,
   cardMatchesCollectionRepresentative,
   collectionCardIsIgnored,
   collectionCardIsSought,
@@ -8,6 +9,7 @@ import {
   collectionSeekingToggleEnabled,
   defaultCollectionBrowseView,
   isCollectionRepresentativeCard,
+  mapScryfallCardToPrinting,
   parsePlaneswalkerSubtype,
   splitCollectionIgnored,
   syncCollectionDeck,
@@ -84,6 +86,43 @@ describe('collection builder helpers', () => {
     expect(collectionNeededQuantity({ quantity: 3, ownedQuantity: 1 })).toBe(2);
     expect(collectionCardIsSought({ quantity: 3, ownedQuantity: 1 })).toBe(true);
     expect(collectionCardIsSought({ quantity: 2, ownedQuantity: 2 })).toBe(false);
+  });
+
+  it('persists foil from printing when adding to a collection and ignores proxy opts', () => {
+    const printing = mapScryfallCardToPrinting(
+      {
+        id: 'sf-foil',
+        name: 'Sol Ring',
+        set: 'cmm',
+        collector_number: '1',
+        type_line: 'Artifact',
+        color_identity: [],
+        finishes: ['nonfoil', 'foil'],
+      },
+      { foil: true },
+    );
+    expect(printing.foil).toBe(true);
+    const next = addCardToDeck(collectionDoc([]), printing, 'Collection', {
+      quantity: 2,
+      proxy: true,
+      nextId: () => 'c-foil',
+    });
+    const added = next.cards.find((c) => c.instanceId === 'c-foil');
+    expect(added).toMatchObject({
+      foil: true,
+      proxy: true,
+      primaryCategory: 'Collection',
+      quantity: 2,
+    });
+    // Collection UI never passes proxy; when it does not, proxy stays false.
+    const noProxy = addCardToDeck(collectionDoc([]), printing, 'Collection', {
+      quantity: 1,
+      nextId: () => 'c-nf',
+    });
+    expect(noProxy.cards.find((c) => c.instanceId === 'c-nf')).toMatchObject({
+      foil: true,
+      proxy: false,
+    });
   });
 
   it('treats the Binder representative as cover art, not inventory', () => {

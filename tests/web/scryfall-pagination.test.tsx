@@ -272,6 +272,80 @@ describe('PrintingPickerModal pagination', () => {
   });
 });
 
+describe('PrintingPickerModal foil and proxy', () => {
+  it('hides Proxy when proxyEnabled is false and confirms foil on a foil-capable print', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [page1Print, page2Print],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <PrintingPickerModal
+        cardName="Forest"
+        proxyEnabled={false}
+        confirmLabel="Add"
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /LEA #294/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('checkbox', { name: 'Proxy' })).not.toBeInTheDocument();
+
+    const foil = screen.getByRole('checkbox', { name: 'Foil' });
+    expect(foil).toBeDisabled();
+
+    await user.click(screen.getByRole('option', { name: /UNF #262/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('checkbox', { name: 'Foil' })).not.toBeDisabled();
+    });
+    await user.click(screen.getByRole('checkbox', { name: 'Foil' }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    const [printing, , meta] = onConfirm.mock.calls[0]!;
+    expect(printing.foil).toBe(true);
+    expect(meta).toEqual({ proxy: false });
+  });
+
+  it('shows Proxy by default and clears foil when switching to a nonfoil-only print', async () => {
+    const user = userEvent.setup();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [page2Print, page1Print],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(
+      <PrintingPickerModal
+        cardName="Forest"
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /UNF #262/i })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('checkbox', { name: 'Proxy' })).toBeInTheDocument();
+
+    const foil = screen.getByRole('checkbox', { name: 'Foil' });
+    await user.click(foil);
+    expect(foil).toBeChecked();
+
+    await user.click(screen.getByRole('option', { name: /LEA #294/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('checkbox', { name: 'Foil' })).toBeDisabled();
+      expect(screen.getByRole('checkbox', { name: 'Foil' })).not.toBeChecked();
+    });
+  });
+});
+
 describe('ScryfallSearchModal infinite scroll', () => {
   it('loads page 2 when the sentinel intersects', async () => {
     const user = userEvent.setup();

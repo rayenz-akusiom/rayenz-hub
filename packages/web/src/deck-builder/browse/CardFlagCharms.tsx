@@ -22,7 +22,7 @@ export function CardFlagCharms({ card, selected }: { card: CardView; selected?: 
   const seeking = cardIsSeekingMarked(card);
   const foilEnabled = foilCharmEnabled(ctx.deck, card);
   const showProxy = proxyCharmEnabled(ctx.deck);
-  const showSeeking = seekingCharmEnabled(ctx.deck, ctx.queuesReadOnly);
+  const showSeeking = seekingCharmEnabled(ctx.deck, ctx.seekingReadOnly);
 
   function toggle(
     e: MouseEvent,

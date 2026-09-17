@@ -1,13 +1,10 @@
 import { FOCUS_TAGS_MAX, type DeckSummary, type ReleaseCatalogEntry } from '@rayenz-hub/shared';
-import { useEffect, useState } from 'react';
-import { LibraryCoverArt } from '../deck-builder/library/LibraryCoverArt';
-import { LibrarySkeleton } from '../deck-builder/library/library-chrome';
-import { FormatBadge } from '../deck-builder/ui/FormatBadge';
+import { useEffect, useMemo, useState } from 'react';
+import { SelectableLibraryGrid } from '../deck-builder/library/SelectableLibraryGrid';
 import { CARD_SIZE_PX } from '../deck-builder/card-size';
 import { isApiConfigured } from '../api/hub-api';
 import { pullSuggestReleases } from '../api/hub-api-client';
 import { getHubAuthSession } from '../lib/hub-auth-session';
-import { selectAllDecks, toggleDeckSelection } from './deck-load';
 import { readProfileForDeck } from './data';
 import { findReleaseEntry, formatSetCodesPreview, listReleaseOptions } from './releases';
 import { ReleaseSelectOptgroups } from './ReleaseSelectOptgroups';
@@ -171,19 +168,10 @@ export function DeckSuggestSetup({
     onFocusTagInput('');
   }
 
-  function selectDeck(deckId: string, on: boolean) {
-    if (budgetMode) {
-      onDeckSelectionChange({
-        ...deckSelection,
-        selectedIds: on ? [deckId] : [],
-      });
-      return;
-    }
-    onDeckSelectionChange({
-      ...deckSelection,
-      selectedIds: toggleDeckSelection(selected, deckId, on),
-    });
-  }
+  const deckSummaries = useMemo(
+    () => decks.map((d) => coverSummary(d.deck_id, d.deck_name, covers)),
+    [decks, covers],
+  );
 
   return (
     <div className="ds-setup-canvas" style={{ ['--db-card-w' as string]: `${CARD_SIZE_PX.M}px` }}>
@@ -359,87 +347,35 @@ export function DeckSuggestSetup({
       </div>
 
       <div className="ds-setup-decks">
-        {decks.length && !budgetMode ? (
-          <div className="ds-deck-select-actions">
-            <span className="ds-meta">
-              Decks ({selected.length}/{decks.length})
-            </span>
-            <button
-              type="button"
-              id="ds-select-all-decks"
-              onClick={() =>
-                onDeckSelectionChange({ ...deckSelection, selectedIds: selectAllDecks(decks) })
-              }
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              id="ds-clear-all-decks"
-              onClick={() => onDeckSelectionChange({ ...deckSelection, selectedIds: [] })}
-            >
-              Clear all
-            </button>
-          </div>
-        ) : decks.length ? (
-          <p className="ds-meta">Choose one deck</p>
-        ) : null}
-
-        {decksLoading ? <LibrarySkeleton /> : null}
-        {!decksLoading && !decks.length ? (
-          <div className="db-empty-state">
-            <p>No commander decks in the library.</p>
-            <p>Save a deck in Commander Builder, then generate suggestions here.</p>
-            <a href="#/commander-builder" className="db-btn is-active">
-              Open Commander Builder
-            </a>
-          </div>
-        ) : null}
-
-        {!decksLoading && decks.length ? (
-          <ul className="db-library-grid" role={budgetMode ? 'radiogroup' : 'group'} aria-label="Decks">
-            {decks.map((deck) => {
-              const isOn = selected.indexOf(deck.deck_id) >= 0;
-              const summary = coverSummary(deck.deck_id, deck.deck_name, covers);
-              const dual = Boolean(summary.coverImageUrl && summary.coverImageUrlSecondary);
-              return (
-                <li
-                  key={deck.deck_id}
-                  className={
-                    'db-library-tile' +
-                    (dual ? ' is-partner-pair' : '') +
-                    (isOn ? ' is-selected' : '') +
-                    (summary.coverPartnerStatus === 'illegal' ? ' is-illegal-pair' : '')
-                  }
-                >
-                  <button
-                    type="button"
-                    role={budgetMode ? 'radio' : 'checkbox'}
-                    aria-checked={isOn}
-                    aria-label={deck.deck_name}
-                    className="db-library-tile-open"
-                    onClick={() => selectDeck(deck.deck_id, !isOn)}
-                  >
-                    <LibraryCoverArt deck={summary} />
-                    <span className="db-library-tile-caption">
-                      <FormatBadge format={summary.format === 'pendragon' ? 'pendragon' : 'commander'} />
-                      <span className="db-library-tile-name">{deck.deck_name}</span>
-                    </span>
-                  </button>
-                  {budgetMode && isOn ? (
-                    <p className="ds-tile-profile" id="ds-profile-readiness">
-                      {profileReadinessLabel(profileLevel)}
-                      {' · '}
-                      <a href={`#/profile-builder?deckId=${encodeURIComponent(deck.deck_id)}`}>
-                        Build profile
-                      </a>
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
+        <SelectableLibraryGrid
+          decks={deckSummaries}
+          selectedIds={selected}
+          mode={budgetMode ? 'single' : 'multi'}
+          loading={decksLoading}
+          selectActionsIdPrefix="ds"
+          showSelectActions={!budgetMode}
+          onChange={(nextIds) => onDeckSelectionChange({ ...deckSelection, selectedIds: nextIds })}
+          empty={
+            <div className="db-empty-state">
+              <p>No commander decks in the library.</p>
+              <p>Save a deck in Commander Builder, then generate suggestions here.</p>
+              <a href="#/commander-builder" className="db-btn is-active">
+                Open Commander Builder
+              </a>
+            </div>
+          }
+          footerForDeck={(deck, isOn) =>
+            budgetMode && isOn ? (
+              <p className="ds-tile-profile" id="ds-profile-readiness">
+                {profileReadinessLabel(profileLevel)}
+                {' · '}
+                <a href={`#/profile-builder?deckId=${encodeURIComponent(deck.deckId)}`}>
+                  Build profile
+                </a>
+              </p>
+            ) : null
+          }
+        />
       </div>
     </div>
   );

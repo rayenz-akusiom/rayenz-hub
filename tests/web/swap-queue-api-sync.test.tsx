@@ -63,8 +63,7 @@ describe('SwapQueueApp Hub API sync', () => {
     await waitFor(() => expect(screen.getByText(/Sol Ring/)).toBeInTheDocument());
     expect(mockPullRemoteLibraryUpdates).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole('button', { name: /Swap Queue actions/i }));
-    await user.click(screen.getByRole('menuitem', { name: /Refresh/i }));
+    await user.click(screen.getByRole('button', { name: /^Refresh$/i }));
 
     await waitFor(() => expect(mockPullRemoteLibraryUpdates).toHaveBeenCalledTimes(2));
     expect(mockLoadSwapWantSources).toHaveBeenCalledTimes(2);

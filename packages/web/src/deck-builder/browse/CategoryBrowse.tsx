@@ -21,7 +21,6 @@ import {
   categoryTarget,
   formalSwapInIds,
   isSeekingCategory,
-  isTheoryDeck,
   cardIsSeekingMarked,
   primaryCategoryCount,
   groupKeysByCubeCategoryBand,
@@ -1371,7 +1370,7 @@ export function CategoryBrowse({
   representativeCard,
   representativeLabel,
   onPickRepresentative,
-  queuesReadOnly = false,
+  seekingReadOnly = false,
   mode = 'main',
   deckMeta,
   deckMetaWarn,
@@ -1429,8 +1428,8 @@ export function CategoryBrowse({
   representativeCard?: CardView | null;
   representativeLabel?: string;
   onPickRepresentative?: () => void;
-  /** Theory decks: Seeking actions stay visible but disabled. */
-  queuesReadOnly?: boolean;
+  /** Guest/read-only: Seeking actions stay visible but disabled. */
+  seekingReadOnly?: boolean;
   mode?: 'main' | 'aside';
   deckMeta?: string;
   deckMetaWarn?: boolean;
@@ -1567,12 +1566,8 @@ export function CategoryBrowse({
                 ? {
                     label: 'Mark main deck',
                     ariaLabel: 'Mark main deck Seeking',
-                    onClick: queuesReadOnly ? () => {} : onMarkMainDeckSeeking,
-                    disabled: queuesReadOnly,
-                    title:
-                      queuesReadOnly && isTheoryDeck(deck)
-                        ? 'Theory decks do not use Seeking queues'
-                        : undefined,
+                    onClick: seekingReadOnly ? () => {} : onMarkMainDeckSeeking,
+                    disabled: seekingReadOnly,
                   }
                 : undefined
             }

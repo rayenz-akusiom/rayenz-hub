@@ -313,6 +313,17 @@
   margin: 0;
 }
 
+.sq-swimlane-empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.sq-action-controls {
+  margin-left: auto;
+}
+
 .sq-lane-grid {
   list-style: none;
   margin: 0;

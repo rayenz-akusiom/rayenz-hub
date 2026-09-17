@@ -645,6 +645,9 @@ describe('CommanderBuilderApp', () => {
     expect(apiListPublicDecks).toHaveBeenCalledWith('rayenz');
     expect(screen.getByText('Fixture Commander', { selector: '.db-library-tile-name' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add Commander deck' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Delete Fixture Commander/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('asks unsigned visitors to sign in before forking a public deck', async () => {

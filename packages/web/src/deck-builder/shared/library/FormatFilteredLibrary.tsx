@@ -40,6 +40,7 @@ function LibraryGrid({
   onDragLeaveLane,
   onDropLane,
   ownershipLanes = true,
+  publicMode = false,
 }: {
   builderFormat: BuilderFormat;
   ownership: DeckOwnership;
@@ -54,6 +55,7 @@ function LibraryGrid({
   onDropLane: (e: DragEvent, ownership: DeckOwnership) => void;
   /** When false, render a flat tile grid (no Owned/Theory swimlanes). */
   ownershipLanes?: boolean;
+  publicMode?: boolean;
 }) {
   return (
     <section
@@ -142,22 +144,24 @@ function LibraryGrid({
                     <span className="db-library-tile-name">{d.name}</span>
                   </span>
                 </a>
-                <button
-                  type="button"
-                  className="db-library-tile-delete"
-                  aria-label={isSample ? `Dismiss sample ${d.name}` : `Delete ${d.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const confirmMsg = isSample
-                      ? `Dismiss sample "${d.name}"? You can still create or import your own decks.`
-                      : `Remove "${d.name}" from Hub library?`;
-                    if (window.confirm(confirmMsg)) {
-                      onDelete(d.deckId);
-                    }
-                  }}
-                >
-                  ×
-                </button>
+                {!publicMode ? (
+                  <button
+                    type="button"
+                    className="db-library-tile-delete"
+                    aria-label={isSample ? `Dismiss sample ${d.name}` : `Delete ${d.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const confirmMsg = isSample
+                        ? `Dismiss sample "${d.name}"? You can still create or import your own decks.`
+                        : `Remove "${d.name}" from Hub library?`;
+                      if (window.confirm(confirmMsg)) {
+                        onDelete(d.deckId);
+                      }
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
               </li>
             );
           })}
@@ -188,6 +192,7 @@ function FormatOwnershipGroup({
   onDragOverLane,
   onDragLeaveLane,
   onDropLane,
+  publicMode = false,
 }: {
   format: DeckFormat;
   builderFormat: BuilderFormat;
@@ -199,6 +204,7 @@ function FormatOwnershipGroup({
   onDragOverLane: (e: DragEvent, laneKey: string) => void;
   onDragLeaveLane: (e: DragEvent) => void;
   onDropLane: (e: DragEvent, ownership: DeckOwnership) => void;
+  publicMode?: boolean;
 }) {
   const { owned, theory } = partitionLibraryByOwnership(decks);
   return (
@@ -218,6 +224,7 @@ function FormatOwnershipGroup({
         onDragOverLane={(e) => onDragOverLane(e, laneKey(format, 'owned'))}
         onDragLeaveLane={onDragLeaveLane}
         onDropLane={onDropLane}
+        publicMode={publicMode}
       />
       <LibraryGrid
         builderFormat={builderFormat}
@@ -230,6 +237,7 @@ function FormatOwnershipGroup({
         onDragOverLane={(e) => onDragOverLane(e, laneKey(format, 'theory'))}
         onDragLeaveLane={onDragLeaveLane}
         onDropLane={onDropLane}
+        publicMode={publicMode}
       />
     </section>
   );
@@ -432,6 +440,7 @@ export function FormatFilteredLibrary({
                 onDragOverLane={() => {}}
                 onDragLeaveLane={() => {}}
                 onDropLane={() => {}}
+                publicMode={publicMode}
               />
             </div>
           ) : null}
@@ -469,6 +478,7 @@ export function FormatFilteredLibrary({
                     onDragOverLane={onDragOverLane}
                     onDragLeaveLane={onDragLeaveLane}
                     onDropLane={onDropLane}
+                    publicMode={publicMode}
                   />
                   <FormatOwnershipGroup
                     format="pendragon"
@@ -481,6 +491,7 @@ export function FormatFilteredLibrary({
                     onDragOverLane={onDragOverLane}
                     onDragLeaveLane={onDragLeaveLane}
                     onDropLane={onDropLane}
+                    publicMode={publicMode}
                   />
                 </>
               ) : builderFormat === 'collection' ? (
@@ -496,6 +507,7 @@ export function FormatFilteredLibrary({
                   onDragLeaveLane={() => {}}
                   onDropLane={() => {}}
                   ownershipLanes={false}
+                  publicMode={publicMode}
                 />
               ) : (
                 <>
@@ -510,6 +522,7 @@ export function FormatFilteredLibrary({
                     onDragOverLane={(e) => onDragOverLane(e, 'owned')}
                     onDragLeaveLane={onDragLeaveLane}
                     onDropLane={onDropLane}
+                    publicMode={publicMode}
                   />
                   <LibraryGrid
                     builderFormat={builderFormat}
@@ -522,6 +535,7 @@ export function FormatFilteredLibrary({
                     onDragOverLane={(e) => onDragOverLane(e, 'theory')}
                     onDragLeaveLane={onDragLeaveLane}
                     onDropLane={onDropLane}
+                    publicMode={publicMode}
                   />
                 </>
               )}

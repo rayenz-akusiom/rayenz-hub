@@ -1,24 +1,15 @@
 import { previewDecksPerFormat, profileLookupKeys, type DeckDocument } from '@rayenz-hub/shared';
-import { mapHandlerError } from '../lib/handler-errors.js';
 import { errorResponse, jsonResponse } from '../lib/response.js';
-import { clientIp } from '../services/rate-limit.js';
-import { resolvePublicUsername } from '../services/username-directory-service.js';
+import { withPublicUser } from '../lib/public-user-handler.js';
+import type { UsernameRecord } from '../repositories/username-directory.js';
 import { getAppServices, type AppServices } from '../ioc/index.js';
 
-async function resolvePublicUserDeck(
-  username: string,
+async function getPublicUserDeck(
+  record: UsernameRecord,
   deckSlug: string,
   services: AppServices,
-): Promise<{ sub: string; doc: DeckDocument } | null> {
-  const record = await resolvePublicUsername(services, username);
-  if (!record) {
-    return null;
-  }
-  const doc = await services.deckRepository.getByUserIdAndSlug(record.sub, deckSlug);
-  if (!doc) {
-    return null;
-  }
-  return { sub: record.sub, doc };
+): Promise<DeckDocument | null> {
+  return services.deckRepository.getByUserIdAndSlug(record.sub, deckSlug);
 }
 
 function parsePreviewPerFormat(raw: string | undefined): number | null {
@@ -35,12 +26,7 @@ export async function handlePublicUserDecks(
   services: AppServices = getAppServices(),
   query?: { previewPerFormat?: string | undefined },
 ) {
-  try {
-    await services.rateLimit.consume('publicDeck', clientIp(headers));
-    const record = await resolvePublicUsername(services, username);
-    if (!record) {
-      return errorResponse(404, 'Not found', 'NOT_FOUND');
-    }
+  return withPublicUser('publicDeck', headers, username, services, async (record) => {
     const summaries = await services.deckRepository.listByUserId(record.sub);
     let decks = summaries.filter((s) => s.visibility !== 'private');
     const previewLimit = parsePreviewPerFormat(query?.previewPerFormat);
@@ -52,11 +38,7 @@ export async function handlePublicUserDecks(
       slug: record.slug,
       decks,
     });
-  } catch (e) {
-    const mapped = mapHandlerError(e, services.authService);
-    if (mapped) return mapped;
-    throw e;
-  }
+  });
 }
 
 export async function handlePublicUserDeck(
@@ -65,18 +47,13 @@ export async function handlePublicUserDeck(
   headers: Record<string, string | undefined>,
   services: AppServices = getAppServices(),
 ) {
-  try {
-    await services.rateLimit.consume('publicDeck', clientIp(headers));
-    const resolved = await resolvePublicUserDeck(username, deckSlug, services);
-    if (!resolved) {
+  return withPublicUser('publicDeck', headers, username, services, async (record) => {
+    const doc = await getPublicUserDeck(record, deckSlug, services);
+    if (!doc) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }
-    return jsonResponse(200, resolved.doc);
-  } catch (e) {
-    const mapped = mapHandlerError(e, services.authService);
-    if (mapped) return mapped;
-    throw e;
-  }
+    return jsonResponse(200, doc);
+  });
 }
 
 export async function handlePublicUserDeckProfile(
@@ -85,22 +62,17 @@ export async function handlePublicUserDeckProfile(
   headers: Record<string, string | undefined>,
   services: AppServices = getAppServices(),
 ) {
-  try {
-    await services.rateLimit.consume('publicDeck', clientIp(headers));
-    const resolved = await resolvePublicUserDeck(username, deckSlug, services);
-    if (!resolved) {
+  return withPublicUser('publicDeck', headers, username, services, async (record) => {
+    const doc = await getPublicUserDeck(record, deckSlug, services);
+    if (!doc) {
       return errorResponse(404, 'Not found', 'NOT_FOUND');
     }
-    for (const key of profileLookupKeys(resolved.doc)) {
-      const profile = await services.profileRepository.getByUserId(resolved.sub, key);
+    for (const key of profileLookupKeys(doc)) {
+      const profile = await services.profileRepository.getByUserId(record.sub, key);
       if (profile?.yaml) {
         return jsonResponse(200, { yaml: profile.yaml, deckId: profile.deckId });
       }
     }
     return errorResponse(404, 'Not found', 'NOT_FOUND');
-  } catch (e) {
-    const mapped = mapHandlerError(e, services.authService);
-    if (mapped) return mapped;
-    throw e;
-  }
+  });
 }

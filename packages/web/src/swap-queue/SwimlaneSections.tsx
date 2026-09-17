@@ -9,15 +9,20 @@ export function SwimlaneSection({
   children,
   emptyMessage,
   hasItems,
+  count,
 }: {
   lane: SwimlaneId;
   children: ReactNode;
   emptyMessage: string;
   hasItems: boolean;
+  count: number;
 }) {
   return (
     <section className="sq-swimlane" data-swimlane={lane} data-testid={`swimlane-${lane}`}>
-      <h2 className="sq-swimlane-title">{SWIMLANE_LABELS[lane]}</h2>
+      <h2 className="sq-swimlane-title">
+        {SWIMLANE_LABELS[lane]}{' '}
+        <span className="db-count">({count})</span>
+      </h2>
       {hasItems ? children : <p className="hub-muted sq-swimlane-empty">{emptyMessage}</p>}
     </section>
   );

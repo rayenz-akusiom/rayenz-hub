@@ -83,6 +83,12 @@ describe('SwapQueueApp browse / layout', () => {
     });
     expect(screen.getByTestId('swimlane-swaps')).toBeInTheDocument();
     expect(screen.getByTestId('swimlane-seeking')).toBeInTheDocument();
+    expect(within(screen.getByTestId('swimlane-swaps')).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Swaps (1)',
+    );
+    expect(within(screen.getByTestId('swimlane-seeking')).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Seeking (0)',
+    );
     expect(screen.queryByTestId('swimlane-queued_in')).not.toBeInTheDocument();
     expect(document.querySelector('.db-swap-pair')).toBeTruthy();
     const catBar = document.querySelector('.db-swap-pair .sq-tile-cat-bar');
@@ -291,6 +297,15 @@ describe('SwapQueueApp browse / layout', () => {
     expect(screen.getByTestId('swimlane-queued_out')).toBeInTheDocument();
     expect(screen.getByTestId('swimlane-seeking')).toBeInTheDocument();
     expect(screen.queryByTestId('swimlane-swaps')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('swimlane-queued_in')).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Queued In (1)',
+    );
+    expect(within(screen.getByTestId('swimlane-queued_out')).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Out (1)',
+    );
+    expect(within(screen.getByTestId('swimlane-seeking')).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Seeking (0)',
+    );
 
     const queuedIn = screen.getByTestId('swimlane-queued_in');
     expect(queuedIn.querySelector('.db-cat-column')).toBeTruthy();

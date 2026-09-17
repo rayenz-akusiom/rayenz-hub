@@ -294,6 +294,7 @@ function TilesView({
       <SwimlaneSection
         lane="swaps"
         hasItems={pairs.length > 0}
+        count={pairs.length}
         emptyMessage="No swap pairs."
       >
         <ul className="sq-lane-grid is-grid is-pairs db-card-grid">
@@ -349,6 +350,7 @@ function TilesView({
       <SwimlaneSection
         lane="seeking"
         hasItems={seekingSorted.length > 0}
+        count={seekingSorted.length}
         emptyMessage="No Seeking cards."
       >
         <ul className="sq-lane-grid is-grid db-card-grid">
@@ -419,6 +421,7 @@ export function QueueTilesView({
       <SwimlaneSection
         lane="queued_in"
         hasItems={queuedIn.length > 0}
+        count={queuedIn.length}
         emptyMessage="No Queued In cards."
       >
         <FaceLane
@@ -434,6 +437,7 @@ export function QueueTilesView({
       <SwimlaneSection
         lane="queued_out"
         hasItems={queuedOut.length > 0}
+        count={queuedOut.length}
         emptyMessage="No Out cards."
       >
         <FaceLane
@@ -449,6 +453,7 @@ export function QueueTilesView({
       <SwimlaneSection
         lane="seeking"
         hasItems={seeking.length > 0}
+        count={seeking.length}
         emptyMessage="No Seeking cards."
       >
         <FaceLane

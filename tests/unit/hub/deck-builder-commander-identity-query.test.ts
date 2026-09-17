@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   commanderIdentityScryfallQuery,
   emptyCardOracle,
+  isCardOutsideCommanderColourIdentity,
   oracleKey,
+  resolveCommanderColourIdentity,
   type CardInstance,
   type DeckDocument,
 } from '@rayenz-hub/shared';
@@ -177,5 +179,79 @@ describe('commanderIdentityScryfallQuery', () => {
         }),
       ),
     ).toBe('id:wbg');
+  });
+});
+
+describe('resolveCommanderColourIdentity / isCardOutsideCommanderColourIdentity', () => {
+  it('does not flag cards when identity is unknown or format is cube', () => {
+    const cmd = card({
+      instanceId: 'cmd',
+      name: 'Unknown Commander',
+      primaryCategory: 'Commander',
+    });
+    expect(resolveCommanderColourIdentity(deck({ cards: [cmd] }))).toEqual({
+      known: false,
+      letters: [],
+    });
+    expect(
+      isCardOutsideCommanderColourIdentity({ colourIdentity: ['G'] }, { known: false, letters: [] }),
+    ).toBe(false);
+
+    const { card: cmdCube, entry } = withOracle(
+      card({
+        instanceId: 'cmd',
+        name: 'Atraxa, Praetors\' Voice',
+        primaryCategory: 'Commander',
+        scryfallId: 'sf-atraxa',
+      }),
+      { colourIdentity: ['W', 'U', 'B', 'G'], typeLine: 'Legendary Creature' },
+    );
+    expect(
+      resolveCommanderColourIdentity(
+        deck({ format: 'cube', cards: [cmdCube], oracle: Object.fromEntries([entry]) }),
+      ),
+    ).toEqual({ known: false, letters: [] });
+  });
+
+  it('flags green cards after Abzan → Orzhov commander swap', () => {
+    const { card: cmd, entry } = withOracle(
+      card({
+        instanceId: 'cmd',
+        name: 'Teysa Karlov',
+        primaryCategory: 'Commander',
+        scryfallId: 'sf-teysa',
+      }),
+      { colourIdentity: ['W', 'B'], typeLine: 'Legendary Creature' },
+    );
+    const identity = resolveCommanderColourIdentity(
+      deck({ cards: [cmd], oracle: Object.fromEntries([entry]) }),
+    );
+    expect(identity).toEqual({ known: true, letters: ['W', 'B'] });
+    expect(isCardOutsideCommanderColourIdentity({ colourIdentity: ['W', 'B'] }, identity)).toBe(
+      false,
+    );
+    expect(isCardOutsideCommanderColourIdentity({ colourIdentity: ['G'] }, identity)).toBe(true);
+    expect(
+      isCardOutsideCommanderColourIdentity({ colourIdentity: ['W', 'B', 'G'] }, identity),
+    ).toBe(true);
+    expect(isCardOutsideCommanderColourIdentity({ colourIdentity: [] }, identity)).toBe(false);
+  });
+
+  it('flags coloured cards in a known colourless deck', () => {
+    const { card: cmd, entry } = withOracle(
+      card({
+        instanceId: 'cmd',
+        name: 'Kozilek, Butcher of Truth',
+        primaryCategory: 'Commander',
+        scryfallId: 'sf-kozilek',
+      }),
+      { colourIdentity: [], typeLine: 'Legendary Creature — Eldrazi' },
+    );
+    const identity = resolveCommanderColourIdentity(
+      deck({ cards: [cmd], oracle: Object.fromEntries([entry]) }),
+    );
+    expect(identity).toEqual({ known: true, letters: [] });
+    expect(isCardOutsideCommanderColourIdentity({ colourIdentity: [] }, identity)).toBe(false);
+    expect(isCardOutsideCommanderColourIdentity({ colourIdentity: ['U'] }, identity)).toBe(true);
   });
 });

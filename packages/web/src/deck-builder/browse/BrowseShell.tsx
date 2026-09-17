@@ -76,6 +76,7 @@ import {
 } from '@rayenz-hub/shared';
 import { CategoryBrowse } from './CategoryBrowse';
 import { CardFlagCharmProvider } from './CardFlagCharmContext';
+import { CommanderColourIdentityProvider } from './CommanderColourIdentityContext';
 import { ColourIdentityBrowse } from './ColourIdentityBrowse';
 import { SetCodeBrowse } from './SetCodeBrowse';
 import { AddCardFab } from './AddCardFab';
@@ -1336,6 +1337,7 @@ export function BrowseShell({
       </div>
 
       <div className="db-body">
+        <CommanderColourIdentityProvider deck={liveDeck}>
         <CardFlagCharmProvider value={cardFlagCharmValue}>
         <main className="db-main">
           {trimMode && !readOnly ? (
@@ -1594,6 +1596,7 @@ export function BrowseShell({
           </div>
         </aside>
         </CardFlagCharmProvider>
+        </CommanderColourIdentityProvider>
       </div>
 
       {moveOpen && selectionCount ? (

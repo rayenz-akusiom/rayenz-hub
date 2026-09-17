@@ -5,6 +5,7 @@ import {
   cardIsSeekingMarked,
   collectionCardIsIgnored,
   collectionCardIsSought,
+  isCardOutsideCommanderColourIdentity,
   type CardView,
   type CategoryMembership,
 } from '@rayenz-hub/shared';
@@ -16,6 +17,7 @@ import type {
 import { useLongPress } from '../useLongPress';
 import { CardFace } from './CardFace';
 import { CardFlagCharms } from './CardFlagCharms';
+import { useCommanderColourIdentity } from './CommanderColourIdentityContext';
 
 const DRAG_MIME = 'application/x-deck-builder-instance';
 const DRAG_MIME_MULTI = 'application/x-deck-builder-instances';
@@ -93,6 +95,8 @@ export function CardTile({
   enableSoughtGhost?: boolean;
 }) {
   const longPress = useLongPress();
+  const commanderIdentity = useCommanderColourIdentity();
+  const identityIllegal = isCardOutsideCommanderColourIdentity(card, commanderIdentity);
   const src = cardImageUrl(card);
   const doubleFaced = cardHasBackFace(card.layout);
   const backSrc = doubleFaced ? cardImageUrl(card, 'back') : null;
@@ -104,6 +108,7 @@ export function CardTile({
   const soughtGhost = enableSoughtGhost && collectionCardIsSought(card);
   const displayName = cardDisplayName(card);
   const secondary = membership === 'secondary';
+  const identitySuffix = identityIllegal ? ' (outside colour identity)' : '';
 
   function onDragStart(e: DragEvent<HTMLDivElement>) {
     if (!draggable) return;
@@ -125,7 +130,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${identityIllegal ? ' is-identity-illegal' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}`}
       onClick={(e) => {
         if (longPress.consumeClick()) return;
         onSelect?.(card, e);
@@ -150,8 +155,21 @@ export function CardTile({
       onPointerUp={longPress.end}
       onPointerLeave={longPress.end}
       onPointerCancel={longPress.end}
-      title={swapInGhost ? `${displayName} (swap in)` : soughtGhost ? `${displayName} (sought)` : displayName}
-      aria-label={actionLabel || (swapInGhost ? `${displayName}, swap in` : soughtGhost ? `${displayName}, sought` : displayName)}
+      title={
+        swapInGhost
+          ? `${displayName} (swap in)${identitySuffix}`
+          : soughtGhost
+            ? `${displayName} (sought)${identitySuffix}`
+            : `${displayName}${identitySuffix}`
+      }
+      aria-label={
+        actionLabel ||
+        (swapInGhost
+          ? `${displayName}, swap in${identityIllegal ? ', outside colour identity' : ''}`
+          : soughtGhost
+            ? `${displayName}, sought${identityIllegal ? ', outside colour identity' : ''}`
+            : `${displayName}${identityIllegal ? ', outside colour identity' : ''}`)
+      }
       aria-pressed={selected}
       draggable={draggable}
       onDragStart={onDragStart}

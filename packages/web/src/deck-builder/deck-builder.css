@@ -1049,22 +1049,22 @@ body,
   pointer-events: auto;
 }
 
-/* Front / hovered / focused: full face interactive; peek overlay off */
+/* Front / hovered / keyboard-focused: full face interactive; peek overlay off */
 .db-card-stack-item:last-child .db-card-tile,
 .db-card-stack-item:hover .db-card-tile,
-.db-card-stack-item:focus-within .db-card-tile {
+.db-card-stack-item:has(:focus-visible) .db-card-tile {
   pointer-events: auto;
 }
 
 .db-card-stack-item:last-child .db-card-stack-peek,
 .db-card-stack-item:hover .db-card-stack-peek,
-.db-card-stack-item:focus-within .db-card-stack-peek {
+.db-card-stack-item:has(:focus-visible) .db-card-stack-peek {
   pointer-events: none;
 }
 
 /* Keep revealed face above following cards during transform expand */
 .db-card-stack-item:hover,
-.db-card-stack-item:focus-within {
+.db-card-stack-item:has(:focus-visible) {
   z-index: 2;
 }
 
@@ -1073,7 +1073,7 @@ body,
  * stays collapsed — expand can paint off-screen without scrolling the page.
  */
 .db-card-stack-item:hover ~ .db-card-stack-item,
-.db-card-stack-item:focus-within ~ .db-card-stack-item {
+.db-card-stack-item:has(:focus-visible) ~ .db-card-stack-item {
   transform: translateY(
     calc(0.5rem - (var(--db-card-overlap) - var(--db-card-w) * var(--db-card-ratio)))
   );
@@ -1088,16 +1088,16 @@ body,
 .hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item + .db-card-stack-item,
 .db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:hover ~ .db-card-stack-item,
 .hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:hover ~ .db-card-stack-item,
-.db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:focus-within ~ .db-card-stack-item,
-.hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:focus-within ~ .db-card-stack-item {
+.db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:has(:focus-visible) ~ .db-card-stack-item,
+.hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:has(:focus-visible) ~ .db-card-stack-item {
   transform: none;
   transition: none;
 }
 
 .db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:hover,
 .hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:hover,
-.db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:focus-within,
-.hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:focus-within {
+.db-shell:has(.db-card-tile.is-drag-source) .db-card-stack-item:has(:focus-visible),
+.hub-app:has(.db-card-tile.is-drag-source) .db-card-stack-item:has(:focus-visible) {
   z-index: auto;
 }
 
@@ -1570,6 +1570,34 @@ body,
   z-index: 1;
 }
 
+.db-card-tile.is-identity-illegal {
+  border-color: var(--db-danger, #e53e3e);
+  outline: 3px solid var(--db-danger, #e53e3e);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92);
+}
+
+.db-card-tile.is-identity-illegal::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: rgba(229, 62, 62, 0.18);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Illegal wins over selection so off-identity cards stay readable */
+.db-card-tile.is-selected.is-identity-illegal {
+  border-color: var(--db-danger, #e53e3e);
+  outline: 3px solid var(--db-danger, #e53e3e);
+  outline-offset: -2px;
+}
+
+.db-card-tile.is-selected.is-identity-illegal::after {
+  background: rgba(229, 62, 62, 0.22);
+}
+
 .db-card-tile.is-drag-source {
   opacity: 0.55;
 }
@@ -1587,6 +1615,12 @@ body,
 .db-card-tile.is-secondary-cat.is-selected {
   opacity: 0.92;
   outline: 3px solid var(--db-accent);
+  outline-offset: -2px;
+}
+
+.db-card-tile.is-secondary-cat.is-identity-illegal {
+  opacity: 0.85;
+  outline: 3px solid var(--db-danger, #e53e3e);
   outline-offset: -2px;
 }
 
@@ -1620,6 +1654,11 @@ body,
 
 .db-card-tile.is-selected.is-swap-in-ghost::after {
   background: rgba(31, 111, 235, 0.13);
+}
+
+.db-card-tile.is-identity-illegal.is-swap-in-ghost::after,
+.db-card-tile.is-selected.is-identity-illegal.is-swap-in-ghost::after {
+  background: rgba(229, 62, 62, 0.22);
 }
 
 .db-section.is-target-warn .db-section-title,
@@ -2018,16 +2057,16 @@ body,
 
 /* Match stack open delay so badges appear only once the face starts uncovering */
 .db-card-stack-item:hover .db-card-badges-corner,
-.db-card-stack-item:focus-within .db-card-badges-corner,
+.db-card-stack-item:has(:focus-visible) .db-card-badges-corner,
 .db-card-stack-item:hover .db-card-badges-foil,
-.db-card-stack-item:focus-within .db-card-badges-foil {
+.db-card-stack-item:has(:focus-visible) .db-card-badges-foil {
   opacity: 1;
   transition-delay: 0.35s;
 }
 
 .db-card-stack-item:last-child .db-card-badges-corner .db-badge-flip,
 .db-card-stack-item:hover .db-card-badges-corner .db-badge-flip,
-.db-card-stack-item:focus-within .db-card-badges-corner .db-badge-flip {
+.db-card-stack-item:has(:focus-visible) .db-card-badges-corner .db-badge-flip {
   pointer-events: auto;
 }
 
@@ -2581,22 +2620,22 @@ body,
 }
 
 .db-card-stack-item:hover .db-card-charms,
-.db-card-stack-item:focus-within .db-card-charms,
+.db-card-stack-item:has(:focus-visible) .db-card-charms,
 .db-card-stack-item:last-child:hover .db-card-charms,
-.db-card-stack-item:last-child:focus-within .db-card-charms,
+.db-card-stack-item:last-child:has(:focus-visible) .db-card-charms,
 .db-card-stack-item:hover .db-card-tile.is-selected .db-card-charms,
-.db-card-stack-item:focus-within .db-card-tile.is-selected .db-card-charms,
+.db-card-stack-item:has(:focus-visible) .db-card-tile.is-selected .db-card-charms,
 .db-card-stack-item:last-child:hover .db-card-tile.is-selected .db-card-charms,
-.db-card-stack-item:last-child:focus-within .db-card-tile.is-selected .db-card-charms {
+.db-card-stack-item:last-child:has(:focus-visible) .db-card-tile.is-selected .db-card-charms {
   opacity: 1;
   pointer-events: none;
   transition-delay: 0.35s;
 }
 
 .db-card-stack-item:hover .db-card-charm,
-.db-card-stack-item:focus-within .db-card-charm,
+.db-card-stack-item:has(:focus-visible) .db-card-charm,
 .db-card-stack-item:last-child:hover .db-card-charm,
-.db-card-stack-item:last-child:focus-within .db-card-charm {
+.db-card-stack-item:last-child:has(:focus-visible) .db-card-charm {
   pointer-events: auto;
 }
 

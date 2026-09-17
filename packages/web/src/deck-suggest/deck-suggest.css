@@ -12,28 +12,25 @@
    line-height: 1.45;
 }
 
-.deck-suggest-app .dr-main-area {
-   align-items: stretch;
-}
-
 .deck-suggest-app .hub-sticky-chrome {
    width: 100%;
 }
 
-/* Review phase: scroll body under sticky chrome inside the clipped viewport */
-.deck-suggest-app.deck-suggest-reviewing > .dr-layout {
+/* Scroll body under sticky chrome inside the clipped viewport (setup + review) */
+.deck-suggest-app > .dr-layout {
    flex: 1;
    min-height: 0;
    height: auto;
    width: 100%;
 }
 
-.deck-suggest-app.deck-suggest-reviewing .dr-main-area {
+.deck-suggest-app .dr-main-area {
+   align-items: stretch;
    min-height: 0;
    overflow: hidden;
 }
 
-.deck-suggest-app.deck-suggest-reviewing .dr-body {
+.deck-suggest-app .dr-body {
    flex: 1;
    min-height: 0;
    overflow-y: auto;

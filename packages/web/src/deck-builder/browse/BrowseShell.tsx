@@ -19,6 +19,7 @@ import {
   cardMatchesSyntaxMembership,
   cardSupportsFoilToggle,
   cardIsSeekingMarked,
+  markMainDeckSeekingSecondary,
   categoryIncluded,
   categoryTargetsMismatchCubeSize,
   changeCardPrinting,

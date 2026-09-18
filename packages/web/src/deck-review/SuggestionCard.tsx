@@ -10,6 +10,7 @@ import { scryfallImageFromId, scryfallImageFromPrinting } from '@rayenz-hub/shar
 import type { ReviewProgress } from '../lib/hub-storage';
 import { ProfileSync } from '../mtg/profile-sync';
 import {
+  buildAcceptedAdd,
   buildAcceptedSeeking,
   buildAcceptedSwap,
   decisionStatusClass,
@@ -41,7 +42,7 @@ import {
 } from './profiles';
 import { persistAcceptedSuggestion } from '../deck-suggest/accept';
 import { DbMenu, DbMenuItem } from '../deck-builder/ui/DbMenu';
-import type { AcceptKind, ReviewDecision, ScryfallPrint } from './types';
+import type { AcceptKind, AddDestination, ReviewDecision, ScryfallPrint } from './types';
 
 const GROUP_LABELS = {
   functional: 'Functional',
@@ -109,9 +110,13 @@ export function SuggestionCard({
   const [cutKey, setCutKey] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(!compact);
   const [acceptKind, setAcceptKind] = useState<AcceptKind>('swap');
+  const [addDestination, setAddDestination] = useState<AddDestination>('deck');
   const [saving, setSaving] = useState(false);
   const cutMeta = useMemo(() => cutMetaFromKey(cutKey, cutOptions), [cutKey, cutOptions]);
   const seekingMode = acceptKind === 'seeking';
+  const addMode = acceptKind === 'add';
+  const swapMode = acceptKind === 'swap';
+  const noCutMode = seekingMode || addMode;
 
   useEffect(() => {
     setDetailsOpen(!compact);
@@ -148,7 +153,12 @@ export function SuggestionCard({
   useEffect(() => {
     if (decision?.status === 'accepted' && decision.accepted) {
       const accepted = decision.accepted;
-      setAcceptKind(accepted.accept_kind || (accepted.swap_categories === false ? 'seeking' : 'swap'));
+      setAcceptKind(
+        accepted.accept_kind || (accepted.swap_categories === false ? 'seeking' : 'swap'),
+      );
+      if (accepted.add_destination) {
+        setAddDestination(accepted.add_destination);
+      }
       if (accepted.card_in?.scryfall_id) {
         setPrintId(accepted.card_in.scryfall_id);
         setFinish(accepted.card_in.finish || 'nonfoil');
@@ -161,6 +171,7 @@ export function SuggestionCard({
       return;
     }
     setAcceptKind('swap');
+    setAddDestination('deck');
   }, [decision, suggestion.suggestion_id]);
 
   const outImgSrc = useMemo(() => {
@@ -204,6 +215,18 @@ export function SuggestionCard({
         return;
       }
       accepted = result;
+    } else if (addMode) {
+      const result = buildAcceptedAdd(deck, suggestion, {
+        printId,
+        finish,
+        prints,
+        destination: addDestination,
+      });
+      if ('error' in result) {
+        onProfileUpdate({ profileStatus: result.error });
+        return;
+      }
+      accepted = result;
     } else {
       const selections: AcceptSelections = {
         printId,
@@ -234,12 +257,15 @@ export function SuggestionCard({
         }
       }
       onDecision(String(suggestion.suggestion_id), { status: 'accepted', accepted }, advanceOnAction);
-      onProfileUpdate({
-        profileStatus:
-          accepted.accept_kind === 'seeking'
-            ? 'Saved Seeking to Hub.'
-            : 'Saved formal swap to Hub.',
-      });
+      const statusMsg =
+        accepted.accept_kind === 'seeking'
+          ? 'Saved Seeking to Hub.'
+          : accepted.accept_kind === 'add'
+            ? accepted.add_destination === 'maybeboard'
+              ? 'Added to Maybeboard.'
+              : 'Added to deck.'
+            : 'Saved formal swap to Hub.';
+      onProfileUpdate({ profileStatus: statusMsg });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       onError?.(msg);
@@ -358,8 +384,9 @@ export function SuggestionCard({
         (compact && detailsOpen ? ' is-expanded' : '') +
         (suggestion.priority_tier === 'swap' ? ' swap-tier' : '') +
         decisionStatusClass(status) +
-        (missingCut && !seekingMode ? ' dr-missing-cut' : '') +
+        (missingCut && swapMode ? ' dr-missing-cut' : '') +
         (seekingMode ? ' dr-accept-seeking' : '') +
+        (addMode ? ' dr-accept-add' : '') +
         staleClass
       }
       data-suggestion-id={String(suggestion.suggestion_id)}
@@ -368,8 +395,8 @@ export function SuggestionCard({
         <div className="dr-accept-mode" role="group" aria-label="Accept as">
           <button
             type="button"
-            className={'dr-btn dr-btn-ghost dr-accept-mode-btn' + (!seekingMode ? ' is-active' : '')}
-            aria-pressed={!seekingMode}
+            className={'dr-btn dr-btn-ghost dr-accept-mode-btn' + (swapMode ? ' is-active' : '')}
+            aria-pressed={swapMode}
             onClick={() => setAcceptKind('swap')}
           >
             Swap
@@ -381,6 +408,14 @@ export function SuggestionCard({
             onClick={() => setAcceptKind('seeking')}
           >
             Seeking
+          </button>
+          <button
+            type="button"
+            className={'dr-btn dr-btn-ghost dr-accept-mode-btn' + (addMode ? ' is-active' : '')}
+            aria-pressed={addMode}
+            onClick={() => setAcceptKind('add')}
+          >
+            Add
           </button>
         </div>
         <div className="dr-swap-pair">
@@ -401,7 +436,7 @@ export function SuggestionCard({
             </button>
           </div>
 
-          {!seekingMode ? (
+          {swapMode ? (
             <>
               <div className="dr-swap-arrow" aria-hidden="true">
                 →
@@ -421,10 +456,41 @@ export function SuggestionCard({
                 </button>
               </div>
             </>
-          ) : (
+          ) : seekingMode ? (
             <div className="dr-swap-col dr-swap-seeking-note">
               <div className="dr-swap-label">Seeking</div>
               <p className="dr-meta">No cut — add In to Seeking only.</p>
+            </div>
+          ) : (
+            <div className="dr-swap-col dr-swap-seeking-note">
+              <div className="dr-swap-label">Add</div>
+              <p className="dr-meta">
+                No cut — add In to {addDestination === 'maybeboard' ? 'Maybeboard' : 'the deck'}.
+              </p>
+              <div className="dr-accept-mode dr-add-destination" role="group" aria-label="Add destination">
+                <button
+                  type="button"
+                  className={
+                    'dr-btn dr-btn-ghost dr-accept-mode-btn' +
+                    (addDestination === 'deck' ? ' is-active' : '')
+                  }
+                  aria-pressed={addDestination === 'deck'}
+                  onClick={() => setAddDestination('deck')}
+                >
+                  Deck
+                </button>
+                <button
+                  type="button"
+                  className={
+                    'dr-btn dr-btn-ghost dr-accept-mode-btn' +
+                    (addDestination === 'maybeboard' ? ' is-active' : '')
+                  }
+                  aria-pressed={addDestination === 'maybeboard'}
+                  onClick={() => setAddDestination('maybeboard')}
+                >
+                  Maybeboard
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -460,7 +526,7 @@ export function SuggestionCard({
               <div className="dr-swap-summary-col">
                 <p className="dr-picker-summary">{printSummaryLabel(printId, prints, suggestion, finish)}</p>
               </div>
-              {!seekingMode ? (
+              {!noCutMode ? (
                 <div className="dr-swap-summary-col">
                   <p className="dr-picker-summary">{cutSummaryLabel(cutMeta, cutOptions)}</p>
                 </div>
@@ -508,7 +574,7 @@ export function SuggestionCard({
             >
               Never suggest this card
             </DbMenuItem>
-            {seekingMode ? null : (
+            {noCutMode ? null : (
               <DbMenuItem
                 disabled={!canNeverOut}
                 title={neverOutBtnTitle}
@@ -530,7 +596,13 @@ export function SuggestionCard({
             disabled={saving}
             onClick={() => void handleAccept()}
           >
-            {saving ? 'Saving…' : seekingMode ? 'Accept Seeking' : 'Accept'}
+            {saving
+              ? 'Saving…'
+              : seekingMode
+                ? 'Accept Seeking'
+                : addMode
+                  ? 'Accept Add'
+                  : 'Accept'}
           </button>
         </div>
         {advanceOnAction ? (

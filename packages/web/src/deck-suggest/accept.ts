@@ -1,5 +1,7 @@
 import {
   applyDeckPatch,
+  defaultCategoryForCard,
+  defaultSwapInTargetCategory,
   SEEKING,
   SWAP_IN,
   type DeckDocument,
@@ -10,6 +12,10 @@ import { saveDualMode } from '../deck-builder/store/deck-dual-mode';
 import { resolveLibraryDocument } from '../deck-builder/store/library-sync';
 import { apiFetch } from '../api/hub-api';
 import type { Suggestion } from './types';
+
+export type AddAcceptDestination = 'deck' | 'maybeboard';
+
+const MAYBEBOARD = 'Maybeboard';
 
 export type AcceptPrintingChoice = {
   printing: PrintingFields;
@@ -159,6 +165,74 @@ export function buildSeekingAcceptPatch(
   return ops;
 }
 
+function resolveAddPrimaryCategory(
+  deck: DeckDocument,
+  suggestion: Suggestion,
+  destination: AddAcceptDestination,
+  choice?: AcceptPrintingChoice,
+): string {
+  if (destination === 'maybeboard') {
+    return MAYBEBOARD;
+  }
+  const printing = choice?.printing;
+  const typeLine = printing?.typeLine?.trim();
+  if (printing && typeLine) {
+    return defaultCategoryForCard(deck, {
+      name: printing.name || suggestion.card.name,
+      typeLine,
+      colourIdentity: printing.colourIdentity,
+      scryfallId: printing.scryfallId || null,
+      setCode: printing.setCode || null,
+      collectorNumber: printing.collectorNumber || null,
+    });
+  }
+  return defaultSwapInTargetCategory(deck);
+}
+
+/** Direct add to a counted deck category or Maybeboard — no cut, no queue. */
+export function buildAddAcceptPatch(
+  deck: DeckDocument,
+  suggestion: Suggestion,
+  destination: AddAcceptDestination,
+  choice?: AcceptPrintingChoice,
+): DeckPatch {
+  const inId = mintId('c');
+  const primaryCategory = resolveAddPrimaryCategory(deck, suggestion, destination, choice);
+  const lookingForToClear = (deck.lookingForEntries || []).filter((e) => {
+    const card = deck.cards.find((c) => c.instanceId === e.instanceId);
+    return card && card.name.toLowerCase() === suggestion.card.name.toLowerCase();
+  });
+  const fields = choice
+    ? cardFieldsFromChoice(choice)
+    : {
+        setCode: suggestion.card.set_code || null,
+        collectorNumber: suggestion.card.collector_number || null,
+        scryfallId: suggestion.card.scryfall_id || null,
+        foil: false,
+        proxy: false,
+      };
+  return {
+    expectedUpdatedAt: deck.updatedAt,
+    cardOps: [
+      {
+        op: 'add',
+        card: {
+          instanceId: inId,
+          name: suggestion.card.name,
+          primaryCategory,
+          categories: [primaryCategory],
+          ...fields,
+          quantity: 1,
+        },
+      },
+    ],
+    lookingForOps:
+      lookingForToClear.length > 0
+        ? lookingForToClear.map((e) => ({ op: 'remove' as const, id: e.id }))
+        : undefined,
+  };
+}
+
 export async function persistSuggestPatch(deckId: string, patch: DeckPatch): Promise<DeckDocument> {
   const local = await resolveLibraryDocument(deckId);
   if (!local) {
@@ -235,12 +309,13 @@ function choiceFromCardIn(cardIn: {
   };
 }
 
-/** Persist an accepted Swap/Seeking decision to the Hub deck (system of record). */
+/** Persist an accepted Swap/Seeking/Add decision to the Hub deck (system of record). */
 export async function persistAcceptedSuggestion(
   suggestion: Suggestion,
   accepted: {
     deck_id: string;
-    accept_kind?: 'swap' | 'seeking';
+    accept_kind?: 'swap' | 'seeking' | 'add';
+    add_destination?: AddAcceptDestination;
     card_in: {
       name: string;
       set_code?: string;
@@ -260,13 +335,19 @@ export async function persistAcceptedSuggestion(
     throw new Error('Save this deck to Hub before accepting suggestions.');
   }
   const choice = choiceFromCardIn(accepted.card_in);
-  const seeking = accepted.accept_kind === 'seeking' || !accepted.card_out?.name;
-  if (seeking) {
+  if (accepted.accept_kind === 'add') {
+    const destination = accepted.add_destination === 'maybeboard' ? 'maybeboard' : 'deck';
+    return persistSuggestPatch(
+      deckId,
+      buildAddAcceptPatch(local, suggestion, destination, choice),
+    );
+  }
+  if (accepted.accept_kind === 'seeking' || !accepted.card_out?.name) {
     return persistSuggestPatch(deckId, buildSeekingAcceptPatch(local, suggestion, choice));
   }
-  const outId = resolveOutInstanceId(local, accepted.card_out!);
+  const outId = resolveOutInstanceId(local, accepted.card_out);
   if (!outId) {
-    throw new Error('Could not find Out card "' + accepted.card_out!.name + '" on Hub deck.');
+    throw new Error('Could not find Out card "' + accepted.card_out.name + '" on Hub deck.');
   }
   return persistSuggestPatch(deckId, buildSwapAcceptPatch(local, suggestion, outId, choice));
 }
@@ -276,5 +357,5 @@ export type SessionAccept = {
   cardName: string;
   quantity: number;
   printing?: { set_code?: string; collector_number?: string };
-  kind: 'queued_in' | 'seeking';
+  kind: 'queued_in' | 'seeking' | 'add';
 };

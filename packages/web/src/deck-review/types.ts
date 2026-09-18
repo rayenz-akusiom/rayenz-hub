@@ -24,7 +24,10 @@ export type CardOutSelection = {
   collector_number: string | null;
 };
 
-export type AcceptKind = 'swap' | 'seeking';
+export type AcceptKind = 'swap' | 'seeking' | 'add';
+
+/** Direct-add destination when accept_kind is `add` (Hub has no Sideboard). */
+export type AddDestination = 'deck' | 'maybeboard';
 
 export type AcceptedSwap = {
   suggestion_id: string;
@@ -34,10 +37,12 @@ export type AcceptedSwap = {
   action?: string;
   quantity: number;
   card_in: CardInSelection;
-  /** Present for swap accepts; empty/null for Seeking. */
+  /** Present for swap accepts; empty/null for Seeking / Add. */
   card_out: CardOutSelection | null;
   swap_categories: boolean;
   accept_kind: AcceptKind;
+  /** Present when accept_kind is `add`. */
+  add_destination?: AddDestination;
 };
 
 export type ReviewDecision = {

@@ -810,6 +810,11 @@
    padding-left: 8px;
 }
 
+.dr-add-destination {
+   margin-top: 8px;
+   margin-bottom: 0;
+}
+
 .dr-badge-seeking {
    background: var(--hub-accent-soft);
    color: var(--hub-accent);

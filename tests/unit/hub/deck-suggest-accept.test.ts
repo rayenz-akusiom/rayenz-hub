@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import {
+  buildAddAcceptPatch,
   persistAcceptedSuggestion,
   resolveOutInstanceId,
 } from '../../../packages/web/src/deck-suggest/accept.ts';
@@ -42,7 +43,10 @@ function baseDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
     format: 'commander',
     archidektId: null,
     archidektUrl: '',
-    categories: [],
+    categories: [
+      { name: 'Land', includedInDeck: true, includedInPrice: true, target: null },
+      { name: 'Creature', includedInDeck: true, includedInPrice: true, target: null },
+    ],
     cards: [landCard('out-1', 'cmm', '1')],
     oracle: {},
     formalSwapEntries: [],
@@ -51,6 +55,19 @@ function baseDeck(overrides: Partial<DeckDocument> = {}): DeckDocument {
     ...overrides,
   } as DeckDocument;
 }
+
+const addSuggestion = {
+  suggestion_id: 's1',
+  action: 'add',
+  card: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1', scryfall_id: 'sr-id' },
+  quantity: 1,
+  roles_matched: [],
+  confidence: 'high',
+  rationale: '',
+  tags: [],
+  replaces: [],
+  priority_tier: 'upgrade',
+} as never;
 
 beforeEach(() => {
   resetHubModules();
@@ -75,35 +92,140 @@ describe('resolveOutInstanceId', () => {
   });
 });
 
+describe('buildAddAcceptPatch', () => {
+  it('adds to Maybeboard with no formal swap or Seeking entry', () => {
+    const deck = baseDeck();
+    const patch = buildAddAcceptPatch(deck, addSuggestion, 'maybeboard');
+    expect(patch.cardOps).toHaveLength(1);
+    expect(patch.cardOps![0]).toMatchObject({
+      op: 'add',
+      card: {
+        name: 'Sol Ring',
+        primaryCategory: 'Maybeboard',
+        categories: ['Maybeboard'],
+      },
+    });
+    expect(patch.formalSwapOps).toBeUndefined();
+    expect(patch.lookingForOps).toBeUndefined();
+  });
+
+  it('adds to default swap-in category when destination is deck and type line is unknown', () => {
+    const deck = baseDeck();
+    const patch = buildAddAcceptPatch(deck, addSuggestion, 'deck');
+    expect(patch.cardOps![0]).toMatchObject({
+      op: 'add',
+      card: {
+        name: 'Sol Ring',
+        primaryCategory: 'Land',
+        categories: ['Land'],
+      },
+    });
+  });
+
+  it('files by type line when printing includes typeLine', () => {
+    const deck = baseDeck();
+    const patch = buildAddAcceptPatch(deck, addSuggestion, 'deck', {
+      printing: {
+        name: 'Sol Ring',
+        scryfallId: 'sr-id',
+        setCode: 'cmm',
+        collectorNumber: '1',
+        typeLine: 'Artifact',
+        colourIdentity: [],
+        layout: 'normal',
+        foil: false,
+        printedName: null,
+        flavorName: null,
+        manaValue: 1,
+      },
+    });
+    expect(patch.cardOps![0]).toMatchObject({
+      op: 'add',
+      card: {
+        name: 'Sol Ring',
+        primaryCategory: 'Artifact',
+      },
+    });
+  });
+
+  it('clears matching Seeking entries for the same name', () => {
+    const deck = baseDeck({
+      cards: [
+        landCard('out-1', 'cmm', '1'),
+        {
+          instanceId: 'seek-1',
+          name: 'Sol Ring',
+          quantity: 1,
+          primaryCategory: 'Seeking',
+          categories: ['Seeking'],
+          stack: null,
+          setCode: null,
+          collectorNumber: null,
+          scryfallId: null,
+          archidektCardId: null,
+          foil: false,
+          proxy: false,
+        },
+      ],
+      lookingForEntries: [{ id: 'lf-1', instanceId: 'seek-1', sortIndex: 0, notes: null }],
+    } as Partial<DeckDocument>);
+    const patch = buildAddAcceptPatch(deck, addSuggestion, 'deck');
+    expect(patch.lookingForOps).toEqual([{ op: 'remove', id: 'lf-1' }]);
+  });
+});
+
 describe('persistAcceptedSuggestion', () => {
   it('persists a seeking accept to Hub', async () => {
     const deck = baseDeck();
     mockResolveLibraryDocument.mockResolvedValue(deck);
     mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
 
-    const saved = await persistAcceptedSuggestion(
-      {
-        suggestion_id: 's1',
-        action: 'add',
-        card: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1' },
-        quantity: 1,
-        roles_matched: [],
-        confidence: 'high',
-        rationale: '',
-        tags: [],
-        replaces: [],
-        priority_tier: 'upgrade',
-      } as never,
-      {
-        deck_id: 'hub-1',
-        accept_kind: 'seeking',
-        card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1', finish: 'nonfoil' },
-        card_out: null,
-      },
-    );
+    const saved = await persistAcceptedSuggestion(addSuggestion, {
+      deck_id: 'hub-1',
+      accept_kind: 'seeking',
+      card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1', finish: 'nonfoil' },
+      card_out: null,
+    });
 
     expect(saved.lookingForEntries?.length).toBe(1);
     expect(mockSaveDualMode).toHaveBeenCalled();
+  });
+
+  it('persists an add accept to Hub without Seeking when card_out is empty', async () => {
+    const deck = baseDeck();
+    mockResolveLibraryDocument.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+
+    const saved = await persistAcceptedSuggestion(addSuggestion, {
+      deck_id: 'hub-1',
+      accept_kind: 'add',
+      add_destination: 'maybeboard',
+      card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1', finish: 'nonfoil' },
+      card_out: null,
+    });
+
+    expect(saved.lookingForEntries?.length ?? 0).toBe(0);
+    expect(saved.formalSwapEntries?.length ?? 0).toBe(0);
+    const added = saved.cards.find((c) => c.name === 'Sol Ring');
+    expect(added?.primaryCategory).toBe('Maybeboard');
+  });
+
+  it('persists a deck add accept to Hub', async () => {
+    const deck = baseDeck();
+    mockResolveLibraryDocument.mockResolvedValue(deck);
+    mockSaveDualMode.mockImplementation(async (next: DeckDocument) => ({ saved: next, apiError: null }));
+
+    const saved = await persistAcceptedSuggestion(addSuggestion, {
+      deck_id: 'hub-1',
+      accept_kind: 'add',
+      add_destination: 'deck',
+      card_in: { name: 'Sol Ring', set_code: 'cmm', collector_number: '1', finish: 'nonfoil' },
+      card_out: null,
+    });
+
+    const added = saved.cards.find((c) => c.name === 'Sol Ring');
+    expect(added?.primaryCategory).toBe('Land');
+    expect(saved.lookingForEntries?.length ?? 0).toBe(0);
   });
 
   it('persists a swap accept to Hub', async () => {
@@ -143,25 +265,11 @@ describe('persistAcceptedSuggestion', () => {
 
   it('throws when Hub deck is missing', async () => {
     await expect(
-      persistAcceptedSuggestion(
-        {
-          suggestion_id: 's1',
-          action: 'add',
-          card: { name: 'Sol Ring' },
-          quantity: 1,
-          roles_matched: [],
-          confidence: 'high',
-          rationale: '',
-          tags: [],
-          replaces: [],
-          priority_tier: 'upgrade',
-        } as never,
-        {
-          deck_id: 'missing',
-          accept_kind: 'seeking',
-          card_in: { name: 'Sol Ring' },
-        },
-      ),
+      persistAcceptedSuggestion(addSuggestion, {
+        deck_id: 'missing',
+        accept_kind: 'seeking',
+        card_in: { name: 'Sol Ring' },
+      }),
     ).rejects.toThrow(/Save this deck to Hub/);
   });
 });

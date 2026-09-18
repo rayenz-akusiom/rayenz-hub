@@ -7,7 +7,14 @@ import {
   needsSuggestedCut,
   printingToCardIn,
 } from './data';
-import type { AcceptedSwap, CardOutSelection, ReviewDecision, ScryfallPrint } from './types';
+import type {
+  AcceptKind,
+  AcceptedSwap,
+  AddDestination,
+  CardOutSelection,
+  ReviewDecision,
+  ScryfallPrint,
+} from './types';
 
 export function decisionKey(suggestionId: string): string {
   return suggestionId;
@@ -55,18 +62,20 @@ export function decisionStatusText(status: string): string {
 export function decisionRecapInOut(
   suggestion: Suggestion,
   decision: ReviewDecision | null,
-): { inName: string; inSet: string; outName: string; acceptKind: 'swap' | 'seeking' | null } {
+): { inName: string; inSet: string; outName: string; acceptKind: AcceptKind | null } {
   let inName = '';
   let inSet = '';
   let outName = '';
-  let acceptKind: 'swap' | 'seeking' | null = null;
+  let acceptKind: AcceptKind | null = null;
   if (decision?.status === 'accepted' && decision.accepted) {
-    acceptKind = decision.accepted.accept_kind || (decision.accepted.swap_categories === false ? 'seeking' : 'swap');
+    acceptKind =
+      decision.accepted.accept_kind ||
+      (decision.accepted.swap_categories === false ? 'seeking' : 'swap');
     if (decision.accepted.card_in) {
       inName = decision.accepted.card_in.name || '';
       inSet = decision.accepted.card_in.set_code || '';
     }
-    if (acceptKind === 'seeking') {
+    if (acceptKind === 'seeking' || acceptKind === 'add') {
       outName = '';
     } else if (decision.accepted.card_out?.name) {
       outName = decision.accepted.card_out.name;
@@ -153,6 +162,32 @@ export function buildAcceptedSeeking(
     card_out: null,
     swap_categories: false,
     accept_kind: 'seeking',
+  };
+}
+
+export function buildAcceptedAdd(
+  deck: DeckEntry,
+  suggestion: Suggestion,
+  selections: Pick<AcceptSelections, 'printId' | 'finish' | 'prints'> & {
+    destination: AddDestination;
+  },
+): AcceptedSwap | { error: string } {
+  const cardIn = resolveCardIn(suggestion, selections);
+  if (!cardIn.name) {
+    return { error: 'Select an In printing before accepting as Add.' };
+  }
+  return {
+    suggestion_id: String(suggestion.suggestion_id),
+    deck_id: deck.deck_id || '',
+    archidekt_deck_id: ArchidektExport.parseDeckId(deck.archidekt_url),
+    archidekt_url: deck.archidekt_url,
+    action: suggestion.action as string | undefined,
+    quantity: 1,
+    card_in: cardIn,
+    card_out: null,
+    swap_categories: false,
+    accept_kind: 'add',
+    add_destination: selections.destination,
   };
 }
 

@@ -358,6 +358,8 @@ describe('input.ts', () => {
     const fromEmail = parseInputToAcquired('email', '', 'Order confirmation\n1x Lightning Bolt');
     expect(fromEmail.length).toBeGreaterThan(0);
     expect(fromEmail[0].id).toBe('acq-0');
+
+    expect(parseInputToAcquired('precon', '1 Sol Ring', '')).toEqual([]);
   });
 
   it('updateAcquiredField updates quantity and string fields', () => {

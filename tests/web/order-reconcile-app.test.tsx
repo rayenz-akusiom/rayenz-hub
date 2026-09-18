@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyCardOracle, oracleKey } from '@rayenz-hub/shared';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OrderReconcileApp } from '../../packages/web/src/order-reconcile/OrderReconcileApp';
 import { resetHubModules } from '../unit/helpers/hubHarness';
+import { cardInstance, leanDeck } from '../unit/helpers/deck-fixtures';
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
   const { hubProgressMockModule } = await import('./helpers/hub-progress-mock');
@@ -23,6 +25,8 @@ const mockLoadHubLibrarySnapshots = vi.fn();
 const mockBuildAssignmentPlan = vi.fn();
 const mockLoadCollectionDecks = vi.fn();
 const mockPersistCollectionDecks = vi.fn();
+const mockApiListPublicDecks = vi.fn();
+const mockApiGetPublicDeck = vi.fn();
 
 vi.mock('../../packages/web/src/order-reconcile/data', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../packages/web/src/order-reconcile/data')>();
@@ -46,6 +50,15 @@ vi.mock('../../packages/web/src/order-reconcile/collection-mark', async (importO
     ...actual,
     loadCollectionDecks: (...args: unknown[]) => mockLoadCollectionDecks(...args),
     persistCollectionDecks: (...args: unknown[]) => mockPersistCollectionDecks(...args),
+  };
+});
+
+vi.mock('../../packages/web/src/deck-builder/store/deck-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../packages/web/src/deck-builder/store/deck-api')>();
+  return {
+    ...actual,
+    apiListPublicDecks: (...args: unknown[]) => mockApiListPublicDecks(...args),
+    apiGetPublicDeck: (...args: unknown[]) => mockApiGetPublicDeck(...args),
   };
 });
 
@@ -110,6 +123,22 @@ beforeEach(() => {
     saved: docs,
     errors: [],
   }));
+  mockApiListPublicDecks.mockResolvedValue({
+    username: 'precons',
+    slug: 'precons',
+    decks: [
+      {
+        deckId: 'precon-breed',
+        name: 'Breed Lethality',
+        format: 'commander',
+        ownership: 'owned',
+        visibility: 'public',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archidektId: null,
+      },
+    ],
+  });
+  mockApiGetPublicDeck.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -125,7 +154,9 @@ describe('OrderReconcileApp input phase', () => {
     expect(screen.getByRole('heading', { name: 'Order Reconcile' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Card list' })).toHaveClass('active');
     expect(screen.getByRole('button', { name: /Order email/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Precons' })).toBeInTheDocument();
     expect(screen.getByText('No cards parsed yet.')).toBeInTheDocument();
+    expect(mockApiListPublicDecks).not.toHaveBeenCalled();
   });
 
   it('shows continue error when no cards are parsed', async () => {
@@ -159,6 +190,71 @@ describe('OrderReconcileApp input phase', () => {
 
     await user.click(screen.getByRole('button', { name: /Order email/i }));
     expect(screen.getByPlaceholderText(/Paste order confirmation email body/i)).toBeInTheDocument();
+  });
+
+  it('lazy-loads precon summaries only when Precons tab opens, and fetches a deck only on add', async () => {
+    const user = userEvent.setup();
+    const forest = cardInstance({
+      instanceId: 'c1',
+      name: 'Forest',
+      primaryCategory: 'Lands',
+      setCode: 'c16',
+      collectorNumber: '351',
+    });
+    const tower = cardInstance({
+      instanceId: 'c2',
+      name: 'Reliquary Tower',
+      primaryCategory: 'Lands',
+      setCode: 'c16',
+      collectorNumber: '309',
+    });
+    const creature = cardInstance({
+      instanceId: 'c3',
+      name: 'Solemn Simulacrum',
+      primaryCategory: 'Ramp',
+      setCode: 'c16',
+      collectorNumber: '265',
+    });
+    const doc = leanDeck({
+      deckId: 'precon-breed',
+      name: 'Breed Lethality',
+      cards: [forest, tower, creature],
+      oracle: {
+        [oracleKey(forest)]: emptyCardOracle({ typeLine: 'Basic Land — Forest' }),
+        [oracleKey(tower)]: emptyCardOracle({ typeLine: 'Land' }),
+        [oracleKey(creature)]: emptyCardOracle({ typeLine: 'Artifact Creature — Golem' }),
+      },
+    });
+    mockApiGetPublicDeck.mockResolvedValue(doc);
+
+    render(<OrderReconcileApp />);
+    expect(mockApiListPublicDecks).not.toHaveBeenCalled();
+    expect(mockApiGetPublicDeck).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Precons' }));
+
+    await waitFor(() => {
+      expect(mockApiListPublicDecks).toHaveBeenCalledTimes(1);
+      expect(mockApiListPublicDecks).toHaveBeenCalledWith('precons');
+    });
+    expect(mockApiGetPublicDeck).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByText('Breed Lethality')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: /Breed Lethality/i }));
+    await user.click(screen.getByRole('button', { name: 'Add non-basic lands' }));
+
+    await waitFor(() => {
+      expect(mockApiGetPublicDeck).toHaveBeenCalledTimes(1);
+      expect(mockApiGetPublicDeck).toHaveBeenCalledWith('precons', 'breed-lethality');
+    });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Reliquary Tower')).toBeInTheDocument();
+    });
+    expect(screen.queryByDisplayValue('Forest')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Solemn Simulacrum')).not.toBeInTheDocument();
   });
 });
 

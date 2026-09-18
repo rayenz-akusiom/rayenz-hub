@@ -2,6 +2,9 @@ import { OrderEmailParse } from '../mtg/email-parse';
 import type { AcquiredCard, InputMode, OrderReconcileState } from './types';
 
 export function parseInputToAcquired(inputMode: InputMode, listText: string, emailText: string): AcquiredCard[] {
+  if (inputMode === 'precon') {
+    return [];
+  }
   if (inputMode === 'email') {
     const result = OrderEmailParse.parseOrderEmail(emailText);
     return OrderEmailParse.mergeAcquiredCards(result.cards).map((c, i) => ({

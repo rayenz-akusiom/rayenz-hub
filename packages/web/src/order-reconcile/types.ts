@@ -4,7 +4,7 @@ export const ASSIGN_PHASE_ID = '__assign__';
 export const COLLECTION_PHASE_ID = '__collection__';
 
 export type Phase = 'input' | 'collection' | 'assign' | 'reconcile';
-export type InputMode = 'list' | 'email';
+export type InputMode = 'list' | 'email' | 'precon';
 export type CollectionApplyMode = 'broadcast' | 'consume';
 
 export type AcquiredCard = {

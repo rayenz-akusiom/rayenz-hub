@@ -152,7 +152,13 @@ export function OrderReconcileApp() {
 
   async function handleContinue() {
     setError('');
-    const acquiredCards = parseInputToAcquired(state.inputMode, listText, emailText);
+    let acquiredCards =
+      state.inputMode === 'precon'
+        ? state.acquiredCards
+        : parseInputToAcquired(state.inputMode, listText, emailText);
+    if (!acquiredCards.length && state.acquiredCards.length) {
+      acquiredCards = state.acquiredCards;
+    }
     if (!acquiredCards.length) {
       setError('Parse at least one acquired card first.');
       return;
@@ -437,6 +443,7 @@ export function OrderReconcileApp() {
           onAcquiredCardsChange={(acquiredCards) => persist({ ...state, acquiredCards })}
           onParse={() => {}}
           onContinue={() => void handleContinue()}
+          onStatus={setStatus}
         />
       );
     }

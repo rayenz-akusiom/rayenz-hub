@@ -103,6 +103,8 @@ export function DeckSuggestApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef(review);
   reviewRef.current = review;
+  const suggestRef = useRef(suggest);
+  suggestRef.current = suggest;
 
   useEffect(() => {
     if (progressHostRef.current && !progressRef.current) {
@@ -201,7 +203,12 @@ export function DeckSuggestApp() {
     async (data: SuggestionsPayload, transferSource?: DeckReviewState['transferSource']) => {
       setError('');
       try {
-        const next = await loadSuggestionsData(reviewRef.current, data, transferSource);
+        const next = await loadSuggestionsData(
+          reviewRef.current,
+          data,
+          transferSource,
+          suggestRef.current.deckSelection.decks,
+        );
         setReview(next);
         if (next.data) {
           const statusMsg = handoffStatusMessage(next.data, next.transferSource);

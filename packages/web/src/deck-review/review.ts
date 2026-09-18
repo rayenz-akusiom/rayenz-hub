@@ -1,4 +1,5 @@
 import {
+  hubDeckToRecord,
   markLozengesExisting,
   plusLozengesToProfileUpdates,
   sortSuggestions,
@@ -17,11 +18,56 @@ import {
   type ReviewProgress,
 } from '../lib/hub-storage';
 import { handoffSnapshotSummary } from '../lib/hub-utils';
+import { resolveLibraryDocument } from '../deck-builder/store/library-sync';
 import { getDecision } from './decisions';
 import { getDeckPreferences, isSuggestionFiltered } from './profiles';
 import type { DeckPrefs, DeckReviewState, TransferSource } from './types';
 
 export { validatePayload as validateSuggestions, sortSuggestions };
+
+function snapshotHasCards(deck: DeckEntry | null | undefined): boolean {
+  return Boolean(deck?.deck_snapshot?.cards && deck.deck_snapshot.cards.length);
+}
+
+/**
+ * Fill missing/empty deck_snapshot from Hub library so review leaders and cut pickers work
+ * (skill JSON and some handoffs omit snapshots).
+ */
+export async function hydrateMissingDeckSnapshots(
+  data: SuggestionsPayload,
+  libraryDecks: Array<{ deck_id: string; deck_snapshot?: DeckEntry['deck_snapshot'] }> = [],
+): Promise<SuggestionsPayload> {
+  const byId = new Map(libraryDecks.map((d) => [d.deck_id, d]));
+  const decks = await Promise.all(
+    (data.decks || []).map(async (deck) => {
+      if (snapshotHasCards(deck) || !deck.deck_id) {
+        return deck;
+      }
+      const fromLibrary = byId.get(deck.deck_id);
+      if (snapshotHasCards(fromLibrary as DeckEntry)) {
+        return {
+          ...deck,
+          deck_snapshot: fromLibrary!.deck_snapshot,
+          format: deck.format || (fromLibrary as DeckEntry).format,
+        };
+      }
+      try {
+        const doc = await resolveLibraryDocument(deck.deck_id);
+        if (!doc) return deck;
+        const record = hubDeckToRecord(doc);
+        if (!snapshotHasCards(record as DeckEntry)) return deck;
+        return {
+          ...deck,
+          deck_snapshot: record.deck_snapshot,
+          format: deck.format || record.format,
+        };
+      } catch {
+        return deck;
+      }
+    }),
+  );
+  return { ...data, decks };
+}
 
 export function getDeckById(data: SuggestionsPayload | null, deckId: string | null): DeckEntry | null {
   if (!data || !deckId) {
@@ -183,8 +229,10 @@ export async function loadSuggestionsData(
   state: DeckReviewState,
   data: SuggestionsPayload,
   transferSource?: TransferSource,
+  libraryDecks?: Array<{ deck_id: string; deck_snapshot?: DeckEntry['deck_snapshot']; format?: string }>,
 ): Promise<DeckReviewState> {
-  const validated = validatePayload(data);
+  const withSnapshots = await hydrateMissingDeckSnapshots(data, libraryDecks || []);
+  const validated = validatePayload(withSnapshots);
   const fileId = fileIdFromMeta(validated.meta);
   const progress = await hydrateReviewProgressFromApi(fileId);
   let next = applyLoadedSuggestions(state, validated, progress);

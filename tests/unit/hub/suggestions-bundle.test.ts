@@ -44,14 +44,22 @@ afterEach(() => {
 });
 
 describe('SuggestionsBundle.normalizeSuggestion', () => {
-  it('coerces scalar replaces and roles_matched to arrays', () => {
+  it('coerces scalar replaces and roles_matched to object arrays', () => {
     const normalized = SuggestionsBundle.normalizeSuggestion({
       suggestion_id: 's1',
       replaces: 'Cut Me',
       roles_matched: 'ramp',
     });
-    expect(normalized?.replaces).toEqual(['Cut Me']);
+    expect(normalized?.replaces).toEqual([{ name: 'Cut Me', quantity: 1 }]);
     expect(normalized?.roles_matched).toEqual(['ramp']);
+  });
+
+  it('preserves object replaces and fills missing quantity', () => {
+    const normalized = SuggestionsBundle.normalizeSuggestion({
+      suggestion_id: 's1',
+      replaces: [{ name: 'Plains' }],
+    });
+    expect(normalized?.replaces).toEqual([{ name: 'Plains', quantity: 1 }]);
   });
 });
 
@@ -61,7 +69,7 @@ describe('SuggestionsBundle.validatePayload', () => {
       meta: { schema_version: '1.1' },
       decks: [deckWithSnapshot()],
     });
-    expect(payload.decks[0].suggestions?.[0].replaces).toEqual(['Old Card']);
+    expect(payload.decks[0].suggestions?.[0].replaces).toEqual([{ name: 'Old Card', quantity: 1 }]);
     expect(payload.decks[0].profile_preferences?.protected_cards).toEqual(['Sol Ring']);
     expect(payload.decks[0].profile_preferences?.blocked_cards).toEqual([]);
     expect(payload.decks[0].suggestions?.[0].priority_tier).toBe('swap');
@@ -96,7 +104,7 @@ describe('SuggestionsBundle.buildPayload', () => {
       deckWithSnapshot(),
     ]);
     expect(payload.meta.schema_version).toBe('1.1');
-    expect(payload.decks[0].suggestions?.[0].replaces).toEqual(['Old Card']);
+    expect(payload.decks[0].suggestions?.[0].replaces).toEqual([{ name: 'Old Card', quantity: 1 }]);
     expect(payload.decks[0]._swapQueue).toBeTruthy();
   });
 });

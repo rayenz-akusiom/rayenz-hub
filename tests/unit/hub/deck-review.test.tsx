@@ -89,4 +89,17 @@ describe('DeckReview handoff and transferSource', () => {
     expect(next.data!.decks[0].deck_snapshot!.cards).toHaveLength(1);
     expect(next.data!.decks[0].deck_snapshot!.fetched_at).toBe('2026-06-22');
   });
+
+  it('loadSuggestionsData hydrates missing snapshots from library decks', async () => {
+    const next = await loadSuggestionsData(createInitialReviewState(), sampleData, 'upload', [
+      {
+        deck_id: 'd1',
+        deck_snapshot: {
+          cards: [{ name: 'Atraxa, Praetors\' Voice', primary_category: 'Commander' }],
+        },
+      },
+    ]);
+    expect(next.data!.decks[0].deck_snapshot!.cards).toHaveLength(1);
+    expect(next.data!.decks[0].deck_snapshot!.cards![0].name).toContain('Atraxa');
+  });
 });

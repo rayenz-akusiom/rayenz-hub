@@ -80,6 +80,7 @@ export function hubDeckToRecord(doc: DeckDocument): DeckRecord {
       name: c.name,
       set_code: c.setCode,
       collector_number: c.collectorNumber,
+      scryfall_id: c.scryfallId || undefined,
       quantity: c.quantity,
       primary_category: c.primaryCategory,
       categories,

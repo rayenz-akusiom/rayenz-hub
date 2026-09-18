@@ -1,4 +1,4 @@
-import { buildCutCandidates } from '@rayenz-hub/shared';
+import { buildCutCandidates, replaceEntryName } from '@rayenz-hub/shared';
 import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
 import { optionKey } from '@rayenz-hub/shared';
 import type { CardPickerItem } from '../cards/CardPicker';
@@ -13,13 +13,14 @@ export function deckCutOptions(deck: DeckEntry): CutOption[] {
   });
 
   (deck.suggestions || []).forEach((s) => {
-    ((s.replaces || []) as Array<{ name?: string }>).forEach((r) => {
-      if (!r.name) {
+    (s.replaces || []).forEach((r) => {
+      const name = replaceEntryName(r);
+      if (!name) {
         return;
       }
-      const snap = findSnapshotCard(deck, r.name);
+      const snap = findSnapshotCard(deck, name);
       const opt: CutOption = {
-        name: r.name,
+        name,
         quantity: 1,
         set_code: snap?.set_code ?? null,
         collector_number: snap?.collector_number ?? null,
@@ -132,19 +133,13 @@ export function buildCutPickerItems(
   currentKey: string,
   currentCut: CardOutSelection,
 ): CardPickerItem[] {
+  void suggestion;
   const items: CardPickerItem[] = options.map((opt) => ({
     value: optionKey(opt),
     imgSrc: cutOptionImageSrc(opt, deck),
     category: opt.primary_category || null,
     lines: cutOptionLines(opt),
   }));
-  if (isMissingSuggestedCut(suggestion)) {
-    items.unshift({
-      value: '',
-      imgSrc: '',
-      lines: ['No cut suggested', 'Choose manually'],
-    });
-  }
   if (currentKey && !items.some((item) => item.value === currentKey)) {
     items.unshift({
       value: currentKey,
@@ -188,21 +183,31 @@ export function openCutPicker(
   selectedKey: string,
   currentCut: CardOutSelection,
   onPick: (key: string) => void,
-): void {
+): boolean {
   const picker = hubCardPicker();
   if (!picker) {
-    return;
+    return false;
+  }
+  const items = buildCutPickerItems(options, deck, suggestion, selectedKey, currentCut);
+  if (!items.length) {
+    // No snapshot / candidates — avoid opening a picker that only dismisses.
+    return false;
   }
   picker.open({
-    title: 'Choose card to cut',
+    title: isMissingSuggestedCut(suggestion)
+      ? 'Choose card to cut (none suggested)'
+      : 'Choose card to cut',
     groupByCategory: true,
     layout: 'dock',
-    items: buildCutPickerItems(options, deck, suggestion, selectedKey, currentCut),
+    items,
     selectedValue: selectedKey,
     onPick: (value) => {
-      onPick(String(value));
+      const key = String(value || '');
+      if (!key) return;
+      onPick(key);
     },
   });
+  return true;
 }
 
 export function printSummaryLabel(

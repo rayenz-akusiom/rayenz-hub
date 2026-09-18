@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { replaceEntryName } from '@rayenz-hub/shared';
 import type { DeckDocument } from '@rayenz-hub/shared';
 import {
   SwapEditChrome,
@@ -24,7 +25,7 @@ const PROTECTED_OUT_CATEGORIES = ['Commander', 'Lieutenant', 'Lieutenants'];
 
 function draftForSuggestion(deck: DeckDocument, suggestion: Suggestion): SwapEditDraft {
   const outs = legalOutCards(deck);
-  const prefillName = suggestion.replaces?.[0]?.name;
+  const prefillName = replaceEntryName(suggestion.replaces?.[0]);
   const prefillId =
     (prefillName && outs.find((o) => o.name === prefillName)?.instanceId) || null;
   return {

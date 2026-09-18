@@ -1,4 +1,4 @@
-import { getSwapQueue, type DeckEntry, type Suggestion } from '@rayenz-hub/shared';
+import { getSwapQueue, normalizeReplaces, replaceEntryName, type DeckEntry, type Suggestion } from '@rayenz-hub/shared';
 import { optionKey, scryfallImageFromPrinting } from '@rayenz-hub/shared';
 import { fetchPrintings } from '../lib/scryfall-cache';
 import type { CutOption, ScryfallPrint } from './types';
@@ -7,6 +7,10 @@ export { getSwapQueue as deriveSwapQueue };
 
 function swapQueueHasName(cards: Array<{ name?: string }> | null | undefined, name: string): boolean {
   return (cards || []).some((c) => c.name === name);
+}
+
+function replaceNames(suggestion: Suggestion): string[] {
+  return normalizeReplaces(suggestion.replaces).map((r) => r.name);
 }
 
 export function formatSwapQueueItem(card: { name: string; set_code?: string; collector_number?: string }): string {
@@ -31,15 +35,15 @@ export function getSuggestionStaleness(
   const queuedIn =
     (incoming && swapQueueHasName(queue.new_set_in, incoming)) ||
     (slot && swapQueueHasName(queue.new_set_in, slot));
-  const replaces = (suggestion.replaces || []) as Array<{ name?: string }>;
-  const queuedOut = replaces.some((r) => r.name && swapQueueHasName(queue.new_set_out, r.name));
+  const replaces = replaceNames(suggestion);
+  const queuedOut = replaces.some((name) => swapQueueHasName(queue.new_set_out, name));
   if (queuedIn) {
     reasons.push((slot || incoming) + ' is already in your Hub Queued In queue.');
   }
   if (queuedOut) {
-    replaces.forEach((r) => {
-      if (r.name && swapQueueHasName(queue.new_set_out, r.name)) {
-        reasons.push(r.name + ' is already in your Hub Queued Out queue.');
+    replaces.forEach((name) => {
+      if (swapQueueHasName(queue.new_set_out, name)) {
+        reasons.push(name + ' is already in your Hub Queued Out queue.');
       }
     });
   }
@@ -72,7 +76,7 @@ function suggestionCoversQueueOut(suggestion: Suggestion, outName: string): bool
   if (!outName || !suggestion) {
     return false;
   }
-  return ((suggestion.replaces || []) as Array<{ name?: string }>).some((r) => r.name === outName);
+  return replaceNames(suggestion).includes(outName);
 }
 
 export function getSwapQueueReconciliation(deck: DeckEntry): {
@@ -219,7 +223,7 @@ export function cutOptionLines(opt: { name: string; set_code?: string | null; co
 }
 
 export function hasSuggestedCut(suggestion: Suggestion): boolean {
-  return ((suggestion.replaces || []) as Array<{ name?: string }>).some((r) => r && r.name);
+  return replaceNames(suggestion).length > 0;
 }
 
 export function needsSuggestedCut(suggestion: Suggestion): boolean {
@@ -230,13 +234,17 @@ export function isMissingSuggestedCut(suggestion: Suggestion): boolean {
   return needsSuggestedCut(suggestion) && !hasSuggestedCut(suggestion);
 }
 
+/** True when this suggestion is intentional add-only (no cut): underfull-deck `action: add`. */
+export function isAddOnlySuggestion(suggestion: Suggestion): boolean {
+  return suggestion.action === 'add' && !hasSuggestedCut(suggestion);
+}
+
 /** Out “Never suggest again” only for the originally suggested cut name. */
 export function canNeverSuggestOutCut(suggestion: Suggestion, selectedOutName: string): boolean {
   if (!selectedOutName || !hasSuggestedCut(suggestion)) {
     return false;
   }
-  const replaces = (suggestion.replaces || []) as Array<{ name?: string }>;
-  const originalOut = replaces.find((r) => r && r.name)?.name || '';
+  const originalOut = replaceNames(suggestion)[0] || '';
   return !!originalOut && selectedOutName === originalOut;
 }
 
@@ -244,8 +252,7 @@ export function defaultOutKeyForSuggestion(
   deck: DeckEntry,
   suggestion: Suggestion,
 ): { defaultOut: string; defaultOutKey: string } {
-  const replaces = (suggestion.replaces || []) as Array<{ name?: string }>;
-  const defaultOut = replaces[0]?.name || '';
+  const defaultOut = replaceNames(suggestion)[0] || '';
   if (!defaultOut) {
     return { defaultOut: '', defaultOutKey: '' };
   }

@@ -23,6 +23,7 @@ import {
   fetchPrintings,
   getSuggestionStaleness,
   hasSuggestedCut,
+  isAddOnlySuggestion,
   isMissingSuggestedCut,
   resolveDefaultCutKey,
 } from './data';
@@ -109,7 +110,9 @@ export function SuggestionCard({
   const [finish, setFinish] = useState('nonfoil');
   const [cutKey, setCutKey] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(!compact);
-  const [acceptKind, setAcceptKind] = useState<AcceptKind>('swap');
+  const [acceptKind, setAcceptKind] = useState<AcceptKind>(() =>
+    isAddOnlySuggestion(suggestion) ? 'add' : 'swap',
+  );
   const [addDestination, setAddDestination] = useState<AddDestination>('deck');
   const [saving, setSaving] = useState(false);
   const cutMeta = useMemo(() => cutMetaFromKey(cutKey, cutOptions), [cutKey, cutOptions]);
@@ -170,9 +173,9 @@ export function SuggestionCard({
       }
       return;
     }
-    setAcceptKind('swap');
+    setAcceptKind(isAddOnlySuggestion(suggestion) ? 'add' : 'swap');
     setAddDestination('deck');
-  }, [decision, suggestion.suggestion_id]);
+  }, [decision, suggestion, suggestion.suggestion_id]);
 
   const outImgSrc = useMemo(() => {
     if (!cutMeta.name) {
@@ -448,9 +451,17 @@ export function SuggestionCard({
                   type="button"
                   className={'dr-card-image dr-card-image-btn' + (missingCut && !cutMeta.name ? ' dr-card-image-empty' : '')}
                   aria-label="Choose cut"
-                  onClick={() =>
-                    openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) => setCutKey(key))
-                  }
+                  onClick={() => {
+                    const opened = openCutPicker(deck, suggestion, cutOptions, cutKey, cutMeta, (key) =>
+                      setCutKey(key),
+                    );
+                    if (!opened) {
+                      onProfileUpdate({
+                        profileStatus:
+                          'No deck cards available to cut — ensure this deck is in your Hub library, then regenerate or reload.',
+                      });
+                    }
+                  }}
                 >
                   <img data-dr-img-out src={outImgSrc || undefined} alt="" />
                 </button>

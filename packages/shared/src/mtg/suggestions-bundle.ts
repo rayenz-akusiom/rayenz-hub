@@ -3,14 +3,56 @@ import { deriveSwapQueue, type DeckWithSnapshot, type SwapQueueResult } from './
 export const SUPPORTED_SCHEMAS: Record<string, boolean> = { '1.0': true, '1.1': true };
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
+export type ReplaceEntry = {
+  name: string;
+  quantity: number;
+  [key: string]: unknown;
+};
+
 export type Suggestion = {
   suggestion_id?: string;
-  replaces?: string | string[];
+  /** Normalized to `{ name, quantity }[]`; legacy string / string[] accepted on input. */
+  replaces?: ReplaceEntry[] | string | string[];
   roles_matched?: string | string[];
   priority_tier?: string;
   confidence?: string;
+  action?: string;
   [key: string]: unknown;
 };
+
+/** Oracle name from a replace entry (object or legacy string). */
+export function replaceEntryName(entry: unknown): string {
+  if (entry == null) return '';
+  if (typeof entry === 'string') return entry.trim();
+  if (typeof entry === 'object' && entry !== null && 'name' in entry) {
+    return String((entry as { name?: unknown }).name || '').trim();
+  }
+  return '';
+}
+
+/** Coerce legacy string / mixed replaces into `{ name, quantity }[]`. */
+export function normalizeReplaces(value: unknown): ReplaceEntry[] {
+  const list = normalizeArrayValue(value as string | string[] | ReplaceEntry[] | null | undefined);
+  const out: ReplaceEntry[] = [];
+  for (const raw of list) {
+    if (typeof raw === 'string') {
+      const name = raw.trim();
+      if (name) out.push({ name, quantity: 1 });
+      continue;
+    }
+    if (raw && typeof raw === 'object') {
+      const name = replaceEntryName(raw);
+      if (!name) continue;
+      const qty = (raw as { quantity?: unknown }).quantity;
+      out.push({
+        ...(raw as ReplaceEntry),
+        name,
+        quantity: typeof qty === 'number' && qty > 0 ? qty : 1,
+      });
+    }
+  }
+  return out;
+}
 
 export type ProfilePreferences = {
   protected_cards: string[];
@@ -57,7 +99,7 @@ export function normalizeSuggestion(suggestion: Suggestion | null | undefined): 
   if (!suggestion) {
     return suggestion;
   }
-  suggestion.replaces = normalizeArrayValue(suggestion.replaces as string | string[]);
+  suggestion.replaces = normalizeReplaces(suggestion.replaces);
   suggestion.roles_matched = normalizeArrayValue(suggestion.roles_matched as string | string[]);
   return suggestion;
 }
@@ -206,6 +248,8 @@ export function buildPayload(meta: SuggestionsPayload['meta'], decks: DeckEntry[
 export const SuggestionsBundle = {
   SUPPORTED_SCHEMAS,
   normalizeArrayValue,
+  normalizeReplaces,
+  replaceEntryName,
   normalizeSuggestion,
   normalizeProfilePreferences,
   sortSuggestions,

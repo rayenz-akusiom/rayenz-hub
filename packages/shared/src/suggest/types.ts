@@ -44,6 +44,7 @@ export type SnapshotCard = {
   name?: string;
   set_code?: string | null;
   collector_number?: string | null;
+  scryfall_id?: string | null;
   primary_category?: string;
   categories?: string[];
   cmc?: number;

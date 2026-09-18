@@ -1,4 +1,4 @@
-import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import { replaceEntryName, type DeckEntry, type Suggestion } from '@rayenz-hub/shared';
 import { ProfileSync } from '../mtg/profile-sync';
 import type { DeckPrefs, DeckReviewState } from './types';
 
@@ -58,9 +58,10 @@ export function isSuggestionFiltered(suggestion: Suggestion, prefs: DeckPrefs): 
   if (card?.name && listHasName(prefs.blocked_cards, card.name)) {
     return true;
   }
-  return ((suggestion.replaces || []) as Array<{ name?: string }>).some(
-    (r) => r.name && listHasName(prefs.protected_cards, r.name),
-  );
+  return (suggestion.replaces || []).some((r) => {
+    const name = replaceEntryName(r);
+    return name && listHasName(prefs.protected_cards, name);
+  });
 }
 
 export function canWriteProfiles(): boolean {

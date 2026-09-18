@@ -22,6 +22,7 @@ import {
   getSuggestionStaleness,
   getSwapQueueReconciliation,
   hasSuggestedCut,
+  isAddOnlySuggestion,
   isMissingSuggestedCut,
   needsSuggestedCut,
   optionLabel,
@@ -195,6 +196,11 @@ describe('deck-review data helpers', () => {
 
   it('cut helpers and printing labels cover fallback branches', () => {
     expect(hasSuggestedCut({ replaces: [{ name: 'Bolt' }] })).toBe(true);
+    expect(hasSuggestedCut({ replaces: ['Bolt'] as never })).toBe(true);
+    expect(hasSuggestedCut({ replaces: 'Bolt' as never })).toBe(true);
+    expect(isAddOnlySuggestion({ action: 'add', replaces: [] })).toBe(true);
+    expect(isAddOnlySuggestion({ action: 'add', replaces: [{ name: 'Bolt' }] })).toBe(false);
+    expect(isAddOnlySuggestion({ action: 'replace', replaces: [] })).toBe(false);
     expect(needsSuggestedCut({ action: 'sideboard', replaces: [] })).toBe(false);
     expect(isMissingSuggestedCut({ action: 'replace', replaces: [] })).toBe(true);
     expect(isMissingSuggestedCut({ action: 'replace', replaces: [{ name: 'X' }] })).toBe(false);
@@ -448,7 +454,7 @@ describe('deck-review pickers', () => {
     expect(cutSummaryLabel({ name: 'Bolt', quantity: 1, set_code: 'MH2', collector_number: '1' }, [])).toContain('MH2 #1');
   });
 
-  it('buildCutPickerItems prepends manual cut row when suggestion lacks cut', () => {
+  it('buildCutPickerItems does not invent an empty-value Choose manually row', () => {
     const items = buildCutPickerItems(
       [{ name: 'Sol Ring', set_code: 'CMM', collector_number: '1' }],
       { deck_snapshot: { cards: [] } } as never,
@@ -456,7 +462,27 @@ describe('deck-review pickers', () => {
       '',
       { name: '', quantity: 1, set_code: null, collector_number: null },
     );
-    expect(items[0].lines[0]).toBe('No cut suggested');
+    expect(items).toHaveLength(1);
+    expect(items[0].value).toBe('Sol Ring|CMM|1');
+    expect(items.every((item) => item.value !== '')).toBe(true);
+  });
+
+  it('openCutPicker no-ops when there are no cut options', () => {
+    const open = vi.fn();
+    (window as Window & { HubCardPicker?: unknown }).HubCardPicker = {
+      open,
+      resolveFinish: () => 'nonfoil',
+    };
+    openCutPicker(
+      { deck_snapshot: { cards: [] } } as never,
+      { action: 'replace', replaces: [] } as never,
+      [],
+      '',
+      { name: '', quantity: 1, set_code: null, collector_number: null },
+      () => {},
+    );
+    expect(open).not.toHaveBeenCalled();
+    delete (window as Window & { HubCardPicker?: unknown }).HubCardPicker;
   });
 
   it('summary labels cover foil and fallback paths', () => {

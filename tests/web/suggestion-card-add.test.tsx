@@ -111,8 +111,7 @@ describe('SuggestionCard Add mode', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Deck' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByRole('button', { name: 'Choose cut' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept Add' })).toBeEnabled();
@@ -161,7 +160,6 @@ describe('SuggestionCard Add mode', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(screen.getByRole('button', { name: 'Maybeboard' }));
     expect(screen.getByRole('button', { name: 'Maybeboard' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: 'Accept Add' }));

@@ -744,6 +744,77 @@ describe('ScryfallSearchModal commander Include options', () => {
     ).toBe('t:instant format:commander');
   });
 
+  it('composeScryfallQuery prepends lockedBaseQuery and allows empty freeform', () => {
+    const deck = commanderDeckWithIdentity();
+    const locked = '(in:msh OR set:msh)';
+    expect(
+      composeScryfallQuery(
+        '',
+        {
+          includeIdentity: true,
+          includeFormatCommander: true,
+          lockedBaseQuery: locked,
+        },
+        deck,
+      ),
+    ).toBe('(in:msh OR set:msh) format:commander id:wubg');
+    expect(
+      composeScryfallQuery(
+        't:creature',
+        {
+          includeIdentity: false,
+          includeFormatCommander: false,
+          lockedBaseQuery: locked,
+        },
+        deck,
+      ),
+    ).toBe('(in:msh OR set:msh) t:creature');
+    expect(
+      composeScryfallQuery(
+        't:instant or t:sorcery',
+        {
+          includeIdentity: false,
+          includeFormatCommander: true,
+          lockedBaseQuery: locked,
+        },
+        deck,
+      ),
+    ).toBe('(in:msh OR set:msh) (t:instant or t:sorcery) format:commander');
+  });
+
+  it('shows locked base read-only, auto-searches, and respects Include toggles', async () => {
+    const user = userEvent.setup();
+    const deck = commanderDeckWithIdentity();
+    const locked = '(in:msh OR set:msh)';
+    render(
+      <ScryfallSearchModal
+        deck={deck}
+        onClose={vi.fn()}
+        onAdd={vi.fn()}
+        lockedBaseQuery={locked}
+      />,
+    );
+
+    expect(screen.getByLabelText('Base search terms')).toHaveTextContent(locked);
+    expect(screen.getByLabelText(/Additional filters/i)).toHaveValue('');
+    expect(screen.queryByLabelText(/^Scryfall query$/i)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith(
+        '(in:msh OR set:msh) format:commander id:wubg',
+        1,
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Commander format/i }));
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith('(in:msh OR set:msh) id:wubg', 1);
+    });
+  });
+
   it('composeScryfallQuery groups top-level or queries before appending clauses', () => {
     const deck = commanderDeckWithIdentity();
     expect(

@@ -3178,6 +3178,22 @@ body,
   min-width: 11rem;
 }
 
+.db-search-locked-base {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.db-search-locked-chip {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--db-card-radius, 0.35rem);
+  background: var(--hub-surface-muted, rgba(0, 0, 0, 0.06));
+  word-break: break-word;
+}
+
 .db-search-hint {
   margin: 0;
 }

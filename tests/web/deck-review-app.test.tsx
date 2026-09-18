@@ -1,11 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ScryfallCard } from '@rayenz-hub/shared';
 import { DeckSuggestApp } from '../../packages/web/src/deck-suggest/DeckSuggestApp';
-import { readProfileForDeck, tryRestoreSetPool } from '../../packages/web/src/deck-suggest/data';
+import { readProfileForDeck } from '../../packages/web/src/deck-suggest/data';
 import { ProfileSync } from '../../packages/web/src/mtg/profile-sync';
 import { MISSING_CARDS_INFO } from '../../packages/shared/src/suggest/missing-cards';
 import { resetHubModules } from '../unit/helpers/hubHarness';
+
+const { searchCards, fetchPrintingsPage } = vi.hoisted(() => ({
+  searchCards: vi.fn(),
+  fetchPrintingsPage: vi.fn(),
+}));
+
+vi.mock('@rayenz-hub/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@rayenz-hub/shared')>();
+  return {
+    ...actual,
+    searchCards: (...args: unknown[]) => searchCards(...args),
+    fetchPrintingsPage: (...args: unknown[]) => fetchPrintingsPage(...args),
+  };
+});
 
 vi.mock('../../packages/web/src/lib/hub-progress', async () => {
   const { hubProgressMockModule } = await import('./helpers/hub-progress-mock');
@@ -27,6 +42,7 @@ vi.mock('../../packages/web/src/mtg/profile-sync', () => ({
     readProfileYaml: vi.fn(() => Promise.resolve(null)),
     canWriteProfiles: vi.fn(() => false),
     canWriteProfilesViaDirectory: vi.fn(() => false),
+    appendToProfileList: vi.fn(() => Promise.resolve({ changed: true })),
     appendToProfileLists: vi.fn(() => Promise.resolve({ changed: true, added: {} })),
   },
 }));
@@ -39,6 +55,15 @@ vi.mock('../../packages/web/src/deck-suggest/data', async (importOriginal) => {
     readProfileForDeck: vi.fn(() => Promise.resolve(null)),
     tryRestoreSetPool: vi.fn(() => null),
     fetchSetPool: vi.fn(() => Promise.resolve({ codes: [], cards: [] })),
+  };
+});
+
+vi.mock('../../packages/web/src/deck-builder/store/library-sync', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../packages/web/src/deck-builder/store/library-sync')>();
+  return {
+    ...actual,
+    resolveLibraryDocument: vi.fn(() => Promise.resolve(null)),
   };
 });
 
@@ -134,10 +159,33 @@ function handoffPayload() {
   };
 }
 
+const missingElf: ScryfallCard = {
+  id: 'sf-missing-elf',
+  name: 'Missing Elf',
+  set: 'msh',
+  collector_number: '9',
+  type_line: 'Creature — Elf Druid',
+  color_identity: ['W'],
+  keywords: ['Landfall'],
+  oracle_text: 'Landfall — …',
+  finishes: ['nonfoil'],
+};
+
 beforeEach(() => {
   resetHubModules();
   vi.clearAllMocks();
   sessionStorage.clear();
+  searchCards.mockResolvedValue({
+    data: [missingElf],
+    has_more: false,
+    next_page: null,
+    total_cards: 1,
+  });
+  fetchPrintingsPage.mockResolvedValue({
+    data: [missingElf],
+    has_more: false,
+    next_page: null,
+  });
 });
 
 afterEach(() => {
@@ -351,6 +399,31 @@ describe('DeckSuggestApp suggestion panel', () => {
     expect(screen.getByRole('menuitem', { name: 'Never suggest this cut' })).toBeInTheDocument();
   });
 
+  it('keeps the suggestion open after Never suggest this cut', async () => {
+    vi.mocked(ProfileSync.canWriteProfiles).mockReturnValue(true);
+    vi.mocked(ProfileSync.appendToProfileList).mockResolvedValue({ changed: true });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const user = await loadSuggestionsViaUpload(handoffPayload());
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Never suggest this cut' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Added Plains in protected cards/i)).toBeInTheDocument();
+    });
+    expect(ProfileSync.appendToProfileList).toHaveBeenCalledWith('baird', 'protected_cards', 'Plains');
+    expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
   it('shows a denser show-all grid of compact suggestion tiles', async () => {
     const data = handoffPayload();
     data.decks[0].suggestions.push({
@@ -406,32 +479,10 @@ describe('DeckSuggestApp suggestion panel', () => {
 });
 
 describe('DeckSuggestApp missing cards profile', () => {
-  it('injects a suggestion from the set pool with minus tags, then writes only plus tags on Accept Seeking', async () => {
+  it('searches Scryfall with locked set base + Include, injects a suggestion, then writes plus tags on Accept Seeking', async () => {
     vi.mocked(readProfileForDeck).mockResolvedValue({
       themes: ['tokens'],
     });
-    vi.mocked(tryRestoreSetPool).mockReturnValue({
-      codes: ['MSH'],
-      cards: [
-        {
-          name: 'Missing Elf',
-          set_code: 'MSH',
-          collector_number: '9',
-          type_line: 'Creature — Elf Druid',
-          keywords: ['Landfall'],
-          oracle_tags: ['mana-dork'],
-          art_tags: ['forest'],
-          color_identity: ['W'],
-        },
-        {
-          name: 'Off Identity',
-          set_code: 'MSH',
-          collector_number: '10',
-          type_line: 'Creature — Goblin',
-          color_identity: ['R'],
-        },
-      ],
-    } as ReturnType<typeof tryRestoreSetPool>);
     vi.mocked(ProfileSync.canWriteProfiles).mockReturnValue(true);
     vi.mocked(ProfileSync.appendToProfileLists).mockResolvedValue({
       changed: true,
@@ -445,30 +496,43 @@ describe('DeckSuggestApp missing cards profile', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add cards' }));
     const dialog = await screen.findByRole('dialog', { name: 'Missing cards from this set' });
-    expect(within(dialog).getByRole('button', { name: /Missing Elf/ })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: /Caretaker/ })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: /Off Identity/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Base search terms')).toHaveTextContent(
+      '(in:msh OR set:msh)',
+    );
+    expect(
+      within(dialog).getByRole('button', { name: /Include in Scryfall search/i }),
+    ).toHaveTextContent(/Identity, Format/i);
 
-    await user.click(within(dialog).getByRole('button', { name: /Missing Elf/ }));
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith(
+        '(in:msh OR set:msh) format:commander id:w',
+        1,
+      );
+    });
+
+    await user.click(within(dialog).getByRole('button', { name: /Include in Scryfall search/i }));
+    await user.click(within(dialog).getByRole('checkbox', { name: /Commander format/i }));
+    await user.click(within(dialog).getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith('(in:msh OR set:msh) id:w', 1);
+    });
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole('option', { name: /Missing Elf/ })).toBeInTheDocument();
+    });
+    await user.click(within(dialog).getByRole('option', { name: /Missing Elf/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Missing Elf' })).toBeInTheDocument();
     });
     expect(screen.getByText('✓ tokens')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '− mana-dork' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '− Landfall' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '− Elf' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '− forest' })).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 4 }).map((el) => el.textContent)).toEqual([
-      'Functional',
-      'Keywords',
-      'Types',
-      'Art',
-    ]);
 
-    await user.click(screen.getByRole('button', { name: '− mana-dork' }));
-    expect(screen.getByRole('button', { name: '+ mana-dork' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '− Landfall' }));
+    expect(screen.getByRole('button', { name: '+ Landfall' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Seeking' }));
     await user.click(screen.getByRole('button', { name: 'Accept Seeking' }));
@@ -477,9 +541,7 @@ describe('DeckSuggestApp missing cards profile', () => {
       expect(ProfileSync.appendToProfileLists).toHaveBeenCalled();
     });
     const updates = vi.mocked(ProfileSync.appendToProfileLists).mock.calls[0][1];
-    expect(updates.themes).toEqual(['mana-dork']);
-    expect(updates.keyword_interests).toEqual([]);
-    expect(updates.typal_types).toEqual([]);
-    expect(updates.art_tags).toEqual([]);
+    expect(updates.keyword_interests).toEqual(['Landfall']);
+    expect(updates.themes).toEqual([]);
   });
 });

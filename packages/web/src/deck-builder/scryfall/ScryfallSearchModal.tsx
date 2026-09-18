@@ -136,21 +136,29 @@ export function composeScryfallQuery(
     includeIdentity?: boolean;
     includeFormatCommander?: boolean;
     extraQuery?: string | null;
+    /** Always prepended; never taken from the freeform input. */
+    lockedBaseQuery?: string | null;
   },
   deck: Pick<DeckDocument, 'format' | 'cards' | 'oracle'>,
 ): string {
+  const lockedBase = opts.lockedBaseQuery?.trim() || '';
   const extraClause = opts.extraQuery?.trim() || '';
-  const parts: string[] = [];
+  const includeParts: string[] = [];
   if (opts.includeFormatCommander && !extraClause) {
     const clause = formatScryfallClause(deck.format);
-    if (clause) parts.push(clause);
+    if (clause) includeParts.push(clause);
   }
   if (opts.includeIdentity) {
     const clause = commanderIdentityScryfallQuery(deck);
-    if (clause) parts.push(clause);
+    if (clause) includeParts.push(clause);
   }
-  const normalizedFreeform = normalizeFreeformQuery(freeform, parts.length > 0 || Boolean(extraClause));
-  if (normalizedFreeform) parts.unshift(normalizedFreeform);
+  const hasAppended =
+    includeParts.length > 0 || Boolean(extraClause) || Boolean(lockedBase);
+  const normalizedFreeform = normalizeFreeformQuery(freeform, hasAppended);
+  const parts: string[] = [];
+  if (lockedBase) parts.push(lockedBase);
+  if (normalizedFreeform) parts.push(normalizedFreeform);
+  parts.push(...includeParts);
   if (extraClause) parts.push(extraClause);
   return parts.join(' ');
 }
@@ -177,6 +185,7 @@ export function ScryfallSearchModal({
   defaultCategory,
   categoryOptions,
   extraQuery,
+  lockedBaseQuery,
   embedded = false,
   allowQuickAdd = false,
   onRemoveInDeckCard,
@@ -194,6 +203,8 @@ export function ScryfallSearchModal({
   categoryOptions?: string[];
   /** Always appended (slot role query). Replaces Include Format when set. */
   extraQuery?: string;
+  /** Uneditable base Scryfall terms (e.g. set codes); shown read-only beside freeform. */
+  lockedBaseQuery?: string;
   /** Skip outer `.db-modal` backdrop (host provides the shell). */
   embedded?: boolean;
   /** Show Quick add destination menu (deck FAB add flow). */
@@ -205,6 +216,7 @@ export function ScryfallSearchModal({
 }) {
   const isCommandZone = isCommandZoneFormat(deck.format);
   const proxyEnabled = !isCollectionDeck(deck);
+  const lockedBase = lockedBaseQuery?.trim() || '';
   const overlayRef = useRef<HTMLDivElement>(null);
   useDialogA11y(!embedded, onClose, overlayRef);
   const [query, setQuery] = useState('');
@@ -424,6 +436,7 @@ export function ScryfallSearchModal({
         includeIdentity: includeCommanderIdentity,
         includeFormatCommander,
         extraQuery,
+        lockedBaseQuery: lockedBase,
       },
       deck,
     );
@@ -459,6 +472,15 @@ export function ScryfallSearchModal({
     }
   }
 
+  const autoSearchDoneRef = useRef(false);
+  useEffect(() => {
+    if (!lockedBase || autoSearchDoneRef.current) return;
+    autoSearchDoneRef.current = true;
+    void runSearch();
+    // Initial open only — Include defaults are already set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once with locked base
+  }, [lockedBase]);
+
   const loadMore = useCallback(async () => {
     if (loadingMoreRef.current || !hasMore) return;
     loadingMoreRef.current = true;
@@ -475,6 +497,7 @@ export function ScryfallSearchModal({
                   includeIdentity: includeCommanderIdentity,
                   includeFormatCommander,
                   extraQuery,
+                  lockedBaseQuery: lockedBase,
                 },
                 deck,
               ),
@@ -494,7 +517,16 @@ export function ScryfallSearchModal({
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [hasMore, page, query, includeCommanderIdentity, includeFormatCommander, extraQuery, deck]);
+  }, [
+    hasMore,
+    page,
+    query,
+    includeCommanderIdentity,
+    includeFormatCommander,
+    extraQuery,
+    lockedBase,
+    deck,
+  ]);
 
   const sentinelRef = useInfiniteScrollSentinel({
     rootRef: scrollRef,
@@ -624,14 +656,22 @@ export function ScryfallSearchModal({
 
       <div className="db-picker-scroll" ref={scrollRef}>
         <form className="db-search-form" ref={formRef} onSubmit={(e) => void runSearch(e)}>
+          {lockedBase ? (
+            <div className="db-search-locked-base" aria-label="Base search terms">
+              <span className="db-muted">Base</span>
+              <code className="db-search-locked-chip">{lockedBase}</code>
+            </div>
+          ) : null}
           <label className="db-search-label">
-            Scryfall query
+            {lockedBase ? 'Additional filters' : 'Scryfall query'}
             <input
               ref={inputRef}
               className="db-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder='e.g. t:creature o:"draw a card"'
+              placeholder={
+                lockedBase ? 'optional, e.g. t:creature' : 'e.g. t:creature o:"draw a card"'
+              }
               autoFocus
               spellCheck={false}
             />

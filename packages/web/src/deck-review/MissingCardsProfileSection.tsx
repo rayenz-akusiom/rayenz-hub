@@ -1,39 +1,121 @@
 import { useState } from 'react';
-import type { DeckEntry, Suggestion } from '@rayenz-hub/shared';
+import type {
+  DeckDocument,
+  DeckEntry,
+  DeckFormat,
+  PrintingFields,
+  Suggestion,
+} from '@rayenz-hub/shared';
 import {
   MISSING_CARDS_INFO,
   attachTagsToCard,
+  buildInSetQuery,
   buildMissingCardSuggestion,
+  emptyCardOracle,
   loadScryfallTagIndexes,
-  missingPoolCards,
+  normalizeColourIdentity,
+  oracleKey,
   type SetPoolCard,
 } from '@rayenz-hub/shared';
-import { CardPickerModal, type CardPickerItem } from '../cards/CardPicker';
-import { fetchSetPool, readProfileForDeck, tryRestoreSetPool } from '../deck-suggest/data';
-import { hydrateSetPoolFromApi, normalizeSetCodesKey } from '../lib/hub-storage';
-import { scryfallImageFromId, scryfallImageFromPrinting } from '@rayenz-hub/shared';
+import { ScryfallSearchModal } from '../deck-builder/scryfall/ScryfallSearchModal';
+import { resolveLibraryDocument } from '../deck-builder/store/library-sync';
+import { readProfileForDeck } from '../deck-suggest/data';
 
-function poolCardKey(card: SetPoolCard): string {
-  return [card.name, card.set_code || '', card.collector_number || ''].join('|');
+function printingToSetPoolCard(printing: PrintingFields): SetPoolCard {
+  return {
+    name: printing.name,
+    set_code: printing.setCode || undefined,
+    collector_number: printing.collectorNumber || undefined,
+    scryfall_id: printing.scryfallId || null,
+    mana_cost: printing.manaCost || '',
+    cmc: printing.manaValue != null ? printing.manaValue : 0,
+    type_line: printing.typeLine || '',
+    oracle_text: printing.oracleText || '',
+    keywords: printing.keywords || [],
+    color_identity: [...(printing.colourIdentity || [])],
+  };
 }
 
-function poolCardImage(card: SetPoolCard): string {
-  if (card.scryfall_id) return scryfallImageFromId(card.scryfall_id) || '';
-  if (card.set_code && card.collector_number) {
-    return scryfallImageFromPrinting(card.set_code, card.collector_number) || '';
+/** Build a search deck from the review snapshot when the library doc is unavailable. */
+export function deckDocumentFromReviewEntry(entry: DeckEntry): DeckDocument {
+  const now = new Date().toISOString();
+  const format = (entry.format as DeckFormat) || 'commander';
+  const cards: DeckDocument['cards'] = [];
+  const oracle: DeckDocument['oracle'] = {};
+
+  for (const snap of entry.deck_snapshot?.cards || []) {
+    const name = String(snap.name || '').trim();
+    if (!name) continue;
+    const instanceId = `review-${cards.length + 1}`;
+    const primary =
+      String(snap.primary_category || (snap.categories && snap.categories[0]) || 'Other').trim() ||
+      'Other';
+    const categories =
+      Array.isArray(snap.categories) && snap.categories.length
+        ? snap.categories.map(String)
+        : [primary];
+    const setCode = snap.set_code != null ? String(snap.set_code) : null;
+    const collectorNumber =
+      snap.collector_number != null ? String(snap.collector_number) : null;
+    const scryfallId = snap.scryfall_id != null ? String(snap.scryfall_id) : null;
+    const card = {
+      instanceId,
+      name,
+      quantity: 1,
+      ownedQuantity: 0,
+      inDeckQuantity: 0,
+      primaryCategory: primary,
+      categories,
+      stack: null,
+      setCode,
+      collectorNumber,
+      scryfallId,
+      archidektCardId: null,
+      foil: false,
+      proxy: false,
+      collectionSource: 'manual' as const,
+      collectionIgnored: false,
+    };
+    cards.push(card);
+    const ci = normalizeColourIdentity(
+      Array.isArray(snap.color_identity) ? snap.color_identity.map(String) : [],
+    );
+    oracle[oracleKey(card)] = emptyCardOracle({
+      scryfallId,
+      colourIdentity: ci,
+      typeLine: snap.type_line != null ? String(snap.type_line) : null,
+    });
   }
-  return '';
-}
 
-async function restoreSetPool(codes: string[]): Promise<{ cards: SetPoolCard[] } | null> {
-  const normalized = (codes || []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
-  if (!normalized.length) return null;
-  const codesKey = normalizeSetCodesKey(normalized);
-  const local = tryRestoreSetPool(codesKey);
-  if (local?.cards?.length) return local;
-  const remote = await hydrateSetPoolFromApi(codesKey);
-  if (remote?.cards?.length) return { cards: remote.cards as SetPoolCard[] };
-  return fetchSetPool(normalized);
+  return {
+    schemaVersion: 1,
+    deckId: String(entry.deck_id || 'review-deck'),
+    name: String(entry.deck_name || 'Deck'),
+    description: '',
+    format,
+    ownership: 'owned',
+    visibility: 'public',
+    archidektId: null,
+    archidektUrl: entry.archidekt_url != null ? String(entry.archidekt_url) : null,
+    categories: [],
+    cards,
+    oracle,
+    formalSwapEntries: [],
+    lookingForEntries: [],
+    coverInstanceId: null,
+    browseViewDefault: null,
+    cardLayoutDefault: 'stacked',
+    cardSortDefault: 'name_asc',
+    createdAt: now,
+    updatedAt: now,
+    lastArchidektSyncAt: null,
+    lastArchidektImportAt: null,
+    cubeTargetSize: null,
+    collectionTemplate: null,
+    collectionSearch: null,
+    representativeCard: null,
+    autoAdjustBasics: false,
+  };
 }
 
 export function MissingCardsProfileSection({
@@ -47,32 +129,25 @@ export function MissingCardsProfileSection({
   onAddSuggestion: (suggestion: Suggestion) => void;
   onStatus?: (message: string) => void;
 }) {
-  const [poolCards, setPoolCards] = useState<SetPoolCard[]>([]);
-  const [poolError, setPoolError] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const lockedBase = buildInSetQuery(setCodes);
+  const [searchDeck, setSearchDeck] = useState<DeckDocument | null>(null);
+  const [openError, setOpenError] = useState('');
 
-  async function openPicker() {
-    setPoolError('');
+  if (!lockedBase) return null;
+
+  async function openSearch() {
+    setOpenError('');
+    const deckId = String(deck.deck_id || '');
     try {
-      const scope = await restoreSetPool(setCodes);
-      const cards = missingPoolCards(scope?.cards || [], {
-        deck_id: deck.deck_id || '',
-        deck_snapshot: deck.deck_snapshot,
-        suggestions: deck.suggestions as Array<{ card?: { name?: string } }>,
-      });
-      setPoolCards(cards);
-      if (!cards.length) {
-        setPoolError('No other cards in this set pool for this deck.');
-        return;
-      }
-      setPickerOpen(true);
+      const fromLibrary = deckId ? await resolveLibraryDocument(deckId) : null;
+      setSearchDeck(fromLibrary || deckDocumentFromReviewEntry(deck));
     } catch (err) {
-      setPoolError(err instanceof Error ? err.message : String(err));
+      setOpenError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function pickCard(card: SetPoolCard) {
-    let next = card;
+  async function addPrinting(printing: PrintingFields) {
+    let next = printingToSetPoolCard(printing);
     if (!(next.oracle_tags && next.oracle_tags.length) || !(next.art_tags && next.art_tags.length)) {
       const indexes = await loadScryfallTagIndexes();
       if (indexes) next = attachTagsToCard(next, indexes);
@@ -89,19 +164,6 @@ export function MissingCardsProfileSection({
     }
   }
 
-  const pickerItems: CardPickerItem[] = poolCards.map((card) => ({
-    value: poolCardKey(card),
-    lines: [card.name, [card.set_code, card.collector_number].filter(Boolean).join(' ')],
-    imgSrc: poolCardImage(card) || undefined,
-    scryfallId: card.scryfall_id || undefined,
-  }));
-
-  const suggestedKeys = new Set(
-    ((deck.suggestions || []) as Suggestion[])
-      .filter((s) => s.source === 'missing_cards')
-      .map((s) => poolCardKey(s.card as SetPoolCard)),
-  );
-
   return (
     <section className="dr-missing-cards" aria-label="Missing cards">
       <div className="dr-missing-cards-heading">
@@ -115,25 +177,23 @@ export function MissingCardsProfileSection({
         </span>
       </div>
       <div className="dr-missing-cards-actions">
-        <button type="button" className="dr-btn" onClick={() => void openPicker()}>
+        <button type="button" className="dr-btn" onClick={() => void openSearch()}>
           Add cards
         </button>
       </div>
-      {poolError ? <p className="dr-missing-cards-error">{poolError}</p> : null}
-      {pickerOpen ? (
-        <CardPickerModal
-          config={{
-            title: 'Missing cards from this set',
-            items: pickerItems,
-            sort: true,
-            keepOpen: true,
-            selectedValues: [...suggestedKeys],
-            onPick: (value) => {
-              const card = poolCards.find((c) => poolCardKey(c) === value);
-              if (card) void pickCard(card);
-            },
+      {openError ? <p className="dr-missing-cards-error">{openError}</p> : null}
+      {searchDeck ? (
+        <ScryfallSearchModal
+          deck={searchDeck}
+          lockedBaseQuery={lockedBase}
+          title="Missing cards from this set"
+          confirmLabel="Add as suggestion"
+          printingTitle={(name) => `Add suggestion — ${name}`}
+          defaultCategory="Maybeboard"
+          onClose={() => setSearchDeck(null)}
+          onAdd={(printing) => {
+            void addPrinting(printing);
           }}
-          onClose={() => setPickerOpen(false)}
         />
       ) : null}
     </section>

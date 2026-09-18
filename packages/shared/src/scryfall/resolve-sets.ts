@@ -391,13 +391,21 @@ function normalizeCard(card: Record<string, unknown>): NormalizedSetCard {
 }
 
 /** Paper + Commander-legal only (excludes tokens, banned, and non-legal). */
+/** Live-legal Suggest / budget upgrade pools (exclude unreleased / not_legal). */
 export const SCRYFALL_SUGGEST_POOL_FILTERS = 'game:paper format:commander';
+
+/**
+ * Set / release spoiler pools for deck-update analysis.
+ * Paper only — **no** `format:commander`. Unreleased spoilers are often
+ * `not_legal` on Scryfall until street date; filtering by format drops most of the set.
+ */
+export const SCRYFALL_SET_POOL_FILTERS = 'game:paper';
 
 async function fetchAllCardsForSet(setCode: string): Promise<Record<string, unknown>[]> {
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
   const query = encodeURIComponent(
     withPaperGameQuery(
-      `set:${setCode.toLowerCase()} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`,
+      `set:${setCode.toLowerCase()} unique:cards ${SCRYFALL_SET_POOL_FILTERS}`,
     ),
   );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
@@ -534,7 +542,7 @@ export async function fetchReleaseCards(
   const prefix = kind === 'block' ? 'b' : 'g';
   // Use a space (→ %20), not '+': encodeURIComponent turns '+' into '%2B', which Scryfall treats literally and 404s.
   const query = encodeURIComponent(
-    withPaperGameQuery(`${prefix}:${seed} unique:cards ${SCRYFALL_SUGGEST_POOL_FILTERS}`),
+    withPaperGameQuery(`${prefix}:${seed} unique:cards ${SCRYFALL_SET_POOL_FILTERS}`),
   );
   let url: string | null = `${SCRYFALL_API}/cards/search?q=${query}`;
   const raw: Record<string, unknown>[] = [];

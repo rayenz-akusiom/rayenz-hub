@@ -8,6 +8,7 @@ export {
   parseSetCodesFromText,
   resolveSets,
   slugifySetName,
+  SCRYFALL_SET_POOL_FILTERS,
   SCRYFALL_SUGGEST_POOL_FILTERS,
   type FetchSetCardsResult,
   type NormalizedSetCard,

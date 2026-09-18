@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SCRYFALL_SUGGEST_POOL_FILTERS, fetchSetCards } from '../../../packages/shared/src/scryfall/index.ts';
+import {
+  SCRYFALL_SET_POOL_FILTERS,
+  SCRYFALL_SUGGEST_POOL_FILTERS,
+  fetchSetCards,
+} from '../../../packages/shared/src/scryfall/index.ts';
 
 describe('Scryfall suggest pool query', () => {
   afterEach(() => {
@@ -7,11 +11,12 @@ describe('Scryfall suggest pool query', () => {
     vi.restoreAllMocks();
   });
 
-  it('includes game:paper and format:commander filters', () => {
+  it('keeps format:commander on live Suggest upgrade filters only', () => {
     expect(SCRYFALL_SUGGEST_POOL_FILTERS).toBe('game:paper format:commander');
+    expect(SCRYFALL_SET_POOL_FILTERS).toBe('game:paper');
   });
 
-  it('fetchSetCards search URL includes paper + commander filters', async () => {
+  it('fetchSetCards search URL includes paper but not format:commander', async () => {
     const urls: string[] = [];
     vi.stubGlobal(
       'fetch',
@@ -45,7 +50,7 @@ describe('Scryfall suggest pool query', () => {
                 type_line: 'Instant',
                 oracle_text: 'indestructible',
                 color_identity: ['W'],
-                legalities: { commander: 'legal' },
+                legalities: { commander: 'not_legal' },
               },
             ],
           }),
@@ -59,7 +64,7 @@ describe('Scryfall suggest pool query', () => {
     expect(searchUrl).toBeTruthy();
     const decoded = decodeURIComponent(searchUrl!);
     expect(decoded).toContain('game:paper');
-    expect(decoded).toContain('format:commander');
+    expect(decoded).not.toContain('format:commander');
     expect(decoded).toContain('set:msh');
   });
 });

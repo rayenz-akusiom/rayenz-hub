@@ -401,7 +401,11 @@ describe('DeckSuggestApp suggestion panel', () => {
 
   it('keeps the suggestion open after Never suggest this cut', async () => {
     vi.mocked(ProfileSync.canWriteProfiles).mockReturnValue(true);
-    vi.mocked(ProfileSync.appendToProfileList).mockResolvedValue({ changed: true });
+    vi.mocked(ProfileSync.appendToProfileList).mockResolvedValue({
+      field: 'protected_cards',
+      cardName: 'Plains',
+      changed: true,
+    });
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = await loadSuggestionsViaUpload(handoffPayload());
@@ -411,12 +415,15 @@ describe('DeckSuggestApp suggestion panel', () => {
     });
 
     await user.click(screen.getByRole('button', { name: 'More' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Never suggest this cut' }));
+    const neverCut = screen.getByRole('menuitem', { name: 'Never suggest this cut' });
+    expect(neverCut).toBeEnabled();
+    await user.click(neverCut);
 
+    expect(confirmSpy).toHaveBeenCalled();
     await waitFor(() => {
-      expect(screen.getByText(/Added Plains in protected cards/i)).toBeInTheDocument();
+      expect(ProfileSync.appendToProfileList).toHaveBeenCalledWith('baird', 'protected_cards', 'Plains');
     });
-    expect(ProfileSync.appendToProfileList).toHaveBeenCalledWith('baird', 'protected_cards', 'Plains');
+    expect(screen.getByText(/Added Plains in protected cards/i)).toBeInTheDocument();
     expect(screen.queryByText('Skipped')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: "Caretaker's Talent" })).toBeInTheDocument();

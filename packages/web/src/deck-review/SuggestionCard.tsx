@@ -290,14 +290,26 @@ export function SuggestionCard({
       onProfileUpdate({ profileStatus: result.error });
       return;
     }
-    const nextPrefs = addRuntimePreference(deckPrefs, deck.deck_id || '', result.field, result.cardName);
     const verb = result.changed ? 'Added' : 'Already listed';
+    const status =
+      verb + ' ' + result.cardName + ' in ' + result.field.replace('_', ' ') + '.';
+    if (side === 'in') {
+      // Blocking the In hides this suggestion (runtime prefs + skip).
+      const nextPrefs = addRuntimePreference(deckPrefs, deck.deck_id || '', result.field, result.cardName);
+      onProfileUpdate({
+        deckPrefs: nextPrefs,
+        profilesConnected: true,
+        profileStatus: status,
+      });
+      onDecision(String(suggestion.suggestion_id), { status: 'skipped' }, advanceOnAction);
+      return;
+    }
+    // Protecting a cut must not dismiss or hide via runtime prefs — user may still Accept
+    // with a different Out. Profile YAML still got the write for future generates.
     onProfileUpdate({
-      deckPrefs: nextPrefs,
       profilesConnected: true,
-      profileStatus: verb + ' ' + result.cardName + ' in ' + result.field.replace('_', ' ') + '.',
+      profileStatus: status,
     });
-    onDecision(String(suggestion.suggestion_id), { status: 'skipped' }, advanceOnAction);
   }
 
   useEffect(() => {

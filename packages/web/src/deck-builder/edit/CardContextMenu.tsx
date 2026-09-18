@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DeckFormat } from '@rayenz-hub/shared';
 import { FoilIcon } from '../../cards/FoilIcon';
 import { ProxyIcon } from '../../cards/ProxyIcon';
 import { SeekingIcon } from '../../cards/SeekingIcon';
 import { canCopyPng } from '../../lib/glance-png';
+import { useClampedFixedMenuPosition } from '../../ui/clampFixedMenuPosition';
 import { CategorySelectOptgroups } from './CategorySelectOptgroups';
 
 export type CardContextMenuState = {
@@ -80,11 +81,28 @@ export function CardContextMenu({
   onRemoveSecondary?: (category: string) => void;
   onAddSecondary?: (category: string) => void;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const [addingSecondary, setAddingSecondary] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const multi = selectionCount > 1;
+  const { ref: rootRef, style } = useClampedFixedMenuPosition(state.x, state.y, [
+    addingSecondary,
+    creatingNew,
+    selectionCount,
+    secondaryCategories.length,
+    categoryOptions.length,
+    foilEnabled,
+    Boolean(onToggleProxy),
+    Boolean(onToggleSeeking),
+    Boolean(onToggleWontCollect),
+    Boolean(onMove),
+    Boolean(onMoveToDefault),
+    Boolean(onAddToSwapQueue),
+    Boolean(onAddSecondary),
+    Boolean(onCopyImage),
+    copyImageEnabled,
+    isCover,
+  ]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent | PointerEvent) {
@@ -102,12 +120,7 @@ export function CardContextMenu({
       document.removeEventListener('pointerdown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
-
-  const style = {
-    left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 220 : state.x),
-    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 320 : state.y),
-  };
+  }, [onClose, rootRef]);
 
   function commitAddSecondary(name: string) {
     const trimmed = name.trim();

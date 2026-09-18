@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { DeckOwnership, DeckVisibility } from '@rayenz-hub/shared';
+import { useClampedFixedMenuPosition } from '../../ui/clampFixedMenuPosition';
 
 export type DeckOwnershipMenuState = {
   x: number;
@@ -28,12 +29,16 @@ export function DeckOwnershipContextMenu({
   onSetOwnership?: (deckId: string, ownership: DeckOwnership) => void;
   onSetVisibility?: (deckId: string, visibility: DeckVisibility) => void;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const nextOwnership: DeckOwnership = state.current === 'theory' ? 'owned' : 'theory';
   const ownershipLabel = nextOwnership === 'theory' ? 'Mark as Theory' : 'Mark as Owned';
   const nextVisibility: DeckVisibility = state.visibility === 'private' ? 'public' : 'private';
   const visibilityLabel = nextVisibility === 'private' ? 'Mark as Private' : 'Mark as Public';
   const showMeta = !state.isSample;
+  const { ref: rootRef, style } = useClampedFixedMenuPosition(state.x, state.y, [
+    Boolean(onDuplicate),
+    showMeta && Boolean(onSetOwnership),
+    showMeta && Boolean(onSetVisibility),
+  ]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -49,12 +54,7 @@ export function DeckOwnershipContextMenu({
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
-
-  const style = {
-    left: Math.min(state.x, typeof window !== 'undefined' ? window.innerWidth - 200 : state.x),
-    top: Math.min(state.y, typeof window !== 'undefined' ? window.innerHeight - 160 : state.y),
-  };
+  }, [onClose, rootRef]);
 
   return (
     <div

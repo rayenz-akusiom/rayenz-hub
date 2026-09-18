@@ -47,3 +47,20 @@ export function mergeThemes(existingYaml: string, profileTags: string[]): string
   profileTags.forEach((t) => merged.add(t));
   return [...merged];
 }
+
+/** Case-insensitive union preserving first-seen casing/order. */
+export function unionUnique(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const item of list) {
+      const trimmed = String(item).trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+    }
+  }
+  return out;
+}

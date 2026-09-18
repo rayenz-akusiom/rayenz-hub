@@ -1,5 +1,4 @@
 import {
-  hubDeckToRecord,
   markLozengesExisting,
   plusLozengesToProfileUpdates,
   sortSuggestions,
@@ -10,6 +9,7 @@ import {
   type Suggestion,
   type SuggestionsPayload,
 } from '@rayenz-hub/shared';
+import { hubDeckToRecord } from '@rayenz-hub/shared/suggest';
 import {
   fileIdFromMeta,
   hydrateReviewProgressFromApi,

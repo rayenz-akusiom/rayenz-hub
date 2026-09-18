@@ -7,7 +7,7 @@
    max-height: 100vh;
    overflow: hidden;
    background: var(--hub-bg);
-   color: #1a202c;
+   color: var(--hub-ink);
    font-size: 15px;
    line-height: 1.45;
 }
@@ -38,7 +38,7 @@
 
 .ds-header {
    flex-shrink: 0;
-   background: #fff;
+   background: var(--hub-panel);
    border-bottom: none;
    padding: 16px 20px;
 }
@@ -173,10 +173,10 @@
 .ds-suggestion-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--hub-border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--hub-panel);
   min-width: 0;
 }
 
@@ -195,7 +195,7 @@
    width: 100%;
    aspect-ratio: 5 / 7;
    object-fit: cover;
-   background: #edf2f7;
+   background: var(--hub-ghost-bg);
    display: block;
 }
 
@@ -234,18 +234,18 @@
 }
 
 .ds-lozenge-medium {
-   background: #bee3f8;
+   background: var(--hub-accent-soft-strong);
    color: #2a4365;
 }
 
 .ds-lozenge-low {
-   background: #e2e8f0;
-   color: #4a5568;
+   background: var(--hub-ghost-bg);
+   color: var(--hub-muted);
 }
 
 .ds-lozenge-rule {
-   background: #edf2f7;
-   color: #4a5568;
+   background: var(--hub-ghost-bg);
+   color: var(--hub-muted);
    font-weight: 600;
    text-transform: none;
    letter-spacing: 0;
@@ -254,7 +254,7 @@
 .ds-suggestion-rationale {
    margin: 0;
    font-size: 0.8rem;
-   color: #4a5568;
+   color: var(--hub-muted);
    line-height: 1.35;
 }
 
@@ -265,8 +265,8 @@
 
 
 .ds-summary {
-   background: #f7fafc;
-   border: 1px solid #e2e8f0;
+   background: var(--hub-bg);
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
    padding: 12px 16px;
    margin: 12px 0;
@@ -292,7 +292,7 @@
 .ds-meta {
    margin: 0;
    font-size: 0.9rem;
-   color: #4a5568;
+   color: var(--hub-muted);
 }
 
 .ds-status {
@@ -319,8 +319,8 @@
 }
 
 .ds-panel {
-   background: #fff;
-   border: 1px solid #e2e8f0;
+   background: var(--hub-panel);
+   border: 1px solid var(--hub-border);
    border-radius: 8px;
    padding: 20px;
    margin-bottom: 20px;
@@ -342,11 +342,11 @@
    width: 100%;
    margin-top: 4px;
    padding: 8px 10px;
-   border: 1px solid #cbd5e0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
    box-sizing: border-box;
    font: inherit;
-   background: #fff;
+   background: var(--hub-panel);
 }
 
 
@@ -360,7 +360,7 @@
 /* .ds-btn / .ds-btn-primary / .ds-btn-ghost — see hub-mtg-ui.css */
 
 .ds-deck-list {
-   border: 1px solid #e2e8f0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
    padding: 12px;
    margin: 12px 0;
@@ -375,7 +375,7 @@
 /* .ds-error / .ds-error-inline — see hub-mtg-ui.css */
 
 .ds-suggestion {
-   border-top: 1px solid #e2e8f0;
+   border-top: 1px solid var(--hub-border);
    padding: 10px 0;
 }
 
@@ -385,7 +385,7 @@
    text-transform: uppercase;
    padding: 2px 6px;
    border-radius: 4px;
-   background: #e2e8f0;
+   background: var(--hub-ghost-bg);
 }
 
 .ds-queue-badge {
@@ -420,14 +420,14 @@
 
 .ds-no-suggestions {
    margin-top: 16px;
-   border-top: 1px solid #e2e8f0;
+   border-top: 1px solid var(--hub-border);
    padding-top: 8px;
 }
 
 .ds-no-suggestions summary {
    cursor: pointer;
    font-weight: 600;
-   color: #4a5568;
+   color: var(--hub-muted);
    padding: 8px 0;
    list-style: none;
 }
@@ -460,9 +460,9 @@
 
 .ds-deck-load-tab {
    padding: 6px 12px;
-   border: 1px solid #cbd5e0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
-   background: #edf2f7;
+   background: var(--hub-ghost-bg);
    cursor: pointer;
    font: inherit;
    font-size: 0.9rem;
@@ -485,7 +485,7 @@
    min-height: 120px;
    margin-top: 4px;
    padding: 8px 10px;
-   border: 1px solid #cbd5e0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
    box-sizing: border-box;
    font: inherit;
@@ -515,16 +515,16 @@
 .ds-rules-debug-setup {
    margin-top: 16px;
    padding: 12px;
-   border: 1px dashed #cbd5e0;
+   border: 1px dashed var(--hub-border);
    border-radius: 8px;
 }
 
 .ds-rules-debug {
    margin-top: 20px;
    padding: 12px;
-   border: 1px solid #e2e8f0;
+   border: 1px solid var(--hub-border);
    border-radius: 8px;
-   background: #f7fafc;
+   background: var(--hub-bg);
 }
 
 .ds-rules-debug summary {
@@ -539,9 +539,9 @@
 .ds-rules-debug-explain {
    margin: 12px 0;
    padding: 10px;
-   border: 1px solid #e2e8f0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
-   background: #fff;
+   background: var(--hub-panel);
 }
 
 .ds-rules-debug-explain .ds-field {
@@ -568,7 +568,7 @@
    margin-bottom: 4px;
    border-radius: 4px;
    font-size: 0.9rem;
-   background: #fff;
+   background: var(--hub-panel);
    border-left: 3px solid #a0aec0;
 }
 
@@ -578,7 +578,7 @@
 }
 
 .ds-rules-debug-info {
-   border-left-color: #3182ce;
+   border-left-color: var(--hub-accent);
 }
 
 .ds-budget-review {
@@ -586,8 +586,8 @@
 }
 
 .ds-budget-tally {
-   background: #f7fafc;
-   border: 1px solid #e2e8f0;
+   background: var(--hub-bg);
+   border: 1px solid var(--hub-border);
    border-radius: 8px;
    padding: 12px 16px;
    margin-bottom: 12px;
@@ -596,7 +596,7 @@
 .ds-budget-tally-main {
    margin: 0;
    font-weight: 600;
-   color: #2d3748;
+   color: var(--hub-ink);
 }
 
 .ds-budget-tally-over {
@@ -612,8 +612,8 @@
 }
 
 .ds-packages {
-   background: #fff;
-   border: 1px solid #e2e8f0;
+   background: var(--hub-panel);
+   border: 1px solid var(--hub-border);
    border-radius: 8px;
    padding: 16px;
 }
@@ -627,9 +627,9 @@
 
 .ds-package-tab {
    padding: 6px 12px;
-   border: 1px solid #cbd5e0;
+   border: 1px solid var(--hub-border);
    border-radius: 6px;
-   background: #edf2f7;
+   background: var(--hub-ghost-bg);
    cursor: pointer;
    font: inherit;
    font-size: 0.9rem;

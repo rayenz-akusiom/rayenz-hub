@@ -4,6 +4,7 @@ import { CardFaceSessionProvider } from '../cards/CardFaceSession';
 import { HubShell } from './HubShell';
 import { installHubGlobals } from './install-hub-globals';
 import { redirectLegacyAppsPath } from './routes';
+import { applyTheme, loadTheme } from './theme-pref';
 import '../../../../rayenz-hub/shared/shell.css';
 import '../../../../rayenz-hub/shared/card-picker.css';
 import '../../../../rayenz-hub/shared/deck-chip.css';
@@ -17,6 +18,7 @@ import '../deck-builder/deck-builder.css';
 
 function boot() {
   if (redirectLegacyAppsPath()) return;
+  applyTheme(loadTheme());
   installHubGlobals();
   const root = document.getElementById('root');
   if (root) {

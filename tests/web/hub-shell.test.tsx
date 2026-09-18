@@ -228,6 +228,29 @@ describe('HubNav active links', () => {
     const dailies = navLink('Dailies');
     expect(commander.compareDocumentPosition(dailies) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('toggles theme from the nav footer and persists', async () => {
+    const user = userEvent.setup();
+    localStorage.removeItem('rayenzHubTheme');
+    document.documentElement.removeAttribute('data-theme');
+
+    render(<HubNav path="/dailies" open={false} onClose={() => {}} />);
+    const toggle = screen.getByRole('button', { name: 'Switch to dark mode' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(toggle);
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('rayenzHubTheme')).toBe('dark');
+    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Switch to light mode' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('rayenzHubTheme')).toBe('light');
+  });
 });
 
 describe('HubShell route restore', () => {

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { FormatBadge } from '../deck-builder/ui/FormatBadge';
 import { HubNavAuth } from './HubNavAuth';
 import type { HubPath } from './routes';
+import { useTheme } from './theme-pref';
 
 type NavItem = {
   path: HubPath;
@@ -133,6 +134,22 @@ function NavLink({
   );
 }
 
+function ThemeToggleIcon({ theme }: { theme: 'light' | 'dark' }) {
+  if (theme === 'dark') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" />
+    </svg>
+  );
+}
+
 export function HubNav({
   path,
   open,
@@ -142,6 +159,7 @@ export function HubNav({
   open: boolean;
   onClose: () => void;
 }) {
+  const { theme, toggle } = useTheme();
   const settingsItem: NavItem = {
     path: '/settings',
     label: 'Settings',
@@ -183,6 +201,20 @@ export function HubNav({
             path={path}
             onNavigate={onClose}
           />
+          <li>
+            <button
+              type="button"
+              className="hub-nav-theme-toggle"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={theme === 'dark'}
+              onClick={toggle}
+            >
+              <span className="hub-nav-icon" aria-hidden="true">
+                <ThemeToggleIcon theme={theme} />
+              </span>
+              <span className="hub-nav-label">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+          </li>
         </ul>
       </div>
     </nav>

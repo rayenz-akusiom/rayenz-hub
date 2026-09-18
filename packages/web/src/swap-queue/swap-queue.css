@@ -375,10 +375,10 @@
 .sq-face-tile {
   display: flex;
   flex-direction: column;
-  border: 1px solid #ddd;
+  border: 1px solid var(--hub-border, #ddd);
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--hub-panel, #fff);
   width: 100%;
   padding: 0;
   cursor: pointer;

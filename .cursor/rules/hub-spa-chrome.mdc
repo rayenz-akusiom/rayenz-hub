@@ -41,10 +41,14 @@ Overflow (hamburger): Categories, Basics, Trim, Glance, copy/export.
 - Suggest / Order Reconcile may keep `dr-*` / `or-*` class names
 - Glance packers and product dialogs (see `glance.mdc`)
 
+## Theme
+
+- Light/dark is a local UI pref (`rayenzHubTheme`) toggled from the left-nav footer beside Settings (`theme-pref.ts`). Nav stays dark either way; content follows `--hub-*` under `:root[data-theme="dark"]` in `hub-mtg-ui.css`. Dailies / Neopets stay exempt.
+
 ## Avoid
 
 - Equal-weight primary toolbars (Categories / Trim / Glance as same-weight `db-btn`s beside Browse)
 - A second identical FAB while an empty-state CTA is showing
 - `HubProgress.finish()` on uneventful list refresh — `dismiss()` on success; `finish({ variant: 'error' })` when the user must see failure
 - `position: fixed` headers (use `.hub-sticky-chrome`)
-- Dark mode, renaming `dr-*` / `or-*` for consistency, making Dailies look like MTG
+- Renaming `dr-*` / `or-*` for consistency, making Dailies look like MTG

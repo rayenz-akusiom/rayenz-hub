@@ -1,5 +1,4 @@
 :root {
-  color-scheme: light;
   /* Color tokens (--db-bg/panel/ink/muted/accent/danger/border) come from hub-mtg-ui.css */
   --db-card-w: 213px;
   /* ~42/213 — scales with size picker */

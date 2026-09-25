@@ -3063,6 +3063,12 @@ body,
   gap: 0.5rem;
 }
 
+.db-move-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .db-error {
   color: var(--db-danger);
 }

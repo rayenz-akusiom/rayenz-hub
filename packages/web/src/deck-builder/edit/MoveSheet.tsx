@@ -4,6 +4,7 @@ import {
   deckCategoryOptions,
   isGlanceUnassignedCategoryName,
   moveCardsCategory,
+  moveCardsToDefaultCategories,
   cardDisplayName,
   type CardView,
   type DeckDocument,
@@ -68,10 +69,33 @@ export function MoveSheet({
     );
   }
 
+  function applyQuickCategory(cat: 'Maybeboard' | 'Seeking') {
+    onApply(
+      moveCardsCategory(deck, list.map((c) => c.instanceId), cat, {
+        clearSeekingWhenMovingMainToAside,
+      }),
+    );
+  }
+
+  function applyDefault() {
+    onApply(moveCardsToDefaultCategories(deck, list.map((c) => c.instanceId)));
+  }
+
   return (
     <div className="db-modal" role="dialog" aria-modal="true" aria-label="Move card">
       <div className="db-modal-card">
         <h3>{title}</h3>
+        <div className="db-move-quick-actions" role="group" aria-label="Quick destinations">
+          <button type="button" className="db-btn" onClick={() => applyQuickCategory('Maybeboard')}>
+            Maybeboard
+          </button>
+          <button type="button" className="db-btn" onClick={() => applyQuickCategory('Seeking')}>
+            Seeking
+          </button>
+          <button type="button" className="db-btn" onClick={applyDefault}>
+            Default
+          </button>
+        </div>
         {creatingNew ? (
           <label>
             New category

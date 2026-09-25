@@ -6,6 +6,7 @@ import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared
 import {
   inTargetCategoryFromOutCard,
   moveCardCategory,
+  moveCardsToDefaultCategories,
   syncCardsWithFormalSwaps,
 } from '@rayenz-hub/shared';
 import { LibraryView } from '../../packages/web/src/deck-builder/library/LibraryView';
@@ -1275,6 +1276,72 @@ describe('BrowseShell swap-In ghosts on load', () => {
 });
 
 describe('MoveSheet', () => {
+  it.each(['Maybeboard', 'Seeking'] as const)(
+    'immediately moves multiple selected cards to %s',
+    async (destination) => {
+      const cards = commanderDoc.cards.slice(0, 2) as CardInstance[];
+      const onApply = vi.fn();
+      const user = userEvent.setup();
+
+      render(<MoveSheet deck={commanderDoc} cards={cards} onClose={vi.fn()} onApply={onApply} />);
+
+      await user.click(screen.getByRole('button', { name: destination }));
+
+      expect(onApply).toHaveBeenCalledTimes(1);
+      expect(onApply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cards: cards.reduce(
+            (nextCards, card) => moveCardCategory(nextCards, card.instanceId, destination),
+            commanderDoc.cards,
+          ),
+        }),
+      );
+    },
+  );
+
+  it('immediately moves multiple selected cards to their individual default categories', async () => {
+    const cards = [
+      { ...(commanderDoc.cards[0] as CardInstance), typeLine: 'Creature' },
+      { ...(commanderDoc.cards[1] as CardInstance), typeLine: 'Land' },
+    ];
+    const deck = { ...commanderDoc, cards: [...commanderDoc.cards] };
+    deck.cards = deck.cards.map((card) => cards.find((selected) => selected.instanceId === card.instanceId) ?? card);
+    const onApply = vi.fn();
+    const user = userEvent.setup();
+
+    render(<MoveSheet deck={deck} cards={cards} onClose={vi.fn()} onApply={onApply} />);
+
+    await user.click(screen.getByRole('button', { name: 'Default' }));
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const expected = moveCardsToDefaultCategories(deck, cards.map((card) => card.instanceId));
+    expect(onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ cards: expected.cards, categories: expected.categories }),
+    );
+  });
+
+  it('keeps quick destinations available when opened in new-category mode', async () => {
+    const card = commanderDoc.cards[0] as CardInstance;
+    const onApply = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <MoveSheet
+        deck={commanderDoc}
+        cards={[card]}
+        initialCreatingNew
+        onClose={vi.fn()}
+        onApply={onApply}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Maybeboard' }));
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0]![0].cards.find((c) => c.instanceId === card.instanceId)?.primaryCategory)
+      .toBe('Maybeboard');
+  });
+
   it('applies category move', async () => {
     const card = commanderDoc.cards[0] as CardInstance;
     const onApply = vi.fn();

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   emptyCardOracle,
@@ -496,6 +496,11 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
     await searchWithResults(user, [birds]);
 
     const option = screen.getByRole('option', { name: /Birds of Paradise/i });
+    expect(option).toHaveClass('has-long-press-menu');
+    const contextMenuEvent = createEvent.contextMenu(option);
+    fireEvent(option, contextMenuEvent);
+    expect(contextMenuEvent.defaultPrevented).toBe(true);
+
     fireEvent.pointerDown(option, {
       button: 0,
       pointerType: 'touch',
@@ -516,6 +521,33 @@ describe('ScryfallSearchModal deck-edit singleton gestures', () => {
       }),
     );
     expect(screen.queryByRole('heading', { name: /Add —/i })).not.toBeInTheDocument();
+  });
+
+  it('cancels a picker long-press when the pointer is released early', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onMenu = vi.fn();
+
+    render(
+      <ScryfallSearchModal
+        deck={baseDeck}
+        onClose={vi.fn()}
+        onAdd={vi.fn()}
+        allowQuickAdd
+        onInDeckContextMenu={onMenu}
+      />,
+    );
+    await searchWithResults(user, [birds]);
+
+    const option = screen.getByRole('option', { name: /Birds of Paradise/i });
+    fireEvent.pointerDown(option, { button: 0, pointerType: 'touch', pointerId: 1 });
+    fireEvent.pointerCancel(option, { pointerType: 'touch', pointerId: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(onMenu).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('long-press on not-in-deck card still opens printing picker with Quick add', async () => {

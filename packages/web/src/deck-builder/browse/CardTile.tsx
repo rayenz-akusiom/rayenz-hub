@@ -133,7 +133,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${identityIllegal ? ' is-identity-illegal' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}${filterMismatch ? ' is-filter-mismatch' : ''}`}
+      className={`db-card-tile${onContextMenu ? ' has-long-press-menu' : ''}${selected ? ' is-selected' : ''}${identityIllegal ? ' is-identity-illegal' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}${filterMismatch ? ' is-filter-mismatch' : ''}`}
       onClick={(e) => {
         if (longPress.consumeClick()) return;
         onSelect?.(card, e);

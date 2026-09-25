@@ -1636,6 +1636,22 @@ body,
   opacity: 0.78;
 }
 
+.db-card-tile.has-long-press-menu,
+.db-card-stack-peek.has-long-press-menu,
+.db-picker-option.has-long-press-menu {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.db-card-tile.has-long-press-menu img,
+.db-card-stack-peek.has-long-press-menu img,
+.db-picker-option.has-long-press-menu img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .db-card-tile.is-filter-mismatch {
   opacity: 0.72;
   filter: grayscale(0.35);

@@ -418,12 +418,15 @@ export function ScryfallSearchModal({
 
   function onResultContextMenu(e: ReactMouseEvent, cardResult: ScryfallCard) {
     const inDeckCount = inDeckCountForCard(inDeckByName, cardResult);
+    const hasLongPressAction =
+      (Boolean(onInDeckContextMenu) && inDeckCount > 0) ||
+      (Boolean(allowQuickAdd) && Boolean(quickAdd));
     if (onRemoveInDeckCard && inDeckCount > 0) {
       e.preventDefault();
       onRemoveInDeckCard(cardResult);
       return;
     }
-    if (allowQuickAdd && quickAdd) e.preventDefault();
+    if (hasLongPressAction) e.preventDefault();
   }
 
   async function runSearch(e?: FormEvent, overrideQuery?: string) {
@@ -762,12 +765,15 @@ export function ScryfallSearchModal({
               const backSrc = doubleFaced ? scryfallImageFromId(cardResult.id, 'back') : null;
               const inDeckCount =
                 inDeckByName.get(String(cardResult.name || '').trim().toLowerCase()) || 0;
+              const hasLongPressAction =
+                (Boolean(onInDeckContextMenu) && inDeckCount > 0) ||
+                (Boolean(allowQuickAdd) && Boolean(quickAdd));
               return (
                 <button
                   key={cardResult.id}
                   type="button"
                   role="option"
-                  className={`db-picker-option${inDeckCount ? ' is-in-deck' : ''}`}
+                  className={`db-picker-option${inDeckCount ? ' is-in-deck' : ''}${hasLongPressAction ? ' has-long-press-menu' : ''}`}
                   title={
                     inDeckCount
                       ? `${cardResult.name} (in deck ×${inDeckCount})`

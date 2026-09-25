@@ -119,7 +119,7 @@ function CardStackPeek({
   return (
     <button
       type="button"
-      className="db-card-stack-peek"
+      className={`db-card-stack-peek${onCardContextMenu ? ' has-long-press-menu' : ''}`}
       tabIndex={-1}
       aria-hidden="true"
       title={cardDisplayName(card)}

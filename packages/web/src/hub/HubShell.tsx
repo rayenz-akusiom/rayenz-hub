@@ -96,6 +96,7 @@ function AppOutlet({ path }: { path: string }) {
 export function HubShell() {
   const { path } = useHubRoute();
   const [navOpen, setNavOpen] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(() => localStorage.getItem('rayenzHubNavCollapsed') === 'true');
   const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -140,8 +141,18 @@ export function HubShell() {
           toggleRef.current?.focus();
         }}
       />
-      <div className="hub-layout">
-        <HubNav path={path} open={navOpen} onClose={() => setNavOpen(false)} />
+      <div className={`hub-layout${navCollapsed ? ' nav-collapsed' : ''}`}>
+        <HubNav
+          path={path}
+          open={navOpen}
+          onClose={() => setNavOpen(false)}
+          collapsed={navCollapsed}
+          onToggleCollapsed={() => setNavCollapsed((collapsed) => {
+            const next = !collapsed;
+            localStorage.setItem('rayenzHubNavCollapsed', String(next));
+            return next;
+          })}
+        />
         <main className="hub-main">
           <div id="app-root">
             <Suspense fallback={<div className="hub-loading">Loading...</div>}>

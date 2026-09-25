@@ -124,6 +124,7 @@ function NavLink({
         data-nav-prefix={item.prefix}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
+        title={item.label}
       >
         <span className="hub-nav-icon" aria-hidden="true">
           {item.icon}
@@ -154,10 +155,14 @@ export function HubNav({
   path,
   open,
   onClose,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   path: string;
   open: boolean;
   onClose: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const { theme, toggle } = useTheme();
   const settingsItem: NavItem = {
@@ -173,11 +178,26 @@ export function HubNav({
   };
 
   return (
-    <nav id="hub-nav" className={`hub-nav${open ? ' open' : ''}`} aria-label="Apps">
+    <nav
+      id="hub-nav"
+      className={`hub-nav${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}
+      aria-label="Apps"
+    >
       <div className="hub-nav-header">
         <h1>Rayenz Hub</h1>
         <HubNavAuth onNavigate={onClose} />
       </div>
+      {onToggleCollapsed && (
+        <button
+          type="button"
+          className="hub-nav-collapse"
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          onClick={onToggleCollapsed}
+        >
+          <span aria-hidden="true">{collapsed ? '›' : '‹'}</span>
+          <span className="hub-nav-collapse-label">{collapsed ? 'Expand' : 'Collapse'}</span>
+        </button>
+      )}
       <div className="hub-nav-group">
         <p className="hub-nav-group-title">MTG</p>
         <ul className="hub-nav-list">

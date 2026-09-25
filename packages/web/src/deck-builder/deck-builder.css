@@ -3552,6 +3552,45 @@ body,
   display: block;
 }
 
+.db-swap-edit-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--db-muted, #6a737d);
+  background: transparent;
+  cursor: pointer;
+}
+
+.db-swap-edit-switch:hover,
+.db-swap-edit-switch:focus-visible {
+  color: var(--db-accent, #2563eb);
+  background: var(--db-panel, #f6f8fa);
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.db-swap-edit-switch-icon {
+  display: none;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.db-swap-edit-switch:hover .db-swap-edit-switch-arrow,
+.db-swap-edit-switch:focus-visible .db-swap-edit-switch-arrow {
+  display: none;
+}
+
+.db-swap-edit-switch:hover .db-swap-edit-switch-icon,
+.db-swap-edit-switch:focus-visible .db-swap-edit-switch-icon {
+  display: block;
+}
+
 .db-swap-pair-arrow {
   position: absolute;
   left: 50%;

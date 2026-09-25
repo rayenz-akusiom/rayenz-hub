@@ -459,7 +459,42 @@ export function SwapEditChrome({
               <>
                 <div className="db-swap-edit-slots">
                   <SwapEditSlot card={outCard} role="out" onChange={pickOut} />
-                  <SwapArrow />
+                  {!isSuggestAccept ? (
+                    <button
+                      type="button"
+                      className="db-swap-edit-switch"
+                      aria-label="Switch Out and In sides"
+                      title="Switch Out and In sides"
+                      onClick={() => {
+                        const nextOutId = draft.inInstanceId;
+                        const nextOut = nextOutId ? byId.get(nextOutId) : null;
+                        onDraftChange({
+                          outInstanceId: draft.inInstanceId,
+                          inInstanceId: draft.outInstanceId,
+                          inTargetCategory: nextOut
+                            ? inTargetCategoryFromOutCard(nextOut, deck.categories)
+                            : null,
+                        });
+                      }}
+                    >
+                      <span className="db-swap-edit-switch-arrow"><SwapArrow /></span>
+                      <svg
+                        className="db-swap-edit-switch-icon"
+                        viewBox="0 0 24 24"
+                        width="1em"
+                        height="1em"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M7 7h11l-2.5-2.5L17 3l5 5-5 5-1.5-1.5L18 9H7V7zm10 10H6l2.5 2.5L7 21l-5-5 5-5 1.5 1.5L6 15h11v2z"
+                        />
+                      </svg>
+                    </button>
+                  ) : (
+                    <SwapArrow />
+                  )}
                   <SwapEditSlot
                     card={isSuggestAccept ? suggestPreviewCard : inCard}
                     role="in"

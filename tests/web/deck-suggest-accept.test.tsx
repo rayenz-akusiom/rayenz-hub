@@ -115,6 +115,7 @@ describe('AcceptDialogue', () => {
     expect(screen.getByRole('tab', { name: 'Swap' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Add to Seeking' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change In' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Switch Out and In sides' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /In: Sol Ring/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add to Swap Queue' })).toBeEnabled();
 

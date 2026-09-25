@@ -3,7 +3,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import type { CardInstance, DeckDocument, DeckSummary } from '@rayenz-hub/shared';
-import { moveCardCategory, syncCardsWithFormalSwaps } from '@rayenz-hub/shared';
+import {
+  inTargetCategoryFromOutCard,
+  moveCardCategory,
+  syncCardsWithFormalSwaps,
+} from '@rayenz-hub/shared';
 import { LibraryView } from '../../packages/web/src/deck-builder/library/LibraryView';
 import { FormatBadge } from '../../packages/web/src/deck-builder/ui/FormatBadge';
 import { DbMenu, DbMenuItem } from '../../packages/web/src/deck-builder/ui/DbMenu';
@@ -1724,6 +1728,14 @@ describe('SwapQueuePanel', () => {
     expect(document.body.querySelectorAll('.db-modal')).toHaveLength(1);
     expect(document.body.querySelector('.db-swap-edit-slots')).toBeTruthy();
 
+    await user.click(screen.getByRole('button', { name: 'Switch Out and In sides' }));
+    expect(onDraftChange).toHaveBeenCalledWith({
+      outInstanceId: foilCard.instanceId,
+      inInstanceId: commanderDoc.cards[1]!.instanceId,
+      inTargetCategory: inTargetCategoryFromOutCard(foilCard, deck.categories),
+    });
+    onDraftChange.mockClear();
+
     await user.click(screen.getByRole('button', { name: 'Change Out' }));
     expect(openPicker).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1812,6 +1824,50 @@ describe('SwapQueuePanel', () => {
     expect(onDraftChange).toHaveBeenCalledWith({
       outInstanceId: outCard.instanceId,
       inTargetCategory: outCard.primaryCategory,
+    });
+  });
+
+  it('switches the role of a populated In when the Out slot is empty', async () => {
+    const inCard = commanderDoc.cards[0]!;
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      formalSwapEntries: [
+        {
+          id: 'swap-partial',
+          inInstanceId: inCard.instanceId,
+          outInstanceId: null,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+    };
+    const onDraftChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SwapQueuePanel
+        deck={deck}
+        onChange={vi.fn()}
+        draft={{
+          entryId: 'swap-partial',
+          inInstanceId: inCard.instanceId,
+          outInstanceId: null,
+          inTargetCategory: 'Creature',
+          notes: '',
+        }}
+        onStartEdit={vi.fn()}
+        onDraftChange={onDraftChange}
+        onConfirmIn={vi.fn()}
+        onCancelEdit={vi.fn()}
+        onRemoveEdit={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Switch Out and In sides' }));
+    expect(onDraftChange).toHaveBeenCalledWith({
+      outInstanceId: inCard.instanceId,
+      inInstanceId: null,
+      inTargetCategory: inTargetCategoryFromOutCard(inCard, deck.categories),
     });
   });
 

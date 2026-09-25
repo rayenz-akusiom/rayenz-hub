@@ -634,10 +634,11 @@ describe('ScryfallSearchModal commander Include options', () => {
 
     expect(screen.getByLabelText(/Scryfall query/i)).toHaveValue('');
     expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).toHaveTextContent(
-      /Identity, Format/i,
+      /Paper game, Identity, Format/i,
     );
 
     await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    expect(screen.getByRole('checkbox', { name: /Paper game/i })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: /Commander identity/i })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: /Commander format/i })).toBeChecked();
   });
@@ -703,6 +704,7 @@ describe('ScryfallSearchModal commander Include options', () => {
     await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
     await user.click(screen.getByRole('checkbox', { name: /Commander identity/i }));
     await user.click(screen.getByRole('checkbox', { name: /Commander format/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Paper game/i }));
     expect(screen.getByRole('checkbox', { name: /Commander identity/i })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: /Commander format/i })).not.toBeChecked();
     expect(screen.getByRole('button', { name: /Include in Scryfall search/i })).toHaveTextContent(
@@ -713,11 +715,12 @@ describe('ScryfallSearchModal commander Include options', () => {
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() => {
-      expect(searchCards).toHaveBeenCalledWith('t:creature', 1);
+      expect(searchCards).toHaveBeenCalledWith('t:creature', 1, { paperOnly: false });
     });
   });
 
-  it('hides Include on non-commander decks', () => {
+  it('shows the Paper game checkbox on non-commander decks', async () => {
+    const user = userEvent.setup();
     render(
       <ScryfallSearchModal
         deck={{ ...baseDeck, format: 'cube' }}
@@ -725,9 +728,23 @@ describe('ScryfallSearchModal commander Include options', () => {
         onAdd={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole('button', { name: /Include in Scryfall search/i }),
-    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    expect(screen.getByRole('checkbox', { name: /Paper game/i })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /Commander identity/i })).not.toBeInTheDocument();
+  });
+
+  it('opts out of the paper-only search restriction when Paper game is unchecked', async () => {
+    const user = userEvent.setup();
+    render(<ScryfallSearchModal deck={{ ...baseDeck, format: 'cube' }} onClose={vi.fn()} onAdd={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Paper game/i }));
+    await user.type(screen.getByLabelText(/Scryfall query/i), 'sol ring');
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() => {
+      expect(searchCards).toHaveBeenCalledWith('sol ring', 1, { paperOnly: false });
+    });
   });
 
   it('composeScryfallQuery appends format and identity when requested and known', () => {

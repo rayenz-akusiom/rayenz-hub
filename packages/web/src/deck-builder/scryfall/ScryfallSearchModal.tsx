@@ -163,8 +163,13 @@ export function composeScryfallQuery(
   return parts.join(' ');
 }
 
-function includeMenuValue(includeIdentity: boolean, includeFormatCommander: boolean): string {
+function includeMenuValue(
+  includePaperGame: boolean,
+  includeIdentity: boolean,
+  includeFormatCommander: boolean,
+): string {
   const labels: string[] = [];
+  if (includePaperGame) labels.push('Paper game');
   if (includeIdentity) labels.push('Identity');
   if (includeFormatCommander) labels.push('Format');
   return labels.length ? labels.join(', ') : 'None';
@@ -222,6 +227,7 @@ export function ScryfallSearchModal({
   const [query, setQuery] = useState('');
   const [includeCommanderIdentity, setIncludeCommanderIdentity] = useState(isCommandZone);
   const [includeFormatCommander, setIncludeFormatCommander] = useState(isCommandZone);
+  const [includePaperGame, setIncludePaperGame] = useState(true);
   const [results, setResults] = useState<ScryfallCard[]>([]);
   const [totalCards, setTotalCards] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -454,7 +460,9 @@ export function ScryfallSearchModal({
     setError(null);
     setPending(null);
     try {
-      const page1 = await searchCards(composed, 1);
+      const page1 = includePaperGame
+        ? await searchCards(composed, 1)
+        : await searchCards(composed, 1, { paperOnly: false });
       setResults(page1.data);
       setTotalCards(typeof page1.total_cards === 'number' ? page1.total_cards : null);
       setHasMore(page1.has_more);
@@ -490,22 +498,26 @@ export function ScryfallSearchModal({
     setLoadingMore(true);
     setError(null);
     try {
-      const next = nextPageRef.current
-        ? await searchCardsNextPage(nextPageRef.current)
-        : await searchCards(
-            lastComposedQueryRef.current ||
-              composeScryfallQuery(
-                query,
-                {
-                  includeIdentity: includeCommanderIdentity,
-                  includeFormatCommander,
-                  extraQuery,
-                  lockedBaseQuery: lockedBase,
-                },
-                deck,
-              ),
-            page + 1,
+      let next: ScryfallSearchPage;
+      if (nextPageRef.current) {
+        next = await searchCardsNextPage(nextPageRef.current);
+      } else {
+        const composed =
+          lastComposedQueryRef.current ||
+          composeScryfallQuery(
+            query,
+            {
+              includeIdentity: includeCommanderIdentity,
+              includeFormatCommander,
+              extraQuery,
+              lockedBaseQuery: lockedBase,
+            },
+            deck,
           );
+        next = includePaperGame
+          ? await searchCards(composed, page + 1)
+          : await searchCards(composed, page + 1, { paperOnly: false });
+      }
       setResults((prev) => {
         const seen = new Set(prev.map((c) => c.id));
         const appended = next.data.filter((c) => !seen.has(c.id));
@@ -526,6 +538,7 @@ export function ScryfallSearchModal({
     query,
     includeCommanderIdentity,
     includeFormatCommander,
+    includePaperGame,
     extraQuery,
     lockedBase,
     deck,
@@ -679,19 +692,31 @@ export function ScryfallSearchModal({
               spellCheck={false}
             />
           </label>
-          {isCommandZone ? (
-            <div className="db-search-include">
-              <DbMenu
-                label="Include"
-                value={includeMenuValue(includeCommanderIdentity, includeFormatCommander)}
-                ariaLabel="Include in Scryfall search"
+          <div className="db-search-include">
+            <DbMenu
+              label="Include"
+              value={includeMenuValue(
+                includePaperGame,
+                includeCommanderIdentity,
+                includeFormatCommander,
+              )}
+              ariaLabel="Include in Scryfall search"
+            >
+              <div
+                className="db-search-include-panel"
+                role="none"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               >
-                <div
-                  className="db-search-include-panel"
-                  role="none"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
+                <label className="db-check">
+                  <input
+                    type="checkbox"
+                    checked={includePaperGame}
+                    onChange={(e) => setIncludePaperGame(e.target.checked)}
+                  />
+                  Paper game
+                </label>
+                {isCommandZone ? (
                   <label className="db-check">
                     <input
                       type="checkbox"
@@ -700,7 +725,8 @@ export function ScryfallSearchModal({
                     />
                     Commander identity
                   </label>
-                  {extraQuery ? null : (
+                ) : null}
+                {isCommandZone && !extraQuery ? (
                   <label className="db-check">
                     <input
                       type="checkbox"
@@ -709,11 +735,10 @@ export function ScryfallSearchModal({
                     />
                     {deck.format === 'pendragon' ? 'Pendragon format' : 'Commander format'}
                   </label>
-                  )}
-                </div>
-              </DbMenu>
-            </div>
-          ) : null}
+                ) : null}
+              </div>
+            </DbMenu>
+          </div>
           <button type="submit" className="db-btn is-active" disabled={loading}>
             Search
           </button>

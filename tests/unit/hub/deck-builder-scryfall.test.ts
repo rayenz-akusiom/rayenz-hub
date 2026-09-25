@@ -84,6 +84,13 @@ describe('scryfall URL builders', () => {
     expect(buildSearchUrl('sol ring', 1)).not.toContain('page=');
   });
 
+  it('can search all games while keeping paper-only as the default', () => {
+    expect(searchQuery(buildSearchUrl('t:creature', 1, { paperOnly: false }))).toBe(
+      't:creature',
+    );
+    expect(searchQuery(buildSearchUrl('t:creature'))).toBe('(t:creature) game:paper');
+  });
+
   it('builds search urls with unique=cards for in-set membership', () => {
     const url = buildSearchUrl(buildInSetQuery(['CMM']), 1, { unique: 'cards' });
     expect(url).toContain('unique=cards');

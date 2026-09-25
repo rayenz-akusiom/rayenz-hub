@@ -229,9 +229,10 @@ export function cardMatchesSyntaxMembership(
 export function buildSearchUrl(
   query: string,
   page = 1,
-  opts?: { unique?: 'cards' | 'prints' | 'art' },
+  opts?: { unique?: 'cards' | 'prints' | 'art'; paperOnly?: boolean },
 ): string {
-  const q = withPaperGameQuery(String(query || '').trim());
+  const trimmed = String(query || '').trim();
+  const q = opts?.paperOnly === false ? trimmed : withPaperGameQuery(trimmed);
   const url = new URL(`${SCYFALL_API}/cards/search`);
   url.searchParams.set('q', q);
   if (opts?.unique) url.searchParams.set('unique', opts.unique);
@@ -579,6 +580,8 @@ export async function searchCards(
     fetchImpl?: typeof fetch;
     delayMs?: number;
     unique?: 'cards' | 'prints' | 'art';
+    /** Defaults to paper-only; false searches all games. */
+    paperOnly?: boolean;
     signal?: AbortSignal;
     /** When true, HTTP 404 is an empty page instead of an error. */
     emptyOnNotFound?: boolean;
@@ -592,7 +595,10 @@ export async function searchCards(
   if (page > 1) {
     await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
   }
-  const res = await fetchImpl(buildSearchUrl(q, page, { unique: opts?.unique }), {
+  const res = await fetchImpl(buildSearchUrl(q, page, {
+    unique: opts?.unique,
+    paperOnly: opts?.paperOnly,
+  }), {
     headers: { Accept: 'application/json' },
     signal: opts?.signal,
   });

@@ -163,6 +163,7 @@ export function CardGroup({
   swapInIds,
   filtersActive = false,
   enableSoughtGhost = false,
+  filterMismatchIds,
   cardSort = 'name_asc',
 }: {
   cards: Array<CardView & { membership?: CategoryMembership }>;
@@ -182,6 +183,7 @@ export function CardGroup({
   filtersActive?: boolean;
   /** Collection builder only — unmet targets render as sought ghosts. */
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
   cardSort?: CardSortMode;
 }) {
   const showCollector =
@@ -214,6 +216,7 @@ export function CardGroup({
               membership={card.membership || 'primary'}
               swapInGhost={!filtersActive && Boolean(swapInIds?.has(card.instanceId))}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatch={filterMismatchIds?.has(card.instanceId)}
             />
             <CardStackPeek
               card={card}
@@ -244,6 +247,7 @@ export function CardGroup({
           membership: card.membership || ('primary' as const),
           swapInGhost: !filtersActive && Boolean(swapInIds?.has(card.instanceId)),
           enableSoughtGhost,
+          filterMismatch: filterMismatchIds?.has(card.instanceId),
         };
         if (!showCollector) {
           return <CardTile key={key} {...tileProps} />;
@@ -281,6 +285,7 @@ export function DropSection({
   swapInIds,
   filtersActive = false,
   enableSoughtGhost = false,
+  filterMismatchIds,
 }: {
   category: string;
   cards: Array<CardView & { membership?: CategoryMembership }>;
@@ -311,6 +316,7 @@ export function DropSection({
   swapInIds?: ReadonlySet<string> | null;
   filtersActive?: boolean;
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -396,6 +402,7 @@ export function DropSection({
         swapInIds={swapInIds}
         filtersActive={filtersActive}
         enableSoughtGhost={enableSoughtGhost}
+        filterMismatchIds={filterMismatchIds}
         cardSort={cardSort}
       />
     </section>
@@ -416,6 +423,7 @@ function CommanderSlot({
   emptyLabel = 'Drop commander',
   onPickSlot,
   enableSoughtGhost = false,
+  filterMismatch = false,
 }: {
   slot: 0 | 1;
   card: CardView | null;
@@ -430,6 +438,7 @@ function CommanderSlot({
   emptyLabel?: string;
   onPickSlot?: () => void;
   enableSoughtGhost?: boolean;
+  filterMismatch?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const canDrop = Boolean(onDropCard);
@@ -468,6 +477,7 @@ function CommanderSlot({
             draggable={draggable}
             onContextMenu={onCardContextMenu}
             enableSoughtGhost={enableSoughtGhost}
+            filterMismatch={filterMismatch}
           />
         </>
       ) : onPickSlot ? (
@@ -533,6 +543,7 @@ function CommanderGalleryFace({
   onCardContextMenu,
   draggable,
   enableSoughtGhost = false,
+  filterMismatch = false,
 }: {
   card: CardView;
   isPrimary: boolean;
@@ -542,6 +553,7 @@ function CommanderGalleryFace({
   onCardContextMenu?: CardContextMenuHandler;
   draggable?: boolean;
   enableSoughtGhost?: boolean;
+  filterMismatch?: boolean;
 }) {
   return (
     <div className={`db-commander-slot${isPrimary ? ' is-primary' : ''}`}>
@@ -558,6 +570,7 @@ function CommanderGalleryFace({
         draggable={draggable}
         onContextMenu={onCardContextMenu}
         enableSoughtGhost={enableSoughtGhost}
+        filterMismatch={filterMismatch}
       />
     </div>
   );
@@ -573,6 +586,7 @@ function CommanderSlots({
   onCardContextMenu,
   onPickSlot,
   enableSoughtGhost = false,
+  filterMismatchIds,
 }: {
   commanders: CardView[];
   coverInstanceId?: string | null;
@@ -583,6 +597,7 @@ function CommanderSlots({
   onCardContextMenu?: CardContextMenuHandler;
   onPickSlot?: (category: string) => void;
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const canDrop = Boolean(onDropCard);
   const leaders = pickCommanderLeaders(commanders, coverInstanceId);
@@ -673,6 +688,7 @@ function CommanderSlots({
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatch={filterMismatchIds?.has(card.instanceId)}
             />
           ))}
           {showPartnerSlot ? (
@@ -719,6 +735,7 @@ function CommanderSlots({
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatch={filterMismatchIds?.has(groupA.primary.instanceId)}
             />
             {groupA.cards.length > 1 ? (
               <div className="db-commander-side-gallery" aria-label={`${groupA.name} printings`}>
@@ -735,6 +752,7 @@ function CommanderSlots({
                       onCardContextMenu={onCardContextMenu}
                       draggable={canDrop}
                       enableSoughtGhost={enableSoughtGhost}
+                      filterMismatch={filterMismatchIds?.has(card.instanceId)}
                     />
                   ))}
               </div>
@@ -753,6 +771,7 @@ function CommanderSlots({
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatch={filterMismatchIds?.has(groupB.primary.instanceId)}
             />
             {groupB.cards.length > 1 ? (
               <div className="db-commander-side-gallery" aria-label={`${groupB.name} printings`}>
@@ -769,6 +788,7 @@ function CommanderSlots({
                       onCardContextMenu={onCardContextMenu}
                       draggable={canDrop}
                       enableSoughtGhost={enableSoughtGhost}
+                      filterMismatch={filterMismatchIds?.has(card.instanceId)}
                     />
                   ))}
               </div>
@@ -809,6 +829,7 @@ function CommanderSlots({
               onCardContextMenu={onCardContextMenu}
               draggable={canDrop}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatch={filterMismatchIds?.has(group.primary.instanceId)}
             />
           ))}
         </div>
@@ -874,6 +895,7 @@ function PendragonSlots({
   onCardContextMenu,
   onPickSlot,
   enableSoughtGhost = false,
+  filterMismatchIds,
 }: {
   arthur: CardView | null;
   excalibur: CardView | null;
@@ -884,6 +906,7 @@ function PendragonSlots({
   onCardContextMenu?: CardContextMenuHandler;
   onPickSlot?: (category: string) => void;
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const canDrop = Boolean(onDropCard);
   return (
@@ -903,6 +926,7 @@ function PendragonSlots({
           emptyLabel="Choose Arthur"
           onPickSlot={!arthur && onPickSlot ? () => onPickSlot('Arthur') : undefined}
           enableSoughtGhost={enableSoughtGhost}
+          filterMismatch={Boolean(arthur && filterMismatchIds?.has(arthur.instanceId))}
         />
         <PartnerTie />
         <CommanderSlot
@@ -918,6 +942,7 @@ function PendragonSlots({
           emptyLabel="Choose Excalibur"
           onPickSlot={!excalibur && onPickSlot ? () => onPickSlot('Excalibur') : undefined}
           enableSoughtGhost={enableSoughtGhost}
+          filterMismatch={Boolean(excalibur && filterMismatchIds?.has(excalibur.instanceId))}
         />
       </div>
     </div>
@@ -1044,6 +1069,7 @@ export function DeckHeaderRow({
   onPickRepresentative,
   filtersActive = false,
   enableSoughtGhost = false,
+  filterMismatchIds,
 }: {
   header: Record<string, CardView[]>;
   headerKeys: string[];
@@ -1075,6 +1101,7 @@ export function DeckHeaderRow({
   onPickRepresentative?: () => void;
   filtersActive?: boolean;
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const [ownershipMenu, setOwnershipMenu] = useState<DeckOwnershipMenuState | null>(null);
   const [headerTab, setHeaderTab] = useState<'leaders' | 'description'>('leaders');
@@ -1153,6 +1180,7 @@ export function DeckHeaderRow({
       swapInIds={swapInIds}
       filtersActive={filtersActive}
       enableSoughtGhost={enableSoughtGhost}
+      filterMismatchIds={filterMismatchIds}
     />
   );
 
@@ -1231,6 +1259,7 @@ export function DeckHeaderRow({
               onCardContextMenu={onCardContextMenu}
               onPickSlot={onPickSlot}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatchIds={filterMismatchIds}
             />
           </div>
         ) : null}
@@ -1246,6 +1275,7 @@ export function DeckHeaderRow({
               onCardContextMenu={onCardContextMenu}
               onPickSlot={onPickSlot}
               enableSoughtGhost={enableSoughtGhost}
+              filterMismatchIds={filterMismatchIds}
             />
           </div>
         ) : null}
@@ -1378,6 +1408,7 @@ export function CategoryBrowse({
   browseView = 'category',
   filtersActive = false,
   enableSoughtGhost = false,
+  filterMismatchIds,
 }: {
   deck:
     | Pick<
@@ -1437,6 +1468,7 @@ export function CategoryBrowse({
   browseView?: BrowseView;
   filtersActive?: boolean;
   enableSoughtGhost?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const resolved = useMemo(
     () => resolveDeckCards({ cards: deck.cards, oracle: deck.oracle }),
@@ -1607,6 +1639,7 @@ export function CategoryBrowse({
       swapInIds={swapInIds}
       filtersActive={filtersActive}
       enableSoughtGhost={enableSoughtGhost}
+      filterMismatchIds={filterMismatchIds}
     />
   );
 
@@ -1729,6 +1762,7 @@ export function CategoryBrowse({
         coverInstanceId={'coverInstanceId' in deck ? deck.coverInstanceId : null}
         filtersActive={filtersActive}
         enableSoughtGhost={enableSoughtGhost}
+        filterMismatchIds={filterMismatchIds}
       />
       {body}
       <ExtrasSection cards={extrasCards} />

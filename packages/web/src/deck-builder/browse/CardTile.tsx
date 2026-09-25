@@ -78,6 +78,7 @@ export function CardTile({
   membership = 'primary',
   swapInGhost = false,
   enableSoughtGhost = false,
+  filterMismatch = false,
 }: {
   card: CardView;
   onSelect?: SelectCardHandler;
@@ -93,6 +94,8 @@ export function CardTile({
   swapInGhost?: boolean;
   /** Collection builder only — unmet targets render as sought ghosts. */
   enableSoughtGhost?: boolean;
+  /** Command-zone card retained in view because it does not match active filters. */
+  filterMismatch?: boolean;
 }) {
   const longPress = useLongPress();
   const commanderIdentity = useCommanderColourIdentity();
@@ -130,7 +133,7 @@ export function CardTile({
     <div
       role="button"
       tabIndex={0}
-      className={`db-card-tile${selected ? ' is-selected' : ''}${identityIllegal ? ' is-identity-illegal' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}`}
+      className={`db-card-tile${selected ? ' is-selected' : ''}${identityIllegal ? ' is-identity-illegal' : ''}${foil ? ' is-foil' : ''}${proxy ? ' is-proxy' : ''}${seeking ? ' is-seeking' : ''}${ignored ? ' is-collection-ignored' : ''}${qty > 1 ? ' has-qty' : ''}${secondary ? ' is-secondary-cat' : ''}${swapInGhost ? ' is-swap-in-ghost' : ''}${soughtGhost ? ' is-sought-ghost' : ''}${filterMismatch ? ' is-filter-mismatch' : ''}`}
       onClick={(e) => {
         if (longPress.consumeClick()) return;
         onSelect?.(card, e);
@@ -156,19 +159,23 @@ export function CardTile({
       onPointerLeave={longPress.end}
       onPointerCancel={longPress.end}
       title={
-        swapInGhost
-          ? `${displayName} (swap in)${identitySuffix}`
-          : soughtGhost
-            ? `${displayName} (sought)${identitySuffix}`
-            : `${displayName}${identitySuffix}`
+        filterMismatch
+          ? `${displayName} (doesn't match the active filters)${identitySuffix}`
+          : swapInGhost
+            ? `${displayName} (swap in)${identitySuffix}`
+            : soughtGhost
+              ? `${displayName} (sought)${identitySuffix}`
+              : `${displayName}${identitySuffix}`
       }
       aria-label={
         actionLabel ||
-        (swapInGhost
-          ? `${displayName}, swap in${identityIllegal ? ', outside colour identity' : ''}`
-          : soughtGhost
-            ? `${displayName}, sought${identityIllegal ? ', outside colour identity' : ''}`
-            : `${displayName}${identityIllegal ? ', outside colour identity' : ''}`)
+        (filterMismatch
+          ? `${displayName}, doesn't match the active filters${identityIllegal ? ', outside colour identity' : ''}`
+          : swapInGhost
+            ? `${displayName}, swap in${identityIllegal ? ', outside colour identity' : ''}`
+            : soughtGhost
+              ? `${displayName}, sought${identityIllegal ? ', outside colour identity' : ''}`
+              : `${displayName}${identityIllegal ? ', outside colour identity' : ''}`)
       }
       aria-pressed={selected}
       draggable={draggable}

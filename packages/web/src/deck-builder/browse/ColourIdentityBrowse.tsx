@@ -53,6 +53,7 @@ export function ColourIdentityBrowse({
   deckMetaWarn,
   syncStatus = null,
   filtersActive = false,
+  filterMismatchIds,
 }: {
   deck:
     | Pick<
@@ -100,6 +101,7 @@ export function ColourIdentityBrowse({
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
   filtersActive?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
 }) {
   const [style, setStyle] = useState<DeckBuilderSettingsPayload>(DEFAULT_DECK_BUILDER_SETTINGS);
   const resolvedCards = useMemo(
@@ -241,6 +243,7 @@ export function ColourIdentityBrowse({
         'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
       }
       filtersActive={filtersActive}
+      filterMismatchIds={filterMismatchIds}
     >
       {sections}
     </DeckBrowseFrame>

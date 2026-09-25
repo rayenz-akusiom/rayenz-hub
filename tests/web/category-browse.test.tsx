@@ -897,6 +897,50 @@ describe('DeckHeaderRow', () => {
 });
 
 describe('CategoryBrowse', () => {
+  it('keeps nonmatching commander and lieutenant cards visible as ghosts', () => {
+    const commander = { ...cardAt(0), instanceId: 'filter-commander', name: 'Filtered Commander', primaryCategory: 'Commander' };
+    const lieutenant = { ...cardAt(1), instanceId: 'filter-lieutenant', name: 'Filtered Lieutenant', primaryCategory: 'Lieutenants' };
+    const matchingCommander = { ...cardAt(0), instanceId: 'matching-commander', name: 'Matching Commander', primaryCategory: 'Commander' };
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      cards: [commander, matchingCommander, lieutenant],
+    };
+    render(
+      <CategoryBrowse
+        deck={deck}
+        layout="grid"
+        filtersActive
+        filterMismatchIds={new Set([commander.instanceId, lieutenant.instanceId])}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Filtered Commander, doesn't match the active filters/i })).toHaveClass('is-filter-mismatch');
+    expect(screen.getByRole('button', { name: /Filtered Lieutenant, doesn't match the active filters/i })).toHaveClass('is-filter-mismatch');
+    expect(screen.getByRole('button', { name: /Filtered Commander.*doesn't match/i })).toHaveAttribute('title', expect.stringContaining("doesn't match the active filters"));
+    expect(screen.getByRole('button', { name: 'Matching Commander' })).not.toHaveClass('is-filter-mismatch');
+  });
+
+  it('keeps nonmatching Arthur and Excalibur cards visible as ghosts', () => {
+    const arthur = { ...cardAt(0), instanceId: 'filter-arthur', name: 'Filtered Arthur', primaryCategory: 'Arthur' };
+    const excalibur = { ...cardAt(1), instanceId: 'filter-excalibur', name: 'Filtered Excalibur', primaryCategory: 'Excalibur' };
+    const deck: DeckDocument = {
+      ...commanderDoc,
+      format: 'pendragon',
+      cards: [arthur, excalibur],
+    };
+    render(
+      <CategoryBrowse
+        deck={deck}
+        layout="grid"
+        filtersActive
+        filterMismatchIds={new Set([arthur.instanceId, excalibur.instanceId])}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Filtered Arthur, doesn't match the active filters/i })).toHaveClass('is-filter-mismatch');
+    expect(screen.getByRole('button', { name: /Filtered Excalibur, doesn't match the active filters/i })).toHaveClass('is-filter-mismatch');
+  });
+
   it('renders partitioned categories and selects a card', async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();

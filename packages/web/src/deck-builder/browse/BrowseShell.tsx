@@ -363,24 +363,40 @@ export function BrowseShell({
   const primarySelected = selectedCards[0] || null;
 
   /** Browse-only view with set / syntax / proxy / foil filters; mutations still use full `liveDeck`. */
-  const browseDeck = useMemo((): DeckDocument => {
+  const { browseDeck, filterMismatchIds } = useMemo((): {
+    browseDeck: DeckDocument;
+    filterMismatchIds: ReadonlySet<string>;
+  } => {
     const membership = setFilter.membership;
     const syntaxMembership = syntaxFilter.membership;
-    if (!setActive && !syntaxActive && !flagActive) return liveDeck;
-    return {
-      ...liveDeck,
-      cards: liveDeck.cards.filter((c) => {
-        if (setActive && membership && !cardMatchesSetMembership(c.name, membership)) {
-          return false;
-        }
-        if (syntaxActive && !cardMatchesSyntaxMembership(c.name, syntaxMembership)) {
-          return false;
-        }
-        if (!cardMatchesFlagFilter(Boolean(c.proxy), proxyFilter)) return false;
-        if (!cardMatchesFlagFilter(Boolean(c.foil), foilFilter)) return false;
-        if (!cardMatchesFlagFilter(cardIsSeekingMarked(c), seekingFilter)) return false;
+    if (!setActive && !syntaxActive && !flagActive) {
+      return { browseDeck: liveDeck, filterMismatchIds: new Set() };
+    }
+    const filterMismatchIds = new Set<string>();
+    const commandZoneCategories = new Set(['Commander', 'Lieutenants', 'Arthur', 'Excalibur']);
+    const matchesFilters = (c: (typeof liveDeck.cards)[number]) => {
+      if (setActive && membership && !cardMatchesSetMembership(c.name, membership)) {
+        return false;
+      }
+      if (syntaxActive && !cardMatchesSyntaxMembership(c.name, syntaxMembership)) {
+        return false;
+      }
+      if (!cardMatchesFlagFilter(Boolean(c.proxy), proxyFilter)) return false;
+      if (!cardMatchesFlagFilter(Boolean(c.foil), foilFilter)) return false;
+      if (!cardMatchesFlagFilter(cardIsSeekingMarked(c), seekingFilter)) return false;
+      return true;
+    };
+    const cards = liveDeck.cards.filter((c) => {
+      if (matchesFilters(c)) return true;
+      if (commandZoneCategories.has(c.primaryCategory || '')) {
+        filterMismatchIds.add(c.instanceId);
         return true;
-      }),
+      }
+      return false;
+    });
+    return {
+      browseDeck: { ...liveDeck, cards },
+      filterMismatchIds,
     };
   }, [
     liveDeck,
@@ -1436,6 +1452,7 @@ export function BrowseShell({
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
               filtersActive={filtersActive}
+              filterMismatchIds={filterMismatchIds}
             />
           ) : view === 'set_code' ? (
             <SetCodeBrowse
@@ -1467,6 +1484,7 @@ export function BrowseShell({
               deckMetaWarn={sizeWarn || targetsVsCubeWarn}
               syncStatus={syncStatus}
               filtersActive={filtersActive}
+              filterMismatchIds={filterMismatchIds}
             />
           ) : (
             <CategoryBrowse
@@ -1500,6 +1518,7 @@ export function BrowseShell({
               browseView={view}
               onEditCategory={readOnly ? undefined : (cat) => setEditingCategory(cat)}
               filtersActive={filtersActive}
+              filterMismatchIds={filterMismatchIds}
             />
           )}
         </main>
@@ -1583,6 +1602,7 @@ export function BrowseShell({
               mode="aside"
               browseView={isCategoryBrowseView(view) ? view : 'category'}
               filtersActive={filtersActive}
+              filterMismatchIds={filterMismatchIds}
             />
           </div>
           <div

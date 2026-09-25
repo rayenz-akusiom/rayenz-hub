@@ -46,6 +46,7 @@ export function SetCodeBrowse({
   deckMetaWarn,
   syncStatus = null,
   filtersActive = false,
+  filterMismatchIds,
   enableSoughtGhost = false,
   representativeCard = null,
   representativeLabel = 'Representative',
@@ -96,6 +97,7 @@ export function SetCodeBrowse({
   deckMetaWarn?: boolean;
   syncStatus?: DeckSyncStatus | null;
   filtersActive?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
   enableSoughtGhost?: boolean;
   representativeCard?: CardView | null;
   representativeLabel?: string;
@@ -252,6 +254,7 @@ export function SetCodeBrowse({
         'coverInstanceId' in resolvedDeck ? resolvedDeck.coverInstanceId : null
       }
       filtersActive={filtersActive}
+      filterMismatchIds={filterMismatchIds}
       enableSoughtGhost={enableSoughtGhost}
       representativeCard={representativeCard}
       representativeLabel={representativeLabel}

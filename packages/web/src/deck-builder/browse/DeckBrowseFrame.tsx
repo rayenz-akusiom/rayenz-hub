@@ -46,6 +46,7 @@ export function DeckBrowseFrame({
   swapInIds,
   coverInstanceId = null,
   filtersActive = false,
+  filterMismatchIds,
   enableSoughtGhost = false,
   representativeCard = null,
   representativeLabel = 'Representative',
@@ -79,6 +80,7 @@ export function DeckBrowseFrame({
   swapInIds?: ReadonlySet<string> | null;
   coverInstanceId?: string | null;
   filtersActive?: boolean;
+  filterMismatchIds?: ReadonlySet<string>;
   enableSoughtGhost?: boolean;
   representativeCard?: CardView | null;
   representativeLabel?: string;
@@ -112,6 +114,7 @@ export function DeckBrowseFrame({
         swapInIds={swapInIds}
         coverInstanceId={coverInstanceId}
         filtersActive={filtersActive}
+        filterMismatchIds={filterMismatchIds}
         enableSoughtGhost={enableSoughtGhost}
         representativeCard={representativeCard}
         representativeLabel={representativeLabel}

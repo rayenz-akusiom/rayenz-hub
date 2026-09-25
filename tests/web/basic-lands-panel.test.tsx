@@ -40,6 +40,7 @@ vi.mock('../../packages/web/src/deck-builder/scryfall/PrintingPickerModal', () =
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   localStorage.removeItem('rayenzHubPickerCardSize');
 });
 
@@ -64,6 +65,28 @@ function basicsDeck(): DeckDocument {
         : { ...c, foil: false, proxy: false },
     ),
   };
+}
+
+function deckWithIdentity(identity: string[] | null): DeckDocument {
+  const deck = basicsDeck();
+  const commander = {
+    instanceId: 'test-commander', name: 'Test Commander', quantity: 1,
+    primaryCategory: 'Commander', categories: ['Commander'], stack: null,
+    setCode: null, collectorNumber: null, scryfallId: identity ? 'test-commander-sf' : null,
+    archidektCardId: null, foil: false, proxy: false,
+  };
+  deck.cards = [...deck.cards, commander];
+  if (identity) {
+    deck.oracle = {
+      ...deck.oracle,
+      [oracleKey(commander)]: emptyCardOracle({
+        scryfallId: commander.scryfallId,
+        colourIdentity: identity as ('W' | 'U' | 'B' | 'R' | 'G')[],
+        typeLine: 'Legendary Creature',
+      }),
+    };
+  }
+  return deck;
 }
 
 function diagnosticsDeck(): DeckDocument {
@@ -194,6 +217,59 @@ function diagnosticsDeck(): DeckDocument {
 }
 
 describe('BasicLandsPanel', () => {
+  it('disables every multicolour land button when commander identity is unknown or colourless', () => {
+    const { rerender } = render(<BasicLandsPanel deck={deckWithIdentity(null)} onChange={vi.fn()} onClose={vi.fn()} />);
+    const labels = ['Commander lands', 'True duals', 'Turbulent lands', 'Battlebond lands', 'Shock lands', 'Fetch lands', 'Triomes'];
+    for (const label of labels) expect(screen.getByRole('button', { name: `Add ${label}` })).toBeDisabled();
+
+    rerender(<BasicLandsPanel deck={deckWithIdentity([])} onChange={vi.fn()} onClose={vi.fn()} />);
+    for (const label of labels) expect(screen.getByRole('button', { name: `Add ${label}` })).toBeDisabled();
+  });
+
+  it('enables cycle buttons according to the known identity width and matching combinations', () => {
+    const { rerender } = render(<BasicLandsPanel deck={deckWithIdentity(['W'])} onChange={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Add Commander lands' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Add Fetch lands' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Add True duals' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add Triomes' })).toBeDisabled();
+
+    rerender(<BasicLandsPanel deck={deckWithIdentity(['W', 'U'])} onChange={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Add True duals' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Add Triomes' })).toBeDisabled();
+
+    rerender(<BasicLandsPanel deck={deckWithIdentity(['W', 'U', 'B'])} onChange={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Add Triomes' })).toBeEnabled();
+
+    rerender(<BasicLandsPanel deck={deckWithIdentity(['W', 'U', 'B', 'R', 'G'])} onChange={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Add Triomes' })).toBeEnabled();
+  });
+
+  it('adds first available printing to Land and skips cards that cannot be found', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const query = url.searchParams.get('q') || '';
+      const name = query.match(/!"([^"]+)"/)?.[1] || '';
+      if (name === 'Path of Ancestry') return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      return new Response(JSON.stringify({ data: [{
+        id: `sf-${name.toLowerCase().replaceAll(' ', '-')}`, name, set: 'tst', collector_number: '1',
+        type_line: 'Land', color_identity: [], finishes: ['nonfoil'],
+      }] }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<BasicLandsPanel deck={deckWithIdentity(['W'])} onChange={onChange} onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Add Commander lands' }));
+
+    expect(await screen.findByText('Added 1; 1 card was unavailable.')).toBeInTheDocument();
+    const updated = onChange.mock.calls[0]![0] as DeckDocument;
+    const added = updated.cards.find((card) => card.name === 'Command Tower');
+    expect(added).toMatchObject({ primaryCategory: 'Land', setCode: 'tst', collectorNumber: '1' });
+    expect(updated.cards.some((card) => card.name === 'Path of Ancestry')).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
   it('shows land status, size picker, and updates quantity via stepper', async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();

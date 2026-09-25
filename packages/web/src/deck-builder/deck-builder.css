@@ -1759,6 +1759,14 @@ body,
   gap: 0.35rem;
 }
 
+.db-basics-multicolour {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+  padding: 0 0 0.65rem;
+  border-bottom: 1px solid var(--db-border, #ddd);
+}
+
 .db-basics-body {
   flex: 1 1 auto;
   min-height: 0;

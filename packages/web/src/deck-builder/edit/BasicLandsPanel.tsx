@@ -7,6 +7,10 @@ import {
   canonicalizeCategoryName,
   changeCardPrintingMerging,
   DEFAULT_LAND_TARGET,
+  fetchPrintingsPage,
+  mapScryfallCardToPrinting,
+  resolveCommanderColourIdentity,
+  addCardToDeck,
   includedLandCount,
   landCategoryTarget,
   listBasicLandStacks,
@@ -44,6 +48,52 @@ const COLOUR_LABELS: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
   R: 'Red',
   G: 'Green',
 };
+
+const PAIR_LANDS = {
+  duals: [
+    { name: 'Tundra', colours: ['W','U'] }, { name: 'Underground Sea', colours: ['U','B'] }, { name: 'Badlands', colours: ['B','R'] }, { name: 'Taiga', colours: ['R','G'] }, { name: 'Savannah', colours: ['G','W'] },
+    { name: 'Scrubland', colours: ['W','B'] }, { name: 'Volcanic Island', colours: ['U','R'] }, { name: 'Bayou', colours: ['B','G'] }, { name: 'Plateau', colours: ['R','W'] }, { name: 'Tropical Island', colours: ['G','U'] },
+  ],
+  turbulent: [
+    { name: 'Turbulent Steppe', colours: ['R','W'] }, { name: 'Turbulent Fen', colours: ['U','B'] }, { name: 'Turbulent Moor', colours: ['B','G'] }, { name: 'Turbulent Springs', colours: ['U','R'] }, { name: 'Turbulent Wilderness', colours: ['G','W'] },
+  ],
+  battlebond: [
+    { name: 'Sea of Clouds', colours: ['W','U'] }, { name: 'Morphic Pool', colours: ['U','B'] }, { name: 'Luxury Suite', colours: ['B','R'] }, { name: 'Spire Garden', colours: ['R','G'] }, { name: 'Bountiful Promenade', colours: ['G','W'] },
+    { name: 'Vault of Champions', colours: ['W','B'] }, { name: 'Training Center', colours: ['U','R'] }, { name: 'Undergrowth Stadium', colours: ['B','G'] }, { name: 'Spectator Seating', colours: ['R','W'] }, { name: 'Rejuvenating Springs', colours: ['G','U'] },
+  ],
+  shocks: [
+    { name: 'Hallowed Fountain', colours: ['W','U'] }, { name: 'Watery Grave', colours: ['U','B'] }, { name: 'Blood Crypt', colours: ['B','R'] }, { name: 'Stomping Ground', colours: ['R','G'] }, { name: 'Temple Garden', colours: ['G','W'] },
+    { name: 'Godless Shrine', colours: ['W','B'] }, { name: 'Steam Vents', colours: ['U','R'] }, { name: 'Overgrown Tomb', colours: ['B','G'] }, { name: 'Sacred Foundry', colours: ['R','W'] }, { name: 'Breeding Pool', colours: ['G','U'] },
+  ],
+};
+const TRIOMES = [
+  { name: 'Raugrin Triome', colours: ['U','R','W'] }, { name: 'Indatha Triome', colours: ['W','B','G'] }, { name: 'Savai Triome', colours: ['W','B','R'] }, { name: 'Ketria Triome', colours: ['G','U','R'] }, { name: 'Zagoth Triome', colours: ['B','G','U'] },
+  { name: "Raffine's Tower", colours: ['W','U','B'] }, { name: "Xander's Lounge", colours: ['U','B','R'] }, { name: "Ziatora's Proving Ground", colours: ['B','R','G'] }, { name: "Spara's Headquarters", colours: ['G','W','U'] }, { name: "Jetmir's Garden", colours: ['R','G','W'] },
+];
+const FETCHES: Array<{ name: string; colours: string[] }> = [
+  { name: 'Flooded Strand', colours: ['W', 'U'] }, { name: 'Polluted Delta', colours: ['U', 'B'] },
+  { name: 'Bloodstained Mire', colours: ['B', 'R'] }, { name: 'Wooded Foothills', colours: ['R', 'G'] },
+  { name: 'Windswept Heath', colours: ['G', 'W'] }, { name: 'Marsh Flats', colours: ['W', 'B'] },
+  { name: 'Scalding Tarn', colours: ['U', 'R'] }, { name: 'Verdant Catacombs', colours: ['B', 'G'] },
+  { name: 'Arid Mesa', colours: ['R', 'W'] }, { name: 'Misty Rainforest', colours: ['G', 'U'] },
+];
+
+type LandGroup = { key: string; label: string; cards: string[]; minimumColours: number };
+
+function matchingLandGroups(identity: string[]): LandGroup[] {
+  const colours = new Set(identity);
+  const pairNames = (cycle: Array<{ name: string; colours: string[] }>) => cycle.filter((land) => land.colours.every((colour) => colours.has(colour))).map((land) => land.name);
+  const fetches = FETCHES.filter((fetch) => fetch.colours.some((colour) => colours.has(colour))).map((fetch) => fetch.name);
+  return [
+    { key: 'commander', label: 'Commander lands', cards: ['Command Tower', 'Path of Ancestry'], minimumColours: 1 },
+    { key: 'true-duals', label: 'True duals', cards: pairNames(PAIR_LANDS.duals), minimumColours: 2 },
+    { key: 'turbulent', label: 'Turbulent lands', cards: pairNames(PAIR_LANDS.turbulent), minimumColours: 2 },
+    { key: 'battlebond', label: 'Battlebond lands', cards: pairNames(PAIR_LANDS.battlebond), minimumColours: 2 },
+    { key: 'shocks', label: 'Shock lands', cards: pairNames(PAIR_LANDS.shocks), minimumColours: 2 },
+    { key: 'fetches', label: 'Fetch lands', cards: fetches, minimumColours: 1 },
+    { key: 'triomes', label: 'Triomes', cards: TRIOMES.filter((land) => land.colours.every((colour) => colours.has(colour))).map((land) => land.name), minimumColours: 3 },
+  ];
+}
 
 function printingLabel(card: CardInstance): string {
   const set = card.setCode ? String(card.setCode).toUpperCase() : '';
@@ -111,6 +161,8 @@ export function BasicLandsPanel({
   const [picker, setPicker] = useState<PickerMode | null>(null);
   const [pickerSetCodes, setPickerSetCodes] = useState<string[]>([]);
   const [snow, setSnow] = useState(false);
+  const [addingLandGroup, setAddingLandGroup] = useState<string | null>(null);
+  const [landAddMessage, setLandAddMessage] = useState('');
   const { widthPx } = useCardSize();
 
   const stacks = useMemo(() => listBasicLandStacks(deck), [deck]);
@@ -121,6 +173,11 @@ export function BasicLandsPanel({
   const landTarget = landCategoryTarget(deck) ?? DEFAULT_LAND_TARGET;
   const autoOn = Boolean(deck.autoAdjustBasics);
   const diagnostics = useMemo(() => calculateAutoBasicsBreakdown(deck), [deck]);
+  const commanderIdentity = useMemo(() => resolveCommanderColourIdentity(deck), [deck]);
+  const landGroups = useMemo(
+    () => matchingLandGroups(commanderIdentity.letters),
+    [commanderIdentity.letters],
+  );
 
   const sortedStacks = useMemo(() => {
     return [...stacks].sort((a, b) => {
@@ -165,6 +222,45 @@ export function BasicLandsPanel({
 
   function onRecalculate() {
     onChange(recalculateAutoBasics(deck, { force: true }));
+  }
+
+  async function addLandGroup(group: LandGroup) {
+    if (addingLandGroup || !commanderIdentity.known || !commanderIdentity.letters.length) return;
+    setAddingLandGroup(group.key);
+    setLandAddMessage('');
+    let next = deck;
+    const existing = new Set(deck.cards.map((card) => card.name.toLocaleLowerCase()));
+    let added = 0;
+    let unavailable = 0;
+    try {
+      for (const name of group.cards) {
+        if (existing.has(name.toLocaleLowerCase())) continue;
+        try {
+          if (added || unavailable) await new Promise((resolve) => setTimeout(resolve, 100));
+          const page = await fetchPrintingsPage(name, 1);
+          const first = page.data[0];
+          if (!first) {
+            unavailable += 1;
+            continue;
+          }
+          next = addCardToDeck(next, mapScryfallCardToPrinting(first), 'Land');
+          existing.add(name.toLocaleLowerCase());
+          added += 1;
+        } catch {
+          unavailable += 1;
+        }
+      }
+      if (added) onChange(next);
+      setLandAddMessage(
+        unavailable
+          ? `Added ${added}; ${unavailable} ${unavailable === 1 ? 'card was' : 'cards were'} unavailable.`
+          : added
+            ? `Added ${added} ${added === 1 ? 'land' : 'lands'}.`
+            : 'All matching lands are already in the deck.',
+      );
+    } finally {
+      setAddingLandGroup(null);
+    }
   }
 
   function onPickerConfirm(printing: PrintingFields, _category?: string, meta?: { proxy: boolean }) {
@@ -313,6 +409,30 @@ export function BasicLandsPanel({
               ))}
             </div>
           </div>
+
+          <section className="db-basics-multicolour" aria-label="Add multicolour lands">
+            <strong>Add multicolour lands</strong>
+            <div className="db-basics-add-types" role="group" aria-label="Add land cycle">
+              {landGroups.map((group) => {
+                const tooNarrow = commanderIdentity.letters.length < group.minimumColours;
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    className="db-btn"
+                    disabled={!commanderIdentity.known || tooNarrow || !group.cards.length || Boolean(addingLandGroup)}
+                    aria-label={`Add ${group.label}`}
+                    onClick={() => void addLandGroup(group)}
+                  >
+                    {addingLandGroup === group.key ? 'Adding…' : group.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="db-meta" aria-live="polite">
+              {landAddMessage || (!commanderIdentity.known ? 'Resolve the commander colour identity to enable these buttons.' : '')}
+            </span>
+          </section>
 
           <div className="db-basics-body">
             {sortedStacks.length ? (

@@ -18,6 +18,7 @@ import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
 import { CategorySelectOptgroups } from '../edit/CategorySelectOptgroups';
 import { useInfiniteScrollSentinel } from './useInfiniteScrollSentinel';
+import { ScryfallIncludeMenu } from './ScryfallIncludeMenu';
 
 const NEW_CATEGORY_VALUE = '__new__';
 
@@ -106,6 +107,7 @@ export function PrintingPickerModal({
   const [picked, setPicked] = useState<ScryfallCard | null>(null);
   const [foil, setFoil] = useState(foilDefault);
   const [proxy, setProxy] = useState(proxyEnabled ? proxyDefault : false);
+  const [paperGame, setPaperGame] = useState(true);
   const [category, setCategory] = useState(
     defaultCategory || categoryOptions?.[0] || 'Maybeboard',
   );
@@ -142,6 +144,7 @@ export function PrintingPickerModal({
         const page1 = await fetchPrintingsPage(cardName, 1, {
           defaultScryfallId: filterActive ? null : defaultScryfallId,
           setCodes: appliedCodes,
+          ...(paperGame ? {} : { paperOnly: false }),
         });
         if (cancelled) return;
 
@@ -175,7 +178,7 @@ export function PrintingPickerModal({
     return () => {
       cancelled = true;
     };
-  }, [cardName, defaultScryfallId, selectedScryfallId, appliedCodes, filterActive]);
+  }, [cardName, defaultScryfallId, selectedScryfallId, appliedCodes, filterActive, paperGame]);
 
   const loadMore = useCallback(async () => {
     const url = nextPageRef.current;
@@ -288,6 +291,11 @@ export function PrintingPickerModal({
       </div>
 
       <div className="db-picker-set-filter">
+        <ScryfallIncludeMenu
+          value={paperGame ? 'Paper game' : 'None'}
+          paperGame={paperGame}
+          onPaperGameChange={setPaperGame}
+        />
         <label>
           Set codes
           <input

@@ -108,6 +108,11 @@ describe('scryfall URL builders', () => {
     expect(url).toContain('unique=prints');
     expect(searchQuery(url)).toBe('(!"Forest" (set:unf OR set:sld)) game:paper');
   });
+
+  it('builds printings searches across all games when requested', () => {
+    const url = buildPrintingsSearchUrl('Forest', 1, { paperOnly: false });
+    expect(searchQuery(url)).toBe('!"Forest"');
+  });
 });
 
 describe('scoped syntax queries', () => {

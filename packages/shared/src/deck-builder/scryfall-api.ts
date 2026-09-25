@@ -249,14 +249,12 @@ function printingsSetClause(setCodes: string[] | string | null | undefined): str
 export function buildPrintingsSearchUrl(
   cardName: string,
   page = 1,
-  opts?: { setCodes?: string[] | string | null },
+  opts?: { setCodes?: string[] | string | null; paperOnly?: boolean },
 ): string {
   const name = String(cardName || '').trim();
   const url = new URL(`${SCYFALL_API}/cards/search`);
-  url.searchParams.set(
-    'q',
-    withPaperGameQuery(`!"${name}"${printingsSetClause(opts?.setCodes)}`),
-  );
+  const query = `!"${name}"${printingsSetClause(opts?.setCodes)}`;
+  url.searchParams.set('q', opts?.paperOnly === false ? query : withPaperGameQuery(query));
   url.searchParams.set('unique', 'prints');
   url.searchParams.set('order', 'released');
   if (page > 1) url.searchParams.set('page', String(page));
@@ -953,6 +951,8 @@ export async function fetchPrintingsPage(
     delayMs?: number;
     defaultScryfallId?: string | null;
     setCodes?: string[] | string | null;
+    /** Defaults to paper-only; false searches all games. */
+    paperOnly?: boolean;
   },
 ): Promise<ScryfallSearchPage> {
   const name = String(cardName || '').trim();
@@ -965,9 +965,15 @@ export async function fetchPrintingsPage(
   if (pageNum > 1) {
     await sleep(opts?.delayMs ?? PAGE_DELAY_MS);
   }
-  const res = await fetchImpl(buildPrintingsSearchUrl(name, pageNum, { setCodes }), {
-    headers: { Accept: 'application/json' },
-  });
+  const res = await fetchImpl(
+    buildPrintingsSearchUrl(name, pageNum, {
+      setCodes,
+      paperOnly: opts?.paperOnly,
+    }),
+    {
+      headers: { Accept: 'application/json' },
+    },
+  );
   if (!res.ok) {
     const allowPinFallback = pageNum === 1 && Boolean(opts?.defaultScryfallId) && !setCodes.length;
     if (allowPinFallback) {

@@ -32,6 +32,7 @@ import {
   type ScryfallSearchPage,
 } from '@rayenz-hub/shared';
 import { PrintingPickerModal } from './PrintingPickerModal';
+import { ScryfallIncludeMenu } from './ScryfallIncludeMenu';
 import { CardFace } from '../browse/CardFace';
 import { CardSizePicker } from '../CardSizePicker';
 import { DbMenu, DbMenuItem } from '../ui/DbMenu';
@@ -692,53 +693,36 @@ export function ScryfallSearchModal({
               spellCheck={false}
             />
           </label>
-          <div className="db-search-include">
-            <DbMenu
-              label="Include"
-              value={includeMenuValue(
-                includePaperGame,
-                includeCommanderIdentity,
-                includeFormatCommander,
-              )}
-              ariaLabel="Include in Scryfall search"
-            >
-              <div
-                className="db-search-include-panel"
-                role="none"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                <label className="db-check">
-                  <input
-                    type="checkbox"
-                    checked={includePaperGame}
-                    onChange={(e) => setIncludePaperGame(e.target.checked)}
-                  />
-                  Paper game
-                </label>
-                {isCommandZone ? (
-                  <label className="db-check">
-                    <input
-                      type="checkbox"
-                      checked={includeCommanderIdentity}
-                      onChange={(e) => setIncludeCommanderIdentity(e.target.checked)}
-                    />
-                    Commander identity
-                  </label>
-                ) : null}
-                {isCommandZone && !extraQuery ? (
-                  <label className="db-check">
-                    <input
-                      type="checkbox"
-                      checked={includeFormatCommander}
-                      onChange={(e) => setIncludeFormatCommander(e.target.checked)}
-                    />
-                    {deck.format === 'pendragon' ? 'Pendragon format' : 'Commander format'}
-                  </label>
-                ) : null}
-              </div>
-            </DbMenu>
-          </div>
+          <ScryfallIncludeMenu
+            value={includeMenuValue(
+              includePaperGame,
+              includeCommanderIdentity,
+              includeFormatCommander,
+            )}
+            paperGame={includePaperGame}
+            onPaperGameChange={setIncludePaperGame}
+          >
+            {isCommandZone ? (
+              <label className="db-check">
+                <input
+                  type="checkbox"
+                  checked={includeCommanderIdentity}
+                  onChange={(e) => setIncludeCommanderIdentity(e.target.checked)}
+                />
+                Commander identity
+              </label>
+            ) : null}
+            {isCommandZone && !extraQuery ? (
+              <label className="db-check">
+                <input
+                  type="checkbox"
+                  checked={includeFormatCommander}
+                  onChange={(e) => setIncludeFormatCommander(e.target.checked)}
+                />
+                {deck.format === 'pendragon' ? 'Pendragon format' : 'Commander format'}
+              </label>
+            ) : null}
+          </ScryfallIncludeMenu>
           <button type="submit" className="db-btn is-active" disabled={loading}>
             Search
           </button>

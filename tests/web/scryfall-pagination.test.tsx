@@ -82,6 +82,36 @@ beforeEach(() => {
 });
 
 describe('PrintingPickerModal pagination', () => {
+  it('uses the Include dropdown to search printings from all games', async () => {
+    const user = userEvent.setup();
+    fetchPrintingsPage.mockResolvedValue({
+      data: [page1Print],
+      has_more: false,
+      next_page: null,
+    });
+
+    render(<PrintingPickerModal cardName="Forest" onConfirm={vi.fn()} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(fetchPrintingsPage).toHaveBeenCalledWith('Forest', 1, {
+        defaultScryfallId: null,
+        setCodes: [],
+      });
+    });
+    await user.click(screen.getByRole('button', { name: /Include in Scryfall search/i }));
+    expect(screen.getByRole('checkbox', { name: /Paper game/i })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /Commander/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: /Paper game/i }));
+    await waitFor(() => {
+      expect(fetchPrintingsPage).toHaveBeenLastCalledWith('Forest', 1, {
+        defaultScryfallId: null,
+        setCodes: [],
+        paperOnly: false,
+      });
+    });
+  });
+
   it('renders page 1 without waiting for page 2, then loads more via sentinel', async () => {
     let resolvePage2: ((value: unknown) => void) | null = null;
     const page2Promise = new Promise((resolve) => {

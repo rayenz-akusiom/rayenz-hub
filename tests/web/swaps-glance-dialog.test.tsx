@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { aggregateSwapWants, SWAP_GLANCE_GENERATION_VERSION } from '@rayenz-hub/shared';
+import {
+  aggregateSwapWants,
+  filterWantSources,
+  SWAP_GLANCE_GENERATION_VERSION,
+} from '@rayenz-hub/shared';
 import { SwapQueueApp } from '../../packages/web/src/swap-queue/SwapQueueApp';
 import { SwapsGlanceDialog } from '../../packages/web/src/swap-queue/SwapsGlanceDialog';
 import { buildGlanceSwapCommanderDeck } from '../fixtures/deck-builder/glance-eligible.ts';
@@ -159,6 +163,36 @@ describe('Swaps at a glance dialog', () => {
         mode: 'in_only',
       }),
     );
+  });
+
+  it('generates from all decks by default and respects a selected deck scope', async () => {
+    const alpha = buildGlanceSwapCommanderDeck({
+      deckId: 'alpha',
+      lookingForEntries: [{ id: 'alpha-seek', instanceId: 'spell-1', sortIndex: 0, notes: null }],
+    });
+    const bravo = buildGlanceSwapCommanderDeck({
+      deckId: 'bravo',
+      lookingForEntries: [{ id: 'bravo-seek', instanceId: 'spell-2', sortIndex: 0, notes: null }],
+    });
+    const sources = aggregateSwapWants([alpha, bravo]);
+    const allDeckSources = filterWantSources(sources, { minUsd: null, deckIds: null });
+    const alphaSources = filterWantSources(sources, { minUsd: null, deckIds: ['alpha'] });
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <SwapsGlanceDialog open sources={allDeckSources} onClose={() => undefined} />,
+    );
+
+    expect(screen.getByText('4 rows from current filters.')).toBeInTheDocument();
+    rerender(<SwapsGlanceDialog open sources={alphaSources} onClose={() => undefined} />);
+    expect(screen.getByText('2 rows from current filters.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(postSwapsGlance).toHaveBeenCalled());
+    const request = postSwapsGlance.mock.calls.at(-1)?.[0] as {
+      items: Array<{ deckId: string; entryId: string }>;
+    };
+    expect(request.items.every((item) => item.deckId === 'alpha')).toBe(true);
+    expect(request.items.some((item) => item.entryId === 'bravo-seek')).toBe(false);
   });
 
   it('shows a carousel and Download all for multi-image results', async () => {

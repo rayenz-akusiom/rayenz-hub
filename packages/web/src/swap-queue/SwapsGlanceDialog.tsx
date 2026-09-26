@@ -12,6 +12,7 @@ import { copyPngBlob, downloadPngBlob } from '../lib/glance-png';
 import {
   formatGlanceStatusLine,
   formatGlanceStatusTooltip,
+  GlanceDialogFrame,
   GlanceModalActions,
   GlancePreviewSlot,
   GlanceStatusLine,
@@ -141,137 +142,132 @@ export function SwapsGlanceDialog({ open, sources, setCodes = [], onClose }: Pro
   if (!open) return null;
 
   return (
-    <div
-      ref={dialogRef}
-      className="db-modal db-glance-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Swaps at a glance"
+    <GlanceDialogFrame
+      dialogRef={dialogRef}
+      label="Swaps at a glance"
+      title="Swaps at a glance"
     >
-      <div className="db-modal-card db-modal-wide db-glance-modal">
-        <h2>Swaps at a glance</h2>
-        <div className="db-glance-chrome">
-          <div className="sq-glance-options">
-            <fieldset className="db-glance-mode">
-              <legend>Show</legend>
-              <label className="db-glance-option">
-                <input
-                  type="radio"
-                  name="sq-glance-mode"
-                  checked={mode === 'in_only'}
-                  onChange={() => {
-                    setMode('in_only');
-                    resetPreview();
-                  }}
-                />
-                Looking for (In)
-              </label>
-              <label className="db-glance-option">
-                <input
-                  type="radio"
-                  name="sq-glance-mode"
-                  checked={mode === 'full'}
-                  onChange={() => {
-                    setMode('full');
-                    resetPreview();
-                  }}
-                />
-                Full swaps (Out → In)
-              </label>
-            </fieldset>
+      <div className="db-glance-chrome">
+        <div className="sq-glance-options">
+          <fieldset className="db-glance-mode">
+            <legend>Show</legend>
             <label className="db-glance-option">
               <input
-                type="checkbox"
-                checked={includeSeeking}
-                onChange={(e) => {
-                  setIncludeSeeking(e.target.checked);
+                type="radio"
+                name="sq-glance-mode"
+                checked={mode === 'in_only'}
+                onChange={() => {
+                  setMode('in_only');
                   resetPreview();
                 }}
               />
-              Include Seeking
+              Looking for (In)
             </label>
-            <p className="hub-muted sq-glance-count" role="status">
-              {itemCount === 0
-                ? 'No rows for current filters and options.'
-                : `${itemCount} row${itemCount === 1 ? '' : 's'} from current filters.`}
-            </p>
-          </div>
-          <div className="db-glance-primary-actions">
-            <button
-              type="button"
-              className="db-btn"
-              disabled={loading || itemCount === 0 || !apiReady || !ownerReady}
-              title={
-                !apiReady
-                  ? 'Sign in from the left nav to generate glance images'
-                  : !ownerReady
-                    ? OWNER_ONLY_EXPENSIVE_MESSAGE
-                    : undefined
-              }
-              onClick={() => void generate()}
-            >
-              {currentBlob ? 'Regenerate' : 'Generate'}
-            </button>
-          </div>
+            <label className="db-glance-option">
+              <input
+                type="radio"
+                name="sq-glance-mode"
+                checked={mode === 'full'}
+                onChange={() => {
+                  setMode('full');
+                  resetPreview();
+                }}
+              />
+              Full swaps (Out → In)
+            </label>
+          </fieldset>
+          <label className="db-glance-option">
+            <input
+              type="checkbox"
+              checked={includeSeeking}
+              onChange={(e) => {
+                setIncludeSeeking(e.target.checked);
+                resetPreview();
+              }}
+            />
+            Include Seeking
+          </label>
+          <p className="hub-muted sq-glance-count" role="status">
+            {itemCount === 0
+              ? 'No rows for current filters and options.'
+              : `${itemCount} row${itemCount === 1 ? '' : 's'} from current filters.`}
+          </p>
         </div>
-        <GlanceStatusLine
-          loading={loading}
-          loadingText="Generating swaps glance image…"
-          error={error}
-          statusLine={statusLine}
-          statusTitle={statusTitle}
-        />
-        <GlancePreviewSlot
-          previewUrl={currentUrl}
-          alt={
-            pageCount > 1
-              ? `Swaps at a glance preview ${pageIndex + 1} of ${pageCount}`
-              : 'Swaps at a glance preview'
-          }
-          loading={loading}
-        />
-        {pageCount > 1 ? (
-          <div className="sq-glance-carousel" role="group" aria-label="Glance pages">
-            <button
-              type="button"
-              className="db-btn"
-              disabled={pageIndex <= 0}
-              onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-            >
-              Previous
-            </button>
-            <span className="hub-muted" aria-live="polite">
-              {pageIndex + 1} / {pageCount}
-            </span>
-            <button
-              type="button"
-              className="db-btn"
-              disabled={pageIndex >= pageCount - 1}
-              onClick={() => setPageIndex((i) => Math.min(pageCount - 1, i + 1))}
-            >
-              Next
-            </button>
-          </div>
-        ) : null}
-        <GlanceModalActions
-          onClose={close}
-          onDownload={onDownload}
-          onCopy={onCopy}
-          downloadDisabled={!currentBlob}
-          afterDownload={
-            pageCount > 1 ? (
-              <button
-                type="button"
-                className="db-btn"
-                disabled={!pngBlobs.length}
-                onClick={onDownloadAll}
-              >
-                Download all
-              </button>
-            ) : null
-          }
-        />
+        <div className="db-glance-primary-actions">
+          <button
+            type="button"
+            className="db-btn"
+            disabled={loading || itemCount === 0 || !apiReady || !ownerReady}
+            title={
+              !apiReady
+                ? 'Sign in from the left nav to generate glance images'
+                : !ownerReady
+                  ? OWNER_ONLY_EXPENSIVE_MESSAGE
+                  : undefined
+            }
+            onClick={() => void generate()}
+          >
+            {currentBlob ? 'Regenerate' : 'Generate'}
+          </button>
+        </div>
       </div>
-    </div>
+      <GlanceStatusLine
+        loading={loading}
+        loadingText="Generating swaps glance image…"
+        error={error}
+        statusLine={statusLine}
+        statusTitle={statusTitle}
+      />
+      <GlancePreviewSlot
+        previewUrl={currentUrl}
+        alt={
+          pageCount > 1
+            ? `Swaps at a glance preview ${pageIndex + 1} of ${pageCount}`
+            : 'Swaps at a glance preview'
+        }
+        loading={loading}
+      />
+      {pageCount > 1 ? (
+        <div className="sq-glance-carousel" role="group" aria-label="Glance pages">
+          <button
+            type="button"
+            className="db-btn"
+            disabled={pageIndex <= 0}
+            onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+          >
+            Previous
+          </button>
+          <span className="hub-muted" aria-live="polite">
+            {pageIndex + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="db-btn"
+            disabled={pageIndex >= pageCount - 1}
+            onClick={() => setPageIndex((i) => Math.min(pageCount - 1, i + 1))}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+      <GlanceModalActions
+        onClose={close}
+        onDownload={onDownload}
+        onCopy={onCopy}
+        downloadDisabled={!currentBlob}
+        afterDownload={
+          pageCount > 1 ? (
+            <button
+              type="button"
+              className="db-btn"
+              disabled={!pngBlobs.length}
+              onClick={onDownloadAll}
+            >
+              Download all
+            </button>
+          ) : null
+        }
+      />
+    </GlanceDialogFrame>
   );
 }

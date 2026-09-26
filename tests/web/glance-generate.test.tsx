@@ -25,6 +25,15 @@ const postGlance = vi.hoisted(() =>
     }),
   ),
 );
+const postSwapsGlance = vi.hoisted(() => vi.fn(async () => ({
+  blobs: [new Blob(['png'], { type: 'image/png' })],
+  pageCount: 1,
+  densifyStage: 'base',
+  omittedCardCount: 0,
+  cache: 'MISS',
+  generation: 'swap-gen-test',
+  delivery: 'inline' as const,
+})));
 
 vi.mock('../../packages/web/src/api/hub-api', () => ({
   isApiConfigured: () => apiConfigured.value,
@@ -37,11 +46,16 @@ vi.mock('../../packages/web/src/deck-builder/store/deck-glance-api', () => ({
   ) => postGlance(deckId, request),
 }));
 
+vi.mock('../../packages/web/src/swap-queue/swaps-glance-api', () => ({
+  apiPostSwapsGlance: (...args: unknown[]) => postSwapsGlance(...args),
+}));
+
 describe('GlanceGenerateButton', () => {
   afterEach(() => {
     cleanup();
     apiConfigured.value = true;
     postGlance.mockClear();
+    postSwapsGlance.mockClear();
     clearHubAuthSession();
   });
 
@@ -104,6 +118,45 @@ describe('GlanceGenerateButton', () => {
       new RegExp(`gen ${GLANCE_GENERATION_VERSION} · cache MISS`, 'i'),
     );
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+  });
+
+  it('opens a swaps glance scoped to the current deck', async () => {
+    const deck = buildEligibleCommanderDeck({
+      formalSwapEntries: [
+        {
+          id: 'pair-1',
+          inInstanceId: 'spell-0',
+          outInstanceId: 'spell-1',
+          inTargetCategory: null,
+          sortIndex: 0,
+          notes: null,
+        },
+      ],
+      lookingForEntries: [
+        { id: 'seek-1', instanceId: 'spell-2', sortIndex: 0, notes: null },
+      ],
+    });
+    render(<GlanceGenerateButton deck={deck} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Generate glance' }));
+    await user.click(screen.getByRole('button', { name: 'Swaps glance' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Swaps at a glance' })).toBeInTheDocument();
+    expect(screen.getByText('2 rows from current filters.')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /include seeking/i }));
+    expect(screen.getByText('1 row from current filters.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(postSwapsGlance).toHaveBeenCalled());
+    expect(postSwapsGlance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ kind: 'queued_in', entryId: 'pair-1' }),
+        ]),
+      }),
+    );
+    const request = postSwapsGlance.mock.calls[0]?.[0] as { items: Array<{ kind: string }> };
+    expect(request.items.some((item) => item.kind === 'seeking')).toBe(false);
   });
 
   it('waits for generate after switching layout, and restores a matching session cache', async () => {

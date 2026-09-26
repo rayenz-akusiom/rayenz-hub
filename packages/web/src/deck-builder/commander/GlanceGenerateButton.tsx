@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { createPortal } from 'react-dom';
 import type { DeckDocument, GlanceCard, GlanceLayoutMode } from '@rayenz-hub/shared';
-import { GLANCE_ROLE_HIGHLIGHT_LIMIT, listGlanceLieutenants } from '@rayenz-hub/shared';
+import {
+  aggregateSwapWants,
+  GLANCE_ROLE_HIGHLIGHT_LIMIT,
+  listGlanceLieutenants,
+} from '@rayenz-hub/shared';
 import { CardFace } from '../../cards/CardFace';
 import { isApiConfigured } from '../../api/hub-api';
 import { OWNER_ONLY_EXPENSIVE_MESSAGE, useIsHubOwner } from '../../lib/hub-auth-session';
@@ -11,10 +14,12 @@ import { copyPngBlob, downloadPngBlob } from '../../lib/glance-png';
 import {
   formatGlanceStatusLine,
   formatGlanceStatusTooltip,
+  GlanceDialogFrame,
   GlanceModalActions,
   GlancePreviewSlot,
   GlanceStatusLine,
 } from '../../lib/glance-ui';
+import { SwapsGlanceDialog } from '../../swap-queue/SwapsGlanceDialog';
 
 export type GlanceGenerateHandle = { open: () => void };
 
@@ -40,6 +45,7 @@ function cacheKey(mode: GlanceLayoutMode, lieutenantInstanceIds: string[]): stri
 
 export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
   const [open, setOpen] = useState(false);
+  const [swapsOpen, setSwapsOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('options');
   const [mode, setMode] = useState<GlanceLayoutMode>('type_line');
   const [picked, setPicked] = useState<string[]>([]);
@@ -63,6 +69,7 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
     return listGlanceLieutenants(deck);
   }, [deck]);
   const needsPick = lieutenants.length > GLANCE_ROLE_HIGHLIGHT_LIMIT;
+  const swapSources = useMemo(() => aggregateSwapWants([deck]), [deck]);
 
   const clearVisiblePreview = useCallback(() => {
     setPreviewUrl(null);
@@ -281,131 +288,141 @@ export function GlanceGenerateButton({ deck, hideTrigger, openRef }: Props) {
         </button>
       )}
 
-      {open
-        ? createPortal(
-            <div
-              ref={dialogRef}
-              className="db-modal db-glance-overlay"
-              role="dialog"
-              aria-modal="true"
-              aria-label={picking ? 'Choose highlighted lieutenants' : 'Deck glance'}
-            >
-              <div className="db-modal-card db-modal-wide db-glance-modal">
-                <h2>{picking ? 'Highlight lieutenants' : 'Deck glance'}</h2>
-                <div className="db-glance-chrome">
-                  {!picking ? (
-                    <fieldset className="db-glance-mode">
-                      <legend>Layout</legend>
-                      <label className="db-glance-option">
-                        <input
-                          type="radio"
-                          name="db-glance-mode"
-                          checked={mode === 'type_line'}
-                          disabled={loading}
-                          onChange={() => onModeChange('type_line')}
-                        />
-                        Main + Lands
-                      </label>
-                      <label className="db-glance-option">
-                        <input
-                          type="radio"
-                          name="db-glance-mode"
-                          checked={mode === 'primary_category'}
-                          disabled={loading}
-                          onChange={() => onModeChange('primary_category')}
-                        />
-                        Primary categories
-                      </label>
-                    </fieldset>
-                  ) : (
-                    <p className="db-glance-status">
-                      {`This deck has ${lieutenants.length} lieutenants. Choose ${GLANCE_ROLE_HIGHLIGHT_LIMIT} to highlight (${picked.length}/${GLANCE_ROLE_HIGHLIGHT_LIMIT} selected).`}
-                    </p>
-                  )}
-                  <div className="db-glance-primary-actions">
-                    {picking ? (
-                      <button
-                        type="button"
-                        className="db-btn"
-                        disabled={!canConfirmPick}
-                        onClick={onConfirmPick}
-                      >
-                        Continue
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="db-btn"
-                        disabled={loading || !enabled}
-                        onClick={onConfirmGenerate}
-                      >
-                        {hasMatchingPreview ? 'Regenerate' : 'Generate'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <GlanceStatusLine
-                  loading={loading}
-                  error={error}
-                  statusLine={!picking ? statusLine : null}
-                  statusTitle={!picking ? statusTitle : null}
-                >
-                  {!picking && !loading && !error && !hasMatchingPreview ? (
-                    <p className="db-glance-status">Choose a layout, then generate.</p>
-                  ) : null}
-                </GlanceStatusLine>
-                {picking ? (
-                  <GlancePreviewSlot previewUrl={null} alt="" loading={false}>
-                    <div
-                      className="db-glance-pick-grid"
-                      role="listbox"
-                      aria-multiselectable="true"
-                      aria-label="Lieutenants"
-                    >
-                      {lieutenants.map((card) => {
-                        const selected = picked.includes(card.instanceId);
-                        return (
-                          <button
-                            key={card.instanceId}
-                            type="button"
-                            role="option"
-                            aria-selected={selected}
-                            className={`db-glance-pick-option${selected ? ' is-selected' : ''}`}
-                            onClick={() => togglePicked(card.instanceId)}
-                          >
-                            <span className="db-glance-pick-face">
-                              <CardFace
-                                src={card.imageUrl}
-                                name={card.name}
-                                quantity={card.quantity}
-                                faceKey={card.instanceId}
-                              />
-                            </span>
-                            <span className="db-glance-pick-name">{card.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </GlancePreviewSlot>
-                ) : (
-                  <GlancePreviewSlot
-                    previewUrl={previewUrl}
-                    alt="Deck glance preview"
-                    loading={loading}
+      {open ? (
+        <GlanceDialogFrame
+          dialogRef={dialogRef}
+          label={picking ? 'Choose highlighted lieutenants' : 'Deck glance'}
+          title={picking ? 'Highlight lieutenants' : 'Deck glance'}
+        >
+          <div className="db-glance-chrome">
+            {!picking ? (
+              <fieldset className="db-glance-mode">
+                <legend>Layout</legend>
+                <label className="db-glance-option">
+                  <input
+                    type="radio"
+                    name="db-glance-mode"
+                    checked={mode === 'type_line'}
+                    disabled={loading}
+                    onChange={() => onModeChange('type_line')}
                   />
-                )}
-                <GlanceModalActions
-                  onClose={closeDialog}
-                  closeLabel={picking ? 'Cancel' : 'Close'}
-                  onDownload={picking ? undefined : onDownload}
-                  onCopy={picking ? undefined : onCopy}
-                  downloadDisabled={!pngBlob}
-                />
+                  Main + Lands
+                </label>
+                <label className="db-glance-option">
+                  <input
+                    type="radio"
+                    name="db-glance-mode"
+                    checked={mode === 'primary_category'}
+                    disabled={loading}
+                    onChange={() => onModeChange('primary_category')}
+                  />
+                  Primary categories
+                </label>
+              </fieldset>
+            ) : (
+              <p className="db-glance-status">
+                {`This deck has ${lieutenants.length} lieutenants. Choose ${GLANCE_ROLE_HIGHLIGHT_LIMIT} to highlight (${picked.length}/${GLANCE_ROLE_HIGHLIGHT_LIMIT} selected).`}
+              </p>
+            )}
+            <div className="db-glance-primary-actions">
+              {!picking ? (
+                <button
+                  type="button"
+                  className="db-btn"
+                  disabled={loading}
+                  onClick={() => {
+                    closeDialog();
+                    setSwapsOpen(true);
+                  }}
+                >
+                  Swaps glance
+                </button>
+              ) : null}
+              {picking ? (
+                <button
+                  type="button"
+                  className="db-btn"
+                  disabled={!canConfirmPick}
+                  onClick={onConfirmPick}
+                >
+                  Continue
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="db-btn"
+                  disabled={loading || !enabled}
+                  onClick={onConfirmGenerate}
+                >
+                  {hasMatchingPreview ? 'Regenerate' : 'Generate'}
+                </button>
+              )}
+            </div>
+          </div>
+          <GlanceStatusLine
+            loading={loading}
+            error={error}
+            statusLine={!picking ? statusLine : null}
+            statusTitle={!picking ? statusTitle : null}
+          >
+            {!picking && !loading && !error && !hasMatchingPreview ? (
+              <p className="db-glance-status">Choose a layout, then generate.</p>
+            ) : null}
+          </GlanceStatusLine>
+          {picking ? (
+            <GlancePreviewSlot previewUrl={null} alt="" loading={false}>
+              <div
+                className="db-glance-pick-grid"
+                role="listbox"
+                aria-multiselectable="true"
+                aria-label="Lieutenants"
+              >
+                {lieutenants.map((card) => {
+                  const selected = picked.includes(card.instanceId);
+                  return (
+                    <button
+                      key={card.instanceId}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={`db-glance-pick-option${selected ? ' is-selected' : ''}`}
+                      onClick={() => togglePicked(card.instanceId)}
+                    >
+                      <span className="db-glance-pick-face">
+                        <CardFace
+                          src={card.imageUrl}
+                          name={card.name}
+                          quantity={card.quantity}
+                          faceKey={card.instanceId}
+                        />
+                      </span>
+                      <span className="db-glance-pick-name">{card.name}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </GlancePreviewSlot>
+          ) : (
+            <GlancePreviewSlot
+              previewUrl={previewUrl}
+              alt="Deck glance preview"
+              loading={loading}
+            />
+          )}
+          <GlanceModalActions
+            onClose={closeDialog}
+            closeLabel={picking ? 'Cancel' : 'Close'}
+            onDownload={picking ? undefined : onDownload}
+            onCopy={picking ? undefined : onCopy}
+            downloadDisabled={!pngBlob}
+          />
+        </GlanceDialogFrame>
+      ) : null}
+      <SwapsGlanceDialog
+        open={swapsOpen}
+        sources={swapSources}
+        onClose={() => setSwapsOpen(false)}
+      />
     </>
   );
 }

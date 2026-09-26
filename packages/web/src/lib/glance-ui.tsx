@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
+import { createPortal } from 'react-dom';
 import { canCopyPng } from './glance-png';
 
 export type GlanceStatusParts = {
@@ -8,6 +9,35 @@ export type GlanceStatusParts = {
   pageCount?: number;
   omittedCardCount?: number;
 };
+
+/** Shared overlay and card framing for deck and swaps glance dialogs. */
+export function GlanceDialogFrame({
+  dialogRef,
+  label,
+  title,
+  children,
+}: {
+  dialogRef: Ref<HTMLDivElement>;
+  label: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return createPortal(
+    <div
+      ref={dialogRef}
+      className="db-modal db-glance-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+    >
+      <div className="db-modal-card db-modal-wide db-glance-modal">
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function humanCache(cache: string): string | null {
   const key = cache.trim().toUpperCase();

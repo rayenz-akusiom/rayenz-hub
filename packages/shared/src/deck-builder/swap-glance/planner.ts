@@ -35,13 +35,52 @@ type PageBuild = {
   fits: boolean;
 };
 
+/** Merge category-split copies of a deck while retaining the first section order. */
+function mergeSectionsByDeck(sections: SwapGlanceSection[]): SwapGlanceSection[] {
+  const merged: SwapGlanceSection[] = [];
+  const indexByDeck = new Map<string, number>();
+  for (const section of sections) {
+    const existingIndex = indexByDeck.get(section.deckId);
+    if (existingIndex === undefined) {
+      indexByDeck.set(section.deckId, merged.length);
+      merged.push(section);
+      continue;
+    }
+    const existing = merged[existingIndex]!;
+    merged[existingIndex] = { ...existing, rows: [...existing.rows, ...section.rows] };
+  }
+  return merged;
+}
+
+/** Keep a deck's formal and Seeking rows in the same pagination stream. */
+function mergeCrossCategorySections(
+  formal: SwapGlanceSection[],
+  seeking: SwapGlanceSection[],
+): { formal: SwapGlanceSection[]; seeking: SwapGlanceSection[] } {
+  const formalDeckIds = new Set(formal.map((section) => section.deckId));
+  const combinedIds = new Set(
+    seeking.filter((section) => formalDeckIds.has(section.deckId)).map((section) => section.deckId),
+  );
+  return {
+    formal: mergeSectionsByDeck([
+      ...formal,
+      ...seeking.filter((section) => combinedIds.has(section.deckId)),
+    ]),
+    seeking: seeking.filter((section) => !combinedIds.has(section.deckId)),
+  };
+}
+
 function buildPagesForDensify(
   includeSet: SwapGlanceIncludeSet,
   densify: DensifyConfig,
   pageCount: number,
   allowOmit: boolean,
 ): PageBuild | null {
-  const { formal, seeking, formalMode } = prepareCategories(includeSet, densify);
+  const prepared = prepareCategories(includeSet, densify);
+  const { formalMode } = prepared;
+  const grouped = mergeCrossCategorySections(prepared.formal, prepared.seeking);
+  const formal = grouped.formal;
+  const seeking = grouped.seeking;
   const seekingMode = densify.seekingMode;
 
   // Single-page budget: allow mixing both categories on page 1.
@@ -51,7 +90,7 @@ function buildPagesForDensify(
     const packMode: SwapGlancePackMode =
       formalMode === 'stacked' && seekingMode === 'stacked' ? 'stacked' : 'grid';
     const attempt = bestMasonryForSections(
-      [...formal, ...seeking],
+      mergeSectionsByDeck([...formal, ...seeking]),
       packMode,
       allowOmit,
       1,
@@ -80,7 +119,7 @@ function buildPagesForDensify(
     };
   }
 
-  // Multi-page: category purity — formal pages first, then seeking pages.
+  // Multi-page: keep different-deck Seeking sections after Formal sections.
   const formalPack = packCategoryAcrossPages(
     formal,
     formalMode,
@@ -266,6 +305,21 @@ export function buildSwapGlanceLayoutPlans(
   includeSet: SwapGlanceIncludeSet,
 ): SwapGlanceLayoutResult {
   const ladder = densifyLadderFor(includeSet);
+
+  // Prefer one complete image when a later densify setting can combine the
+  // selected rows, before returning a less-dense multi-page arrangement.
+  for (const densify of ladder) {
+    const singlePage = buildPagesForDensify(includeSet, densify, 1, false);
+    if (!singlePage?.fits) continue;
+    return {
+      plans: singlePage.attempts.map((attempt, i) =>
+        toPlan(includeSet, attempt, i + 1, singlePage.usedPages, densify.stage),
+      ),
+      densifyStage: densify.stage,
+      omittedCardCount: 0,
+      pageCount: singlePage.usedPages,
+    };
+  }
 
   for (const densify of ladder) {
     for (let pageCount = 1; pageCount <= SWAP_GLANCE_MAX_PAGES; pageCount++) {

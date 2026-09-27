@@ -111,31 +111,38 @@ function packRowsStacked(
   const cardH = glanceCardHeightForWidth(cardW);
   const peek = peekFor(cardH);
   const colStride = cardW + COL_GAP;
-  const colCount = Math.max(1, Math.floor((bandWidth + COL_GAP) / colStride));
+  const availableColumns = Math.max(1, Math.floor((bandWidth + COL_GAP) / colStride));
   const maxRows = maxStackedRows(bandHeight, cardH);
   if (maxRows <= 0) {
     return { units: [], omittedRows: rows };
   }
+  const finiteBand = Number.isFinite(bandHeight);
+  const requiredColumns = finiteBand ? Math.ceil(singles.length / maxRows) : availableColumns;
+  const colCount = Math.max(1, Math.min(availableColumns, requiredColumns));
   const capacity = colCount * maxRows;
   const take = Math.min(singles.length, capacity);
   const placedRows = singles.slice(0, take);
   const omittedRows = singles.slice(take);
   const units: PackedUnit[] = [];
 
-  // Fill columns top-to-bottom, left-to-right, balanced by capacity.
+  // On a real page, fill each column to its usable height before opening the
+  // next. Infinite-height measurement still balances across available columns
+  // so the planner can compare the shortest unconstrained stack height.
   const counts = Array.from({ length: colCount }, () => 0);
   for (let i = 0; i < placedRows.length; i++) {
-    let best = 0;
-    for (let c = 1; c < colCount; c++) {
-      if (counts[c]! < counts[best]!) best = c;
+    const row = placedRows[i]!;
+    let col = 0;
+    if (finiteBand) {
+      col = Math.floor(i / maxRows);
+    } else {
+      for (let candidate = 1; candidate < colCount; candidate++) {
+        if (counts[candidate]! < counts[col]!) col = candidate;
+      }
     }
-    if (counts[best]! >= maxRows) {
-      // Should not happen given capacity check; treat as omit.
+    if (col >= colCount || counts[col]! >= maxRows) {
       omittedRows.push(...placedRows.slice(i));
       break;
     }
-    const row = placedRows[i]!;
-    const col = best;
     const stackIndex = counts[col]!;
     units.push({
       row,

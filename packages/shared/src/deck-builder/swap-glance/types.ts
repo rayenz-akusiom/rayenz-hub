@@ -2,7 +2,7 @@ import type { GlanceCard } from '../glance/types.js';
 import type { WantSourceKind } from '../../mtg/wants-aggregate.js';
 
 /** Bump when layout, art tier, or render pipeline changes — invalidates cache. */
-export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-9';
+export const SWAP_GLANCE_GENERATION_VERSION = 'swap-glance-gen-10';
 
 /** Max PNG pages a swaps glance may span. */
 export const SWAP_GLANCE_MAX_PAGES = 5;

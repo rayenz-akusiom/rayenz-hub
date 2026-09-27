@@ -17,6 +17,7 @@ import {
   type SwapGlanceCard,
   type SwapGlanceIncludeSet,
 } from '@rayenz-hub/shared';
+import { packRows } from '../../../packages/shared/src/deck-builder/swap-glance/pack.ts';
 import {
   buildEligibleCommanderDeck,
   buildGlanceSwapCommanderDeck,
@@ -341,6 +342,123 @@ describe('swap glance include-set + layout', () => {
     expect(result.plans.some((p) => p.labels.some((l) => l.role === 'more' && /more decks/.test(l.text)))).toBe(
       false,
     );
+  });
+
+  it('merges same-deck formal and Seeking sections for a one-page fit', () => {
+    let serial = 0;
+    const pairs = (deckId: string, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        kind: 'pair' as const,
+        entryId: `${deckId}-swap-${i}`,
+        out: glanceFace({ instanceId: `${deckId}-out-${i}`, name: `Out ${serial++}` }),
+        in: glanceFace({ instanceId: `${deckId}-in-${i}`, name: `In ${serial++}` }),
+      }));
+    const seeking = (deckId: string, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        kind: 'single' as const,
+        entryId: `${deckId}-seeking-${i}`,
+        sourceKind: 'seeking' as const,
+        card: glanceFace({ instanceId: `${deckId}-seeking-card-${i}`, name: `Seeking ${serial++}` }),
+      }));
+    const section = (
+      deckId: string,
+      deckName: string,
+      rows: SwapGlanceIncludeSet['sections'][number]['rows'],
+    ) => ({ deckId, deckName, headerText: deckName, rows });
+    const includeSet = includeFromSections(
+      [
+        section('baird', 'Baird', pairs('baird', 1)),
+        section('dragon', "Dragon-God's Machinations", pairs('dragon', 1)),
+        section('echo', 'Echoversus', pairs('echo', 17)),
+        section('hasty', 'Hasty Bois', pairs('hasty', 1)),
+        section('kindred', 'Kindred of Kytheons', pairs('kindred', 1)),
+        section('obze', 'Obze-bats', pairs('obze', 1)),
+        section('echo', 'Echoversus', seeking('echo', 2)),
+        section('winds', 'WINDS, HEED MY COMMAND', seeking('winds', 1)),
+      ],
+      { mode: 'full', includeSeeking: true, filterSetCodes: ['FRA'] },
+    );
+
+    const result = buildSwapGlanceLayoutPlans(includeSet);
+    const echoLabels = result.plans.flatMap((plan) =>
+      plan.labels.filter((label) => label.role === 'section' && label.text === 'Echoversus'),
+    );
+    const placed = result.plans.flatMap((plan) => plan.placements);
+
+    expect(result.pageCount).toBe(1);
+    expect(result.omittedCardCount).toBe(0);
+    expect(echoLabels).toHaveLength(1);
+    expect(placed).toHaveLength(25);
+    expect(placed.filter((placement) => placement.pairRole === 'out')).toHaveLength(0);
+  });
+
+  it('fills a stacked column before opening another one', () => {
+    const rows = Array.from({ length: 4 }, (_, i) => ({
+      kind: 'single' as const,
+      entryId: `stack-${i}`,
+      sourceKind: 'queued_in' as const,
+      card: glanceFace({ instanceId: `stack-${i}`, name: `Stack ${i}` }),
+    }));
+    const cardHeight = Math.round(GLANCE_CARD_WIDTH / (61 / 85));
+    const peek = Math.max(22, Math.round(cardHeight * 0.14));
+    const bandHeight = cardHeight + peek * 2; // Three card titles fit vertically.
+    const sparse = packRows(
+      rows.slice(0, 1),
+      0,
+      0,
+      GLANCE_CARD_WIDTH * 2 + 16,
+      bandHeight,
+      GLANCE_CARD_WIDTH,
+      'stacked',
+    );
+    const packed = packRows(
+      rows,
+      0,
+      0,
+      GLANCE_CARD_WIDTH * 2 + 16,
+      bandHeight,
+      GLANCE_CARD_WIDTH,
+      'stacked',
+    );
+
+    expect(sparse.units).toHaveLength(1);
+    expect(sparse.units[0]!.x).toBe(0);
+    expect(packed.units).toHaveLength(4);
+    expect(packed.units.slice(0, 3).map((unit) => unit.x)).toEqual([0, 0, 0]);
+    expect(packed.units[3]!.x).toBe(GLANCE_CARD_WIDTH + 16);
+    expect(packed.omittedRows).toHaveLength(0);
+  });
+
+  it('continues an oversized deck section onto another page with its heading repeated', () => {
+    const formalSection = singleSection(
+      'large-deck',
+      'Large Deck',
+      'Large Deck',
+      Array.from({ length: 149 }, (_, i) => ({
+        entryId: `large-${i}`,
+        sourceKind: 'queued_in' as const,
+        card: glanceFace({ instanceId: `large-card-${i}`, name: `Large Card ${i}` }),
+      })),
+    );
+    const seekingSection = singleSection('large-deck', 'Large Deck', 'Large Deck', [
+      {
+        entryId: 'large-seeking',
+        sourceKind: 'seeking',
+        card: glanceFace({ instanceId: 'large-seeking-card', name: 'Large Seeking Card' }),
+      },
+    ]);
+
+    const result = buildSwapGlanceLayoutPlans(
+      includeFromSections([formalSection, seekingSection], { mode: 'in_only', includeSeeking: true }),
+    );
+    const headings = result.plans.flatMap((plan) =>
+      plan.labels.filter((label) => label.role === 'section' && label.text === 'Large Deck'),
+    );
+
+    expect(result.pageCount).toBeGreaterThan(1);
+    expect(result.omittedCardCount).toBe(0);
+    expect(headings).toHaveLength(result.pageCount);
+    expect(result.plans.flatMap((plan) => plan.placements)).toHaveLength(150);
   });
 
   it('masonry fits 10 decks with 16 looking-for cards at fixed M size', () => {

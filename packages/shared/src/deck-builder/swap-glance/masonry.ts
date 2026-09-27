@@ -280,6 +280,32 @@ export function packCategoryAcrossPages(
         pages.set(page, remaining);
         return { pages, omitted: [], ok: false };
       }
+      // A deck section may exceed one page by itself. Keep its rows together
+      // in order and repeat the deck heading on the continuation page.
+      const first = remaining[0]!;
+      let loRows = 1;
+      let hiRows = first.rows.length - 1;
+      let bestRows = 0;
+      while (loRows <= hiRows) {
+        const middle = Math.floor((loRows + hiRows) / 2);
+        const chunk = { ...first, rows: first.rows.slice(0, middle) };
+        const attempt = bestMasonryForSections([chunk], packMode, false, page, pageCount, false);
+        if (attempt?.fits) {
+          bestRows = middle;
+          loRows = middle + 1;
+        } else {
+          hiRows = middle - 1;
+        }
+      }
+      if (bestRows > 0 && page < pageCount) {
+        pages.set(page, [{ ...first, rows: first.rows.slice(0, bestRows) }]);
+        remaining = [
+          { ...first, rows: first.rows.slice(bestRows) },
+          ...remaining.slice(1),
+        ];
+        page += 1;
+        continue;
+      }
       // Try next page if available
       if (page < pageCount) {
         page += 1;

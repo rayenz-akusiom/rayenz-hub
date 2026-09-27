@@ -116,7 +116,7 @@ Each deck section’s rows split into:
 | **Formal** | Out→In pairs and `queued_in` singles (“looking for”) |
 | **Seeking** | `seeking` singles |
 
-- **Multi-page:** formal pages first, then seeking (**category purity** — at most one category per page when possible).
+- **Multi-page:** formal pages first, then Seeking when categories belong to different decks. Formal and Seeking rows from the same deck stay in one section and continue across pages with the deck heading repeated when necessary.
 - **Single page:** both categories may share page 1 in one masonry pass.
 
 ### Pack modes (`SwapGlancePackMode`)
@@ -130,7 +130,7 @@ Formal pairs that are not converted always pack as **grid** (pairs cannot stack)
 
 ### Densify ladder (`SwapGlanceDensifyStage`)
 
-Planner order: for each applicable densify stage, try `pageCount` from 1…5; **first full fit wins**. Stages that change nothing for the include-set are skipped (`densifyLadderFor`).
+Planner first tries a complete one-page fit across the applicable densify ladder, then tries each stage with `pageCount` from 1…5; **first full fit wins**. Stages that change nothing for the include-set are skipped (`densifyLadderFor`).
 
 | Stage | Seeking | Looking-for / formal singles | Pairs |
 |-------|---------|------------------------------|-------|
@@ -149,6 +149,7 @@ Per page region:
 
 - Prefer the **maximum column count** that still fits the widest pair unit.
 - Place each section into the **shortest** column.
+- In stacked sections, fill a column to its usable vertical capacity before starting the next one.
 - Reject layouts with non-stack face overlaps when omit is not allowed (pair overflow into a neighbor column).
 
 ### Planner flow
@@ -156,11 +157,14 @@ Per page region:
 ```mermaid
 flowchart TD
   start[includeSet] --> ladder[densifyLadderFor]
-  ladder --> stage[For each densify stage]
+  ladder --> single[Try one page across densify stages]
+  single --> singleFit{complete fit?}
+  singleFit -->|yes| done[Return one page]
+  singleFit -->|no| stage[For each densify stage]
   stage --> pages[For pageCount 1 to 5]
-  pages --> fit{fits all cards?}
-  fit -->|yes| done[Return plans]
-  fit -->|no| next[Next pageCount or stage]
+  pages --> multiFit{fits all cards?}
+  multiFit -->|yes| done[Return plans]
+  multiFit -->|no| next[Next pageCount or stage]
   next --> truncate[truncate at 5 pages allowOmit]
 ```
 

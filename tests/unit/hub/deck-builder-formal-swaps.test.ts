@@ -846,5 +846,131 @@ describe('formal swaps', () => {
       expect(cleared.cards.find((c) => c.instanceId === inId)).toBeUndefined();
       expect(cleared.cards.find((c) => c.instanceId === outId)).toBeDefined();
     });
+
+    it('removes a replaced In while keeping the new In', () => {
+      const oldInId = baseDeck.cards[2]!.instanceId;
+      const newInId = 'replacement-in';
+      const deck = {
+        ...baseDeck,
+        cards: [...baseDeck.cards, cardInstance({ instanceId: newInId, name: 'Replacement In' })],
+      };
+      const outId = baseDeck.cards[0]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(deck, [
+        {
+          id: 's1',
+          inInstanceId: oldInId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+
+      const replaced = removeFormalSwapEntries(staged, [
+        {
+          ...staged.formalSwapEntries[0]!,
+          inInstanceId: newInId,
+        },
+      ]);
+
+      expect(replaced.cards.find((c) => c.instanceId === oldInId)).toBeUndefined();
+      expect(replaced.cards.find((c) => c.instanceId === newInId)).toBeDefined();
+      expect(replaced.formalSwapEntries[0]!.inInstanceId).toBe(newInId);
+    });
+
+    it('keeps the In when only notes or Out change', () => {
+      const inId = baseDeck.cards[2]!.instanceId;
+      const outId = baseDeck.cards[0]!.instanceId;
+      const nextOutId = baseDeck.cards[1]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(baseDeck, [
+        {
+          id: 's1',
+          inInstanceId: inId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+
+      const updated = removeFormalSwapEntries(staged, [
+        {
+          ...staged.formalSwapEntries[0]!,
+          outInstanceId: nextOutId,
+          notes: 'updated',
+        },
+      ]);
+
+      expect(updated.cards.find((c) => c.instanceId === inId)).toBeDefined();
+      expect(updated.formalSwapEntries[0]!.notes).toBe('updated');
+      expect(updated.formalSwapEntries[0]!.outInstanceId).toBe(nextOutId);
+    });
+
+    it('keeps a replaced In when another entry still references it', () => {
+      const sharedInId = baseDeck.cards[2]!.instanceId;
+      const newInId = 'replacement-in';
+      const deck = {
+        ...baseDeck,
+        cards: [...baseDeck.cards, cardInstance({ instanceId: newInId, name: 'Replacement In' })],
+      };
+      const out1 = baseDeck.cards[0]!.instanceId;
+      const out2 = baseDeck.cards[1]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(deck, [
+        {
+          id: 's1',
+          inInstanceId: sharedInId,
+          outInstanceId: out1,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+        {
+          id: 's2',
+          inInstanceId: sharedInId,
+          outInstanceId: out2,
+          inTargetCategory: 'Creature',
+          sortIndex: 1,
+          notes: null,
+        },
+      ]);
+
+      const updated = removeFormalSwapEntries(staged, [
+        { ...staged.formalSwapEntries[0]!, inInstanceId: newInId },
+        staged.formalSwapEntries[1]!,
+      ]);
+
+      expect(updated.cards.find((c) => c.instanceId === sharedInId)).toBeDefined();
+      expect(updated.cards.find((c) => c.instanceId === newInId)).toBeDefined();
+    });
+
+    it('finalizes a pair after replacing its In', () => {
+      const oldInId = baseDeck.cards[2]!.instanceId;
+      const newInId = 'replacement-in';
+      const deck = {
+        ...baseDeck,
+        cards: [...baseDeck.cards, cardInstance({ instanceId: newInId, name: 'Replacement In' })],
+      };
+      const outId = baseDeck.cards[0]!.instanceId;
+      const staged = syncCardsWithFormalSwaps(deck, [
+        {
+          id: 's1',
+          inInstanceId: oldInId,
+          outInstanceId: outId,
+          inTargetCategory: 'Creature',
+          sortIndex: 0,
+          notes: null,
+        },
+      ]);
+      const replaced = removeFormalSwapEntries(staged, [
+        { ...staged.formalSwapEntries[0]!, inInstanceId: newInId },
+      ]);
+
+      const done = finalizeFormalSwap(replaced, 's1');
+
+      expect(done).not.toBeNull();
+      expect(done!.cards.find((c) => c.instanceId === oldInId)).toBeUndefined();
+      expect(done!.cards.find((c) => c.instanceId === newInId)).toBeDefined();
+      expect(done!.cards.find((c) => c.instanceId === outId)).toBeUndefined();
+    });
   });
 });

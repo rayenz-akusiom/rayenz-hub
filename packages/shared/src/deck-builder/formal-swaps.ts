@@ -488,24 +488,25 @@ export function finalizeFormalSwap(
 }
 
 /**
- * Replace the formal swap entry list: delete Ins bound only to removed entries,
- * then sync so Outs restore to their prior categories. Opposite of finalize
- * (which deletes Out and keeps In).
+ * Replace the formal swap entry list: delete Ins that were removed or replaced
+ * and are no longer referenced, then sync so Outs restore to their prior
+ * categories. Opposite of finalize (which deletes Out and keeps In).
  */
 export function removeFormalSwapEntries(
   deck: DeckDocument,
   nextEntries: FormalSwapEntry[],
 ): DeckDocument {
   const nextNorm = normalizeFormalEntries(nextEntries);
-  const nextIds = new Set(nextNorm.map((e) => e.id));
-  const removed = (deck.formalSwapEntries || []).filter((e) => !nextIds.has(e.id));
   const keepIn = new Set(
     nextNorm.map((e) => e.inInstanceId).filter((id): id is string => Boolean(id)),
   );
   const deleteIns = new Set<string>();
-  for (const entry of removed) {
+  const nextById = new Map(nextNorm.map((entry) => [entry.id, entry]));
+  for (const entry of deck.formalSwapEntries || []) {
     const inId = entry.inInstanceId;
-    if (inId && !keepIn.has(inId)) deleteIns.add(inId);
+    const nextEntry = nextById.get(entry.id);
+    const wasRemovedOrReplaced = !nextEntry || nextEntry.inInstanceId !== inId;
+    if (inId && wasRemovedOrReplaced && !keepIn.has(inId)) deleteIns.add(inId);
   }
 
   let next: DeckDocument = {

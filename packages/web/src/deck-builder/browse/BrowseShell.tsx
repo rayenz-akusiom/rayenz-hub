@@ -58,7 +58,7 @@ import {
   setCardsFoil,
   setCardsProxy,
   shouldRecalculateAutoBasics,
-  syncCardsWithFormalSwaps,
+  removeFormalSwapEntries,
   cancelFormalSwap,
   finalizeFormalSwap,
   upsertOracle,
@@ -995,7 +995,7 @@ export function BrowseShell({
           : { ...e, sortIndex: i },
       );
     const recordHistory = !swapDraftHistoryRecorded.current;
-    commit(syncCardsWithFormalSwaps(current, entries), { recordHistory });
+    commit(removeFormalSwapEntries(current, entries), { recordHistory });
     swapDraftHistoryRecorded.current = true;
   }
 
@@ -1046,7 +1046,7 @@ export function BrowseShell({
             }
           : { ...e, sortIndex: i },
       );
-    const staged = syncCardsWithFormalSwaps(current, entries);
+    const staged = removeFormalSwapEntries(current, entries);
     const done = finalizeFormalSwap(staged, currentDraft.entryId);
     if (!done) return;
     commit(done);

@@ -8,8 +8,9 @@
         "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub/packages/mcp/src/index.ts"
       ],
       "env": {
-        "HUB_API_URL": "http://127.0.0.1:3000",
-        "HUB_USERNAME": "Rayenz"
+        "HUB_API_URL": "https://ld83vdnmt2.execute-api.us-east-1.amazonaws.com",
+        "HUB_USERNAME": "Rayenz",
+        "HUB_PASSWORD": "Rq!3Z3k&E&AvJ7"
       }
     }
   }

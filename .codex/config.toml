@@ -1,0 +1,10 @@
+[mcp_servers.rayenz-hub]
+command = "node"
+args = [
+    "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub/node_modules/tsx/dist/cli.mjs",
+    "C:/DeepStorage/Documents/Workspaces/Hub/rayenz-hub/packages/mcp/src/index.ts",
+]
+
+[mcp_servers.rayenz-hub.env]
+HUB_API_URL = "http://127.0.0.1:3000"
+HUB_USERNAME = "Rayenz"
